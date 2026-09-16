@@ -27,6 +27,10 @@ The second governing principle, and what lets one surface serve both audiences. 
 
 Nothing is hidden that a non-technician needs, and nothing a technician needs is missing — it is one level down rather than absent.
 
+The face is held to a label and a single number. Bars, history, raw readings, per-interface breakdowns and any caveat about how a figure was arrived at all sit behind the tap. Where a reading is in trouble the number itself changes colour, so alarm costs the face no extra element and a device in trouble is legible at arm's length.
+
+Throughput up and down are two faces rather than one, because a single number per face is the rule. The graph behind each is part of the reveal.
+
 ## Behaviour
 
 ### What is reported
@@ -46,6 +50,10 @@ Live, while subscribed:
 - Network throughput up and down
 
 Network addresses sit between the two: they change rarely but they do change, and they are among the most important things an installer is waiting to see.
+
+### Board identity
+
+The board's model and revision are reported wherever the machine can answer for them, falling back to the general identity any machine exposes for its vendor, product and version. The field is therefore populated on a development laptop as well as on the target board, rather than existing only on the hardware we ship.
 
 ### Disk
 
@@ -76,6 +84,8 @@ Everything live carries history, not only network throughput. A gauge pinned at 
 The device samples into a ring buffer and sends the window when a client subscribes, so a graph is populated the moment it appears rather than filling from empty while the operator waits.
 
 Sampling starts when the device starts, and starts again when a session opens. It stops after half an hour with no session, so a device sitting unattended is not sampling forever.
+
+The window is about five minutes at full resolution, with no coarsening. That is what a graph on a phone can legibly show, and it answers what the device is doing now rather than what it did overnight. A longer window would not pay for itself while sampling stops after half an hour idle anyway.
 
 ### Cadence
 
@@ -113,6 +123,12 @@ Where a client does recognise a reading by name, it may treat it specially — t
 
 A reading the device declares but cannot currently take is reported as failing, with why. This is distinct from a reading the device never declared, which needs no explanation because nothing claimed it existed. An application therefore never reports a reading as missing: it has no list to miss it from.
 
+### The client-to-device direction
+
+Diagnostics is read-only. The only things a client sends are its subscription, its unsubscription, and its own name and version.
+
+The prototype's send-text affordance is removed with the rest of the prototype rather than kept as a debug channel. Deliberate actions on a device are the subject of later features, and each will bring the messages it needs.
+
 ### Both ends name themselves, and neither branches on it
 
 The device reports its software version among its static data, and the client displays it, because "what is this thing running" is a question an operator in the field has.
@@ -120,6 +136,38 @@ The device reports its software version among its static data, and the client di
 The client names itself and its version to the device, which logs it. This is how we find out what is actually in the field talking to these devices.
 
 Neither end changes its behaviour based on what the other reported. The exchange is for humans and for logs; the moment code branches on it, it becomes the version gate this design rejects.
+
+## Implementation options
+
+### The application is served remotely and installable
+
+The application is always loaded from a hosted origin, and BLE is the only transport to a device. There is no device-side server and no second transport, so there is one code path.
+
+It is installable and works offline once loaded, so a phone that has opened it before is useful at a camp with no connectivity. This is what the offline story needed; a device-side server would have brought a whole second transport and the secure-context problem with it, for the same benefit.
+
+Worth seeing the consequence: a cached installed application is itself a source of version skew, an old client against a device that has since been updated. It is the same case the wire contract already absorbs, arriving by a second route.
+
+### Frontend
+
+A React single-page application built to static files with Vite, on npm.
+
+This brings a node toolchain into a repository that has none, which is the real cost. What it buys is the most ordinary possible client: declarative rendering for a view that is almost entirely live state, and something another person can pick up without learning our conventions first.
+
+Everything protocol-shaped stays in Rust compiled to wasm, as it is now: the key schedule, matching an advertisement, the handshake, the streams, the message framing. The React half drives Web Bluetooth, the camera and the interface, and renders what comes across. The boundary does not move; only what is on the browser side of it does.
+
+The prototype's hand-written `index.html` and `app.js` are removed rather than grown into this.
+
+### Serving and deployment
+
+The sticker encodes `https://bliti.tamanu.app/` as the application's origin, so that is where the application eventually lives. Standing it up there is not this card.
+
+This card puts the built static bundle in reach: local serving works for development against a phone, and the build runs in CI and produces the bundle as an artefact, so deploying later is wiring rather than work.
+
+Local serving needs the stale `bliti-www` unit repointed at this repository and an HTTPS proxy in front of it, because the phone needs a secure origin for Bluetooth and the camera.
+
+### Graphs
+
+Sparklines and the throughput graph are drawn as SVG generated from the sample buffer, with no charting dependency. The shapes this view needs are a small amount of code, and a library can be adopted later if the view outgrows them.
 
 ## Implementation notes
 
@@ -143,16 +191,35 @@ Verified on the `tamanu-iti-v4-prototype` test device (Raspberry Pi 5 Model B Re
 
 ## Testing notes
 
-### The testing environment is constrained
+### Three levels, and what each one owns
 
-- Web Bluetooth cannot be exercised in Chrome on the development laptop: a bluez bug blocks it, fixed upstream but not yet packaged. Every real end-to-end test therefore runs through the user's phone against the test device, by hand.
-- That makes an app-level harness worth having: Playwright driving the interface against a faked channel, so the view's own behaviour is testable without Bluetooth in the loop.
+- **Rust tests** own the protocol and the device: framing, handshake, streams, the message shapes, gathering each reading, and the ring buffer's behaviour over time. This is where transport and protocol coverage lives.
+- **Playwright** owns the view, fed decoded messages directly with no wasm in the loop. It covers rendering, the tile and tap behaviour, the subscribe and unsubscribe lifecycle around page visibility, and the graphs as the buffer fills.
+- **Manual, or agentic against real hardware,** owns Bluetooth. Nothing tries to fake Web Bluetooth.
+
+### The environment this is tested in
+
+- Web Bluetooth cannot be exercised in Chrome on the development laptop: a bluez bug blocks it, fixed upstream but not yet packaged. Every real end-to-end run therefore goes through a phone against the test device, by hand.
+- An agent with ssh access to `tamanu-iti-v4-prototype` can drive and inspect the device half of such a run, which is how the readings above were confirmed.
 - The local static server is a transient systemd user unit, `bliti-www`, still pointing at the crate's old path under `bestool`. It needs repointing at this repository, and `tailscale serve` currently has no configuration at all, so the HTTPS origin the phone needs is not up either.
+
+### Scenarios worth covering
+
+- A reading the device declares but cannot take is shown as failing, with why; a reading never declared shows nothing at all.
+- A reading the client has never heard of renders from its own description.
+- A recognised reading gets its bespoke treatment, and the same reading unrecognised still renders.
+- Hiding the page unsubscribes; returning to it resubscribes and the graphs carry across the gap.
+- Subscribing to a device that has been up for a while shows a populated graph immediately.
+- A device with no battery fitted shows no battery tile.
+- Two mounts on one block device are counted once.
 
 ## Open questions
 
-- [ ] What do board model and revision show on a device that is not a Pi?
-- [ ] How long a window does the ring buffer hold, and at what resolution?
-- [ ] Which architecture does bliti-web take?
-- [ ] How is the client-to-device direction framed, beyond subscribe and unsubscribe?
-- [ ] Does the prototype's send-text affordance go entirely, or stay as a development aid behind something?
+None outstanding. Every decision the interview opened has been closed; what remains is the shape of the split.
+
+## Notes for the split
+
+- Behaviour and the wire contract fold into specs. The wire contract is not this card's alone: version skew, self-describing readings, and the push-and-subscribe shape are the template every later feature is framed in, so they likely belong in a spec of their own rather than inside a diagnostics spec. `.workhorse/specs/channel.md` already owns the layers beneath them.
+- The client half of the feature belongs under its own heading, per the rule at the end of `.workhorse/specs/web-app.md`.
+- Implementation options and the architecture decisions become the plan, along with removing the prototype, standing up the React build, and fixing local serving.
+- Testing notes become the test cases, split across the three levels.
