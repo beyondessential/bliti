@@ -86,6 +86,11 @@ dd { margin: 0; font-size: 0.9rem; }
 .bar.warn > span { background: var(--bad); }
 .bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
 .spark { display: block; margin-top: 8px; }
+.mirror { position: relative; margin-top: 10px; }
+.mirror svg { display: block; }
+.axis-label { position: absolute; left: 0; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.04em; }
+.axis-label.up { top: 0; }
+.axis-label.down { bottom: 0; }
 .legend { display: flex; gap: 12px; font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
 .legend i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
 .swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
@@ -113,8 +118,10 @@ dd { margin: 0; font-size: 0.9rem; }
 			<button class="tile"><div class="label">Battery</div><div class="value">100<span class="unit">%</span></div></button>
 			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
 			<button class="tile"><div class="label">Power</div><div class="value small">Healthy</div></button>
-			<button class="tile"><div class="label">Down</div><div class="value">1.2<span class="unit">MB/s</span></div></button>
-			<button class="tile"><div class="label">Up</div><div class="value">84<span class="unit">kB/s</span></div></button>
+			<button class="tile wide">
+				<div class="label">Network</div>
+				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
+			</button>
 			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
 		</div>
 	</div>
@@ -159,7 +166,7 @@ dd { margin: 0; font-size: 0.9rem; }
 </figure>
 
 <figure class="frame">
-	<figcaption>Down tapped, graph revealed</figcaption>
+	<figcaption>Network tapped</figcaption>
 	<div class="phone">
 		<h1>bliti</h1>
 		<section>
@@ -174,22 +181,35 @@ dd { margin: 0; font-size: 0.9rem; }
 			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
 			<button class="tile"><div class="label">Power</div><div class="value small">Healthy</div></button>
 			<button class="tile expanded wide">
-				<div class="label">Down</div>
-				<div class="value">1.2<span class="unit">MB/s</span></div>
+				<div class="label">Network</div>
+				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
 				<div class="detail">
-					<svg class="spark" width="100%" height="56" viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden="true">
-						<polyline fill="rgba(29,78,216,0.12)" stroke="none" points="0,56 0,44 20,39 40,25 60,30 80,16 100,23 120,11 140,28 160,20 180,35 200,30 220,37 240,32 240,56"/>
-						<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,44 20,39 40,25 60,30 80,16 100,23 120,11 140,28 160,20 180,35 200,30 220,37 240,32"/>
-					</svg>
-					<div class="legend"><i>Last 5 min</i><i style="margin-left:auto">Peak 2.8 MB/s</i></div>
+					<!-- Up above the axis, down reflected below it. Each direction is scaled to its own
+					     peak, so the shape of the quieter one is still readable; the peaks are printed
+					     beside each side so the asymmetry is stated rather than left to the geometry. -->
+					<div class="mirror">
+						<span class="axis-label up">Up &middot; peak 210 kB/s</span>
+						<svg width="100%" height="96" viewBox="0 0 240 96" preserveAspectRatio="none" aria-hidden="true">
+							<polyline fill="rgba(21,128,61,0.14)" stroke="none"
+								points="0,48 0,34 20,30 40,38 60,26 80,33 100,21 120,36 140,29 160,40 180,25 200,32 220,37 240,31 240,48"/>
+							<polyline fill="none" stroke="#15803d" stroke-width="1.5"
+								points="0,34 20,30 40,38 60,26 80,33 100,21 120,36 140,29 160,40 180,25 200,32 220,37 240,31"/>
+							<line x1="0" y1="48" x2="240" y2="48" stroke="#e4e2dd" stroke-width="1"/>
+							<polyline fill="rgba(29,78,216,0.14)" stroke="none"
+								points="0,48 0,62 20,67 40,81 60,76 80,90 100,83 120,95 140,78 160,86 180,71 200,76 220,69 240,74 240,48"/>
+							<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5"
+								points="0,62 20,67 40,81 60,76 80,90 100,83 120,95 140,78 160,86 180,71 200,76 220,69 240,74"/>
+						</svg>
+						<span class="axis-label down">Down &middot; peak 2.8 MB/s</span>
+					</div>
+					<div class="legend"><i>Last 5 min</i><i style="margin-left:auto">Each direction to its own scale</i></div>
 					<dl style="margin-top:10px">
-						<dt>end0</dt><dd>1.2 MB/s</dd>
+						<dt>end0</dt><dd>&darr; 1.2 MB/s &nbsp; &uarr; 80 kB/s</dd>
 						<dt>wld0</dt><dd class="muted">not associated</dd>
-						<dt>tailscale0</dt><dd>4 kB/s</dd>
+						<dt>tailscale0</dt><dd>&darr; 4 kB/s &nbsp; &uarr; 4 kB/s</dd>
 					</dl>
 				</div>
 			</button>
-			<button class="tile"><div class="label">Up</div><div class="value">84<span class="unit">kB/s</span></div></button>
 			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
 		</div>
 	</div>

@@ -29,7 +29,7 @@ Nothing is hidden that a non-technician needs, and nothing a technician needs is
 
 The face is held to a label and a single number. Bars, history, raw readings, per-interface breakdowns and any caveat about how a figure was arrived at all sit behind the tap. Where a reading is in trouble the number itself changes colour, so alarm costs the face no extra element and a device in trouble is legible at arm's length.
 
-Throughput up and down are two faces rather than one, because a single number per face is the rule. The graph behind each is part of the reveal.
+The rule is one reading per face, not one number. Throughput is a single reading with two directions, so it keeps one tile carrying both rates rather than splitting into two tiles that would have to be read together anyway.
 
 ## Behaviour
 
@@ -75,7 +75,11 @@ Direction is derived from how the state of charge moves across the buffered hist
 
 Physical interfaces are reported, wired and wireless, plus the overlay the fleet is reached over. Loopback and other virtual interfaces are left out.
 
-Throughput is shown as up and down over time.
+Throughput is one reading with two directions. Both rates sit on the one tile face, and the tap reveals the graph and the per-interface breakdown.
+
+The graph is mirrored about a shared time axis, with one direction above it and the other reflected below, so the two are read together rather than as separate charts.
+
+The two directions routinely differ by an order of magnitude, so each is scaled to its own peak and the peaks are printed beside them. A shared scale would be truer to the geometry but would flatten the quieter direction to a line, which loses the shape that makes a graph worth showing; stating both peaks keeps the asymmetry visible as a number instead.
 
 ### History
 
@@ -212,6 +216,7 @@ Verified on the `tamanu-iti-v4-prototype` test device (Raspberry Pi 5 Model B Re
 - Subscribing to a device that has been up for a while shows a populated graph immediately.
 - A device with no battery fitted shows no battery tile.
 - Two mounts on one block device are counted once.
+- The throughput graph is readable in both directions when one is far larger than the other.
 
 ## Open questions
 
