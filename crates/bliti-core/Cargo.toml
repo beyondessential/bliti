@@ -10,8 +10,7 @@ license = "GPL-3.0-or-later"
 description = "Protocol core for bliti, the QR-anchored BLE device provisioning protocol"
 keywords = ["bliti", "ble", "provisioning", "noise", "argon2"]
 categories = ["embedded", "network-programming", "cryptography"]
-repository = "https://github.com/beyondessential/bestool"
-exclude.workspace = true
+repository = "https://github.com/beyondessential/bliti"
 
 [lints]
 workspace = true

@@ -10,8 +10,7 @@ license = "GPL-3.0-or-later"
 description = "QR-anchored BLE device provisioning: daemon and sticker generator"
 keywords = ["bliti", "ble", "provisioning", "bluetooth", "sticker"]
 categories = ["command-line-utilities", "embedded", "network-programming"]
-repository = "https://github.com/beyondessential/bestool"
-exclude.workspace = true
+repository = "https://github.com/beyondessential/bliti"
 
 [lints]
 workspace = true

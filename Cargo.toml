@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+	"crates/bliti",
+	"crates/bliti-core",
+	"crates/bliti-web",
+]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[workspace.dependencies]
+clap = { version = "4.6.1", features = ["cargo", "derive", "wrap_help"] }
+futures = "0.3.30"
+miette = "7.6.0"
+rand = "0.10.1"
+thiserror = "2.0.16"
+tokio = "1.47.1"
+tokio-util = "0.7.16"
+tracing = { version = "0.1.43", features = ["attributes"] }
+
+[profile.release]
+lto = false
+codegen-units = 16
+strip = "symbols"
+
+# What the device image ships: the daemon runs on small boards, so the build trades
+# compile time for a smaller, faster binary.
+[profile.dist]
+inherits = "release"
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev.build-override]
+opt-level = 0
+codegen-units = 1024
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false
+
+[profile.release.build-override]
+opt-level = 0
+codegen-units = 1024
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false

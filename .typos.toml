@@ -1,0 +1,5 @@
+[default]
+
+[default.extend-words]
+invokable = "invokable" # Workhorse-managed wording (AGENTS.md, skills)
+unparseable = "unparseable" # incredibly common typo and honestly idgaf
