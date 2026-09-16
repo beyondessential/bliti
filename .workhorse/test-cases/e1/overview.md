@@ -1,4 +1,4 @@
-# Rebuild bliti-web as a real client — test cases
+# Rebuild bliti-web as a real client: test cases
 
 Coverage this card owes. The harness is E1's; the envelope and lifecycle scenarios below are E1's. D1's readings, tiles, and graphs are covered on D1.
 
@@ -6,15 +6,42 @@ Three levels own different things: Rust owns protocol and parse behaviour, Playw
 
 ## Wire-contract envelope (verifies spec: BLI-MSG)
 
-- [ ] A device ignores a message type a client sends that it does not recognise, and the channel stays open (Rust).
-- [ ] A device ignores fields it does not recognise within a message it does, and reads the rest (Rust).
-- [ ] A client ignores a message type the device sends that it does not recognise, and the view carries on (Playwright).
-- [ ] A client ignores unrecognised fields in a message it does recognise (Playwright).
-- [ ] No exchange refuses to proceed on the other end's version: a client older than the device, and a device older than the client, both reach an open channel and a device view.
-- [ ] The device's reported software version is shown in the view (Playwright).
-- [ ] The client names itself and its version to the device, and the device records it (Rust / manual: check the device log).
-- [ ] Static identity is pushed once on connect, unsolicited; live data arrives only after subscribing.
-- [ ] Hiding the page drops the subscription; returning to it restores the subscription (Playwright, page-visibility).
+Each case names the level that owns it. An independently written client should pass the same cases from the spec alone.
+
+### Skipping what is not recognised
+
+- [ ] A message whose `type` the receiver does not recognise is skipped, nothing is sent in reply, and the stream stays open (Rust, both directions).
+- [ ] A member the receiver does not recognise inside a message whose type it does is skipped, and the rest of the message is read (Rust, both directions).
+- [ ] Bytes that are not valid UTF-8, not valid JSON, or JSON that is not an object are skipped (Rust).
+- [ ] An object with no `type`, or whose `type` is not a string, is skipped (Rust).
+- [ ] A recognised type missing a required member, or carrying one as the wrong JSON type, is skipped whole (Rust).
+- [ ] A client skips an unrecognised message type and unrecognised members from the device, and the view carries on (Playwright).
+- [ ] Skipping never closes the stream or the connection, in any of the above.
+
+### Delimiting
+
+- [ ] A message is read back byte-identical when its four-byte big-endian prefix is split across stream reads (Rust).
+- [ ] Several messages in one read are separated correctly (Rust).
+- [ ] A message beyond one mebibyte closes the stream it arrived on and leaves the connection and other streams alive (Rust).
+
+### Naming and version skew
+
+- [ ] `device-hello` is the first message on the device's reporting stream; `client-hello` is the first on the client's control stream (Rust).
+- [ ] Each end sends its hello without waiting for the other's, and either arrival order works (Rust).
+- [ ] The device's `name` and `version` are shown in the view (Playwright).
+- [ ] The device records the client's `name` and `version` (Rust / manual: check the device log).
+- [ ] No version is compared above the handshake: a client older than the device, and a device older than the client, both reach an open channel and a device view.
+- [ ] A `name` or `version` of an unexpected shape changes nothing: both are opaque and neither end parses them.
+
+### Subscription streams
+
+- [ ] Static data is pushed on the reporting stream without being asked; live data arrives only on a subscription stream.
+- [ ] Opening a stream with `subscribe` yields that topic's data on that same stream (Rust, with a test topic).
+- [ ] Closing the stream ends the subscription and the device sends nothing further (Rust).
+- [ ] A dropped connection ends subscriptions without either end timing anything out (Rust).
+- [ ] A `subscribe` for a topic the device does not recognise is skipped: the stream stays open, carries nothing, and nothing errors (Rust).
+- [ ] Two subscriptions are independent: closing one leaves the other delivering (Rust).
+- [ ] Hiding the page closes the client's subscription streams; showing it opens fresh ones (Playwright, page-visibility).
 
 ## The prototype is gone
 

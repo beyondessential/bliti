@@ -20,15 +20,22 @@ Keep everything protocol-shaped: the key schedule, advertisement matching, the h
 
 ## Wire-contract envelope (BLI-MSG)
 
-The envelope is the part that outlives the card. Specs: `.workhorse/specs/messages.md`.
+The envelope is the part that outlives the card, and it is now specified to the wire in `.workhorse/specs/messages.md`. The test for it: another team could write a client from BLI-CHN and BLI-MSG alone and stay compatible.
 
-- [ ] **Naming and version.** The device includes its own software version in its on-connect identity message; the client displays it. The client sends its own name and version to the device, which logs it. Neither end branches on what it was told.
-- [ ] **Skip unknowns, both directions.** Unknown message types and unknown fields are ignored and the channel continues — device ignoring what a newer client sends, client ignoring what a newer device sends. In Rust, this means an unknown JSON `type` deserialises to a skipped/ignored variant rather than an error, and structs tolerate unknown fields (no `deny_unknown_fields`). No error is sent back and nothing closes the channel.
-- [ ] **No version gate.** Confirm nothing anywhere refuses to proceed on the other end's version. The sticker-version check in `Sticker::new`/`read_local_name` is a *sticker payload* version, not a protocol version, and stays.
-- [ ] **Subscribe / unsubscribe.** Add client→device subscribe and unsubscribe messages. Static identity is pushed once on connect (as today); live data flows only while subscribed. E1 carries no live data itself, so the subscribe path can be exercised by the harness and by D1's readings; wire the messages and the lifecycle, not a specific stream of readings.
-- [ ] **Page visibility.** The client drops its subscription on the browser's page-hidden signal and restores it on page-shown. This lives in the React app.
+Message set this card defines: `client-hello`, `device-hello`, `subscribe`. Nothing else.
 
-Version-numbering source: decide what "the client's version" and "the device's version" are (crate version, build stamp) and thread both through. Note the choice here once made.
+- [ ] **Delimiting.** Application messages on a yamux stream are length-delimited with a four-byte big-endian prefix, which `write_message`/`read_message` in `crates/bliti-core/src/channel/stream.rs` already do. Add the one-mebibyte ceiling: `read_message` currently reads a `u32` length and allocates it unbounded, so it needs the same refusal `Reassembler` gives at the Noise layer, closing the stream rather than the connection.
+- [ ] **Stream roles.** Device opens its reporting stream on connect and sends `device-hello` first (it already opens one and sends `Identity`; the hello goes in front). Client opens a control stream on connect and sends `client-hello` first. Roles come from who opened the stream and its first message, never from the stream id.
+- [ ] **Hello messages.** Both carry `name` and `version` as opaque strings. Nothing parses, compares, or orders them: the client displays the device's, the device logs the client's. Keeping them opaque is what makes the no-gate rule enforceable rather than merely intended.
+- [ ] **Skip what is not recognised.** Precise rules in the spec. In serde terms: an unknown `type` needs an ignored catch-all variant rather than a deserialise error, structs must not deny unknown fields, and a message that fails to deserialise at all (bad UTF-8, bad JSON, non-object, missing or wrong-typed required member) is dropped silently. No reply, stream stays open, connection untouched. Replaces `DeviceMessage::Unknown` and `parse_client_message`'s error-reply.
+- [ ] **Subscription streams.** A client subscribes by opening a stream whose first message is `subscribe` with a `topic` string; the device sends that topic's data on that same stream; the client unsubscribes by closing the stream. There is no `unsubscribe` message. One stream per subscription.
+- [ ] **Unknown topic.** A device that does not know a topic skips the `subscribe` like any unrecognised message and sends nothing, leaving the stream open and empty. This is the older-device path and it must not error.
+- [ ] **Page visibility.** The client closes its subscription streams on page-hidden and opens fresh ones on page-shown. Lives in the React app.
+- [ ] **No gate.** Confirm nothing above the handshake compares a version. The sticker version check in `Sticker::new`/`read_local_name` is a sticker-format check below the channel and stays.
+
+E1 defines no topic of its own, so the subscription path is exercised by the Playwright harness and by D1's `system` topic. Wire the mechanism, not a stream of readings.
+
+Decide and record here: what `name` and `version` are for each end (crate version, build stamp).
 
 ## React single-page application
 

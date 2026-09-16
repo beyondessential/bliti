@@ -65,9 +65,9 @@ Each layer depends only on the one beneath it carrying bytes reliably and in ord
 | BLE GATT | reliable, ordered bytes |
 | framing | message boundaries across the negotiated attribute size |
 | Noise `NNpsk0` | mutual authentication, encryption, a session key |
-| stream multiplexing | either end opens unidirectional or bidirectional streams |
+| yamux | either end opens streams without coordinating identifiers |
 | JSON | application messages |
-| message envelope | naming, skipping unknowns, subscribe and unsubscribe |
+| message envelope | length-delimited JSON: naming, skipping unknowns, subscription streams |
 
 Replacing the bottom layer with another BLE transport changes nothing above it, and the choice can differ per client while the layers above stay identical.
 
