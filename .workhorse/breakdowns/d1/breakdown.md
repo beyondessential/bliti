@@ -4,7 +4,7 @@ This card keeps the feature. The client framework it was going to build along th
 
 The framework card lands first. This card then rebases onto it and lands its readings and its view on top.
 
-## Rebuild bliti-web as a real client
+## Rebuild bliti-web as a real client · E1
 
 Replace the prototype browser client with the thing every later feature is built on, and settle how a client and a device talk across versions.
 
