@@ -61,4 +61,4 @@ Application messages are JSON.
 
 The volumes involved are small, every client platform reads JSON without a library, and a conversation can be read directly while developing.
 
-A device that receives a message it does not understand says so, rather than closing the channel.
+How those messages are framed as a conversation — each end naming itself, unknown messages and fields being skipped rather than closing the channel, and live data being subscribed to rather than pushed — is specified in [BLI-MSG](messages.md).

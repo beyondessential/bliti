@@ -23,7 +23,7 @@ Both derivations are specified in [BLI-KEY](key-schedule.md).
 What is printed on the sticker, and how one is generated, is specified in [BLI-STK](sticker.md).
 
 A client scans the sticker, recomputes the handle, and matches it against what it hears, as specified in [BLI-ADV](discovery.md).
-Client and device then authenticate to each other and open a channel, as specified in [BLI-CHN](channel.md).
+Client and device then authenticate to each other and open a channel, as specified in [BLI-CHN](channel.md), and exchange application messages within the envelope specified in [BLI-MSG](messages.md).
 The client that does this in a browser is specified in [BLI-WEB](web-app.md).
 
 There is no fleet key and no authoritative per-device record.
@@ -67,6 +67,7 @@ Each layer depends only on the one beneath it carrying bytes reliably and in ord
 | Noise `NNpsk0` | mutual authentication, encryption, a session key |
 | stream multiplexing | either end opens unidirectional or bidirectional streams |
 | JSON | application messages |
+| message envelope | naming, skipping unknowns, subscribe and unsubscribe |
 
 Replacing the bottom layer with another BLE transport changes nothing above it, and the choice can differ per client while the layers above stay identical.
 
