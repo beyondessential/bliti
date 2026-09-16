@@ -6,6 +6,16 @@ status: draft
 
 The first real bliti-web feature: a diagnostics view surfacing device health and system data (board, OS, resource gauges, battery, uptime, network), which also settles bliti-web's architecture and RPC framing as the template for all future features.
 
+## This card is the feature; the framework is split off
+
+The client framework is a separate card, drafted in `.workhorse/breakdowns/d1/breakdown.md`. It lands first and this card rebases onto it.
+
+What goes with it: removing the prototype, the React and Vite rebuild, the installable offline application, local serving, CI, the Playwright harness, and the part of the wire contract every future feature inherits regardless of shape — version exchange, skipping unknowns, and the subscribe and unsubscribe lifecycle.
+
+What stays here: the self-describing reading format, every reading, and the view. The reading format stays with the feature because it is a display convention, and the features after this one pair display with an action rather than being displays, so they do not carry the same trade-offs and should not be pre-empted by a format designed for this one.
+
+The reasoning behind the framework decisions is kept below rather than moved out, because this is where it was worked out. The framework card executes it; this doc records why.
+
 ## Audience and intent
 
 Two audiences, both physically present at the device:
@@ -149,6 +159,8 @@ Neither end changes its behaviour based on what the other reported. The exchange
 
 ## Implementation options
 
+Everything under this heading is executed by the framework card, not by this one. It is recorded here because this is the conversation that settled it.
+
 ### The application is served remotely and installable
 
 The application is always loaded from a hosted origin, and BLE is the only transport to a device. There is no device-side server and no second transport, so there is one code path.
@@ -231,7 +243,8 @@ None outstanding. Every decision the interview opened has been closed; what rema
 
 ## Notes for the split
 
-- Behaviour and the wire contract fold into specs. The wire contract is not this card's alone: version skew, self-describing readings, and the push-and-subscribe shape are the template every later feature is framed in, so they likely belong in a spec of their own rather than inside a diagnostics spec. `.workhorse/specs/channel.md` already owns the layers beneath them.
+- Behaviour folds into specs for this card. The self-describing reading format goes with it.
+- The envelope half of the wire contract — version skew, skipping unknowns, push and subscribe — is the framework card's to spec, and is the template every later feature is framed in. It sits alongside `.workhorse/specs/channel.md`, which already owns the layers beneath it, rather than inside a diagnostics spec.
 - The client half of the feature belongs under its own heading, per the rule at the end of `.workhorse/specs/web-app.md`.
-- Implementation options and the architecture decisions become the plan, along with removing the prototype, standing up the React build, and fixing local serving.
-- Testing notes become the test cases, split across the three levels.
+- This card's plan covers the readings, the ring buffer, and the view. The framework decisions above belong to the other card's plan.
+- Testing notes split across both cards: the harness itself is the framework card's, the scenarios below are this card's.
