@@ -1,0 +1,292 @@
+<!-- spec: web-app.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device diagnostics</title>
+<style>
+/* Palette, type and section chrome carried through from crates/bliti-web/www/index.html unchanged. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 24px 16px;
+	background: #f0efec;
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+.frames { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+.frame { width: 22rem; }
+.frame > figcaption {
+	font-size: 0.8rem;
+	color: var(--muted);
+	margin: 0 0 8px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+.phone { background: var(--page); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.bad { color: var(--bad); }
+.good { color: var(--good); }
+.code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+dt { color: var(--muted); font-size: 0.9rem; }
+dd { margin: 0; }
+
+/* The device's own name and the things about it that never change. */
+.ident { margin-bottom: 4px; }
+.ident .name { font-size: 1.25rem; font-weight: 600; }
+.ident .line { color: var(--muted); font-size: 0.9rem; }
+
+/* Tiles. Each is a tap target: headline on the face, detail underneath. */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	min-height: 84px;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	width: 100%;
+	display: block;
+	cursor: pointer;
+}
+.tile.wide { grid-column: 1 / -1; }
+.tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tile .value { font-size: 1.6rem; line-height: 1.2; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .value .unit { font-size: 0.9rem; color: var(--muted); }
+.tile .sub { font-size: 0.85rem; color: var(--muted); }
+
+/* A thin bar for anything with a ceiling, and a sparkline for its recent shape. */
+.bar { height: 4px; background: #eceae5; border-radius: 2px; margin-top: 8px; position: relative; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.bar.warn > span { background: #b45309; }
+.bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
+.spark { display: block; margin-top: 6px; }
+
+.expanded { border-color: var(--accent); }
+.detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.detail dl { gap: 6px 12px; }
+.detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+.legend { display: flex; gap: 12px; font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+.legend i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
+.swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="frames">
+
+<figure class="frame">
+	<figcaption>Diagnostics, at a glance</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 5h 38m</div>
+			</div>
+		</section>
+
+		<div class="tiles">
+			<button class="tile">
+				<div class="label">CPU</div>
+				<div class="value">12<span class="unit">%</span></div>
+				<div class="bar"><span style="width:12%"></span></div>
+				<svg class="spark" width="100%" height="20" viewBox="0 0 120 20" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,17 10,16 20,18 30,11 40,14 50,17 60,16 70,9 80,15 90,17 100,16 110,17 120,17"/>
+				</svg>
+			</button>
+
+			<button class="tile">
+				<div class="label">Memory</div>
+				<div class="value">6<span class="unit">%</span></div>
+				<div class="sub">494 MB of 7.7 GB</div>
+				<div class="bar"><span style="width:6%"></span></div>
+				<svg class="spark" width="100%" height="20" viewBox="0 0 120 20" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,18 20,18 40,17 60,18 80,17 100,18 120,18"/>
+				</svg>
+			</button>
+
+			<button class="tile">
+				<div class="label">Disk</div>
+				<div class="value">1<span class="unit">%</span></div>
+				<div class="sub">439 GB free</div>
+				<div class="bar"><span style="width:1%"></span></div>
+			</button>
+
+			<button class="tile">
+				<div class="label">Battery</div>
+				<div class="value">100<span class="unit">%</span></div>
+				<div class="sub">Charging</div>
+				<div class="bar"><span style="width:100%"></span></div>
+			</button>
+
+			<button class="tile">
+				<div class="label">Temperature</div>
+				<div class="value">48<span class="unit">&deg;C</span></div>
+				<div class="sub">Normal</div>
+				<div class="bar"><span style="width:44%"></span><i class="trip" style="left:68%"></i></div>
+				<svg class="spark" width="100%" height="20" viewBox="0 0 120 20" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,13 20,12 40,13 60,11 80,12 100,11 120,12"/>
+				</svg>
+			</button>
+
+			<button class="tile">
+				<div class="label">Power</div>
+				<div class="value" style="font-size:1.1rem; padding-top:6px">Healthy</div>
+				<div class="sub">Full speed, fan 2400 rpm</div>
+			</button>
+
+			<button class="tile wide">
+				<div class="label">Network &middot; end0</div>
+				<div class="value" style="font-size:1.1rem">
+					&darr; 1.2 <span class="unit">MB/s</span>&nbsp;&nbsp; &uarr; 84 <span class="unit">kB/s</span>
+				</div>
+				<svg class="spark" width="100%" height="48" viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="rgba(29,78,216,0.12)" stroke="none" points="0,48 0,38 20,34 40,22 60,26 80,14 100,20 120,10 140,24 160,18 180,30 200,26 220,32 240,28 240,48"/>
+					<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,38 20,34 40,22 60,26 80,14 100,20 120,10 140,24 160,18 180,30 200,26 220,32 240,28"/>
+					<polyline fill="none" stroke="#15803d" stroke-width="1.5" points="0,44 20,43 40,41 60,42 80,39 100,41 120,40 140,42 160,41 180,43 200,42 220,43 240,42"/>
+				</svg>
+				<div class="legend">
+					<i><span class="swatch" style="background:#1d4ed8"></span>Down</i>
+					<i><span class="swatch" style="background:#15803d"></span>Up</i>
+					<i style="margin-left:auto">Last 5 min</i>
+				</div>
+			</button>
+
+			<button class="tile wide">
+				<div class="label">Addresses</div>
+				<dl style="margin-top:6px">
+					<dt>end0</dt><dd class="code">10.42.0.18</dd>
+					<dt>wld0</dt><dd class="muted">no address</dd>
+					<dt>tailscale0</dt><dd class="code">100.88.2.41</dd>
+				</dl>
+			</button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Battery tapped, detail revealed</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 5h 38m</div>
+			</div>
+		</section>
+
+		<div class="tiles">
+			<button class="tile expanded wide">
+				<div class="label">Battery</div>
+				<div class="value">100<span class="unit">%</span></div>
+				<div class="sub">Charging</div>
+				<div class="bar"><span style="width:100%"></span></div>
+				<svg class="spark" width="100%" height="28" viewBox="0 0 240 28" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,22 40,19 80,15 120,11 160,7 200,5 240,4"/>
+				</svg>
+				<div class="detail">
+					<dl>
+						<dt>Charge</dt><dd>100.3%</dd>
+						<dt>Voltage</dt><dd>4.19 V</dd>
+						<dt>Trend</dt><dd>Rising, about 6% per hour</dd>
+					</dl>
+					<p class="note">Direction is worked out from the charge over the last few minutes. The gauge fitted does not measure current.</p>
+				</div>
+			</button>
+
+			<button class="tile">
+				<div class="label">CPU</div>
+				<div class="value">12<span class="unit">%</span></div>
+				<div class="bar"><span style="width:12%"></span></div>
+			</button>
+
+			<button class="tile">
+				<div class="label">Memory</div>
+				<div class="value">6<span class="unit">%</span></div>
+				<div class="bar"><span style="width:6%"></span></div>
+			</button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Something is wrong</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 2m</div>
+			</div>
+		</section>
+
+		<div class="tiles">
+			<button class="tile">
+				<div class="label">Temperature</div>
+				<div class="value bad">82<span class="unit">&deg;C</span></div>
+				<div class="sub bad">Over the board's limit</div>
+				<div class="bar warn"><span style="width:75%"></span><i class="trip" style="left:68%"></i></div>
+				<svg class="spark" width="100%" height="20" viewBox="0 0 120 20" preserveAspectRatio="none" aria-hidden="true">
+					<polyline fill="none" stroke="#b91c1c" stroke-width="1.5" points="0,16 20,14 40,11 60,8 80,6 100,4 120,3"/>
+				</svg>
+			</button>
+
+			<button class="tile">
+				<div class="label">Power</div>
+				<div class="value bad" style="font-size:1.1rem; padding-top:6px">Undervolted</div>
+				<div class="sub">Slowed to 1.5 GHz, fan stopped</div>
+			</button>
+
+			<button class="tile wide">
+				<div class="label">Network</div>
+				<div class="value" style="font-size:1.1rem">No interface is up</div>
+				<div class="sub">Nothing plugged in, and wireless is not associated</div>
+			</button>
+
+			<button class="tile wide">
+				<div class="label">Disk</div>
+				<div class="value">97<span class="unit">%</span></div>
+				<div class="sub">12 GB free of 441 GB</div>
+				<div class="bar warn"><span style="width:97%"></span></div>
+			</button>
+		</div>
+	</div>
+</figure>
+
+</div>
+</body>
+</html>
