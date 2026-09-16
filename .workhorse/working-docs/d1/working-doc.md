@@ -27,6 +27,8 @@ The second governing principle, and what lets one surface serve both audiences. 
 
 Nothing is hidden that a non-technician needs, and nothing a technician needs is missing — it is one level down rather than absent.
 
+Where a reading is routinely misread, its detail carries a short plain-language note saying what the figure is and what range is normal. Temperature and battery both need one. The note belongs in the reveal rather than on the face: it answers a question the reader has already asked by tapping.
+
 The face is held to a label and a single number. Bars, history, raw readings, per-interface breakdowns and any caveat about how a figure was arrived at all sit behind the tap. Where a reading is in trouble the number itself changes colour, so alarm costs the face no extra element and a device in trouble is legible at arm's length.
 
 The rule is one reading per face, not one number. Throughput is a single reading with two directions, so it keeps one tile carrying both rates rather than splitting into two tiles that would have to be read together anyway.
@@ -62,6 +64,10 @@ One entry per block device, not per mount point, so a device carrying several mo
 ### Temperature and throttling
 
 The temperature reading is shown against the board's own declared thresholds rather than an invented scale, so "hot" means what the board means by it.
+
+The detail says in plain words that the figure is the processor core, not the case and not the room, and that a reading in the seventies is normal under load rather than a sign of anything failing. This is not decoration: it is the question we actually get asked, and a number with no frame of reference invites the wrong conclusion from someone standing over a device deciding whether to unplug it.
+
+For the same reason the reading is coloured as a fault only when the board is genuinely in trouble, not merely warm. A device running hot and working is not a device in trouble, and colouring warmth as failure is what teaches an operator to distrust a healthy reading.
 
 Throttling is reported as the two conditions that can be established: the supply voltage being low, and the processor running below the speed it is capable of. A full throttle bitmask is not available on the target platform without a tool that is not installed, and these two cover the faults an operator in the field is looking for. Fan speed is available on the same board and tells an operator whether a hot device is hot because its cooling has stopped.
 
@@ -217,6 +223,7 @@ Verified on the `tamanu-iti-v4-prototype` test device (Raspberry Pi 5 Model B Re
 - A device with no battery fitted shows no battery tile.
 - Two mounts on one block device are counted once.
 - The throughput graph is readable in both directions when one is far larger than the other.
+- A hot but healthy device is not coloured as a fault, and its detail explains what the reading is.
 
 ## Open questions
 

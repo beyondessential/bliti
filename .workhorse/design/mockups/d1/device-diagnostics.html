@@ -232,7 +232,23 @@ dd { margin: 0; font-size: 0.9rem; }
 			<button class="tile"><div class="label">Memory</div><div class="value">71<span class="unit">%</span></div></button>
 			<button class="tile"><div class="label">Disk</div><div class="value bad">97<span class="unit">%</span></div></button>
 			<button class="tile"><div class="label">Battery</div><div class="value bad">14<span class="unit">%</span></div></button>
-			<button class="tile"><div class="label">Temperature</div><div class="value bad">82<span class="unit">&deg;C</span></div></button>
+			<button class="tile expanded wide">
+				<div class="label">Temperature</div>
+				<div class="value">82<span class="unit">&deg;C</span></div>
+				<div class="detail">
+					<!-- Not red. 82 is hot and entirely normal; the alarms in this frame are the disk,
+					     the battery and the supply. Colouring warmth as failure is what teaches people
+					     to panic at a working device. -->
+					<div class="bar"><span style="width:75%"></span><i class="trip" style="left:77%"></i></div>
+					<dl style="margin-top:10px">
+						<dt>CPU core</dt><dd>82 &deg;C</dd>
+						<dt>Disk</dt><dd>61 &deg;C</dd>
+						<dt>Slows down at</dt><dd>about 85 &deg;C</dd>
+						<dt>Fan</dt><dd class="bad">Stopped</dd>
+					</dl>
+					<p class="note">This is the CPU core, not the case or the room. Above 70 &deg;C is normal under load, and the board slows itself down well before anything is at risk.</p>
+				</div>
+			</button>
 			<button class="tile"><div class="label">Power</div><div class="value small bad">Undervolted</div></button>
 			<button class="tile wide"><div class="label">Network</div><div class="value small bad">Nothing is up</div></button>
 		</div>
