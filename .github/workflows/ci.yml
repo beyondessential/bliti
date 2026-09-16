@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  merge_group:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Cache strategy (the `with:` on every rust-cache step below):
+#   - shared-key: every job builds the same workspace, so they share one cache
+#     rather than a cache each.
+#   - save-if: only the default branch writes the cache; PRs and the merge queue
+#     restore it read-only, so branches don't evict each other and rebuild cold.
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure toolchain
+        run: |
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
+      # bluer links the system libdbus, and the TPM board-ID backend links
+      # tpm2-tss. Both are on by default, and the TPM one deliberately so: which
+      # board-ID sources a build can see decides which sticker secret a board
+      # derives, so CI builds the same set the device does.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libtss2-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo test
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure toolchain
+        run: |
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
+          rustup component add clippy
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libtss2-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --all-targets --all-features
+
+  wasm:
+    name: Browser client / wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure toolchain
+        run: |
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The browser client takes bliti-core without its default features, so it
+      # carries neither the argon2 derivation nor any board-ID backend, and needs
+      # no system libraries here.
+      - run: cargo build -p bliti-web --target wasm32-unknown-unknown --release
+
+  tests-pass:
+    if: always()
+    name: Tests pass
+    needs: [test, clippy, wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
