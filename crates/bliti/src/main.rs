@@ -4,7 +4,7 @@
 //! the board-ID precedence and the key schedule in `bliti-core`, which is what makes the sticker a
 //! generator prints match the handle the device advertises.
 //!
-//! Behaviour is specified under `.workhorse/specs/bliti/`.
+//! Behaviour is specified under `.workhorse/specs/`.
 
 use std::{path::PathBuf, time::Duration};
 

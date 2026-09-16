@@ -1,7 +1,7 @@
 //! The key schedule: the two derivations that take a board ID to the sticker secret and the
 //! advertised handle.
 //!
-//! Behaviour is specified in `.workhorse/specs/bliti/key-schedule.md` (BLI-KEY). Both derivation
+//! Behaviour is specified in `.workhorse/specs/key-schedule.md` (BLI-KEY). Both derivation
 //! constants here are public: they are compiled into the device, the sticker generator, and every
 //! client, and publishing them weakens nothing because neither derivation runs backwards. What they
 //! provide is domain separation.

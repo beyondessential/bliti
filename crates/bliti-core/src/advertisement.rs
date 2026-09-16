@@ -1,6 +1,6 @@
 //! What a device broadcasts, and how a client reads it back.
 //!
-//! Behaviour is specified in `.workhorse/specs/bliti/discovery.md` (BLI-ADV). The advertisement
+//! Behaviour is specified in `.workhorse/specs/discovery.md` (BLI-ADV). The advertisement
 //! carries the service UUID; the local name carries the handle, the rotation salt, and the version
 //! marker, rendered as base32.
 //!

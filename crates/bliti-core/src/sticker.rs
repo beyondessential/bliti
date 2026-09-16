@@ -1,6 +1,6 @@
 //! The sticker payload: what the QR code carries, and how it is rendered and read back.
 //!
-//! Behaviour is specified in `.workhorse/specs/bliti/sticker.md` (BLI-STK). The payload carries the
+//! Behaviour is specified in `.workhorse/specs/sticker.md` (BLI-STK). The payload carries the
 //! sticker secret and the version marker, and nothing else. The board ID is deliberately absent:
 //! putting it here would hand the board ID to anyone who photographs a sticker, which is the
 //! property the derivation exists to provide.

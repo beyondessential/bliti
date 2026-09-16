@@ -1,6 +1,6 @@
 //! The authenticated channel: the layers that sit above GATT carrying reliable, ordered bytes.
 //!
-//! Behaviour is specified in `.workhorse/specs/bliti/channel.md` (BLI-CHN). Once a client has
+//! Behaviour is specified in `.workhorse/specs/channel.md` (BLI-CHN). Once a client has
 //! matched a device by its handle, the two authenticate with a Noise `NNpsk0` handshake keyed by
 //! the sticker secret, then carry application messages over the channel it establishes.
 //!

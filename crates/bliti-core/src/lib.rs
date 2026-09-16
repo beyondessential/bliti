@@ -7,7 +7,7 @@
 //! it unit-tests anywhere and compiles for `wasm32-unknown-unknown`, which is what lets the web
 //! application share one implementation of the key schedule and the handshake with the device.
 //!
-//! Behaviour is specified under `.workhorse/specs/bliti/`; each module names the spec it implements.
+//! Behaviour is specified under `.workhorse/specs/`; each module names the spec it implements.
 //!
 //! # Features
 //!

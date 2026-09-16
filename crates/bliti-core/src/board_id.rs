@@ -1,6 +1,6 @@
 //! The board ID: the firmware-provided identifier every other value in bliti descends from.
 //!
-//! Behaviour is specified in `.workhorse/specs/bliti/board-id.md` (BLI-BID). The board ID makes
+//! Behaviour is specified in `.workhorse/specs/board-id.md` (BLI-BID). The board ID makes
 //! the sticker secret reproducible from the board alone: the same sticker regenerates from the
 //! board with no per-device database to keep in sync. It is not a secret; what protects it is the
 //! cost of the derivation in [`crate::key_schedule`] and the size of its space.
