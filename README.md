@@ -16,21 +16,24 @@ Every value descends from an identifier the board's own firmware provides, under
 public:
 
 ```
-board ID  ──argon2id──>  presence token  ──keyed hash──>  advertised handle
-(firmware)               (carried in the QR code)        (broadcast over BLE)
+                            ┌──> presence token ──keyed hash──> advertised handle
+board ID ──argon2id──> root ┤    (in the QR code)               (broadcast over BLE)
+(firmware)                  └──> device static key
+                                 (public half in the QR code)
 ```
 
 The board ID is the strongest identifier the board offers: a TPM Endorsement Key, else written
 one-time-programmable memory, else the Raspberry Pi device-tree serial. It appears in no QR payload and no
 advertisement, and the derivation does not run backwards, so photographing a QR code does not yield
-it.
+it, and cannot yield the device's static key either.
 
 There is no fleet key and no authoritative per-device record. The whole chain is reproducible from
 the board alone, so a QR code can be reproduced from the device itself rather than from a record of
 what was issued, and anything a device stores about its own identity is a cache it can rebuild.
 
-Above the link, the two ends run a Noise `NNpsk0` handshake with the presence token as the
-pre-shared key, then multiplex JSON messages over streams either end can open.
+Above the link, the two ends run a Noise `NKpsk0` handshake: the device is authenticated by its
+static key, whose public half the QR code carries, and the client by the presence token as the
+pre-shared key. They then multiplex JSON messages over streams either end can open.
 
 ## The crates
 

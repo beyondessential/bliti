@@ -45,6 +45,12 @@ An observer who has not scanned a device's QR code cannot tell which device an a
 
 Upheld by the handle derivation of [KEY](key-schedule.md) and the rotation of [ADV](discovery.md).
 
+### A photograph does not permit impersonation
+
+Someone holding a device's QR code, or a photograph of one, cannot complete a handshake as that device.
+
+Upheld by the device static key of [KEY](key-schedule.md), whose private half descends from the board ID and appears in no QR code, and by the handshake of [CHN](channel.md), which authenticates the device against it.
+
 ### Compromising one device tells nothing about another
 
 There is no fleet key and no authoritative per-device record.
@@ -54,17 +60,20 @@ Upheld by the derivation of [KEY](key-schedule.md).
 
 ## Where the guarantees stop
 
-### Holding the token is enough
+### Holding the token opens a session
 
-Anyone holding a device's presence token can impersonate that device and connect to it.
+Anyone holding a device's presence token can open a session with that device.
 
 A photograph of the QR code yields the token, because the code carries it outright.
 
-### The board ID yields the token
+### The board ID yields everything
 
-Anyone who learns a device's board ID can derive its presence token.
+Anyone who learns a device's board ID can derive that device's root, and so both its presence token and its device static key.
 
 Any software on a device can read its board ID, so anyone who has had access to a device can obtain it.
+
+> [!NOTE]
+> Physical access therefore still permits impersonation. What the static key closes is the path that needs no access at all.
 
 ### A device's presence is not hidden
 
@@ -89,8 +98,8 @@ Where it comes from a platform serial, the cost is what the guarantee rests on, 
 A Raspberry Pi 4 or 5 serial occupies its full width and is out of reach.
 A serial that collapses to a short value, as on earlier boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 
-### Authentication proves the secret, not the board
+### What a handshake proves
 
-A device's board ID is not verified directly and cannot be, because it is absent from the QR payload and the derivation does not run backwards.
+A handshake proves that the device holds a static key derived from its own board ID, and that the client holds that device's presence token.
 
-Possession of the presence token is what a handshake proves, and it is equivalent for the purpose, because deriving the secret requires the board ID.
+A board ID is not verified directly and cannot be, because it is absent from the QR payload and the derivation does not run backwards.

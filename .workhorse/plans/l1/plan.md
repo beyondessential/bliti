@@ -293,6 +293,12 @@ Separating them is the prerequisite for the two-byte prefix reaching the code. T
 
 A check enforcing a deliberate product ceiling, as the 128 KiB one does, is legitimate. A check enforcing a limit the field could have expressed structurally, as the 65535 one did, is the smell.
 
+**Written into the specs.** KEY now derives a root with argon2id and both the presence token and the device static key from it by BLAKE3 `derive_key` under the context strings `bliti presence token` and `bliti device static key`, with the private half clamped per RFC 7748. QR carries 65 bytes and 104 base32 characters. CHN runs `Noise_NKpsk0_25519_ChaChaPoly_BLAKE2s` with the device's static public key as the pre-message. SEC gained "A photograph does not permit impersonation", narrowed "Holding the token is enough" to "Holding the token opens a session", broadened "The board ID yields the token" to "yields everything", and reversed "Authentication proves the secret, not the board" into "What a handshake proves". VER's coverage list gained the context strings. The README's chain diagram and handshake paragraph follow.
+
+Using BLAKE3's `derive_key` rather than a keyed hash under a fresh constant was deliberate: `derive_key` takes a context *string*, so the spec pins a readable value instead of thirty-two invented hex bytes.
+
+**The code does not implement any of this yet.** The specs lead it, and the implementation rides with **Q1**, which has to separate the two framing layers first.
+
 Spawned as **Q1**. Until it lands, `channel.md` specifies a two-byte prefix and `framing.rs` still writes four, which is a deliberate and recorded divergence. Measuring the notification ceiling is **R1**.
 
 Open:

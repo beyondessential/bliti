@@ -4,7 +4,7 @@ id: QR
 
 # QR code
 
-A device's QR code carries the [presence token](overview.md#presence-token) and the [version marker](overview.md#version-marker) on the outside of the device.
+A device's QR code carries the [presence token](overview.md#presence-token), the device static public key, and the [version marker](overview.md#version-marker) on the outside of the device.
 
 ## Borrowed terms
 
@@ -17,12 +17,13 @@ A device's QR code carries the [presence token](overview.md#presence-token) and 
 
 ## Payload
 
-The payload MUST be 33 bytes: the version marker, followed by the 32 bytes of the presence token.
+The payload MUST be 65 bytes: the version marker, then the 32 bytes of the presence token, then the 32 bytes of the device static public key of [KEY](key-schedule.md).
 
-The payload MUST be encoded as base32 without padding, giving 53 characters.
+The payload MUST be encoded as base32 without padding, giving 104 characters.
 
 > [!NOTE]
 > RFC 4648 pads by default and leaves it to a referencing specification to say when padding is omitted.
+> The static public key is what lets a client authenticate the device rather than merely share a secret with whoever holds one. It is a public key, so carrying it in the clear costs nothing.
 
 ## The URL
 

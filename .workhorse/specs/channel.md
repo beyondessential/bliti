@@ -19,8 +19,12 @@ Once a client has matched a device by its [advertised handle](overview.md#advert
 
 ## Authentication
 
-Client and device MUST run a Noise `NNpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
-The Noise protocol name MUST be `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`.
+Client and device MUST run a Noise `NKpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
+
+The Noise protocol name MUST be `Noise_NKpsk0_25519_ChaChaPoly_BLAKE2s`.
+
+The responder's static key, which `NKpsk0` requires the initiator to know in advance, MUST be the device static key of [KEY](key-schedule.md). The client MUST take its public half from the QR code, and the device MUST hold the private half.
+
 The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [KEY](key-schedule.md) produces it with no further derivation.
 
 The handshake gives the session forward secrecy.
@@ -28,7 +32,8 @@ The handshake gives the session forward secrecy.
 The security properties this upholds, and their limits, are specified in [SEC](security.md).
 
 > [!NOTE]
-> Both ends bring only ephemeral keys, so completing the handshake proves in both directions that each end holds the presence token, which is what "this is the device whose QR code I scanned" and "you scanned my QR code" both reduce to.
+> The two credentials authenticate different things. The static key proves the device holds something derived from its own board ID, which nothing in the QR code yields. The pre-shared key proves the client read that device's code.
+> `NKpsk0` encrypts the client's first message to the device's static key, so a party without the private half cannot read it at all, rather than merely failing to prove itself.
 
 ## Send rate
 

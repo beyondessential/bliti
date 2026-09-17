@@ -14,7 +14,7 @@ The marker MUST be carried in the QR payload of [QR](qr-code.md) and in the adve
 
 The marker covers everything two ends must agree on before or during a session:
 
-- the derivation constants, argon2id parameters, source precedence, input encoding, pinned Endorsement Key template and handle length of [KEY](key-schedule.md)
+- the derivation constants and context strings, argon2id parameters, source precedence, input encoding, pinned Endorsement Key template and handle length of [KEY](key-schedule.md)
 - the handshake, framing, transport and streams of [CHN](channel.md)
 - the message encoding and envelope of [MSG](messages.md)
 
