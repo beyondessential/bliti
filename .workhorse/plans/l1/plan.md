@@ -89,7 +89,9 @@ That absorption resolved a contradiction. BLI said the marker covers every layer
 
 The chain and the layer table were both emergent: properties a reader obtains by reading the specs, restated in BLI for no reason. The chain was a table of contents for the whole corpus, which is the cross-reference-reciting-its-target defect scaled up. The layer table carried normative language about layer independence that CHN already establishes by specifying the stack.
 
-Both deleted. BLI is the intro, the requirement keywords, the external documents, and the global glossary, and nothing else.
+Both deleted. BLI is one sentence of intro, the requirement keywords, the external documents, and the global glossary, and nothing else.
+
+The intro went the same way. Of five sentences, one survived. The rest summarised ADV and CHN, compared bliti to the button press other protocols use, disclaimed interoperating with Improv Wi-Fi, and described how the repository is laid out: a restatement, a motivation, an absence, and something that is not spec content at all. What the daemon and the generator are is DEV's and STK's to say.
 
 This reverses an earlier finding of mine. `system-info.md` being linked from no other spec looked like a hole in the map, and a reachability check looked worth adding alongside the link checker. With no map there is nothing for a spec to be missing from: specs cross-reference each other where one requirement depends on another, and the directory is the list. A hand-maintained index rots; the filesystem does not.
 
