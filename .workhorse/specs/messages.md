@@ -45,7 +45,7 @@ A lower case name marks the member ignorable.
 A receiver that does not recognise it passes over it and reads the rest.
 
 The convention applies to member names alone and never to values: a `topic` of `system` and a `topic` of `SYSTEM` are different topics.
-It holds for every object in a message at any depth, which is what lets a sender mark one part of a larger message as something that must not be half read.
+It holds for every object in a message at any depth. If arbitrary 
 
 ## Which stream carries what
 
