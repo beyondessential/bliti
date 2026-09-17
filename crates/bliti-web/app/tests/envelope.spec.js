@@ -6,9 +6,16 @@ const hello = { kind: 'message', message: { type: 'device-hello', name: 'bliti',
 const identity = {
 	kind: 'message',
 	message: {
-		type: 'identity',
-		hostname: 'tamanu-iti',
-		addresses: [{ address: '192.0.2.10', interface: 'end0', family: 'ipv4' }],
+		type: 'system-identity',
+		readings: [
+			{ name: 'hostname', label: 'Hostname', value: { kind: 'text', text: 'tamanu-iti' } },
+			{
+				name: 'address-end0',
+				label: 'end0',
+				group: 'network',
+				value: { kind: 'text', text: '192.0.2.10' },
+			},
+		],
 	},
 }
 
@@ -154,7 +161,12 @@ test.describe('the subscription lifecycle', () => {
 		await page.evaluate(() =>
 			window.__blitiSubscriptions[0].events({
 				kind: 'message',
-				message: { type: 'identity', hostname: 'late', addresses: [] },
+				message: {
+					type: 'system-identity',
+					readings: [
+						{ name: 'hostname', label: 'Hostname', value: { kind: 'text', text: 'late' } },
+					],
+				},
 			}),
 		)
 

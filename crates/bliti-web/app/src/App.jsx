@@ -1,6 +1,8 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import Readings from './Readings.jsx'
 import { createClient } from './client.js'
+import { latest, mergeHistory, pushSample } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // The topic the diagnostics feature defines. A device that does not serve it sends nothing and does
@@ -26,7 +28,11 @@ export default function App() {
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
 	const [device, setDevice] = useState(null)
-	const [identity, setIdentity] = useState(null)
+	// What the device is, and how it is doing. The window holds the recent samples a graph is drawn
+	// from; the device sends its buffered window before anything live, so a graph is populated the
+	// moment it appears rather than filling from empty while an operator waits (BLI-SYS).
+	const [statics, setStatics] = useState([])
+	const [window_, setWindow] = useState([])
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
 	const video = useRef(null)
@@ -55,8 +61,14 @@ export default function App() {
 				case 'message':
 					if (event.message.type === 'device-hello') {
 						setDevice({ name: event.message.name, version: event.message.version })
-					} else if (event.message.type === 'identity') {
-						setIdentity(event.message)
+					} else if (event.message.type === 'system-identity') {
+						setStatics(event.message.readings)
+					} else if (event.message.type === 'system-sample') {
+						setWindow((held) =>
+							pushSample(held, { at: event.message.at, readings: event.message.readings }),
+						)
+					} else if (event.message.type === 'system-history') {
+						setWindow((held) => mergeHistory(held, event.message.samples))
 					}
 					break
 				case 'skipped':
@@ -256,32 +268,16 @@ export default function App() {
 						</p>
 					))}
 					<dl>
+						<dt>Running</dt>
 						{device ? (
-							<>
-								<dt>Running</dt>
-								<dd>
-									{device.name} {device.version}
-								</dd>
-							</>
+							<dd>
+								{device.name} {device.version}
+							</dd>
 						) : (
-							<>
-								<dt>Running</dt>
-								<dd className="muted">not reported</dd>
-							</>
-						)}
-						{identity && (
-							<>
-								<dt>Hostname</dt>
-								<dd>{identity.hostname}</dd>
-								{identity.addresses.map((address) => (
-									<Fragment key={`${address.interface}-${address.address}`}>
-										<dt>{address.interface}</dt>
-										<dd>{address.address}</dd>
-									</Fragment>
-								))}
-							</>
+							<dd className="muted">not reported</dd>
 						)}
 					</dl>
+					<Readings readings={latest(window_, statics)} window={window_} />
 				</section>
 			)}
 
