@@ -131,8 +131,18 @@ A client subscribes by opening a stream whose first message is `subscribe`, carr
 
 The device sends that topic's data on that same stream, for as long as the stream is open.
 
-A client unsubscribes by closing the stream.
-The subscription lasts exactly as long as the stream, so a client that goes away without a word, a page closed or a link dropped, has unsubscribed by doing so, and a device is left holding no subscription it must later time out.
+A client unsubscribes by closing the stream it opened.
+
+Closing ends the client's sending side, and the device reads end of stream on its own side.
+That is the unsubscribe: on reading it the device stops sending the topic, closes its side in turn, and keeps nothing for that subscription.
+A device that read end of stream and carried on sending would leave a client receiving data it has said it no longer wants, which is the case this whole mechanism exists to prevent.
+
+A subscription ends whenever its stream ends, however it ends.
+A stream closed gracefully, a stream reset, a client that goes away without a word, a dropped link and a closed connection are each the unsubscribe, and none is a fault either end reports.
+The subscription lasts exactly as long as its stream, so there is no subscription a device must time out and no state the two ends can disagree about.
+
+Data already in flight when the stream ends may still arrive.
+A client discards it rather than treating it as a fault.
 
 A client opens one stream per subscription, so subscribing to one topic and unsubscribing from another are independent of each other.
 

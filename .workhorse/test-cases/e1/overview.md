@@ -47,7 +47,10 @@ A peer that breaks the base protocol is a fault, not a version difference, and i
 - [ ] Static data is pushed on the reporting stream without being asked; live data arrives only on a subscription stream.
 - [ ] Opening a stream with `subscribe` yields that topic's data on that same stream (Rust, with a test topic).
 - [ ] Closing the stream ends the subscription and the device sends nothing further (Rust).
-- [ ] A dropped connection ends subscriptions without either end timing anything out (Rust).
+- [ ] The device acts on end of stream rather than waiting for its own side to close: after the client half-closes, the device stops sending and closes its side (Rust). This is the case a half-close silently breaks.
+- [ ] A stream reset, rather than a graceful close, ends the subscription the same way (Rust).
+- [ ] A client that goes away without closing, and a dropped connection, each end subscriptions without either end timing anything out (Rust).
+- [ ] Data in flight when the stream ends is discarded by the client rather than treated as a fault (Playwright).
 - [ ] A `subscribe` for a topic the device does not recognise is skipped: the stream stays open, carries nothing, and nothing errors (Rust).
 - [ ] Two subscriptions are independent: closing one leaves the other delivering (Rust).
 - [ ] Hiding the page closes the client's subscription streams; showing it opens fresh ones (Playwright, page-visibility).
