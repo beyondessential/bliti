@@ -257,8 +257,9 @@ Still needed: the Core Specification Supplement for BLI-ADV's advertising data f
 - [x] Terminology sweep in code, manifests, CI configs and README
 - [x] SMBIOS source removed from code, including its backend, tests and the now-dead tag
 - [x] Re-ID across specs and code doc-comments; `sticker.md` renamed to `qr-code.md` with id QR
-- [ ] Per-spec terms glossaries where a spec borrows terms of art, starting with BLI-ADV and BLI-BID
-- [ ] Voice rewrite of the remaining eight specs
+- [x] Per-spec `## Borrowed terms` tables in BID, KEY, QR, ADV, CHN, WEB, MSG and SYS
+- [x] Voice rewrite of all twelve specs
+- [x] BLI's External documents completed with every standard the rewrites cite
 - [ ] Terminology sweep in code: around 320 sites over 16 files, two modules named `sticker.rs`, the `Sticker` CLI subcommand and its `sticker` argument
 - [ ] Re-ID: drop the `BLI-` prefix, keeping `BLI` for the overview. BID, KEY, STK, ADV, CHN, MSG, WEB, SYS, with STK revisited alongside the file rename
 - [ ] Rename `sticker.md` once its id is settled

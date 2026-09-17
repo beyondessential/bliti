@@ -18,6 +18,12 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 | [The Noise Protocol Framework](https://noiseprotocol.org/noise.html), revision 34 | the handshake of [CHN](channel.md) |
 | [Bluetooth Core Specification](https://www.bluetooth.com/specifications/specs/core-specification-6-3/) | GATT and the Attribute Protocol, Volume 3 Parts G and F, under [CHN](channel.md) |
 | [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md) | the streams of [CHN](channel.md) |
+| [Core Specification Supplement](https://www.bluetooth.com/specifications/specs/core-specification-supplement/) | the advertising data types of [ADV](discovery.md) |
+| [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106) | the argon2id derivation of [KEY](key-schedule.md) |
+| [the BLAKE3 specification](https://github.com/BLAKE3-team/BLAKE3-specs) | the keyed hash of [KEY](key-schedule.md) |
+| [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) | the base32 rendering of [QR](qr-code.md) and [ADV](discovery.md) |
+| [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | the JSON of [MSG](messages.md) |
+| ISO/IEC 18004 | the QR code symbology of [QR](qr-code.md) |
 
 ## Terminology
 
