@@ -81,6 +81,14 @@ Bespoke treatment sits on top of generic rendering and never replaces it. Each o
 - [ ] `battery` showing the derived direction and its caveat.
 - [ ] `network-in` and `network-out` mirrored.
 
+## Testing on the device
+
+`crates/bliti/cross-build.sh user@host [--install]` cross-builds the daemon and optionally installs it.
+
+The daemon links dbus and the TPM stack, so cross-compiling needs those for the target. The script borrows them from the device rather than asking a developer to find aarch64 packages for whatever distribution they run: it downloads the distribution's own `-dev` packages there without installing any, copies the resolved shared objects, and builds against that as a disposable sysroot under `target/`.
+
+Two things make it work, and both are easy to lose. `Requires.private` is stripped from the copied `.pc` files, because it only matters for static linking and each entry drags in another package's `.pc`, and that one's after it. And the link passes `--allow-shlib-undefined`, so the transitive symbols of libsystemd and its compression libraries resolve on the device, which has the full set, rather than here.
+
 ## Mockup
 
 `.workhorse/design/mockups/d1/device-diagnostics.html` holds the four frames: at a glance, battery tapped, network tapped, and a device in trouble. Match the built view to it, and update it if the build finds the layout wrong.
