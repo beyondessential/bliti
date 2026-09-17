@@ -19,7 +19,7 @@ use bliti_core::{
 	},
 	key_schedule::StickerSecret,
 };
-use futures::{AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::{facts::Facts, sampler::Sampler};
 
@@ -167,24 +167,62 @@ where
 		.map_err(|err| SessionError::Stream(err.to_string()))?;
 
 	let mut live = sampler.live();
+
+	// The client closing its sending side is the unsubscribe, and reading end of stream is how the
+	// device learns of it (BLI-MSG, "Subscribing"). It has to be read for: a half-close leaves this
+	// end's write side open, so a device watching only for a failed write would go on sending to a
+	// client that has said it is done, which is the case the mechanism exists to prevent.
+	let (reader, mut writer) = stream.split();
+	let mut ended = std::pin::pin!(until_end_of_stream(reader));
+
 	loop {
-		match live.recv().await {
-			Ok(sample) => {
-				let message = DeviceMessage::SystemSample {
-					at: sample.at,
-					readings: sample.readings,
-				};
-				// A write failing is the client having gone away, which is the unsubscribe.
-				if write_message(stream, &message.to_json()).await.is_err() {
-					return Ok(());
+		tokio::select! {
+			// Biased, so an unsubscribe arriving alongside a sample ends the subscription rather than
+			// racing one more write against it.
+			biased;
+
+			() = &mut ended => {
+				tracing::debug!("client closed its side of a subscription; unsubscribing");
+				// Closed in turn, so the client reads end of stream rather than a stream left hanging.
+				let _ = writer.close().await;
+				return Ok(());
+			}
+
+			received = live.recv() => match received {
+				Ok(sample) => {
+					let message = DeviceMessage::SystemSample {
+						at: sample.at,
+						readings: sample.readings,
+					};
+					// A write failing is the client having gone away by a route that is not a graceful
+					// close: a reset, a dropped link, a closed connection. Each is equally the unsubscribe.
+					if write_message(&mut writer, &message.to_json()).await.is_err() {
+						return Ok(());
+					}
 				}
-			}
-			// A client too slow to keep up misses samples rather than stalling the sampler. The next
-			// one it receives is current, which is what a live view wants.
-			Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
-				tracing::debug!(missed, "subscriber fell behind");
-			}
-			Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+				// A client too slow to keep up misses samples rather than stalling the sampler. The next
+				// one it receives is current, which is what a live view wants.
+				Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
+					tracing::debug!(missed, "subscriber fell behind");
+				}
+				Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+			},
+		}
+	}
+}
+
+/// Resolve when the peer closes its sending side, or the stream ends any other way.
+///
+/// A subscription lasts exactly as long as its stream, so a reset or a dropped link ends it just as a
+/// graceful close does, and none of them is a fault either end reports (BLI-MSG). Nothing is defined
+/// on a subscription stream after the `subscribe`, so anything that arrives before the end is passed
+/// over rather than acted on.
+async fn until_end_of_stream<R: AsyncRead + Unpin>(mut reader: R) {
+	let mut scratch = [0u8; 64];
+	loop {
+		match reader.read(&mut scratch).await {
+			Ok(0) | Err(_) => return,
+			Ok(_) => continue,
 		}
 	}
 }
@@ -469,6 +507,55 @@ mod tests {
 		for each in &series {
 			for pair in each.points.windows(2) {
 				assert!(pair[0].0 <= pair[1].0, "a series is oldest first");
+			}
+		}
+	}
+
+	/// Closing the client's sending side is the unsubscribe, and the device learns of it by reading
+	/// end of stream (BLI-MSG, "Subscribing"). The half-close leaves the device's write side open, so
+	/// nothing but reading tells it: a device watching only for a failed write would go on sending to
+	/// a client that has said it is done.
+	#[tokio::test]
+	async fn closing_the_sending_side_unsubscribes() {
+		let mut streams = paired(&secret(0x42)).await;
+		let mut subscription = streams.open().await.unwrap();
+		write_message(
+			&mut subscription,
+			&ClientMessage::Subscribe {
+				topic: SYSTEM_TOPIC.to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.unwrap();
+
+		// Served, so the subscription is live before it is ended.
+		tokio::time::timeout(Duration::from_secs(2), read_message(&mut subscription))
+			.await
+			.expect("a served topic answers")
+			.unwrap()
+			.unwrap();
+
+		// The unsubscribe: end the sending side only, and carry on reading.
+		subscription.close().await.unwrap();
+
+		// The device stops and closes its side in turn. Data already in flight may still arrive, which
+		// a client discards rather than treating as a fault, so a few are allowed through before the
+		// end; a device that never stopped would keep them coming one a second forever.
+		let mut after = 0;
+		loop {
+			match tokio::time::timeout(Duration::from_secs(5), read_message(&mut subscription))
+				.await
+			{
+				Ok(Ok(None)) | Ok(Err(_)) => break,
+				Ok(Ok(Some(_))) => {
+					after += 1;
+					assert!(
+						after < 4,
+						"the device kept sending after the client unsubscribed"
+					);
+				}
+				Err(_) => panic!("the device neither closed nor sent after the unsubscribe"),
 			}
 		}
 	}

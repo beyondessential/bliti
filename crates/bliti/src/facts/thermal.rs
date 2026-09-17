@@ -17,31 +17,49 @@ use bliti_core::channel::readings::{Reading, State, Value};
 
 use super::{read_number, read_trimmed};
 
+/// The processor's thermal zone, and the hwmon tree the fan and the voltage alarm sit in.
+const THERMAL_ZONE: &str = "/sys/class/thermal/thermal_zone0";
+const HWMON_ROOT: &str = "/sys/class/hwmon";
+
 /// What the processor core reads, plus any throttling and cooling the board reports.
 pub fn readings() -> Vec<Reading> {
 	let mut readings = Vec::new();
-	readings.extend(temperature());
+	readings.extend(temperature(THERMAL_ZONE));
 	readings.extend(throttling());
-	readings.extend(fan());
+	readings.extend(fan(HWMON_ROOT));
 	readings
 }
 
 /// The processor core temperature, against the board's own thresholds.
-fn temperature() -> Option<Reading> {
-	let zone = "/sys/class/thermal/thermal_zone0";
-	let millidegrees = read_number(&format!("{zone}/temp"))?;
+fn temperature(zone: &str) -> Option<Reading> {
+	// The zone being present is the sensor being fitted. One that is there and will not answer is a
+	// fault nobody can see from outside the case, so it is reported rather than left out (BLI-SYS).
+	if fs::metadata(zone).is_err() {
+		return None;
+	}
+	let Some(millidegrees) = read_number(&format!("{zone}/temp")) else {
+		return Some(Reading::failed(
+			"temperature",
+			"Temperature",
+			format_args!("no answer from {zone}/temp"),
+		));
+	};
 	let celsius = millidegrees as f64 / 1000.0;
 
 	let critical = trips(zone)
 		.iter()
 		.find(|(kind, _)| kind == "critical")
 		.map(|(_, at)| *at);
-	let ceiling = critical.unwrap_or(110.0);
 
 	let mut reading = Reading::new(
 		"temperature",
 		"Temperature",
-		Value::scaled(round(celsius), "°C", ceiling),
+		// Drawn against what the board declares hot, never against a ceiling we invented: a board
+		// naming no critical trip gives the reading no scale, so it carries none (BLI-SYS).
+		match critical {
+			Some(critical) => Value::scaled(round(celsius), "°C", critical),
+			None => Value::quantity(round(celsius), "°C"),
+		},
 	)
 	.with_note(
 		"This is the CPU core, not the case or the room. \
@@ -173,13 +191,21 @@ fn gigahertz(kilohertz: i64) -> Value {
 }
 
 /// Fan speed, which says whether a hot device is hot because its cooling has stopped.
-fn fan() -> Option<Reading> {
+fn fan(root: &str) -> Option<Reading> {
 	for index in 0..8 {
-		let path = format!("/sys/class/hwmon/hwmon{index}");
+		let path = format!("{root}/hwmon{index}");
 		if read_trimmed(&format!("{path}/name")).as_deref() != Some("pwmfan") {
 			continue;
 		}
-		let rpm = read_number(&format!("{path}/fan1_input"))?;
+		// The hwmon is the fan being fitted. One that is there and will not answer is a fault rather
+		// than an absence, so it is reported rather than left out (BLI-SYS).
+		let Some(rpm) = read_number(&format!("{path}/fan1_input")) else {
+			return Some(Reading::failed(
+				"fan",
+				"Fan",
+				format_args!("no answer from {path}/fan1_input"),
+			));
+		};
 		let mut reading = Reading::new("fan", "Fan", Value::quantity(rpm as f64, "rpm"));
 		if rpm == 0 {
 			reading = reading.with_state(State::Warn);
@@ -201,7 +227,7 @@ mod tests {
 	/// correctly, and marking it as trouble is what teaches an operator to distrust the number.
 	#[test]
 	fn a_warm_board_is_not_reported_as_trouble() {
-		let Some(reading) = temperature() else {
+		let Some(reading) = temperature(THERMAL_ZONE) else {
 			return; // No thermal zone on this machine.
 		};
 		let Some(Value::Quantity { number, .. }) = reading.value else {
@@ -218,19 +244,143 @@ mod tests {
 	/// Without it the number is routinely read as a fault on a device that is working correctly.
 	#[test]
 	fn the_temperature_carries_its_note() {
-		let Some(reading) = temperature() else { return };
+		let Some(reading) = temperature(THERMAL_ZONE) else {
+			return;
+		};
+		if reading.error.is_some() {
+			return; // a sensor that did not answer carries its reason instead
+		}
 		let note = reading.note.expect("temperature explains itself");
 		assert!(note.contains("CPU core"), "{note}");
 		assert!(note.contains("70"), "{note}");
 	}
 
 	#[test]
-	fn the_temperature_is_drawn_against_a_real_ceiling() {
-		let Some(reading) = temperature() else { return };
-		assert!(
-			reading.value.as_ref().is_some_and(Value::has_scale),
-			"a ceiling makes the reading drawable"
+	fn the_temperature_is_drawn_against_a_declared_ceiling_or_against_none() {
+		let Some(reading) = temperature(THERMAL_ZONE) else {
+			return;
+		};
+		let Some(value) = reading.value.as_ref() else {
+			return;
+		};
+		let declared = trips(THERMAL_ZONE)
+			.iter()
+			.find(|(kind, _)| kind == "critical")
+			.map(|(_, at)| *at);
+
+		assert_eq!(
+			value.has_scale(),
+			declared.is_some(),
+			"a scale exists exactly where the board declared one"
 		);
+		if let (Value::Quantity { max: Some(max), .. }, Some(critical)) = (value, declared) {
+			assert_eq!(
+				*max, critical,
+				"the ceiling is the board's own critical trip"
+			);
+		}
+	}
+
+	/// A scratch directory standing in for a sysfs tree, cleaned up on drop.
+	struct Tree(std::path::PathBuf);
+
+	impl Tree {
+		fn new() -> Self {
+			use std::sync::atomic::{AtomicU32, Ordering};
+			static COUNTER: AtomicU32 = AtomicU32::new(0);
+			let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+			let path =
+				std::env::temp_dir().join(format!("bliti-thermal-{}-{n}", std::process::id()));
+			fs::create_dir_all(&path).unwrap();
+			Self(path)
+		}
+
+		fn at(&self, name: &str) -> String {
+			self.0.join(name).to_string_lossy().into_owned()
+		}
+
+		fn write(&self, name: &str, contents: &str) -> &Self {
+			fs::write(self.0.join(name), contents).unwrap();
+			self
+		}
+	}
+
+	impl Drop for Tree {
+		fn drop(&mut self) {
+			let _ = fs::remove_dir_all(&self.0);
+		}
+	}
+
+	/// Hardware that is not fitted is left out entirely; hardware that is fitted and will not answer
+	/// is reported as failing. An operator can see the first from where they stand and cannot see the
+	/// second at all, so conflating them hides a real fault (BLI-SYS).
+	#[test]
+	fn a_thermal_zone_that_is_absent_and_one_that_will_not_answer_are_different_things() {
+		let tree = Tree::new();
+
+		// Not fitted: no zone at all.
+		assert!(temperature(&tree.at("nonexistent")).is_none());
+
+		// Fitted and silent: the zone is there, `temp` is not.
+		let reading = temperature(&tree.at(".")).expect("a zone that is present is reported");
+		assert!(reading.value.is_none());
+		assert_eq!(reading.state, State::Fault);
+		assert!(
+			reading
+				.error
+				.as_deref()
+				.is_some_and(|why| why.contains("temp")),
+			"{reading:?}"
+		);
+		assert!(reading.is_coherent());
+	}
+
+	#[test]
+	fn a_fan_that_is_absent_and_one_that_will_not_answer_are_different_things() {
+		let tree = Tree::new();
+		let root = tree.at(".");
+
+		// Not fitted: no hwmon names itself pwmfan.
+		assert!(fan(&root).is_none());
+
+		// Fitted and silent: the hwmon is there, `fan1_input` is not.
+		fs::create_dir_all(tree.0.join("hwmon0")).unwrap();
+		tree.write("hwmon0/name", "pwmfan\n");
+		let reading = fan(&root).expect("a fan that is present is reported");
+		assert!(reading.value.is_none());
+		assert_eq!(reading.state, State::Fault);
+		assert!(
+			reading
+				.error
+				.as_deref()
+				.is_some_and(|why| why.contains("fan1_input")),
+			"{reading:?}"
+		);
+		assert!(reading.is_coherent());
+
+		// And one that answers reports its speed.
+		tree.write("hwmon0/fan1_input", "2400\n");
+		let reading = fan(&root).expect("fitted");
+		assert_eq!(reading.value, Some(Value::quantity(2400.0, "rpm")));
+	}
+
+	/// The ceiling is the board's own critical trip, never one we invented: a zone declaring none
+	/// leaves the reading with no scale rather than inventing one to draw against.
+	#[test]
+	fn a_zone_declaring_no_critical_trip_gives_the_reading_no_scale() {
+		let tree = Tree::new();
+		let zone = tree.at(".");
+		tree.write("temp", "48500\n");
+
+		let reading = temperature(&zone).expect("fitted and answering");
+		assert_eq!(reading.value, Some(Value::quantity(48.5, "°C")));
+		assert!(!reading.value.as_ref().unwrap().has_scale());
+
+		// Declare one, and it becomes the ceiling.
+		tree.write("trip_point_0_type", "critical\n");
+		tree.write("trip_point_0_temp", "85000\n");
+		let reading = temperature(&zone).expect("fitted and answering");
+		assert_eq!(reading.value, Some(Value::scaled(48.5, "°C", 85.0)));
 	}
 
 	#[test]

@@ -10,7 +10,7 @@ An independently written client should pass the client-side cases from the spec 
 
 - [ ] Every value kind round trips: `fraction`, `quantity` with and without `max`, `duration`, `text` (Rust).
 - [ ] Absent optional members are omitted on the wire rather than sent as null (Rust).
-- [ ] A value of an unrecognised `kind` leaves the reading readable as a label, and does not fail the message (Rust, Playwright).
+- [x] A value of an unrecognised `kind` leaves the reading readable as a label, and does not fail the message (Rust, Playwright).
 - [ ] A reading carrying `error` carries no `value` and has `state` of `fault` (Rust).
 - [ ] A reading carrying neither `value` nor `error` is rejected (Rust).
 - [ ] `at` is monotonic across samples and independent of wall time; moving the device clock does not disturb a graph (Rust).
@@ -18,9 +18,9 @@ An independently written client should pass the client-side cases from the spec 
 ## What the device reports (verifies spec: BLI-SYS)
 
 - [ ] Two mount points on one block device produce one `disk` reading, not two (Rust).
-- [ ] Hardware that is not fitted omits its reading entirely (Rust).
-- [ ] Hardware that is fitted but unreadable produces a reading with `error` and a reason (Rust).
-- [ ] Those two are distinguishable: a test that would pass if the code conflated them fails (Rust).
+- [x] Hardware that is not fitted omits its reading entirely (Rust).
+- [x] Hardware that is fitted but unreadable produces a reading with `error` and a reason (Rust).
+- [x] Those two are distinguishable: a test that would pass if the code conflated them fails (Rust).
 - [ ] Loopback is never reported; other virtual interfaces are never reported; the overlay interface is (Rust).
 - [ ] `cpu` is computed from deltas, so a first sample does not report a figure derived from time since boot (Rust).
 - [ ] Network counter wrap does not produce a negative or absurd rate (Rust).

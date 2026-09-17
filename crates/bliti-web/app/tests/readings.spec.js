@@ -46,8 +46,9 @@ test.describe('rendering from the reading alone', () => {
 			page,
 			identity([{ name: 'pressure', label: 'Pressure', value: { kind: 'barometric', pascals: 101325 } }]),
 		)
+		// The label alone, with no token invented to stand in for a value we could not read.
 		await expect(page.getByText('Pressure')).toBeVisible()
-		await expect(page.getByText('not understood')).toBeVisible()
+		await expect(page.getByText('not understood')).toBeHidden()
 	})
 
 	test('each value kind is rendered in its own terms', async ({ page }) => {

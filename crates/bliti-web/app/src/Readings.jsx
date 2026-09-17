@@ -49,7 +49,7 @@ const LONG_HEADLINE = 12
 function isWide(entry) {
 	if (entry.readings.length > 1) return true
 	const shown = headline(entry.readings[0])
-	return shown.length > LONG_HEADLINE
+	return (shown?.length ?? 0) > LONG_HEADLINE
 }
 
 /// One tile. The face carries a label and the headline value and nothing else; everything else is
@@ -99,7 +99,11 @@ function Tile({ entry, live, history }) {
 function Face({ entry }) {
 	if (entry.readings.length === 1) {
 		const [reading] = entry.readings
-		return <div className={`value${isTrouble(reading) ? ` ${tone(reading)}` : ''}`}>{headline(reading)}</div>
+		const shown = headline(reading)
+		// Nothing renderable: the label is the whole of what this reading says, and it carries no face
+		// value at all rather than a placeholder standing in for one.
+		if (shown === null) return null
+		return <div className={`value${isTrouble(reading) ? ` ${tone(reading)}` : ''}`}>{shown}</div>
 	}
 	// A group shows each member compactly rather than picking one to stand for the rest.
 	return (
@@ -115,10 +119,9 @@ function Face({ entry }) {
 
 function headline(reading) {
 	if (reading.error) return 'unavailable'
-	const shown = formatValue(reading.value)
-	// A value of a kind this build does not know. The label has already said what the reading is, and
-	// inventing a rendering for a unit we cannot interpret would be worse than saying so.
-	return shown ?? 'not understood'
+	// A value of a kind this build does not know: the reading is treated as carrying none, and renders
+	// as its label alone (BLI-SYS). A token in its place would claim to have read something we did not.
+	return formatValue(reading.value)
 }
 
 function tone(reading) {
