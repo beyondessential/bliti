@@ -69,25 +69,20 @@ What remains bounding link occupancy is the send rate of CHN, 200 notifications 
 
 ## Where this lands in the specs
 
-CHN splits into a folder.
-It is carrying handshake, transport, send rate, peripheral role and streams already, and compression would be the sixth subject in one file.
+Compression folds into `channel.md` as a new section. CHN does not split.
 
-Proposed shape, to be settled when the split is written:
-
-| file | carries |
-| --- | --- |
-| `channel/overview.md` | keeps the id `CHN`: borrowed terms, the layering, and what the channel is |
-| `channel/authentication.md` | the Noise handshake and what it proves |
-| `channel/transport.md` | GATT, the two characteristics, framing, send rate, peripheral-only |
-| `channel/streams.md` | yamux |
-| `channel/compression.md` | this card |
-
-`CHN` stays on the overview because an id never changes.
-The new siblings each need their own id, and every existing reference to `channel.md`, in MSG, VER, SEC and the `spec: CHN` comments in the code, is repointed as part of the split.
+CHN is 89 lines, below the median spec here, and its sections run from 2 to 22 lines.
+Compression takes it to roughly 120, between SEC at 105 and MSG at 181, so the fold-first rule applies with nothing to argue against it.
+A five-way split would leave Streams standing alone at about 7 lines, which is a fragment rather than a spec.
+Worth revisiting only if CHN later grows toward the size of MSG or SYS.
 
 MSG loses its size ceiling and the fault that goes with it, and narrows its length prefix to three bytes.
+A note by the prefix records that the width bounds what a receiver can be asked to buffer rather than inviting one enormous message, and that bulk content belongs on its own stream as many messages.
+
 SEC gains the entry described above.
-VER's list of what the marker covers already says "the handshake, framing, transport and streams of CHN", which the split and the new section both need to stay true to.
+
+VER's list already covers "the handshake, framing, transport and streams of CHN", so compression is within the marker without any edit.
+Naming it explicitly there costs nothing and the marker is what says the channel is compressed, so the spec edit should decide whether to.
 
 ## Implementation options
 
@@ -148,6 +143,11 @@ CHN requires a Noise message to be prefixed with its length as two bytes, big-en
 `framing.rs` uses four, with a 65535-byte maximum, so the top two bytes are always zero.
 The spec's own note argues for two specifically, since a prefix expressing exactly the range a Noise message can occupy needs no rule refusing an over-large one, so the code is what moves.
 It is the same area of code and the same kind of change as narrowing the message prefix, so it rides along on this card.
+
+This work was card Q1, "Separate the transport and application framing layers", now absorbed here and cancelled.
+Q1 recorded a position settled on L1 that this card overturns: that application framing keeps a four-byte prefix and the 128 KiB ceiling, on the grounds that the ceiling was a deliberate product choice rather than a bound the field could express structurally.
+Removing the ceiling makes the field able to express it after all, which is what lets the prefix carry the bound instead.
+Q1's remaining content holds and comes with it: handshake messages are currently bounded by the application ceiling rather than by 65535, which is the allocation an unauthenticated peer in range can induce, and the `FrameTooLarge` variant and the `with_max` apparatus both go dead once each bound is structural.
 
 The two changes collide in one place worth knowing about before starting.
 `frame()` is currently shared: the message layer delimits with it and says so in its own comment, "this is the same four-byte length prefix the transport framing uses".
@@ -210,9 +210,12 @@ This is a consequence to be aware of rather than a way in: reaching the channel 
 
 ## Open questions
 
-- [ ] **The exact shape of the CHN split**, and an id for each new sibling. Sketched above, to be settled when the split is written rather than now.
-- [ ] **What a 16 MiB message means for a future upload feature.** Three bytes is a generous per-message bound, but a large upload wants its own stream carrying many messages rather than one enormous one. Nothing here forbids that; it may be worth saying so where the prefix is specified, so the bound does not read as an invitation.
-- [ ] **Precision rounding.** The same 300 samples at full `f64` compress to 88,578; rounded to four decimal places, 47,760. Nearly half, and independent of everything here. It belongs to whichever card owns the sample shape rather than this one, but it should not get lost.
+None outstanding.
+
+Two things that were open here belong elsewhere and are accounted for:
+
+- **Precision rounding** is already carried by card P1, which records rounding sample values to four decimal places and notes that `Sampler::numeric` rounds for series while live samples carry raw floats. P1 is also already sequenced after this card.
+- **The framing layer separation** was card Q1, now absorbed into this one and cancelled. Its content is in the implementation notes above.
 
 ## Testing notes
 
