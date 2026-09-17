@@ -7,11 +7,11 @@ window.__blitiEvents = []
 window.__blitiSubscriptions = []
 window.__blitiClient = {
 	unsupported: () => null,
-	async readSticker(text) {
-		if (!text || text === 'nope') throw new Error('That is not a bliti sticker.')
-		return { sticker: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', version: 1 }
+	async readCode(text) {
+		if (!text || text === 'nope') throw new Error('That is not a bliti code.')
+		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', version: 1 }
 	},
-	async connect(sticker, { onEvent, onClosed, onDisconnected }) {
+	async connect(qr, { onEvent, onClosed, onDisconnected }) {
 		window.__blitiEmit = onEvent
 		window.__blitiDisconnect = onDisconnected
 	},
@@ -34,7 +34,7 @@ window.__blitiClient = {
 }
 `
 
-/// Take the application to an open channel, with the sticker read and the device found.
+/// Take the application to an open channel, with the code read and the device found.
 export async function openChannel(page) {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')

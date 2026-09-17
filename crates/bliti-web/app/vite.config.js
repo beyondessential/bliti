@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
 			manifest: {
 				name: 'bliti',
 				short_name: 'bliti',
-				description: 'Provision a device by the sticker on its enclosure',
+				description: 'Provision a device by the QR code on its enclosure',
 				theme_color: '#1d4ed8',
 				background_color: '#fbfbfa',
 				display: 'standalone',
