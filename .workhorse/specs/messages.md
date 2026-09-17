@@ -21,7 +21,7 @@ That framing delimits Noise messages on the link; this delimits application mess
 The two use the same encoding at different layers, and a receiver that conflates them reads nonsense.
 
 A message is at most one mebibyte of JSON.
-A receiver sent a longer one closes the stream it arrived on, leaving the connection and every other stream alive.
+A receiver sent a longer one treats it as the fault it is, as described below, rather than buffering it.
 
 ## How a message is shaped
 
@@ -79,26 +79,38 @@ A device runs software months behind the web application, because the applicatio
 An installed client inverts this, running against a device that has since been updated.
 Both are the normal case rather than a fault, and neither may reduce the operator to an error message: the point of the system is that someone standing in front of a broken device can reach it.
 
-Nothing in the channel refuses to proceed on the grounds of the other end's version.
-No message exists by which one end tells the other it is unwilling to continue, and no version is compared anywhere above the handshake.
+The base protocol version of [BLI](overview.md) is the only version anything acts on, and it is settled from the advertisement before a channel exists.
+Once a channel is open nothing in it is gated: no message type, no member and no feature is withheld or refused on the grounds of what software the other end reported running.
+No message exists by which one end tells the other it is unwilling to continue.
 
-The version marker of [BLI-ADV](discovery.md) is not an exception to this.
-It separates one sticker format from another before a channel exists at all, and decides whether a shared secret can be computed rather than which features are available.
-Once a channel is open, nothing is gated.
+## What the base protocol guarantees
+
+Both ends are at the same base protocol version before a channel exists, so each may hold the other to this spec.
+
+Every message is therefore valid UTF-8, is valid JSON, is a JSON object, and carries a `type` member whose value is a string.
+A message whose type the receiver recognises carries the members that type requires, each as the JSON type given for it.
+
+A message type's required members are fixed for the life of a base protocol version.
+A later version of either end adds members rather than removing or repurposing them, and adds message types rather than reshaping existing ones, which is what makes the guarantee above safe to rely on.
+A change that cannot be made that way is a change to the base protocol version.
+
+A message that breaks any of this is not a version difference, because a version difference cannot produce one.
+It is a fault in the peer, and it is reported rather than passed over: the device logs it, and the client surfaces it to the operator, because a device that is not speaking the protocol is something the person standing in front of it needs told rather than left to read a blank screen.
+
+The receiver closes the stream the message arrived on, and leaves the connection and every other stream alive, so whatever else the peer can still say keeps arriving.
+A message beyond the size ceiling above is a fault of the same kind and is handled the same way.
 
 ## What is not recognised is skipped
 
-A receiver skips, and carries on, in each of these cases:
+Within that floor, a receiver skips what it does not know and carries on:
 
-- bytes that are not valid UTF-8, or not valid JSON, or JSON that is not an object
-- an object with no `type` member, or whose `type` is not a string
-- an object whose `type` names a message type the receiver does not recognise
-- a member the receiver does not recognise within a message whose type it does: that member is skipped and the rest of the message is read
-- a message of a recognised type that omits a member the type requires, or carries one as the wrong JSON type: the whole message is skipped
+- a message whose `type` names a type the receiver does not recognise: the message is skipped whole
+- a member the receiver does not recognise within a message whose type it does: the member is skipped and the rest of the message is read
+- a value the receiver does not recognise where a feature spec says an unrecognised one is skipped, of which a `subscribe` for an unknown topic is the one this spec defines
 
 Skipping is silent on the wire.
 Nothing is sent in reply, the stream stays open, and the connection is untouched.
-A receiver may record what it skipped, a log being where such a thing belongs.
+A receiver may record what it skipped.
 
 This holds in both directions, and it is what lets either end gain a message type or a member while the other has never heard of it, with no release coordinated between them.
 

@@ -71,6 +71,19 @@ Each layer depends only on the one beneath it carrying bytes reliably and in ord
 
 Replacing the bottom layer with another BLE transport changes nothing above it, and the choice can differ per client while the layers above stay identical.
 
+## The base protocol version
+
+One version number spans the whole stack, and it is the only version anything in the system acts on.
+It is carried in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md), and it is the same number in both.
+
+It covers every layer in the table above: the derivations of [BLI-KEY](key-schedule.md), the handshake, transport and streams of [BLI-CHN](channel.md), and the fact that application messages are JSON in the envelope of [BLI-MSG](messages.md).
+
+A client reads the advertised marker before it recomputes a handle.
+Where it does not implement that version it reports a device present at a version it does not support, and goes no further, because no shared secret could be computed and nothing it said afterwards would be understood.
+
+Above that version nothing is gated.
+The software each end runs carries its own version, which is exchanged and displayed and never acted on, as specified in [BLI-MSG](messages.md).
+
 ## Reporting
 
 A device reports failures and identity problems on its standard error.
