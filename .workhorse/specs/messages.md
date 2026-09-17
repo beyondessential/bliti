@@ -21,7 +21,7 @@ That framing delimits Noise messages on the link; this delimits application mess
 The two use the same encoding at different layers, and a receiver that conflates them reads nonsense.
 
 A message is at most one mebibyte of JSON.
-A receiver sent a longer one MUST treats it as the fault it is, as described below, rather than buffering it.
+A receiver sent a longer one MUST treat it as a fault.
 
 ## How a message is shaped
 
