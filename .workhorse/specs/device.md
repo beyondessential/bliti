@@ -4,9 +4,6 @@ id: DEV
 
 # Device operation
 
-A device runs as a daemon on hardware with no screen and no input.
-What it cannot say over the channel, it says where it is.
-
 ## Reporting
 
 A device MUST report failures and identity problems on its standard error.

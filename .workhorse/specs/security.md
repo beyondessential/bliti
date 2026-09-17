@@ -5,9 +5,6 @@ id: SEC
 # Security properties
 
 The [presence token](overview.md#presence-token) is the only credential in the system.
-Reading the QR code on a device is what yields it, and holding it is what authenticates.
-
-Each property below names the mechanism that upholds it. The requirements are in those specs; what is stated here is what they add up to.
 
 ## What is guaranteed
 

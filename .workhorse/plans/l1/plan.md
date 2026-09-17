@@ -36,6 +36,10 @@ Outstanding instances of the class: `messages.md` 8, 11-12; `system-info.md` 10,
 
 `channel.md` grounded its peripheral-only requirement in "a browser cannot drive pairing at all". The requirement is architectural: pairing is irrelevant because authentication comes from the handshake, not from the link. Tying it to what browsers can do today gives the rationale an expiry date, and a reader who meets it after browsers gain pairing, or after a native client ships, concludes a still-correct rule is obsolete and removes it. Replaced with the architectural reason plus the failure mode, which hold either way.
 
+The same defect appears as a *premise* rather than a rationale. DEV opened with "A device runs as a daemon on hardware with no screen and no input", which reads as a property of a device but is a description of the hardware bliti happens to target today. A device built with a screen does not stop being a device, and the spec does not stop applying to it. Headlessness is why bliti exists, which is what BLI's one sentence of intro is for, and it is not a fact about device operation. Deleted.
+
+DEV's second line, "What it cannot say over the channel, it says where it is", said nothing its own note did not say plainly, and said it obscurely. Deleted too: a gloss that has to be decoded is worse than no gloss.
+
 Two cases, and only the first is a defect:
 
 - Architectural requirement, contingent rationale. The rationale is wrong and is replaced.
