@@ -39,8 +39,7 @@ pub struct Reading {
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub note: Option<String>,
 
-	/// Whether the reading is in difficulty. Absent means [`State::Ok`].
-	#[serde(default, skip_serializing_if = "State::is_ok")]
+	/// Whether the reading is in difficulty. Always written, never inferred from its absence.
 	pub state: State,
 
 	/// Marks on the reading's scale, such as a board's declared thresholds.
@@ -56,25 +55,17 @@ pub struct Reading {
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub direction: Option<Direction>,
 
-	/// Whether this reading's history is worth drawing. Absent means it is.
+	/// Whether this reading's history is worth drawing. Always written, never inferred from its
+	/// absence.
 	///
 	/// Some readings move too slowly for a graph to say anything, and some only ever climb. Drawing a
 	/// flat line or a ramp costs the reveal its space and tells an operator nothing, so the device,
 	/// which knows what it is measuring, says so.
-	#[serde(default = "yes", skip_serializing_if = "is_yes")]
 	pub graph: bool,
 
 	/// Why the reading could not be taken. Present only where there is no value.
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub error: Option<String>,
-}
-
-fn yes() -> bool {
-	true
-}
-
-fn is_yes(graph: &bool) -> bool {
-	*graph
 }
 
 impl Reading {
@@ -357,11 +348,6 @@ pub enum State {
 }
 
 impl State {
-	/// Whether this is the absent-means-ok case, which is not written to the wire.
-	pub fn is_ok(&self) -> bool {
-		matches!(self, Self::Ok)
-	}
-
 	/// Whether an operator should be drawn to this reading. A state this build does not know is not
 	/// treated as trouble: a newer device must not make an older client cry wolf.
 	pub fn is_trouble(&self) -> bool {
@@ -554,37 +540,32 @@ mod tests {
 		assert!(!Direction::In.opposes(&Direction::In));
 	}
 
-	/// An ok state is the absent case and is not written, so the common reading stays small.
+	/// A member whose absence would mean something other than nothing is written out. Omitting it
+	/// saves bytes that compression would have saved anyway, and costs a reader a rule they have to
+	/// know before they can read the wire at all.
 	#[test]
-	fn an_ok_state_is_not_written() {
+	fn the_members_with_a_default_are_written_rather_than_inferred() {
 		let json =
 			serde_json::to_string(&Reading::new("cpu", "CPU", Value::Fraction(0.1))).unwrap();
-		assert!(!json.contains("state"), "{json}");
-		assert!(!json.contains("detail"), "{json}");
-		assert!(!json.contains("note"), "{json}");
-	}
+		assert!(json.contains(r#""graph":true"#), "{json}");
+		assert!(json.contains(r#""state":"ok""#), "{json}");
 
-	/// A reading is graphed unless it says otherwise, so a device that has never heard of the member
-	/// is not silently left without graphs.
-	#[test]
-	fn a_reading_is_graphed_unless_it_says_otherwise() {
-		let reading = Reading::new("cpu", "CPU", Value::Fraction(0.1));
-		assert!(reading.graph);
-		assert!(!serde_json::to_string(&reading).unwrap().contains("graph"));
-
-		let quiet = reading.clone().ungraphed();
-		assert!(!quiet.graph);
+		let quiet = Reading::new("cpu", "CPU", Value::Fraction(0.1)).ungraphed();
 		assert!(
 			serde_json::to_string(&quiet)
 				.unwrap()
 				.contains(r#""graph":false"#)
 		);
+	}
 
-		let older: Reading = serde_json::from_str(
-			r#"{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1}}"#,
-		)
-		.unwrap();
-		assert!(older.graph);
+	/// Absent still means nothing where nothing is what it means, which needs no rule to read.
+	#[test]
+	fn the_members_that_mean_nothing_when_absent_stay_absent() {
+		let json =
+			serde_json::to_string(&Reading::new("cpu", "CPU", Value::Fraction(0.1))).unwrap();
+		for member in ["detail", "limits", "note", "group", "direction", "error"] {
+			assert!(!json.contains(member), "{member} in {json}");
+		}
 	}
 
 	#[test]
@@ -639,12 +620,11 @@ mod tests {
 	/// skips it. Denying it here would turn a newer device into a fault instead.
 	#[test]
 	fn an_unknown_member_inside_a_reading_is_tolerated() {
-		let json =
-			r#"{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1},"cores":4}"#;
+		let json = r#"{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1},"cores":4}"#;
 		let reading: Reading = serde_json::from_str(json).unwrap();
 		assert_eq!(reading.name, "cpu");
 
-		let nested = r#"{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1,"precision":3}}"#;
+		let nested = r#"{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1,"precision":3}}"#;
 		let reading: Reading = serde_json::from_str(nested).unwrap();
 		assert_eq!(reading.value, Some(Value::Fraction(0.1)));
 	}

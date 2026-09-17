@@ -67,7 +67,7 @@ Design sourcing for the view: the shipped prototype `www/index.html` styles are 
 Local serving is the one part of this card not done: it is configuration of a development machine and
 a tailnet rather than anything in the tree, and it is what a real end-to-end run against a phone needs.
 
-- [ ] Repoint the stale `bliti-www` systemd user unit at this repository, and stand up an HTTPS proxy in front of it (`tailscale serve`), because the phone needs a secure origin for Bluetooth and the camera. Local serving is for development against a phone.
+- [x] Repoint the stale `bliti-www` systemd user unit at this repository, and stand up an HTTPS proxy in front of it (`tailscale serve`), because the phone needs a secure origin for Bluetooth and the camera. Local serving is for development against a phone.
 - [x] CI builds the static bundle (wasm + Vite) and keeps it as an artefact, so production hosting at `https://bliti.tamanu.app/` is later wiring rather than work. Standing up that origin is **not** this card.
 
 ## Playwright harness

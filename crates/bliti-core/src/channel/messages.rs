@@ -420,8 +420,8 @@ mod tests {
 	#[test]
 	fn a_nested_critical_member_is_found() {
 		let json = r#"{"type":"system-identity","readings":[
-			{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1}},
-			{"name":"disk","label":"Disk","value":{"kind":"fraction","number":0.5},"SCOPE":"site"}
+			{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1}},
+			{"name":"disk","label":"Disk","state":"ok","graph":true,"value":{"kind":"fraction","number":0.5},"SCOPE":"site"}
 		]}"#;
 		assert_eq!(
 			device(json).unwrap(),
@@ -435,7 +435,7 @@ mod tests {
 	#[test]
 	fn a_nested_ignorable_member_is_skipped() {
 		let json = r#"{"type":"system-identity","readings":[
-			{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1},"cores":4}
+			{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1},"cores":4}
 		]}"#;
 		let Reading::Message(DeviceMessage::SystemIdentity { readings }) = device(json).unwrap()
 		else {
