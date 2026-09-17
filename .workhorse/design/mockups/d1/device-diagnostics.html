@@ -15,6 +15,7 @@
 	--muted: #57534e;
 	--accent: #1d4ed8;
 	--bad: #b91c1c;
+	--warn: #b45309;
 	--good: #15803d;
 }
 * { box-sizing: border-box; }
@@ -47,6 +48,8 @@ section {
 h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
 .muted { color: var(--muted); font-size: 0.9rem; }
 .bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.tile.attention { border-color: var(--warn); }
 .code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
 dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
 dt { color: var(--muted); font-size: 0.9rem; }
@@ -213,6 +216,45 @@ dd { margin: 0; font-size: 0.9rem; }
 					</dl>
 				</div>
 			</button>
+			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Backup supply bypassed</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 3h 11m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<!-- Everything here is healthy except one tile. That is the point: a bypassed backup
+			     has no outward sign, and the device looks entirely well right up until the power
+			     goes and it stops dead. -->
+			<button class="tile expanded attention wide">
+				<div class="label">Power</div>
+				<div class="value small warn">Backup bypassed</div>
+				<div class="detail">
+					<dl>
+						<dt>Supply</dt><dd>Into the Pi directly</dd>
+						<dt>UPS input</dt><dd>Nothing connected</dd>
+						<dt>Battery</dt><dd>97%, holding</dd>
+					</dl>
+					<p class="note">Power goes straight to the Pi, so the backup cannot take over. Move it to the UPS input.</p>
+				</div>
+			</button>
+			<button class="tile"><div class="label">CPU</div><div class="value">8<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Memory</div><div class="value">6<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Disk</div><div class="value">1<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Battery</div><div class="value">97<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Temperature</div><div class="value">46<span class="unit">&deg;C</span></div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
 			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
 		</div>
 	</div>
