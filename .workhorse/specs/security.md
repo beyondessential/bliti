@@ -58,8 +58,13 @@ Upheld by the derivation of [BLI-KEY](key-schedule.md).
 
 Anyone holding a device's presence token can impersonate that device and connect to it.
 
-A photograph of the QR code is enough, because the code carries the token outright.
-So is the device's board ID, which yields the token by derivation, and which anyone who has had access to the device can read.
+A photograph of the QR code yields the token, because the code carries it outright.
+
+### The board ID yields the token
+
+Anyone who learns a device's board ID can derive its presence token.
+
+Any software on a device can read its board ID, so anyone who has had access to a device can obtain it.
 
 ### A device's presence is not hidden
 
