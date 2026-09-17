@@ -51,7 +51,9 @@ BCP 14 keyword notation sits in `overview.md`, worded "in bliti's specifications
 
 ### Two tiers of glossary
 
-**Global, in BLI.** Terms bliti coins: board ID, presence token, advertised handle, version marker. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence token](overview.md#presence-token)`. Convention is to link the first occurrence per spec.
+**Global, in BLI.** Terms bliti coins, in two groups. The roles first, because everything else is described in terms of them: client, device, operator, generator. Then the values: board ID, presence token, advertised handle, version marker. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence token](overview.md#presence-token)`. Convention is to link the first occurrence per spec.
+
+Client, device and operator carry a gloss and no pointer, because no spec owns them: they are system vocabulary, and the glossary is their definition. A pointer is for a term some spec goes on to specify.
 
 An entry is one sentence of gloss and then `Defined in [SPEC](file.md).` Enough to know what the thing is and where to go; nothing more. Every entry had grown a middle sentence making a claim that its owning spec already made — that the board ID is not secret, that holding the presence token proves presence, that an observer cannot link a handle, that the marker is the only version acted on. A glossary that states properties is a second place for them to drift out of step, and in a non-normative spec it states them without force as well.
 

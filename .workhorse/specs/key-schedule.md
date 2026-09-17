@@ -7,7 +7,7 @@ id: BLI-KEY
 Two derivations take the board ID of [BLI-BID](board-id.md) to the values [BLI](overview.md) depends on: the presence token printed in the QR code, and the advertised handle broadcast over BLE.
 
 Both derivation constants are public.
-They are compiled into the device, the sticker generator, and every client, and publishing them weakens nothing, because neither derivation runs backwards.
+They are compiled into the device, the generator, and every client, and publishing them weakens nothing, because neither derivation runs backwards.
 What the constants provide is domain separation, so that a value from one step is not a valid value at another.
 
 ## Presence token

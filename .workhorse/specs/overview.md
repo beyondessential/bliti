@@ -21,6 +21,23 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 ## Terminology
 
+### Client
+
+The software an operator uses to provision a device.
+
+### Device
+
+The headless machine bliti provisions.
+
+### Operator
+
+The person physically at a device, using a client to reach it.
+
+### Generator
+
+The tool that turns a board ID into a QR code for printing.
+Defined in [BLI-STK](sticker.md).
+
 ### Board ID
 
 The identifier a board's own firmware provides.

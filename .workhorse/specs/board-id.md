@@ -18,7 +18,7 @@ A board offers more than one candidate identifier, and the board ID is the stron
 The precedence, strongest first, is the TPM Endorsement Key, then provisioned one-time-programmable memory, then the platform's serial numbers.
 Precedence is evaluated by kind of source rather than by platform, so a board gains a stronger source simply by having the hardware for it, and no rule names a particular model.
 
-The device and the sticker generator evaluate the same precedence against the same board and therefore select the same source, without either being told which kind of machine it is running on.
+The device and the generator evaluate the same precedence against the same board and therefore select the same source, without either being told which kind of machine it is running on.
 
 Combining sources is not done.
 Each source in a combination would be a way for the board ID to change, and a board ID that changes orphans a sticker already fixed to an enclosure.
