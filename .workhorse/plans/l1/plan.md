@@ -51,7 +51,9 @@ BCP 14 keyword notation sits in `overview.md`, worded "in bliti's specifications
 
 ### Two tiers of glossary
 
-**Global, in BLI.** Terms bliti coins: board ID, presence secret, advertised handle, QR code. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence secret](overview.md#presence-secret)`. Convention is to link the first occurrence per spec.
+**Global, in BLI.** Terms bliti coins: board ID, presence secret, advertised handle, QR code, version marker. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence secret](overview.md#presence-secret)`. Convention is to link the first occurrence per spec.
+
+An entry is one sentence of gloss and then `Defined in [SPEC](file.md).` Enough to know what the thing is and where to go; nothing more. Every entry had grown a middle sentence making a claim that its owning spec already made — that the board ID is not secret, that holding the presence secret proves presence, that an observer cannot link a handle, that the marker is the only version acted on. A glossary that states properties is a second place for them to drift out of step, and in a non-normative spec it states them without force as well.
 
 **Per-spec, under `## Borrowed terms`.** Terms imported from other standards, as a table near the top so a reader meets them before use. A borrowed term used in one spec does not belong in the root glossary.
 
