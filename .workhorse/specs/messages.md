@@ -78,7 +78,6 @@ Streams are bidirectional, so a device may reply on the stream a client opened.
 | `version` | string | the version it is at |
 
 Both are opaque.
-They exist to be read by a person and written to a log.
 
 The client displays the device's `name` and `version`, because "what is this thing running" is a question an operator standing in front of a device has.
 The device records the client's, which is how it can be known what is actually in the field talking to these devices.
