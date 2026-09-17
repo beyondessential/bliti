@@ -1,6 +1,6 @@
 //! Framing and reassembly directly above GATT.
 //!
-//! Behaviour is specified in BLI-CHN, "Transport". GATT carries reliable, ordered bytes, but a
+//! Behaviour is specified in CHN, "Transport". GATT carries reliable, ordered bytes, but a
 //! client writes and a device notifies in chunks no larger than the negotiated attribute size, and a
 //! message may span several. Framing prefixes each message with its length so the far end can
 //! reassemble it across the chunks, so a message is not limited by the attribute size.

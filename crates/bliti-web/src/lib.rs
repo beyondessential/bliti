@@ -1,15 +1,15 @@
-//! The browser client for bliti: the protocol half of the web application (BLI-WEB).
+//! The browser client for bliti: the protocol half of the web application (WEB).
 //!
-//! This crate compiles to wasm and carries everything the specs describe — reading a sticker
-//! (BLI-STK), recomputing and matching the advertised handle (BLI-ADV), the `NNpsk0` handshake, the
-//! stream layer, and the JSON messages (BLI-CHN). It is the same code the daemon and the
+//! This crate compiles to wasm and carries everything the specs describe — reading a QR code
+//! (QR), recomputing and matching the advertised handle (ADV), the `NNpsk0` handshake, the
+//! stream layer, and the JSON messages (CHN). It is the same code the daemon and the
 //! command-line client run, which is the point: one implementation of the key schedule and the
 //! handshake rather than a Rust one and a JavaScript one that must agree forever.
 //!
 //! What stays in JavaScript is Web Bluetooth, the camera, and the interface. Those are browser APIs
 //! with no protocol in them, and binding them through wasm would buy nothing.
 //!
-//! The memory-hard derivation of BLI-KEY never runs here: a client reads the sticker secret from the
+//! The memory-hard derivation of KEY never runs here: a client reads the presence token from the
 //! payload and only computes the handle, which is a fast hash. The crate therefore takes `bliti-core`
 //! without its default features, and argon2 is not in the build at all.
 
@@ -24,7 +24,7 @@ use bliti_core::{
 			Mode, Stream, Streams, connect_initiator, multiplex, read_message, write_message,
 		},
 	},
-	sticker::StickerPayload,
+	qr::QrPayload,
 };
 use futures::{
 	AsyncWriteExt,
@@ -47,7 +47,7 @@ pub fn start() {
 	console_error_panic_hook::set_once();
 }
 
-/// The service UUID a client filters its scan by (BLI-ADV), in the lowercase hyphenated form the Web
+/// The service UUID a client filters its scan by (ADV), in the lowercase hyphenated form the Web
 /// Bluetooth API expects. Read from the core so the browser filters on the same UUID the device
 /// advertises.
 #[wasm_bindgen]
@@ -55,49 +55,49 @@ pub fn service_uuid() -> String {
 	bliti_core::SERVICE_UUID.to_string()
 }
 
-/// The characteristic a client writes to send bytes to the device (BLI-CHN, "Transport").
+/// The characteristic a client writes to send bytes to the device (CHN, "Transport").
 #[wasm_bindgen]
 pub fn client_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_CLIENT_TX.to_string()
 }
 
-/// The characteristic the device notifies on to send bytes to the client (BLI-CHN, "Transport").
+/// The characteristic the device notifies on to send bytes to the client (CHN, "Transport").
 #[wasm_bindgen]
 pub fn device_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
 }
 
-/// A sticker the application has read, by either of the paths in BLI-WEB.
+/// A QR code the application has read, by either of the paths in WEB.
 #[wasm_bindgen]
-pub struct Sticker {
-	payload: StickerPayload,
+pub struct QrCode {
+	payload: QrPayload,
 }
 
 #[wasm_bindgen]
-impl Sticker {
-	/// Read a sticker however it was given: the URL a code encodes, the fragment alone, or the
+impl QrCode {
+	/// Read a QR code however it was given: the URL a code encodes, the fragment alone, or the
 	/// human-readable rendering printed beneath the code. All three carry the same payload, and a
 	/// payload that parses as none of them is reported as unreadable.
 	#[wasm_bindgen(constructor)]
-	pub fn new(text: &str) -> Result<Sticker, JsError> {
-		use bliti_core::sticker::StickerError;
-		let payload = StickerPayload::read(text).map_err(|err| match err {
-			StickerError::UnsupportedVersion(version) => JsError::new(&format!(
-				"That sticker is bliti version {version}, which this app does not read."
+	pub fn new(text: &str) -> Result<QrCode, JsError> {
+		use bliti_core::qr::QrError;
+		let payload = QrPayload::read(text).map_err(|err| match err {
+			QrError::UnsupportedVersion(version) => JsError::new(&format!(
+				"That QR code is bliti version {version}, which this app does not read."
 			)),
-			StickerError::Malformed => JsError::new("That is not a bliti sticker."),
+			QrError::Malformed => JsError::new("That is not a bliti QR code."),
 		})?;
 		Ok(Self { payload })
 	}
 
-	/// The version of the sticker in hand. A device advertising a different one is reported as being
+	/// The version of the QR code in hand. A device advertising a different one is reported as being
 	/// at a version this client does not support, rather than as not matching.
 	#[wasm_bindgen(getter)]
 	pub fn version(&self) -> u8 {
 		self.payload.version()
 	}
 
-	/// The sticker's URL, as its code encodes it.
+	/// The QR code's URL, as its code encodes it.
 	#[wasm_bindgen(getter)]
 	pub fn url(&self) -> String {
 		self.payload.to_url()
@@ -109,7 +109,7 @@ impl Sticker {
 		self.payload.to_human()
 	}
 
-	/// Read a local name heard over the air against this sticker (BLI-ADV, "Matching").
+	/// Read a local name heard over the air against this QR code (ADV, "Matching").
 	///
 	/// `undefined` where the name is not a bliti payload at all, which is the ordinary case for every
 	/// other device in range and is passed over rather than reported.
@@ -139,7 +139,7 @@ impl Advertisement {
 		self.version
 	}
 
-	/// Whether this device is the one the sticker belongs to.
+	/// Whether this device is the one the QR code belongs to.
 	#[wasm_bindgen(getter)]
 	pub fn matches(&self) -> bool {
 		self.matches
@@ -149,7 +149,7 @@ impl Advertisement {
 /// The state a channel holds once it is open. Kept behind a shared handle so the exported methods can
 /// hand work to a task without borrowing across an await.
 struct Inner {
-	payload: StickerPayload,
+	payload: QrPayload,
 	transport: RefCell<Option<WebTransport>>,
 	inbound: RefCell<mpsc::Sender<Vec<u8>>>,
 	// An async lock rather than a cell: it is held across opening a stream, and two sends in
@@ -161,7 +161,7 @@ struct Inner {
 	reporting_closer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
-/// A channel to a device: the handshake of BLI-CHN and the streams above it.
+/// A channel to a device: the handshake of CHN and the streams above it.
 ///
 /// Built before the connection is driven, so the application can start feeding it the device's
 /// notifications before the handshake runs.
@@ -175,11 +175,11 @@ impl Channel {
 	/// Prepare a channel for a device, given the function that writes a chunk to the device's write
 	/// characteristic. The handshake does not run until [`Channel::connect`] is called.
 	#[wasm_bindgen(constructor)]
-	pub fn new(sticker: &Sticker, write: Function) -> Channel {
+	pub fn new(code: &QrCode, write: Function) -> Channel {
 		let (transport, inbound) = WebTransport::new(write);
 		Channel {
 			inner: Rc::new(Inner {
-				payload: sticker.payload.clone(),
+				payload: code.payload.clone(),
 				transport: RefCell::new(Some(transport)),
 				inbound: RefCell::new(inbound),
 				streams: Mutex::new(None),
@@ -197,7 +197,7 @@ impl Channel {
 	/// Run the handshake, name this client to the device, and start reading what the device reports.
 	///
 	/// The client opens a control stream and sends its hello without waiting for the device's, and the
-	/// device opens its reporting stream without being asked; neither blocks on the other (BLI-MSG).
+	/// device opens its reporting stream without being asked; neither blocks on the other (MSG).
 	/// Every message the device sends is passed to `on_message` as one of the outcomes described in
 	/// [`describe`], and `on_closed` is called once the reporting stream ends.
 	pub fn connect(
@@ -256,7 +256,7 @@ impl Channel {
 	/// Subscribe to what the device sends continuously on a topic.
 	///
 	/// The subscription is the stream: it begins with this message and ends when the stream is closed,
-	/// so [`Subscription::close`] is the unsubscribe and there is no message for it (BLI-MSG). A topic
+	/// so [`Subscription::close`] is the unsubscribe and there is no message for it (MSG). A topic
 	/// the device does not know yields no data and no error, which is what an older device looks like.
 	pub fn subscribe(&self, topic: String, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
@@ -311,8 +311,8 @@ impl SubscriptionHandle {
 /// close it.
 ///
 /// Each message is described rather than handed over raw, so the application is told which of the
-/// outcomes of BLI-MSG it is looking at and can render accordingly. A fault is the exception: the
-/// receiver closes the stream a fault arrived on (BLI-MSG), so it ends the read here rather than
+/// outcomes of MSG it is looking at and can render accordingly. A fault is the exception: the
+/// receiver closes the stream a fault arrived on (MSG), so it ends the read here rather than
 /// being reported and read past, which would let a peer that has completed the handshake stream
 /// malformed messages indefinitely.
 async fn report_until_closed(
@@ -352,7 +352,7 @@ async fn report_until_closed(
 
 /// Describe one message to the application as JSON, and say whether it was a fault.
 ///
-/// The three outcomes of BLI-MSG are kept apart here rather than in the application, so every client
+/// The three outcomes of MSG are kept apart here rather than in the application, so every client
 /// surface inherits the same reading of the wire. `message` is what this build understood, `skipped`
 /// is a device newer than this build saying something safe to pass over, `refused` is one saying
 /// something that must not be half read, and `fault` is a device not speaking the protocol.

@@ -1,5 +1,5 @@
 ---
-id: BLI-SYS
+id: SYS
 ---
 
 # Device system information
@@ -8,7 +8,7 @@ A device reports what it knows about itself: what board it is, what it is runnin
 The application displays that to an operator standing in front of it, who has no other way to reach the device.
 
 This spec defines the readings a device reports, the format it reports them in, the topic they are subscribed to, and what the application does with them.
-It inherits the envelope of [BLI-MSG](messages.md) entire and restates none of it.
+It inherits the envelope of [MSG](messages.md) entire and restates none of it.
 
 The reading format is wire contract.
 A client written from this spec alone renders every reading a conforming device sends, including readings that did not exist when the client was written.
@@ -64,7 +64,7 @@ The device sends `system-identity` on its reporting stream as soon as it has nam
 | --- | --- | --- |
 | `readings` | array | readings that do not change while the device runs, or change rarely |
 
-The device's own software name and version are not repeated here; they are carried by `device-hello` in [BLI-MSG](messages.md).
+The device's own software name and version are not repeated here; they are carried by `device-hello` in [MSG](messages.md).
 
 ## Live readings
 
@@ -250,6 +250,6 @@ Samples are spaced by their `at` values rather than evenly.
 
 ### Subscribing
 
-The application subscribes to `system` while the operator is looking at the device, and drops the subscription when the page is hidden, as [BLI-MSG](messages.md) requires.
+The application subscribes to `system` while the operator is looking at the device, and drops the subscription when the page is hidden, as [MSG](messages.md) requires.
 
 History received on resubscribing covers the gap, so a graph is continuous across it.

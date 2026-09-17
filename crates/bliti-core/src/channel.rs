@@ -1,8 +1,8 @@
 //! The authenticated channel: the layers that sit above GATT carrying reliable, ordered bytes.
 //!
-//! Behaviour is specified in `.workhorse/specs/channel.md` (BLI-CHN). Once a client has
+//! Behaviour is specified in `.workhorse/specs/channel.md` (CHN). Once a client has
 //! matched a device by its handle, the two authenticate with a Noise `NNpsk0` handshake keyed by
-//! the sticker secret, then carry application messages over the channel it establishes.
+//! the presence token, then carry application messages over the channel it establishes.
 //!
 //! The layers, each depending only on the one beneath it carrying bytes reliably and in order:
 //!
@@ -26,7 +26,7 @@ pub mod stream;
 /// A failure in the channel below the application layer.
 #[derive(Debug, thiserror::Error)]
 pub enum ChannelError {
-	/// The handshake could not be built or driven: a wrong sticker secret, a replayed or spoofed
+	/// The handshake could not be built or driven: a wrong presence token, a replayed or spoofed
 	/// handshake, or a peer that does not hold the secret all surface here, because none can complete
 	/// the `NNpsk0` handshake.
 	#[error("handshake failed: {0}")]

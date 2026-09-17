@@ -1,7 +1,7 @@
 //! bliti: QR-anchored BLE device provisioning.
 //!
-//! Two things live in this binary: the daemon a device runs, and the sticker generator. They share
-//! the board-ID precedence and the key schedule in `bliti-core`, which is what makes the sticker a
+//! Two things live in this binary: the daemon a device runs, and the QR code generator. They share
+//! the board-ID precedence and the key schedule in `bliti-core`, which is what makes the QR code a
 //! generator prints match the handle the device advertises.
 //!
 //! Behaviour is specified under `.workhorse/specs/`.
@@ -14,16 +14,16 @@ use clap::{Parser, Subcommand};
 mod facts;
 mod gatt;
 mod identity;
+mod qr;
 mod sampler;
 mod session;
-mod sticker;
 
 #[cfg(target_os = "linux")]
 mod client;
 #[cfg(target_os = "linux")]
 mod device;
 
-/// How often the rotation salt changes (BLI-ADV, "Rotation"). A client recomputes against whatever
+/// How often the rotation salt changes (ADV, "Rotation"). A client recomputes against whatever
 /// salt it observes, so nothing a client does depends on this period.
 pub const SALT_ROTATION: Duration = Duration::from_secs(15 * 60);
 
@@ -33,7 +33,7 @@ struct Cli {
 	#[command(subcommand)]
 	command: Command,
 
-	/// Where the derived sticker secret is cached.
+	/// Where the derived presence token is cached.
 	#[arg(long, global = true, default_value_os_t = identity::default_cache_path())]
 	cache: PathBuf,
 }
@@ -47,8 +47,8 @@ enum Command {
 		adapter: Option<String>,
 	},
 
-	/// Print the sticker for the board this runs on.
-	Sticker {
+	/// Print the QR code for the board this runs on.
+	Qr {
 		/// Write the QR code as SVG rather than drawing it in the terminal.
 		#[arg(long)]
 		svg: bool,
@@ -57,10 +57,10 @@ enum Command {
 	/// Report which board ID source this board offers and which one wins, without deriving anything.
 	BoardId,
 
-	/// Scan for the device a sticker belongs to. The client half of discovery, without a browser.
+	/// Scan for the device a QR code belongs to. The client half of discovery, without a browser.
 	Scan {
-		/// The sticker payload: a sticker URL, its fragment, or the rendering printed beneath the code.
-		sticker: String,
+		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		code: String,
 
 		/// How long to listen for.
 		#[arg(long, default_value_t = 10)]
@@ -73,10 +73,10 @@ enum Command {
 
 	/// Open a channel to a device and exchange the milestone's two messages.
 	Connect {
-		/// The sticker payload: a sticker URL, its fragment, or the rendering printed beneath the code.
-		sticker: String,
+		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		code: String,
 
-		/// The device's address, as reported by `scan`. Found by matching the sticker when absent.
+		/// The device's address, as reported by `scan`. Found by matching the QR code when absent.
 		#[arg(long)]
 		address: Option<String>,
 
@@ -103,18 +103,18 @@ fn main() -> Result<()> {
 async fn run(cli: Cli) -> Result<()> {
 	match cli.command {
 		Command::BoardId => board_id(),
-		Command::Sticker { svg } => make_sticker(&cli.cache, svg),
+		Command::Qr { svg } => make_qr(&cli.cache, svg),
 		Command::Daemon { adapter } => daemon(&cli.cache, adapter.as_deref()).await,
 		Command::Scan {
-			sticker,
+			code,
 			seconds,
 			adapter,
-		} => scan(&sticker, seconds, adapter.as_deref()).await,
+		} => scan(&code, seconds, adapter.as_deref()).await,
 		Command::Connect {
-			sticker,
+			code,
 			address,
 			adapter,
-		} => connect(&sticker, address.as_deref(), adapter.as_deref()).await,
+		} => connect(&code, address.as_deref(), adapter.as_deref()).await,
 	}
 }
 
@@ -133,29 +133,29 @@ fn board_id() -> Result<()> {
 	let refs: Vec<&dyn BoardIdSource> = sources.iter().map(AsRef::as_ref).collect();
 	match strongest_present(&refs)? {
 		Some(kind) => println!("\nwinning source: {kind}"),
-		None => println!("\nno usable source: this board cannot derive a sticker"),
+		None => println!("\nno usable source: this board cannot derive a QR code"),
 	}
 	Ok(())
 }
 
-/// Print the sticker for this board, deriving its secret if the cache does not already hold it.
-fn make_sticker(cache: &std::path::Path, svg: bool) -> Result<()> {
+/// Print the QR code for this board, deriving its secret if the cache does not already hold it.
+fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
-		tracing::info!(source = %identity.kind, "derived this board's sticker secret");
+		tracing::info!(source = %identity.kind, "derived this board's presence token");
 	}
 
-	let payload = bliti_core::sticker::StickerPayload::new(identity.secret);
-	let sticker = sticker::Sticker::new(&payload)?;
+	let payload = bliti_core::qr::QrPayload::new(identity.secret);
+	let code = qr::Printable::new(&payload)?;
 
 	if svg {
-		println!("{}", sticker.to_svg());
+		println!("{}", code.to_svg());
 	} else {
-		println!("{}", sticker.to_terminal());
-		println!("{}", sticker.url);
+		println!("{}", code.to_terminal());
+		println!("{}", code.url);
 	}
-	// The human-readable rendering is printed beneath the code, so a scuffed sticker stays usable.
-	println!("\n{}", sticker.human);
+	// The human-readable rendering is printed beneath the code, so a scuffed QR code stays usable.
+	println!("\n{}", code.human);
 	Ok(())
 }
 
@@ -164,20 +164,20 @@ async fn daemon(cache: &std::path::Path, adapter: Option<&str>) -> Result<()> {
 	device::run(cache, adapter).await
 }
 
-/// Read a sticker however it was given: the URL a code encodes, its fragment alone, or the
+/// Read a QR code however it was given: the URL a code encodes, its fragment alone, or the
 /// human-readable rendering printed beneath the code. All three carry the same payload.
-fn read_sticker(given: &str) -> Result<bliti_core::sticker::StickerPayload> {
-	bliti_core::sticker::StickerPayload::read(given).context("reading the sticker")
+fn read_qr(given: &str) -> Result<bliti_core::qr::QrPayload> {
+	bliti_core::qr::QrPayload::read(given).context("reading the QR code")
 }
 
 #[cfg(target_os = "linux")]
-async fn scan(sticker: &str, seconds: u64, adapter: Option<&str>) -> Result<()> {
-	device::scan(&read_sticker(sticker)?, seconds, adapter).await
+async fn scan(code: &str, seconds: u64, adapter: Option<&str>) -> Result<()> {
+	device::scan(&read_qr(code)?, seconds, adapter).await
 }
 
 #[cfg(target_os = "linux")]
-async fn connect(sticker: &str, address: Option<&str>, adapter: Option<&str>) -> Result<()> {
-	let payload = read_sticker(sticker)?;
+async fn connect(code: &str, address: Option<&str>, adapter: Option<&str>) -> Result<()> {
+	let payload = read_qr(code)?;
 	let address = address
 		.map(str::parse::<bluer::Address>)
 		.transpose()
@@ -191,7 +191,7 @@ async fn connect(_s: &str, _a: Option<&str>, _t: &str, _ad: Option<&str>) -> Res
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn scan(_sticker: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> {
+async fn scan(_code: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> {
 	anyhow::bail!("scanning runs on Linux, against BlueZ")
 }
 

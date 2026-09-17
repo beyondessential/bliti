@@ -242,7 +242,10 @@ Still needed: the Core Specification Supplement for BLI-ADV's advertising data f
 - [x] presence token and QR code terminology in `overview.md` and `channel.md`
 - [x] Per-spec terms glossary in `channel.md`
 - [x] Link and anchor checking in CI (`.github/workflows/links.yml`)
-- [ ] Terminology sweep across the remaining seven specs
+- [x] Terminology sweep across the remaining seven specs
+- [x] Terminology sweep in code, manifests, CI configs and README
+- [x] SMBIOS source removed from code, including its backend, tests and the now-dead tag
+- [x] Re-ID across specs and code doc-comments; `sticker.md` renamed to `qr-code.md` with id QR
 - [ ] Per-spec terms glossaries where a spec borrows terms of art, starting with BLI-ADV and BLI-BID
 - [ ] Voice rewrite of the remaining eight specs
 - [ ] Terminology sweep in code: around 320 sites over 16 files, two modules named `sticker.rs`, the `Sticker` CLI subcommand and its `sticker` argument
@@ -285,6 +288,21 @@ Open:
 - If write without response is the intended fast path, the spec should say so rather than permitting both equally.
 - The security properties in `channel.md`'s authentication note overlap BLI's "Where the guarantees stop". Decide one home.
 - BLI-ADV depends on the 31-byte legacy advertising budget. Whether that is a floor a device must fit, or a consequence of targeting legacy controllers, is not stated.
+
+## The sweep
+
+Terminology and re-ID landed together, since `sticker.md` could not keep its name and the file rename forced the same link edits the re-ID needed.
+
+Ids are now BID, KEY, QR, ADV, CHN, MSG, WEB, SYS, plus SEC, VER, DEV, with BLI on the overview.
+
+Two things the bulk replacement got wrong, both caught rather than shipped:
+
+- It rewrote snake_case identifiers into `QR code` with a space, which the compiler caught immediately.
+- It rewrote a **test input**. `QrPayload::read("not a sticker")` was chosen because it does not parse; `"not a QR code"` happens to base32-decode with a first byte of 107, so the test asserting Malformed got UnsupportedVersion(107) instead. A blanket replacement over source treats prose, identifiers and data as one thing, and only the last of those is silent. The test caught it, which is the argument for running them rather than trusting a clean compile.
+
+The removal of SMBIOS also freed tag 4 in `SourceKind::tag()`. It stays retired rather than reused, noted in the code, because reusing it would silently change derivations for a future source.
+
+**Not swept, deliberately:** `sticker` survives in `.workhorse/breakdowns/d1/`, `.workhorse/working-docs/d1/` and `.workhorse/test-cases/e1/`. Those are other cards' artefacts and are not this card's to edit.
 
 ## Other findings
 

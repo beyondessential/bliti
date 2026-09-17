@@ -1,11 +1,11 @@
 # bliti
 
-bliti provisions headless devices over Bluetooth Low Energy, anchored to a QR sticker printed on the
-device's enclosure. A device advertises an opaque handle, and a client that has scanned that
-device's sticker, and only such a client, can recognise it among the advertisements it hears,
+bliti provisions headless devices over Bluetooth Low Energy, anchored to a QR code carried on the
+outside of the device. A device advertises an opaque handle, and a client that has scanned that
+device's QR code, and only such a client, can recognise it among the advertisements it hears,
 authenticate to it, and open a two-way channel.
 
-The sticker stands in for the button press or on-screen code that other provisioning protocols use
+The QR code stands in for the button press or on-screen code that other provisioning protocols use
 to establish that the operator is physically present, because the devices bliti targets have neither
 a button nor a screen. bliti is not an implementation of Improv Wi-Fi and does not interoperate
 with it.
@@ -16,20 +16,20 @@ Every value descends from an identifier the board's own firmware provides, under
 public:
 
 ```
-board ID  ──argon2id──>  sticker secret  ──keyed hash──>  advertised handle
-(firmware)               (printed in the QR)              (broadcast over BLE)
+board ID  ──argon2id──>  presence token  ──keyed hash──>  advertised handle
+(firmware)               (carried in the QR code)        (broadcast over BLE)
 ```
 
 The board ID is the strongest identifier the board offers: a TPM Endorsement Key, else written
-one-time-programmable memory, else the platform serial number. It appears in no QR payload and no
-advertisement, and the derivation does not run backwards, so photographing a sticker does not yield
+one-time-programmable memory, else the Raspberry Pi device-tree serial. It appears in no QR payload and no
+advertisement, and the derivation does not run backwards, so photographing a QR code does not yield
 it.
 
 There is no fleet key and no authoritative per-device record. The whole chain is reproducible from
-the board alone, so a sticker can be reprinted from the device itself rather than from a record of
+the board alone, so a QR code can be reproduced from the device itself rather than from a record of
 what was issued, and anything a device stores about its own identity is a cache it can rebuild.
 
-Above the link, the two ends run a Noise `NNpsk0` handshake with the sticker secret as the
+Above the link, the two ends run a Noise `NNpsk0` handshake with the presence token as the
 pre-shared key, then multiplex JSON messages over streams either end can open.
 
 ## The crates
@@ -37,11 +37,11 @@ pre-shared key, then multiplex JSON messages over streams either end can open.
 | crate | what it is |
 | --- | --- |
 | `bliti-core` | the protocol: board-ID sources, key schedule, advertisement payload, framing, Noise, streams |
-| `bliti` | the daemon a device runs and the sticker generator, sharing that core |
+| `bliti` | the daemon a device runs and the QR code generator, sharing that core |
 | `bliti-web` | the browser client, as a wasm module |
 
 `bliti-core` builds without its default features for wasm, which drops the argon2id derivation and
-every board-ID backend: a client reads the sticker secret from the payload rather than deriving it.
+every board-ID backend: a client reads the presence token from the payload rather than deriving it.
 
 ## Hardware
 
@@ -77,26 +77,26 @@ every later start reads the cache. The derivation wants 2 GiB of memory at once,
 kills a process that asks for more than there is rather than failing the allocation, so the daemon
 establishes there is room before it begins.
 
-## Generating a sticker
+## Generating a QR code
 
 ```console
-$ bliti sticker           # draw the QR code in the terminal
-$ bliti sticker --svg     # write it as SVG for printing
+$ bliti qr           # draw the QR code in the terminal
+$ bliti qr --svg     # write it as SVG for printing
 $ bliti board-id          # report which sources this board offers and which wins
 ```
 
 `board-id` probes only, so it is instant even where a TPM would win: reading that value means
 regenerating a key inside the TPM, and probing does not.
 
-A sticker for a board whose ID comes from a TPM or from one-time-programmable memory can only be
-generated with the board to hand. A platform serial can be known in advance, so those stickers can
+A QR code for a board whose ID comes from a TPM or from one-time-programmable memory can only be
+generated with the board to hand. A platform serial can be known in advance, so those codes can
 be printed from a list gathered beforehand.
 
 ## Clients
 
 The browser client is the one an operator uses, because it runs without being installed first.
-Scanning the sticker with a generic phone camera opens the page with the payload in the fragment,
-which is never sent to a server; an already-open page reads further stickers with its own camera.
+Scanning the QR code with a generic phone camera opens the page with the payload in the fragment,
+which is never sent to a server; an already-open page reads further codes with its own camera.
 It needs a secure context, since neither the camera nor Web Bluetooth is available without one.
 
 Build it with `crates/bliti-web/build.sh`, which needs the `wasm32-unknown-unknown` target and
@@ -105,11 +105,11 @@ Build it with `crates/bliti-web/build.sh`, which needs the `wasm32-unknown-unkno
 The `bliti` binary also carries the client half, for working on a device without a browser:
 
 ```console
-$ bliti scan <sticker>       # find the device that sticker belongs to
-$ bliti connect <sticker>    # open a channel to it
+$ bliti scan <code>       # find the device the code belongs to
+$ bliti connect <code>    # open a channel to it
 ```
 
-`<sticker>` is a sticker URL, its fragment, or the rendering printed beneath the QR code.
+`<code>` is a QR code URL, its fragment, or the rendering printed beneath the code.
 
 ## Development
 

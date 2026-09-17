@@ -1,10 +1,10 @@
 ---
-id: BLI-CHN
+id: CHN
 ---
 
 # Authenticated channel
 
-Once a client has matched a device by its [advertised handle](overview.md#advertised-handle), as specified in [BLI-ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
+Once a client has matched a device by its [advertised handle](overview.md#advertised-handle), as specified in [ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
 
 ## Borrowed terms
 
@@ -21,7 +21,7 @@ Once a client has matched a device by its [advertised handle](overview.md#advert
 
 Client and device MUST run a Noise `NNpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
 The Noise protocol name MUST be `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`.
-The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [BLI-KEY](key-schedule.md) produces it with no further derivation.
+The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [KEY](key-schedule.md) produces it with no further derivation.
 
 The handshake gives the session forward secrecy.
 
@@ -40,7 +40,7 @@ A device MUST NOT send more than 200 notifications in any one-second window.
 
 ## Transport
 
-The channel MUST run over GATT, under the service UUID of [BLI-ADV](discovery.md), using two characteristics:
+The channel MUST run over GATT, under the service UUID of [ADV](discovery.md), using two characteristics:
 
 | characteristic | UUID | direction |
 | --- | --- | --- |
@@ -81,4 +81,4 @@ Closing one stream MUST leave the other streams and the connection alive.
 
 ## Messages
 
-The streams above carry application messages, as specified in [BLI-MSG](messages.md).
+The streams above carry application messages, as specified in [MSG](messages.md).

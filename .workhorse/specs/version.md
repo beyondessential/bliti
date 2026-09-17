@@ -8,15 +8,15 @@ A client and a device MUST NOT act on any version other than the [version marker
 
 ## Where the marker is carried
 
-The marker MUST be carried in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md), and MUST be the same number in both.
+The marker MUST be carried in the QR payload of [QR](qr-code.md) and in the advertisement of [ADV](discovery.md), and MUST be the same number in both.
 
 ## What the marker covers
 
 The marker covers everything two ends must agree on before or during a session:
 
-- the derivation constants, argon2id parameters, source precedence, input encoding, pinned Endorsement Key template and handle length of [BLI-KEY](key-schedule.md)
-- the handshake, framing, transport and streams of [BLI-CHN](channel.md)
-- the message encoding and envelope of [BLI-MSG](messages.md)
+- the derivation constants, argon2id parameters, source precedence, input encoding, pinned Endorsement Key template and handle length of [KEY](key-schedule.md)
+- the handshake, framing, transport and streams of [CHN](channel.md)
+- the message encoding and envelope of [MSG](messages.md)
 
 A change to any of these is a new version.
 A change that leaves all of them identical MUST NOT move the marker.
@@ -41,7 +41,7 @@ Where the client does not implement the advertised version it MUST report a devi
 
 A client and a device MUST NOT withhold or refuse any message type, member or feature on the grounds of what software the other end reported running.
 
-The software each end runs carries its own version, exchanged and displayed under [BLI-MSG](messages.md).
+The software each end runs carries its own version, exchanged and displayed under [MSG](messages.md).
 
 ## Supporting more than one version
 

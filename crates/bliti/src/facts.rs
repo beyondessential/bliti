@@ -1,4 +1,4 @@
-//! What the device reports about itself, as the self-describing readings of BLI-SYS.
+//! What the device reports about itself, as the self-describing readings of SYS.
 //!
 //! Every reading carries its own meaning, so a client renders one it has never heard of. Nothing
 //! here assumes a client that knows the names below.

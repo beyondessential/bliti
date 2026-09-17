@@ -1,7 +1,7 @@
-//! Establishing a device's own sticker secret: which source wins, whether the cache still holds, and
+//! Establishing a device's own presence token: which source wins, whether the cache still holds, and
 //! the derivation when it does not.
 //!
-//! Behaviour is specified in BLI-BID and in BLI-KEY, "Deriving on the device". The memory-hard
+//! Behaviour is specified in BID and in KEY, "Deriving on the device". The memory-hard
 //! derivation is paid once and cached; establishing whether the cache still holds is a comparison of
 //! cheap reads against the board, not a rederivation.
 
@@ -13,11 +13,10 @@ use std::{
 use bliti_core::{
 	board_id::{
 		BoardIdSource, CacheDecision, CacheState, OneTimeProgrammableSource, PlatformSerial,
-		RaspberryPiSerialSource, SmbiosSystemUuidSource, SourceKind, evaluate_cache, select,
-		strongest_present,
+		RaspberryPiSerialSource, SourceKind, evaluate_cache, select, strongest_present,
 	},
 	key_schedule::{
-		STICKER_SECRET_LEN, StickerSecret, VERSION, check_memory, derive_sticker_secret,
+		PRESENCE_TOKEN_LEN, PresenceToken, VERSION, check_memory, derive_presence_token,
 	},
 };
 use serde::{Deserialize, Serialize};
@@ -28,8 +27,8 @@ pub const DEFAULT_CACHE_PATH: &str = "/var/lib/bliti/identity.json";
 
 /// The device's own identity, once established.
 pub struct Identity {
-	/// The sticker secret this board derives.
-	pub secret: StickerSecret,
+	/// The presence token this board derives.
+	pub secret: PresenceToken,
 	/// Which kind of source it was derived from.
 	pub kind: SourceKind,
 	/// Whether the memory-hard derivation had to run, rather than the cache standing.
@@ -65,7 +64,6 @@ pub fn sources() -> Vec<Box<dyn BoardIdSource>> {
 	let mut sources: Vec<Box<dyn BoardIdSource>> = vec![
 		Box::new(OneTimeProgrammableSource::new()),
 		Box::new(RaspberryPiSerialSource::new()),
-		Box::new(SmbiosSystemUuidSource::new()),
 	];
 	#[cfg(feature = "tpm")]
 	sources.push(Box::new(
@@ -77,7 +75,7 @@ pub fn sources() -> Vec<Box<dyn BoardIdSource>> {
 /// Refuse to derive on a board carrying a source this build cannot read.
 ///
 /// A build without the `tpm` feature cannot see a TPM, so on a board that has one it would derive
-/// from the serial number instead and produce a secret that does not match the sticker on the
+/// from the serial number instead and produce a secret that does not match the QR code on the
 /// enclosure. That is worse than not starting, because the device would advertise a handle nobody
 /// can match while looking healthy, so it is refused here.
 pub fn guard_unreadable_sources() -> Result<(), IdentityError> {
@@ -88,7 +86,7 @@ pub fn guard_unreadable_sources() -> Result<(), IdentityError> {
 				kind: "TPM",
 				detail: format!(
 					"{node} is present, but this build was made without TPM support, so it would \
-					 derive from a weaker source and not match this board's sticker"
+					 derive from a weaker source and not match this board's QR code"
 				),
 			});
 		}
@@ -112,7 +110,7 @@ pub fn platform_serial(
 	Ok(None)
 }
 
-/// Establish the device's sticker secret, deriving only where the cache does not hold.
+/// Establish the device's presence token, deriving only where the cache does not hold.
 pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 	guard_unreadable_sources()?;
 
@@ -134,7 +132,7 @@ pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 				derived: false,
 			})
 		}
-		CacheDecision::StickerDead => Err(IdentityError::StickerDead {
+		CacheDecision::QrDead => Err(IdentityError::QrDead {
 			cached: cached.map(|(state, _)| state.board_id_kind),
 			found: strongest,
 		}),
@@ -145,7 +143,7 @@ pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 			// system rather than told the allocation failed, so establish there is room first.
 			check_memory(available_memory_bytes()).map_err(IdentityError::Key)?;
 
-			let secret = derive_sticker_secret(&board_id).map_err(IdentityError::Key)?;
+			let secret = derive_presence_token(&board_id).map_err(IdentityError::Key)?;
 			write_cache(
 				cache_path,
 				&CacheState {
@@ -184,7 +182,6 @@ fn kind_name(kind: SourceKind) -> &'static str {
 		SourceKind::TpmEndorsementKey => "tpm-endorsement-key",
 		SourceKind::OneTimeProgrammable => "one-time-programmable",
 		SourceKind::RaspberryPiSerial => "raspberry-pi-serial",
-		SourceKind::SmbiosSystemUuid => "smbios-system-uuid",
 	}
 }
 
@@ -194,7 +191,7 @@ fn kind_from_name(name: &str) -> Option<SourceKind> {
 
 /// Read the cache, or `None` where it is absent or does not apply. A cache that cannot be understood
 /// is treated as absent: it costs one derivation to rebuild, which is better than refusing to start.
-fn read_cache(path: &Path) -> Result<Option<(CacheState, StickerSecret)>, IdentityError> {
+fn read_cache(path: &Path) -> Result<Option<(CacheState, PresenceToken)>, IdentityError> {
 	let raw = match fs::read_to_string(path) {
 		Ok(raw) => raw,
 		Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -216,7 +213,7 @@ fn read_cache(path: &Path) -> Result<Option<(CacheState, StickerSecret)>, Identi
 		tracing::warn!("identity cache is unreadable; rederiving");
 		return Ok(None);
 	};
-	let Ok(secret): Result<[u8; STICKER_SECRET_LEN], _> = secret.try_into() else {
+	let Ok(secret): Result<[u8; PRESENCE_TOKEN_LEN], _> = secret.try_into() else {
 		tracing::warn!("identity cache holds a secret of the wrong length; rederiving");
 		return Ok(None);
 	};
@@ -230,14 +227,14 @@ fn read_cache(path: &Path) -> Result<Option<(CacheState, StickerSecret)>, Identi
 			board_id_kind: kind,
 			platform_serial,
 		},
-		StickerSecret::from_bytes(secret),
+		PresenceToken::from_bytes(secret),
 	)))
 }
 
 fn write_cache(
 	path: &Path,
 	state: &CacheState,
-	secret: &StickerSecret,
+	secret: &PresenceToken,
 ) -> Result<(), IdentityError> {
 	if let Some(parent) = path.parent() {
 		fs::create_dir_all(parent).map_err(|err| IdentityError::Cache(err.to_string()))?;
@@ -259,7 +256,7 @@ fn write_cache(
 	fs::rename(&temporary, path).map_err(|err| IdentityError::Cache(err.to_string()))
 }
 
-/// The cache holds the sticker secret, which is the credential, so it is readable only by the user
+/// The cache holds the presence token, which is the credential, so it is readable only by the user
 /// the daemon runs as.
 fn restrict(path: &Path) -> Result<(), IdentityError> {
 	#[cfg(unix)]
@@ -288,13 +285,13 @@ pub enum IdentityError {
 	#[error(transparent)]
 	Key(bliti_core::key_schedule::KeyError),
 
-	/// The board has gained hardware carrying a stronger source, so the sticker on its enclosure is
-	/// dead and no client can reach it. Recovering means printing a new sticker for this board.
+	/// The board has gained hardware carrying a stronger source, so the QR code on its enclosure is
+	/// dead and no client can reach it. Recovering means printing a new QR code for this board.
 	#[error(
-		"this board's sticker is dead: it was derived from {cached:?} but the board now offers \
-		 {found:?}, so the printed sticker no longer matches it. Print a new sticker for this board."
+		"this board's QR code is dead: it was derived from {cached:?} but the board now offers \
+		 {found:?}, so the printed QR code no longer matches it. Print a new QR code for this board."
 	)]
-	StickerDead {
+	QrDead {
 		/// The kind of source the cached secret was derived from.
 		cached: Option<SourceKind>,
 		/// The strongest kind of source the board offers now.

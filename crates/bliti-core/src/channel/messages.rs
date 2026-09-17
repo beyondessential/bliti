@@ -1,6 +1,6 @@
 //! The application messages carried over the channel, as JSON.
 //!
-//! Behaviour is specified in BLI-MSG. The envelope they ride in, and the three outcomes of reading
+//! Behaviour is specified in MSG. The envelope they ride in, and the three outcomes of reading
 //! one, live in [`super::envelope`]; this module carries the message types themselves.
 //!
 //! This card's set is the part every later feature inherits: each end names itself, and a client
@@ -53,14 +53,14 @@ pub enum DeviceMessage {
 	},
 
 	/// What the device is: readings that do not change while it runs, or change rarely. Sent on the
-	/// reporting stream and again whenever they change (BLI-SYS).
+	/// reporting stream and again whenever they change (SYS).
 	#[serde(rename = "system-identity")]
 	SystemIdentity {
 		/// The static readings.
 		readings: Vec<readings::Reading>,
 	},
 
-	/// One sample of the device's live readings, sent on a `system` subscription (BLI-SYS).
+	/// One sample of the device's live readings, sent on a `system` subscription (SYS).
 	#[serde(rename = "system-sample")]
 	SystemSample {
 		/// Milliseconds since the device booted, when the sample was taken.
@@ -70,7 +70,7 @@ pub enum DeviceMessage {
 	},
 
 	/// The buffered window, sent first on a `system` subscription so a graph is populated the moment
-	/// it appears rather than filling from empty (BLI-SYS).
+	/// it appears rather than filling from empty (SYS).
 	///
 	/// Numbers only, one series per reading. Sending whole samples would repeat every reading's
 	/// description against every past point, which is far more bytes than the numbers and more than a
@@ -88,7 +88,7 @@ impl Message for ClientMessage {
 	}
 
 	/// `client-hello` carries no critical member; `subscribe` carries exactly one, its selector, so
-	/// that a device cannot act on a request to be sent something it has not read (BLI-MSG).
+	/// that a device cannot act on a request to be sent something it has not read (MSG).
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {
 			"client-hello" => Criticality::Exactly(&[]),
@@ -113,7 +113,7 @@ impl Message for DeviceMessage {
 		)
 	}
 
-	/// `device-hello` carries no critical member. The system types belong to BLI-SYS, which pins
+	/// `device-hello` carries no critical member. The system types belong to SYS, which pins
 	/// nothing.
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {
@@ -342,7 +342,7 @@ mod tests {
 		}
 	}
 
-	/// A pinned type's members are pinned at every depth, not only at the top: BLI-MSG says those
+	/// A pinned type's members are pinned at every depth, not only at the top: MSG says those
 	/// types carry no critical member beyond what it names, and says nothing about depth. A nested one
 	/// is therefore a peer breaking the pin rather than a peer newer than this build.
 	#[test]
@@ -355,7 +355,7 @@ mod tests {
 	}
 
 	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol rather
-	/// than a peer newer than this build (BLI-MSG).
+	/// than a peer newer than this build (MSG).
 	#[test]
 	fn a_critical_member_on_a_hello_is_a_fault() {
 		assert!(matches!(

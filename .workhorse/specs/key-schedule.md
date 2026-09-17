@@ -1,10 +1,10 @@
 ---
-id: BLI-KEY
+id: KEY
 ---
 
 # Key schedule
 
-Two derivations take the board ID of [BLI-BID](board-id.md) to the values [BLI](overview.md) depends on: the presence token printed in the QR code, and the advertised handle broadcast over BLE.
+Two derivations take the board ID of [BID](board-id.md) to the values [BLI](overview.md) depends on: the presence token printed in the QR code, and the advertised handle broadcast over BLE.
 
 Both derivation constants are public.
 They are compiled into the device, the generator, and every client, and publishing them weakens nothing, because neither derivation runs backwards.
@@ -15,7 +15,7 @@ What the constants provide is domain separation, so that a value from one step i
 The presence token is derived from the board ID with argon2id, under a fixed constant, producing a 32-byte value.
 
 The derivation uses 2 GiB of memory, a single pass, and two lanes.
-These parameters are part of the derivation rather than a tuning choice: changing any of them produces a different secret and orphans every sticker already printed under the old ones.
+These parameters are part of the derivation rather than a tuning choice: changing any of them produces a different secret and orphans every QR code already printed under the old ones.
 
 Whether an implementation computes the lanes concurrently or in sequence does not affect the result, so implementations are free to choose either.
 
@@ -53,9 +53,9 @@ The derivation is paid once and cached, rather than repeated at each start.
 The cache holds the derived secret together with the board ID it was derived from, the platform serial of the board it was derived on, and which kind of source won the precedence.
 Establishing whether the cache still holds is a comparison of those values against the board, not a rederivation: the memory-hard derivation runs only where the cache is absent or the comparison fails.
 
-On start the device reads the platform serial and probes which kinds of source are present, both cheap as specified in [BLI-BID](board-id.md).
+On start the device reads the platform serial and probes which kinds of source are present, both cheap as specified in [BID](board-id.md).
 Where the serial and the strongest kind present both match the cache, the cached secret stands, and no source value is read and no derivation runs.
-Where the strongest kind present is stronger than the cached one, the board has gained hardware and its sticker is dead, which is reported rather than derived past.
+Where the strongest kind present is stronger than the cached one, the board has gained hardware and its QR code is dead, which is reported rather than derived past.
 Where the serial differs, the device is on another board: it evaluates the precedence, reads the winning source, and derives.
 
 The derivation needs its full memory parameter available at once, and a device without room for it is killed by the operating system rather than told that the allocation failed.
@@ -66,9 +66,9 @@ The device therefore establishes that there is room before beginning, and report
 The advertised handle is derived from the presence token and the current rotation salt with a fast keyed hash, under a second fixed constant, and truncated to eight bytes for advertising.
 
 This derivation is deliberately cheap.
-A client recomputes it for every advertisement it hears, against every sticker it holds, so a memory-hard function here would be felt during scanning.
+A client recomputes it for every advertisement it hears, against every QR code it holds, so a memory-hard function here would be felt during scanning.
 
-Eight bytes makes a collision between two devices at one site implausible, and fits the advertising budget in [BLI-ADV](discovery.md).
+Eight bytes makes a collision between two devices at one site implausible, and fits the advertising budget in [ADV](discovery.md).
 
 ## Versioning
 

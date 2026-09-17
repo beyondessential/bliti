@@ -1,28 +1,28 @@
-//! The key schedule: the two derivations that take a board ID to the sticker secret and the
+//! The key schedule: the two derivations that take a board ID to the presence token and the
 //! advertised handle.
 //!
-//! Behaviour is specified in `.workhorse/specs/key-schedule.md` (BLI-KEY). Both derivation
-//! constants here are public: they are compiled into the device, the sticker generator, and every
+//! Behaviour is specified in `.workhorse/specs/key-schedule.md` (KEY). Both derivation
+//! constants here are public: they are compiled into the device, the QR code generator, and every
 //! client, and publishing them weakens nothing because neither derivation runs backwards. What they
 //! provide is domain separation.
 //!
-//! Everything a sticker depends on is versioned together under [`VERSION`]. The constants, the
+//! Everything a QR code depends on is versioned together under [`VERSION`]. The constants, the
 //! argon2id parameters, the source precedence and the encoding below, the pinned Endorsement Key
 //! template, and the handle length are all covered by it; any of them changing is a new version,
 //! because any of them changing changes the secret.
 
 use crate::board_id::SourceKind;
 
-/// The version marker carried in the QR payload (BLI-STK) and in the advertisement (BLI-ADV).
+/// The version marker carried in the QR payload (QR) and in the advertisement (ADV).
 ///
-/// It covers everything a sticker depends on. A change that leaves the secret identical does not
-/// move it, because moving it orphans every sticker already fixed to an enclosure.
+/// It covers everything a QR code depends on. A change that leaves the secret identical does not
+/// move it, because moving it orphans every QR code already fixed to an enclosure.
 pub const VERSION: u8 = 1;
 
-/// The fixed argon2id salt for the sticker-secret derivation. Public and versioned. Only the
+/// The fixed argon2id salt for the presence-token derivation. Public and versioned. Only the
 /// memory-hard derivation uses it, so it is gated with that.
 #[cfg(feature = "derive")]
-const STICKER_SECRET_SALT: [u8; 16] = [
+const PRESENCE_TOKEN_SALT: [u8; 16] = [
 	0x3e, 0xdf, 0xe9, 0x5c, 0xeb, 0x86, 0xfa, 0xdd, 0x23, 0xd4, 0x6a, 0x87, 0x34, 0xc7, 0xeb, 0x13,
 ];
 
@@ -32,48 +32,48 @@ const HANDLE_CONSTANT: [u8; 16] = [
 ];
 
 /// The argon2id memory parameter, in kibibytes: 2 GiB. Part of the derivation, not a tuning choice.
-pub const STICKER_SECRET_MEMORY_KIB: u32 = 2 * 1024 * 1024;
+pub const PRESENCE_TOKEN_MEMORY_KIB: u32 = 2 * 1024 * 1024;
 
 /// The argon2id memory parameter in bytes, for a device to check against its free memory before
-/// beginning (BLI-KEY, "Deriving on the device").
-pub const STICKER_SECRET_MEMORY_BYTES: u64 = (STICKER_SECRET_MEMORY_KIB as u64) * 1024;
+/// beginning (KEY, "Deriving on the device").
+pub const PRESENCE_TOKEN_MEMORY_BYTES: u64 = (PRESENCE_TOKEN_MEMORY_KIB as u64) * 1024;
 
 /// The argon2id pass count. Part of the derivation.
-pub const STICKER_SECRET_PASSES: u32 = 1;
+pub const PRESENCE_TOKEN_PASSES: u32 = 1;
 
 /// The argon2id lane count. Part of the derivation. Whether the lanes are computed concurrently or
 /// in sequence does not change the result.
-pub const STICKER_SECRET_LANES: u32 = 2;
+pub const PRESENCE_TOKEN_LANES: u32 = 2;
 
-/// The length of a sticker secret in bytes.
-pub const STICKER_SECRET_LEN: usize = 32;
+/// The length of a presence token in bytes.
+pub const PRESENCE_TOKEN_LEN: usize = 32;
 
 /// The length of an advertised handle in bytes: eight, which makes a collision between two devices
-/// at one site implausible and fits the advertising budget in BLI-ADV.
+/// at one site implausible and fits the advertising budget in ADV.
 pub const HANDLE_LEN: usize = 8;
 
 /// The length of the rotation salt in bytes.
 pub const ROTATION_SALT_LEN: usize = 4;
 
-/// A sticker secret: the value printed in the QR code, and the only secret in the system.
+/// A presence token: the value printed in the QR code, and the only secret in the system.
 #[derive(Clone, PartialEq, Eq)]
-pub struct StickerSecret([u8; STICKER_SECRET_LEN]);
+pub struct PresenceToken([u8; PRESENCE_TOKEN_LEN]);
 
-impl StickerSecret {
-	/// Wrap raw bytes as a sticker secret, as read from a QR payload by a client.
-	pub fn from_bytes(bytes: [u8; STICKER_SECRET_LEN]) -> Self {
+impl PresenceToken {
+	/// Wrap raw bytes as a presence token, as read from a QR payload by a client.
+	pub fn from_bytes(bytes: [u8; PRESENCE_TOKEN_LEN]) -> Self {
 		Self(bytes)
 	}
 
 	/// The raw bytes of the secret.
-	pub fn as_bytes(&self) -> &[u8; STICKER_SECRET_LEN] {
+	pub fn as_bytes(&self) -> &[u8; PRESENCE_TOKEN_LEN] {
 		&self.0
 	}
 
-	/// Derive the advertised handle for a given rotation salt (BLI-KEY, "Advertised handle").
+	/// Derive the advertised handle for a given rotation salt (KEY, "Advertised handle").
 	///
 	/// This is a fast keyed hash, deliberately cheap: a client recomputes it for every advertisement
-	/// it hears against every sticker it holds, so a memory-hard function here would be felt during
+	/// it hears against every QR code it holds, so a memory-hard function here would be felt during
 	/// scanning. It runs in the browser, where the memory-hard derivation never does.
 	pub fn handle(&self, salt: RotationSalt) -> Handle {
 		let mut data = [0u8; HANDLE_CONSTANT.len() + ROTATION_SALT_LEN];
@@ -86,10 +86,10 @@ impl StickerSecret {
 	}
 }
 
-impl core::fmt::Debug for StickerSecret {
+impl core::fmt::Debug for PresenceToken {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		// A sticker secret is a credential; never render it in a debug log.
-		f.write_str("StickerSecret(..)")
+		// A presence token is a credential; never render it in a debug log.
+		f.write_str("PresenceToken(..)")
 	}
 }
 
@@ -110,7 +110,7 @@ impl Handle {
 }
 
 /// The rotation salt: a short random value advertised in the clear that changes every fifteen
-/// minutes (BLI-ADV, "Rotation"), so a passive observer cannot follow a device by its handle alone.
+/// minutes (ADV, "Rotation"), so a passive observer cannot follow a device by its handle alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RotationSalt([u8; ROTATION_SALT_LEN]);
 
@@ -127,7 +127,7 @@ impl RotationSalt {
 }
 
 /// The argon2id password for a board ID: a source tag byte followed by the raw bytes of the source
-/// value, most significant first (BLI-KEY, "What is derived from").
+/// value, most significant first (KEY, "What is derived from").
 ///
 /// The tag identifies which kind of source the value came from, so a value byte-identical across two
 /// kinds of source still derives differently. Lengths are fixed per kind of source, so the tag
@@ -139,35 +139,35 @@ pub fn argon2_password(kind: SourceKind, raw: &[u8]) -> Vec<u8> {
 	password
 }
 
-/// Whether a device has room to run the sticker-secret derivation, given the bytes of memory it has
+/// Whether a device has room to run the presence-token derivation, given the bytes of memory it has
 /// available. The derivation needs its full memory parameter at once and is killed by the operating
-/// system rather than told the allocation failed, so a device checks this before beginning (BLI-KEY,
+/// system rather than told the allocation failed, so a device checks this before beginning (KEY,
 /// "Deriving on the device").
 pub fn check_memory(available_bytes: u64) -> Result<(), KeyError> {
-	if available_bytes < STICKER_SECRET_MEMORY_BYTES {
+	if available_bytes < PRESENCE_TOKEN_MEMORY_BYTES {
 		return Err(KeyError::InsufficientMemory {
-			required: STICKER_SECRET_MEMORY_BYTES,
+			required: PRESENCE_TOKEN_MEMORY_BYTES,
 			available: available_bytes,
 		});
 	}
 	Ok(())
 }
 
-/// Derive the sticker secret from a board ID with argon2id under the fixed constant (BLI-KEY,
-/// "Sticker secret").
+/// Derive the presence token from a board ID with argon2id under the fixed constant (KEY,
+/// "Presence token").
 ///
-/// This is the memory-hard derivation. It runs on the device and in the sticker generator, never in
+/// This is the memory-hard derivation. It runs on the device and in the QR code generator, never in
 /// a client, and is behind the `derive` feature so a wasm build does not pull argon2. A device
 /// checks [`check_memory`] before calling this, because the allocation cannot fail gracefully.
 #[cfg(feature = "derive")]
-pub fn derive_sticker_secret(
+pub fn derive_presence_token(
 	board_id: &crate::board_id::BoardId,
-) -> Result<StickerSecret, KeyError> {
+) -> Result<PresenceToken, KeyError> {
 	let password = argon2_password(board_id.kind(), board_id.raw());
-	derive_sticker_secret_with(
-		STICKER_SECRET_MEMORY_KIB,
-		STICKER_SECRET_PASSES,
-		STICKER_SECRET_LANES,
+	derive_presence_token_with(
+		PRESENCE_TOKEN_MEMORY_KIB,
+		PRESENCE_TOKEN_PASSES,
+		PRESENCE_TOKEN_LANES,
 		&password,
 	)
 }
@@ -176,22 +176,22 @@ pub fn derive_sticker_secret(
 /// known-answer test can pin the wiring, the salt, and the password encoding cheaply with small
 /// parameters, while the production parameters are pinned separately by their constants.
 #[cfg(feature = "derive")]
-fn derive_sticker_secret_with(
+fn derive_presence_token_with(
 	memory_kib: u32,
 	passes: u32,
 	lanes: u32,
 	password: &[u8],
-) -> Result<StickerSecret, KeyError> {
+) -> Result<PresenceToken, KeyError> {
 	use argon2::{Algorithm, Argon2, Params, Version};
 
-	let params = Params::new(memory_kib, passes, lanes, Some(STICKER_SECRET_LEN))
+	let params = Params::new(memory_kib, passes, lanes, Some(PRESENCE_TOKEN_LEN))
 		.map_err(|err| KeyError::Parameters(err.to_string()))?;
 	let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-	let mut out = [0u8; STICKER_SECRET_LEN];
+	let mut out = [0u8; PRESENCE_TOKEN_LEN];
 	argon2
-		.hash_password_into(password, &STICKER_SECRET_SALT, &mut out)
+		.hash_password_into(password, &PRESENCE_TOKEN_SALT, &mut out)
 		.map_err(|err| KeyError::Derivation(err.to_string()))?;
-	Ok(StickerSecret(out))
+	Ok(PresenceToken(out))
 }
 
 /// A failure in the key schedule.
@@ -199,7 +199,7 @@ fn derive_sticker_secret_with(
 pub enum KeyError {
 	/// A device does not have room for the memory-hard derivation.
 	#[error(
-		"insufficient memory for the sticker-secret derivation: needs {required} bytes, {available} available"
+		"insufficient memory for the presence-token derivation: needs {required} bytes, {available} available"
 	)]
 	InsufficientMemory {
 		/// Bytes the derivation needs at once.
@@ -213,7 +213,7 @@ pub enum KeyError {
 	Parameters(String),
 
 	/// The argon2id derivation failed.
-	#[error("sticker-secret derivation failed: {0}")]
+	#[error("presence-token derivation failed: {0}")]
 	Derivation(String),
 }
 
@@ -228,12 +228,12 @@ mod tests {
 	#[test]
 	fn production_parameters_are_pinned() {
 		// A guard that always runs: an accidental edit to the memory-hard parameters, which are
-		// versioned into every sticker, fails here without allocating 2 GiB.
-		assert_eq!(STICKER_SECRET_MEMORY_KIB, 2 * 1024 * 1024);
-		assert_eq!(STICKER_SECRET_MEMORY_BYTES, 2 * 1024 * 1024 * 1024);
-		assert_eq!(STICKER_SECRET_PASSES, 1);
-		assert_eq!(STICKER_SECRET_LANES, 2);
-		assert_eq!(STICKER_SECRET_LEN, 32);
+		// versioned into every QR code, fails here without allocating 2 GiB.
+		assert_eq!(PRESENCE_TOKEN_MEMORY_KIB, 2 * 1024 * 1024);
+		assert_eq!(PRESENCE_TOKEN_MEMORY_BYTES, 2 * 1024 * 1024 * 1024);
+		assert_eq!(PRESENCE_TOKEN_PASSES, 1);
+		assert_eq!(PRESENCE_TOKEN_LANES, 2);
+		assert_eq!(PRESENCE_TOKEN_LEN, 32);
 		assert_eq!(HANDLE_LEN, 8);
 		assert_eq!(VERSION, 1);
 	}
@@ -260,23 +260,23 @@ mod tests {
 	fn identical_values_from_different_sources_derive_differently() {
 		let value = [0x11, 0x22, 0x33, 0x44];
 		let a = argon2_password(SourceKind::OneTimeProgrammable, &value);
-		let b = argon2_password(SourceKind::SmbiosSystemUuid, &value);
+		let b = argon2_password(SourceKind::RaspberryPiSerial, &value);
 		assert_ne!(a, b);
 	}
 
 	#[test]
 	fn check_memory_reports_insufficient() {
 		assert!(matches!(
-			check_memory(STICKER_SECRET_MEMORY_BYTES - 1),
+			check_memory(PRESENCE_TOKEN_MEMORY_BYTES - 1),
 			Err(KeyError::InsufficientMemory { .. })
 		));
-		assert!(check_memory(STICKER_SECRET_MEMORY_BYTES).is_ok());
+		assert!(check_memory(PRESENCE_TOKEN_MEMORY_BYTES).is_ok());
 	}
 
 	#[test]
 	fn handle_known_answer() {
 		// Pins the handle derivation: constant, keying, salt handling, and eight-byte truncation.
-		let secret = StickerSecret::from_bytes([0x42; STICKER_SECRET_LEN]);
+		let secret = PresenceToken::from_bytes([0x42; PRESENCE_TOKEN_LEN]);
 		let salt = RotationSalt::from_bytes([0x01, 0x02, 0x03, 0x04]);
 		let handle = secret.handle(salt);
 		assert_eq!(hex(handle.as_bytes()), "5a22650058575721");
@@ -284,7 +284,7 @@ mod tests {
 
 	#[test]
 	fn handle_changes_with_the_salt() {
-		let secret = StickerSecret::from_bytes([0x42; STICKER_SECRET_LEN]);
+		let secret = PresenceToken::from_bytes([0x42; PRESENCE_TOKEN_LEN]);
 		let a = secret.handle(RotationSalt::from_bytes([0, 0, 0, 0]));
 		let b = secret.handle(RotationSalt::from_bytes([0, 0, 0, 1]));
 		assert_ne!(a, b);
@@ -292,12 +292,12 @@ mod tests {
 
 	#[cfg(feature = "derive")]
 	#[test]
-	fn sticker_secret_wiring_known_answer() {
+	fn presence_token_wiring_known_answer() {
 		// A cheap known-answer test with small memory: pins the algorithm, version, salt constant,
 		// password encoding, and output length. The memory-hard magnitude is pinned separately by
 		// `production_parameters_are_pinned`, so together they cover the whole derivation.
 		let password = argon2_password(SourceKind::RaspberryPiSerial, &[0xf3, 0x75, 0x65, 0x10]);
-		let secret = derive_sticker_secret_with(32, 1, 2, &password).unwrap();
+		let secret = derive_presence_token_with(32, 1, 2, &password).unwrap();
 		assert_eq!(
 			hex(secret.as_bytes()),
 			"6f1389914fdb010c7ed6f41278bf0dd2ee97f0fd692e8bae7c3f581c06ef610c"
@@ -310,19 +310,19 @@ mod tests {
 	/// This one value is what pins the whole derivation, and it holds across every way of computing
 	/// it: it is identical on x86-64 and aarch64, and identical whether or not the `parallel` feature
 	/// is on. Running this test under each of those settings is what verifies that the device, the
-	/// sticker generator, and any future implementation agree on a board's secret regardless of the
+	/// QR code generator, and any future implementation agree on a board's secret regardless of the
 	/// machine they run on or how each chooses to compute it.
 	#[cfg(feature = "derive")]
 	#[test]
 	#[ignore = "allocates 2 GiB and runs the full derivation; run explicitly with --ignored"]
-	fn sticker_secret_production_known_answer() {
+	fn presence_token_production_known_answer() {
 		use crate::board_id::BoardId;
 		let board_id = BoardId::new(
 			SourceKind::RaspberryPiSerial,
 			vec![0xf3, 0x75, 0x65, 0x10, 0xf6, 0x32, 0xcf, 0xad],
 		)
 		.unwrap();
-		let secret = derive_sticker_secret(&board_id).unwrap();
+		let secret = derive_presence_token(&board_id).unwrap();
 		assert_eq!(
 			hex(secret.as_bytes()),
 			"cb89bf939b867ec6e15530a6b92db98a14f170e1f4c9ff218cbd460e2140ccbd"

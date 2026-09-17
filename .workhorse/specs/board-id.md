@@ -1,15 +1,15 @@
 ---
-id: BLI-BID
+id: BID
 ---
 
 # Board ID
 
 The board ID is the firmware-provided identifier the presence token is derived from.
-Its job is to make the presence token reproducible: the same sticker can be regenerated from the board alone, with no per-device database to keep in sync.
+Its job is to make the presence token reproducible: the same QR code can be regenerated from the board alone, with no per-device database to keep in sync.
 
 The board ID is not a secret.
 Any software on the device can read it.
-Nothing depends on it staying hidden, only on it being expensive to search for, which is a property of its size and of the derivation in [BLI-KEY](key-schedule.md).
+Nothing depends on it staying hidden, only on it being expensive to search for, which is a property of its size and of the derivation in [KEY](key-schedule.md).
 
 ## Choosing a source
 
@@ -21,7 +21,7 @@ Precedence is evaluated by kind of source rather than by platform, so a board ga
 The device and the generator evaluate the same precedence against the same board and therefore select the same source, without either being told which kind of machine it is running on.
 
 Combining sources is not done.
-Each source in a combination would be a way for the board ID to change, and a board ID that changes orphans a sticker already fixed to an enclosure.
+Each source in a combination would be a way for the board ID to change, and a board ID that changes orphans a QR code already fixed to an enclosure.
 
 ### TPM Endorsement Key
 
@@ -66,21 +66,21 @@ Reaching the end of the precedence with no usable source is a failure, reported 
 ## When the board ID changes
 
 Fitting hardware that carries a stronger source changes which source wins, and so changes the board ID and every value below it.
-A board that gains a TPM, or has its one-time-programmable memory written after its sticker was printed, no longer matches that sticker.
+A board that gains a TPM, or has its one-time-programmable memory written after its QR code was printed, no longer matches that code.
 
 The platform serial number identifies the board across such a change.
 Being the last tier of the precedence, it is present on every board in scope, so it is available whichever source wins, and it does not itself change when stronger hardware is fitted.
 
-A board whose platform serial is unchanged, but whose strongest present source is stronger than the one it last derived from, has gained hardware, and the sticker on its enclosure is dead.
+A board whose platform serial is unchanged, but whose strongest present source is stronger than the one it last derived from, has gained hardware, and the QR code on its enclosure is dead.
 That is reported, rather than the device advertising a handle no client can match.
-Recovering from it means printing a new sticker for that board.
+Recovering from it means printing a new QR code for that board.
 
 A board whose platform serial differs is a different board, reached by moving a disk from one enclosure into another.
-It derives from the board it now sits on, and matches the sticker already fixed to that enclosure, so this is not a fault and is not reported.
+It derives from the board it now sits on, and matches the QR code already fixed to that enclosure, so this is not a fault and is not reported.
 
 A board that offers no platform serial has no weaker source for a stronger one to supersede, so any change in its board ID is reported.
 
-Because a board ID derived from a newly written source supersedes one derived from a serial number, writing that source is done before the sticker is derived and printed.
+Because a board ID derived from a newly written source supersedes one derived from a serial number, writing that source is done before the QR code is derived and printed.
 
 ## Hardware in scope
 

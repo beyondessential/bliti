@@ -12,45 +12,45 @@ The [presence token](overview.md#presence-token) is the only credential in the s
 
 An operator who has scanned a device's QR code can identify that device among every device advertising nearby.
 
-Upheld by the handle derivation of [BLI-KEY](key-schedule.md) and the matching of [BLI-ADV](discovery.md).
+Upheld by the handle derivation of [KEY](key-schedule.md) and the matching of [ADV](discovery.md).
 
 ### The link reveals neither the secret nor the session
 
 A listener on the BLE link learns neither the presence token nor the contents of a session.
 
-Upheld by the handshake of [BLI-CHN](channel.md), which sends the secret in neither direction and encrypts everything after itself.
+Upheld by the handshake of [CHN](channel.md), which sends the secret in neither direction and encrypts everything after itself.
 
 ### A recorded advertisement is not a session
 
 An attacker who records or replays an advertisement obtains no session from it, because completing the handshake requires the presence token.
 
-Upheld by [BLI-CHN](channel.md).
+Upheld by [CHN](channel.md).
 
 ### A recovered secret does not open past sessions
 
 Recovering a presence token does not decrypt a session recorded before it was recovered.
 
-Upheld by the forward secrecy of the handshake in [BLI-CHN](channel.md).
+Upheld by the forward secrecy of the handshake in [CHN](channel.md).
 
 ### The QR code does not reveal the board ID
 
 Reading the QR code does not yield the [board ID](overview.md#board-id), and does not yield it even to someone who knows the derivation constants.
 The board ID appears in no QR payload, in no advertisement, and nowhere else reachable without access to the device.
 
-Upheld by the derivation of [BLI-KEY](key-schedule.md), which does not run backwards, and by the payload of [BLI-STK](sticker.md).
+Upheld by the derivation of [KEY](key-schedule.md), which does not run backwards, and by the payload of [QR](qr-code.md).
 
 ### An observer cannot tell which device it hears
 
 An observer who has not scanned a device's QR code cannot tell which device an advertisement belongs to.
 
-Upheld by the handle derivation of [BLI-KEY](key-schedule.md) and the rotation of [BLI-ADV](discovery.md).
+Upheld by the handle derivation of [KEY](key-schedule.md) and the rotation of [ADV](discovery.md).
 
 ### Compromising one device tells nothing about another
 
 There is no fleet key and no authoritative per-device record.
 Each device's presence token derives from its own board ID alone, so recovering one device's secret, or its board ID, yields nothing about any other device.
 
-Upheld by the derivation of [BLI-KEY](key-schedule.md).
+Upheld by the derivation of [KEY](key-schedule.md).
 
 ## Where the guarantees stop
 
@@ -81,7 +81,7 @@ Search here means exhaustive enumeration, not consulting a record: an attacker d
 Because the derivation constants are public, that attack needs neither the device's QR code nor physical access to it.
 A recorded handshake serves as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
-What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [BLI-KEY](key-schedule.md).
+What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
 For boards whose only identifier is a short serial number that product is small, and those boards carry a weaker guarantee than boards with a hardware-backed identifier.
 
 ### Authentication proves the secret, not the board

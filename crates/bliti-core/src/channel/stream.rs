@@ -1,6 +1,6 @@
 //! The stream layer: an encrypted byte stream over any transport, and yamux multiplexing above it.
 //!
-//! Behaviour is specified in BLI-CHN, "Streams". Above the handshake, either end opens streams,
+//! Behaviour is specified in CHN, "Streams". Above the handshake, either end opens streams,
 //! unidirectional or bidirectional, without coordinating identifiers and without asking permission,
 //! and several are in flight at once. Closing one leaves the others and the connection alive. This is
 //! what lets a device send without being asked.
@@ -36,7 +36,7 @@ use super::{
 	framing::{Reassembler, frame},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 };
-use crate::key_schedule::StickerSecret;
+use crate::key_schedule::PresenceToken;
 
 /// The size of the buffer used to pull bytes off the inner transport on each read.
 const READ_CHUNK: usize = 8192;
@@ -273,7 +273,7 @@ where
 /// buffered, so the returned [`NoiseStream`] takes over a clean transport.
 pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
-	psk: &StickerSecret,
+	psk: &PresenceToken,
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::initiator(psk)?;
 	let msg1 = handshake.write_message()?;
@@ -292,7 +292,7 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 /// The device is the responder.
 pub async fn accept_responder<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
-	psk: &StickerSecret,
+	psk: &PresenceToken,
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::responder(psk)?;
 	let msg1 = read_message(&mut inner)
@@ -327,7 +327,7 @@ pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Op
 	}
 	let len = u32::from_be_bytes(len) as usize;
 	// A peer claiming more than a message may be is refused rather than allowed to make this end
-	// allocate it (BLI-MSG). The stream is lost; the connection and every other stream are not.
+	// allocate it (MSG). The stream is lost; the connection and every other stream are not.
 	if len > MAX_MESSAGE {
 		return Err(io::Error::new(
 			io::ErrorKind::InvalidData,
@@ -363,7 +363,7 @@ mod tests {
 	/// Set up a client and device connected over an in-memory duplex: a full `NNpsk0` handshake, then
 	/// yamux on both ends with their drivers spawned. No BLE is involved.
 	async fn paired() -> (Streams, Streams) {
-		let psk = StickerSecret::from_bytes([0x5a; 32]);
+		let psk = PresenceToken::from_bytes([0x5a; 32]);
 		let (a, b) = tokio::io::duplex(1 << 16);
 		let (client_ns, device_ns) = tokio::join!(
 			connect_initiator(a.compat(), &psk),
@@ -408,7 +408,7 @@ mod tests {
 	/// Closing a stream is the unsubscribe, and it is a half-close: the peer reads end of stream while
 	/// its own write side stays open. A device that did not act on that would go on sending to a
 	/// client that has said it is done, which is the case the subscription mechanism exists to
-	/// prevent (BLI-MSG, "Subscribing").
+	/// prevent (MSG, "Subscribing").
 	#[tokio::test]
 	async fn closing_a_stream_is_read_as_end_of_stream_and_leaves_the_peer_writable() {
 		let (mut client, mut device) = paired().await;
@@ -432,7 +432,7 @@ mod tests {
 	}
 
 	/// A stream dropped without being closed reaches the peer as a reset rather than a graceful end,
-	/// so a subscription ends however its stream ends and no drop guard is needed (BLI-MSG).
+	/// so a subscription ends however its stream ends and no drop guard is needed (MSG).
 	#[tokio::test]
 	async fn dropping_a_stream_also_ends_it_for_the_peer() {
 		let (mut client, mut device) = paired().await;
@@ -453,7 +453,7 @@ mod tests {
 	}
 
 	/// Application messages are delimited within a stream by the same four-byte big-endian prefix the
-	/// link uses for Noise messages, one layer down (BLI-MSG). A message is reassembled whatever sizes
+	/// link uses for Noise messages, one layer down (MSG). A message is reassembled whatever sizes
 	/// the reads arrive in, and several in one read are separated.
 	#[tokio::test]
 	async fn messages_are_delimited_within_a_stream() {

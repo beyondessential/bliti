@@ -1,10 +1,10 @@
 ---
-id: BLI-MSG
+id: MSG
 ---
 
 # Application messages
 
-The channel of [BLI-CHN](channel.md) carries application messages inside a common envelope, whatever the feature.
+The channel of [CHN](channel.md) carries application messages inside a common envelope, whatever the feature.
 This spec is that envelope: how a message is delimited and shaped, which stream carries what, how the two ends name themselves, what each does with what it does not recognise, and how live data is subscribed to.
 A feature spec describes the message types it adds and inherits everything here.
 
@@ -16,7 +16,7 @@ An independently written client that follows it interoperates with a device that
 A message is a JSON object encoded as UTF-8, prefixed with its length as four bytes, big-endian, giving the number of bytes of JSON that follow.
 There is no trailing newline and no padding, and the next message's prefix begins at the byte after the last byte of JSON.
 
-This delimiting sits inside the framing of [BLI-CHN](channel.md) and is not the same thing.
+This delimiting sits inside the framing of [CHN](channel.md) and is not the same thing.
 That framing delimits Noise messages on the link; this delimits application messages within one yamux stream.
 The two use the same encoding at different layers, and a receiver that conflates them reads nonsense.
 
@@ -24,7 +24,7 @@ A message is at most 128 kibibytes of JSON.
 A receiver sent a longer one MUST treat it as a fault.
 
 The ceiling is set by the link rather than by JSON.
-The channel of [BLI-CHN](channel.md) runs over BLE, where a message is carried as a stream of small notifications, and one large enough to take thousands of them denies the connection to everything else for as long as it takes.
+The channel of [CHN](channel.md) runs over BLE, where a message is carried as a stream of small notifications, and one large enough to take thousands of them denies the connection to everything else for as long as it takes.
 A feature with more to say than this sends it in several messages.
 
 ## How a message is shaped

@@ -1,16 +1,16 @@
 ---
-id: BLI-ADV
+id: ADV
 ---
 
 # Discovery and matching
 
 A device advertises continuously over BLE.
-A client that holds a sticker recomputes the expected handle from it and matches that against the advertisements it hears, which is what lets an operator pick one device out of everything advertising nearby.
+A client that holds a QR code recomputes the expected handle from it and matches that against the advertisements it hears, which is what lets an operator pick one device out of everything advertising nearby.
 
 ## What is advertised
 
 The advertisement carries a service UUID identifying the device as speaking bliti.
-The local name carries the advertised handle of [BLI-KEY](key-schedule.md), the current rotation salt, and the version marker.
+The local name carries the advertised handle of [KEY](key-schedule.md), the current rotation salt, and the version marker.
 
 The service UUID is a 128-bit UUID and appears in the advertisement rather than the scan response, because filtering a scan by service UUID is the only filtering some client platforms offer and it is applied to the advertisement.
 
@@ -28,18 +28,18 @@ A client platform that can only filter by name prefix has the rendering to filte
 
 ## Matching
 
-A client scans, reads the local name of each device advertising the service UUID, decodes it, recomputes the handle from the sticker it holds together with the salt it observes, and compares.
+A client scans, reads the local name of each device advertising the service UUID, decodes it, recomputes the handle from the QR code it holds together with the salt it observes, and compares.
 
 A local name that is not a bliti payload belongs to a device that is not one, and is passed over.
 
 Matching is by payload rather than by device address, so a client that is never shown the peer's address can still identify the device, and a device whose address rotates is still recognised.
 
-The cost to a client is one fast hash per advertisement heard per sticker held.
+The cost to a client is one fast hash per advertisement heard per QR code held.
 
 The version marker is the base protocol version of [BLI](overview.md), which covers every layer from the derivations to the shape of application messages.
 
 A client reads the advertised version marker before recomputing.
-Where it differs from the version of the sticker the client holds, the client reports a device present at a version it does not support.
+Where it differs from the version of the QR code the client holds, the client reports a device present at a version it does not support.
 No two versions produce a matching handle, so reading the marker is what separates that from a device the client cannot hear at all.
 
 ## Rotation
@@ -47,7 +47,7 @@ No two versions produce a matching handle, so reading the marker is what separat
 The rotation salt is a short random value advertised in the clear, and it changes every fifteen minutes.
 
 Rotating it is what stops the handle being a fixed beacon: without the salt changing, a passive observer could follow a device by its handle alone even though the handle reveals nothing about which device it is.
-An observer who has not scanned the sticker cannot link two advertisements across a salt change, while a client that holds the sticker recognises the device across it by recomputing.
+An observer who has not scanned the QR code cannot link two advertisements across a salt change, while a client that holds the QR code recognises the device across it by recomputing.
 
 Rotating the salt means re-registering the advertisement, and a client recomputes against whatever salt it observes, so nothing a client does depends on the rotation period.
 The local name changes with the handle, so what a client filters on changes at the same time.

@@ -1,6 +1,6 @@
 //! The daemon: advertising, the GATT server, and the sessions they let a client open.
 //!
-//! This is the only module that talks to BlueZ. Behaviour is specified in BLI-ADV and BLI-CHN.
+//! This is the only module that talks to BlueZ. Behaviour is specified in ADV and CHN.
 
 use std::{path::Path, sync::Arc};
 
@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
-	key_schedule::{Handle, RotationSalt, StickerSecret},
-	sticker::StickerPayload,
+	key_schedule::{Handle, PresenceToken, RotationSalt},
+	qr::QrPayload,
 };
 use bluer::{
 	adv::Advertisement,
@@ -28,13 +28,13 @@ use crate::{
 
 /// Run the daemon until interrupted.
 pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
-	// Establish identity before touching Bluetooth: a board whose sticker is dead, or that this build
+	// Establish identity before touching Bluetooth: a board whose QR code is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
-		tracing::info!(source = %identity.kind, "derived this board's sticker secret");
+		tracing::info!(source = %identity.kind, "derived this board's presence token");
 	} else {
-		tracing::info!(source = %identity.kind, "sticker secret is cached");
+		tracing::info!(source = %identity.kind, "presence token is cached");
 	}
 	let secret = Arc::new(identity.secret);
 
@@ -55,7 +55,7 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	let readvertise = Arc::new(tokio::sync::Notify::new());
 
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
-	// to a device that has been up a while finds a populated window (BLI-SYS).
+	// to a device that has been up a while finds a populated window (SYS).
 	let sampler = crate::sampler::Sampler::start();
 	let _application = adapter
 		.serve_gatt_application(application(
@@ -157,7 +157,7 @@ const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(2
 const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
 const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// What a device may put on the air in any one second (BLI-CHN, "How fast a device may send").
+/// What a device may put on the air in any one second (CHN, "How fast a device may send").
 ///
 /// The link is shared with everything else the session is doing, including the client's own messages
 /// and the notifications carrying them. A device with a backlog takes longer to clear it rather than
@@ -211,7 +211,7 @@ fn advertisement(advertised: Advertised) -> Advertisement {
 /// back.
 fn application(
 	sink: &InboundSink,
-	secret: Arc<StickerSecret>,
+	secret: Arc<PresenceToken>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
 ) -> Application {
@@ -331,16 +331,12 @@ fn application(
 	}
 }
 
-/// Scan for bliti devices and report which one the sticker in hand belongs to.
+/// Scan for bliti devices and report which one the QR code in hand belongs to.
 ///
-/// This is the client half of BLI-ADV: recompute the handle from the sticker against whatever salt
+/// This is the client half of ADV: recompute the handle from the QR code against whatever salt
 /// each device advertises, and compare. It exists so discovery and matching can be exercised without
 /// a browser; the web application does the same thing.
-pub async fn scan(
-	payload: &StickerPayload,
-	seconds: u64,
-	adapter_name: Option<&str>,
-) -> Result<()> {
+pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>) -> Result<()> {
 	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
 		Some(name) => session.adapter(name)?,
@@ -403,7 +399,7 @@ pub async fn scan(
 		if advertised.matches(payload.secret()) {
 			matched += 1;
 			println!(
-				"{address}  MATCHES the sticker (handle {})",
+				"{address}  MATCHES the QR code (handle {})",
 				hex(advertised.handle)
 			);
 		} else {
@@ -412,11 +408,11 @@ pub async fn scan(
 	}
 
 	if matched == 0 {
-		tracing::warn!("no device matching that sticker was heard");
+		tracing::warn!("no device matching that QR code was heard");
 	} else if matched > 1 {
-		// Two devices answering one sticker is a handle collision, or a device being impersonated;
+		// Two devices answering one QR code is a handle collision, or a device being impersonated;
 		// either way it is reported rather than silently picking one.
-		tracing::warn!(matched, "more than one device matched that sticker");
+		tracing::warn!(matched, "more than one device matched that QR code");
 	}
 	Ok(())
 }

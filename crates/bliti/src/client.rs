@@ -1,6 +1,6 @@
 //! The client half of the channel: connect to a device over GATT and run a session against it.
 //!
-//! This exists so the whole of BLI-CHN can be exercised from the command line, against a real device
+//! This exists so the whole of CHN can be exercised from the command line, against a real device
 //! over real BLE, without a browser. The web application does the same thing through Web Bluetooth,
 //! and both sit on the same [`bliti_core::channel`] stack, so what this proves the browser inherits.
 
@@ -20,7 +20,7 @@ use bliti_core::{
 		readings::{Reading as SystemReading, Value as ReadingValue},
 		stream::{Mode, connect_initiator, multiplex, read_message, write_message},
 	},
-	key_schedule::StickerSecret,
+	key_schedule::PresenceToken,
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{AsyncRead, AsyncWrite, SinkExt, StreamExt, channel::mpsc};
@@ -132,14 +132,14 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 	Err(anyhow!("the device does not carry the bliti service"))
 }
 
-/// Find the device a sticker belongs to, by the matching of BLI-ADV.
+/// Find the device a QR code belongs to, by the matching of ADV.
 ///
 /// A client cannot reach a device it has not heard: a peer has to be discovered before it can be
 /// connected to. So finding it is part of connecting, and this is the same scan-then-match the web
 /// application performs before it opens a channel.
 async fn find(
 	adapter: &bluer::Adapter,
-	secret: &StickerSecret,
+	secret: &PresenceToken,
 	seconds: u64,
 ) -> Result<bluer::Address> {
 	// Discovery has to be running for names to be refreshed, but the events it emits are not enough
@@ -167,19 +167,19 @@ async fn find(
 				continue;
 			}
 			if advertised.matches(secret) {
-				tracing::info!(%address, "matched the sticker");
+				tracing::info!(%address, "matched the QR code");
 				return Ok(address);
 			}
 		}
 		tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 	}
-	Err(anyhow!("no device matching that sticker was heard"))
+	Err(anyhow!("no device matching that QR code was heard"))
 }
 
 /// Connect to a device, run the handshake, and exchange the milestone's two messages.
 pub async fn connect(
 	address: Option<bluer::Address>,
-	secret: &StickerSecret,
+	secret: &PresenceToken,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
 	let session = bluer::Session::new().await?;
@@ -273,7 +273,7 @@ pub async fn connect(
 	});
 
 	// The client names itself on a control stream of its own, without waiting to be asked and without
-	// waiting for the device's hello. The device logs it and never acts on it (BLI-MSG).
+	// waiting for the device's hello. The device logs it and never acts on it (MSG).
 	let mut control = streams.open().await?;
 	let hello = ClientMessage::Hello {
 		name: env!("CARGO_PKG_NAME").to_owned(),
@@ -307,7 +307,7 @@ pub async fn connect(
 			}
 			// Rendered from what each reading says about itself, with no list of names to match
 			// against: a device that has gained a reading shows it here without this client
-			// changing (BLI-SYS).
+			// changing (SYS).
 			Ok(Reading::Message(DeviceMessage::SystemIdentity { readings })) => {
 				for reading in &readings {
 					println!("{}", render(reading));
@@ -341,7 +341,7 @@ pub async fn connect(
 /// One reading, rendered from its own description.
 ///
 /// Nothing here matches on a reading's name: a client that did could only show what it already knew
-/// about, which is the property BLI-SYS exists to avoid.
+/// about, which is the property SYS exists to avoid.
 fn render(reading: &SystemReading) -> String {
 	let mut line = format!("{}: ", reading.label);
 	match (&reading.value, &reading.error) {

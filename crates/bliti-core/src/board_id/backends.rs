@@ -6,13 +6,11 @@
 //! interface, and [`TpmEndorsementKeySource`] talks to the TPM software stack, which carries a C
 //! library and so sits behind the `tpm` feature.
 //!
-//! Which backends a build registers decides which source wins the precedence, and so which sticker
-//! secret a board derives. A binary that can derive a sticker therefore registers every backend the
+//! Which backends a build registers decides which source wins the precedence, and so which QR code
+//! secret a board derives. A binary that can derive a QR code therefore registers every backend the
 //! platform could offer rather than a subset.
 
 use std::{fs, path::PathBuf};
-
-use uuid::Uuid;
 
 use super::{BoardIdError, BoardIdSource, Presence, SourceKind, is_sentinel};
 
@@ -26,7 +24,7 @@ pub use tpm::TpmEndorsementKeySource;
 
 /// The Raspberry Pi device-tree serial, a 64-bit value the board exposes as sixteen hexadecimal
 /// characters. The board ID is the eight bytes those characters denote, most significant first, not
-/// the characters themselves (BLI-KEY, "What is derived from").
+/// the characters themselves (KEY, "What is derived from").
 #[derive(Debug, Clone)]
 pub struct RaspberryPiSerialSource {
 	path: PathBuf,
@@ -100,86 +98,6 @@ impl BoardIdSource for RaspberryPiSerialSource {
 	}
 }
 
-/// The SMBIOS system UUID on a UEFI machine, exposed by the kernel as a dashed string. The board ID
-/// is the sixteen bytes the UUID denotes, not the dashed string (BLI-KEY, "What is derived from").
-#[derive(Debug, Clone)]
-pub struct SmbiosSystemUuidSource {
-	path: PathBuf,
-}
-
-impl Default for SmbiosSystemUuidSource {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
-impl SmbiosSystemUuidSource {
-	/// Read from the standard DMI location. The kernel restricts this to root, so a device reads it
-	/// with the privilege the daemon runs under.
-	pub fn new() -> Self {
-		Self::at("/sys/class/dmi/id/product_uuid")
-	}
-
-	/// Read from a given path, for testing against a fixture.
-	pub fn at(path: impl Into<PathBuf>) -> Self {
-		Self { path: path.into() }
-	}
-
-	fn read_uuid(&self) -> Result<Option<Uuid>, BoardIdError> {
-		let raw = match fs::read_to_string(&self.path) {
-			Ok(raw) => raw,
-			Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-			// A source that exists but cannot be read is not the same as one that is absent, and must
-			// not be treated as absent: precedence would fall through to a weaker source and derive a
-			// secret that does not match this board's sticker.
-			Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
-				return Err(self.backend_message(format!(
-					"{} exists but is not readable; it is root-only, so run with privilege rather \
-					 than derive from a weaker source",
-					self.path.display()
-				)));
-			}
-			Err(err) => return Err(self.backend_message(err.to_string())),
-		};
-		let text = raw.trim();
-		if text.is_empty() {
-			return Ok(None);
-		}
-		let uuid = Uuid::try_parse(text).map_err(|err| {
-			self.backend_message(format!("system UUID {text:?} does not parse: {err}"))
-		})?;
-		Ok(Some(uuid))
-	}
-
-	fn backend_message(&self, message: impl Into<String>) -> BoardIdError {
-		BoardIdError::Backend {
-			kind: SourceKind::SmbiosSystemUuid,
-			message: message.into(),
-		}
-	}
-}
-
-impl BoardIdSource for SmbiosSystemUuidSource {
-	fn kind(&self) -> SourceKind {
-		SourceKind::SmbiosSystemUuid
-	}
-
-	fn probe(&self) -> Result<Presence, BoardIdError> {
-		match self.read_uuid()? {
-			None => Ok(Presence::Absent),
-			Some(uuid) if is_sentinel(uuid.as_bytes()) => Ok(Presence::Placeholder),
-			Some(_) => Ok(Presence::Present),
-		}
-	}
-
-	fn read(&self) -> Result<Vec<u8>, BoardIdError> {
-		match self.read_uuid()? {
-			Some(uuid) => Ok(uuid.as_bytes().to_vec()),
-			None => Err(self.backend_message("system UUID disappeared between probe and read")),
-		}
-	}
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
 	use std::{
@@ -238,31 +156,16 @@ pub(crate) mod tests {
 		assert_eq!(source.probe().unwrap(), Presence::Placeholder);
 	}
 
-	#[test]
-	fn smbios_uuid_reads_the_sixteen_bytes_it_denotes() {
-		let f = Fixture::new(b"550e8400-e29b-41d4-a716-446655440000\n");
-		let source = SmbiosSystemUuidSource::at(&f.0);
-		assert_eq!(source.probe().unwrap(), Presence::Present);
-		assert_eq!(
-			source.read().unwrap(),
-			vec![
-				0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
-				0x00, 0x00
-			]
-		);
-	}
-
 	/// Evaluates the real precedence against the machine this runs on, exercising the backends
 	/// together rather than one at a time, and reports what it found so it doubles as a diagnostic.
-	/// Ignored: reads real hardware and needs privilege for the DMI node and the TPM.
+	/// Ignored: reads real hardware and needs privilege for the TPM.
 	#[test]
-	#[ignore = "reads the real board; needs privilege for DMI and the TPM"]
+	#[ignore = "reads the real board; needs privilege for the TPM"]
 	fn selects_the_strongest_source_on_this_board() {
 		use crate::board_id::{BoardIdSource, select, strongest_present};
 
 		let otp = OneTimeProgrammableSource::new();
 		let rpi = RaspberryPiSerialSource::new();
-		let smbios = SmbiosSystemUuidSource::new();
 		#[cfg(feature = "tpm")]
 		let tpm = TpmEndorsementKeySource::new();
 
@@ -273,7 +176,7 @@ pub(crate) mod tests {
 				reason = "the TPM source is pushed only when that feature is on"
 			)
 		)]
-		let mut sources: Vec<&dyn BoardIdSource> = vec![&otp, &rpi, &smbios];
+		let mut sources: Vec<&dyn BoardIdSource> = vec![&otp, &rpi];
 		#[cfg(feature = "tpm")]
 		sources.push(&tpm);
 
@@ -286,7 +189,7 @@ pub(crate) mod tests {
 		}
 
 		// The cheap probe and the full selection must agree on which source wins, since the cache
-		// check in BLI-KEY relies on the probe alone to decide whether a rederivation is needed.
+		// check in KEY relies on the probe alone to decide whether a rederivation is needed.
 		let strongest = strongest_present(&sources).unwrap();
 		let board_id = select(&sources).expect("this board offers a usable source");
 		println!(
@@ -295,12 +198,5 @@ pub(crate) mod tests {
 			board_id.raw().len()
 		);
 		assert_eq!(Some(board_id.kind()), strongest);
-	}
-
-	#[test]
-	fn smbios_uuid_placeholder_when_nil() {
-		let f = Fixture::new(b"00000000-0000-0000-0000-000000000000\n");
-		let source = SmbiosSystemUuidSource::at(&f.0);
-		assert_eq!(source.probe().unwrap(), Presence::Placeholder);
 	}
 }
