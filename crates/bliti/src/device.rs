@@ -76,22 +76,42 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// period rather than being replaced the instant it is advertised.
 	rotation.tick().await;
 	let mut shutdown = std::pin::pin!(shutdown());
+	let mut backoff = ADVERTISE_RETRY;
 	loop {
 		let salt = random_salt();
 		let advertised = Advertised::new(secret.handle(salt), salt);
-		let _advertisement = adapter
-			.advertise(advertisement(advertised))
-			.await
-			.context("registering the advertisement")?;
+		let registered = match adapter.advertise(advertisement(advertised)).await {
+			Ok(registered) => {
+				backoff = ADVERTISE_RETRY;
+				registered
+			}
+			// Registration failing is not worth exiting for. A device that has stopped advertising
+			// cannot be reached at all, and an operator standing in front of one cannot tell it from a
+			// dead one. Worse, exiting leaves the advertisement registered against a process that is
+			// gone, and BlueZ holds it until it restarts: each exit costs one of the controller's few
+			// advertising slots and makes the next registration likelier to fail the same way.
+			Err(err) => {
+				tracing::error!(%err, ?backoff, "could not register the advertisement; retrying");
+				tokio::select! {
+					_ = tokio::time::sleep(backoff) => {}
+					result = &mut shutdown => {
+						result?;
+						tracing::info!("stopping");
+						return Ok(());
+					}
+				}
+				backoff = (backoff * 2).min(ADVERTISE_RETRY_MAX);
+				continue;
+			}
+		};
 		tracing::info!(local_name = %advertised.to_local_name(), "advertising");
 
 		tokio::select! {
-			_ = rotation.tick() => continue,
+			_ = rotation.tick() => {}
 			// A session just ended, so the controller has stopped advertising: drop this advertisement
 			// and register a fresh one, which resumes it. A fresh salt comes with it, which is harmless.
 			_ = readvertise.notified() => {
 				tracing::info!("a session ended; resuming advertising");
-				continue;
 			}
 			result = &mut shutdown => {
 				result?;
@@ -102,6 +122,12 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 				return Ok(());
 			}
 		}
+
+		// Unregistering reaches BlueZ asynchronously, and the controller has only a few advertising
+		// slots. Registering the next advertisement while this one is still being withdrawn is what
+		// exhausts them, and the registration then times out on D-Bus.
+		drop(registered);
+		tokio::time::sleep(ADVERTISE_SETTLE).await;
 	}
 }
 
@@ -122,6 +148,14 @@ async fn shutdown() -> Result<()> {
 
 /// How often to check whether the client is still subscribed, while it is sending nothing.
 const UNSUBSCRIBE_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// How long to leave BlueZ to withdraw an advertisement before registering the next.
+const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// How long to wait before trying a failed advertisement registration again, and the ceiling that
+/// wait backs off to.
+const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// A handle rendered for a person to read in a log line.
 fn hex(handle: Handle) -> String {
