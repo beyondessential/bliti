@@ -4,85 +4,89 @@ id: BID
 
 # Board ID
 
-The board ID is the firmware-provided identifier the presence token is derived from.
-Its job is to make the presence token reproducible: the same QR code can be regenerated from the board alone, with no per-device database to keep in sync.
+A board MUST yield the same [board ID](overview.md#board-id) every time it is read, so that a QR code can be reproduced from the board rather than from a record of what was issued.
 
-The board ID is not a secret.
-Any software on the device can read it.
-Nothing depends on it staying hidden, only on it being expensive to search for, which is a property of its size and of the derivation in [KEY](key-schedule.md).
+A board ID is not a secret, and any software on a device can read it.
+
+> [!NOTE]
+> Nothing depends on a board ID staying hidden, only on its being expensive to search for, which is a property of its size and of the derivation in [KEY](key-schedule.md).
+
+## Borrowed terms
+
+| term | meaning |
+| --- | --- |
+| TPM | A Trusted Platform Module: a coprocessor that holds keys and performs cryptographic operations, present either as a discrete chip or in firmware. |
+| endorsement seed | A secret a TPM holds from manufacture, from which it generates its Endorsement Keys. |
+| Endorsement Key | The key a TPM generates from that seed under a template fixing its algorithm and parameters. |
+| Endorsement Key name | That key's identifier: its hash algorithm identifier followed by the digest of its public area. |
+| one-time-programmable memory | Memory on a board that can be written once and not rewritten, part of which a board may reserve for its customer. |
+| device-tree serial | The serial number a Raspberry Pi's firmware publishes to the operating system through the device tree. |
 
 ## Choosing a source
 
-A board offers more than one candidate identifier, and the board ID is the strongest one present rather than a combination of them.
+The precedence, strongest first, is the name of a TPM 2.0 Endorsement Key, then written customer one-time-programmable memory, then the platform serial number.
 
-The precedence, strongest first, is the TPM Endorsement Key, then provisioned one-time-programmable memory, then the platform's serial numbers.
-Precedence is evaluated by kind of source rather than by platform, so a board gains a stronger source simply by having the hardware for it, and no rule names a particular model.
+A board ID MUST be the value of the single strongest source present, and MUST NOT combine sources.
 
-The device and the generator evaluate the same precedence against the same board and therefore select the same source, without either being told which kind of machine it is running on.
+Precedence MUST be evaluated by kind of source, never by platform.
 
-Combining sources is not done.
-Each source in a combination would be a way for the board ID to change, and a board ID that changes orphans a QR code already fixed to an enclosure.
+> [!NOTE]
+> Combining sources would give each one its own way to change the board ID, and a board ID that changes orphans a QR code already fixed to an enclosure.
+> Evaluating by kind rather than by platform means a board gains a stronger source by having the hardware for it, with no rule naming a model, and a device and a generator reach the same answer without either being told what machine it runs on.
 
 ### TPM Endorsement Key
 
-Where a TPM 2.0 is present, the board ID is the name of its Endorsement Key: the hash algorithm identifier followed by the digest of the key's public area.
+Where a TPM 2.0 is present, the board ID MUST be the name of its Endorsement Key.
 
-The key is the one generated from the endorsement seed under the TCG low-range RSA 2048 template.
-A TPM holds one Endorsement Key per algorithm, so naming the algorithm is part of the derivation rather than an implementation choice, and changing it re-derives every board ID taken under the old one.
+That key MUST be the one generated from the endorsement seed under the TCG low-range RSA 2048 template, and MUST be regenerated from the seed and the template rather than read from a persisted copy.
 
-The key is regenerated from the seed and the template rather than read from wherever provisioning software may have persisted it, because a persisted copy is not guaranteed to exist on a freshly imaged machine while the seed and the template always are.
+> [!NOTE]
+> A TPM holds one Endorsement Key per algorithm, so the algorithm is part of the derivation: changing it re-derives every board ID taken under the old one.
+> A persisted copy is not guaranteed to exist on a freshly imaged machine, while the seed and the template always are.
 
-This source is available both on machines with a firmware TPM and on boards fitted with a discrete TPM over SPI.
+### Customer one-time-programmable memory
 
-### Provisioned one-time-programmable memory
+Where a board carries customer-programmable one-time-programmable memory that has been written, the board ID MUST be its contents.
 
-Where the board carries customer-programmable one-time-programmable memory that has been written, its contents are the board ID.
+### Platform serial number
 
-### Platform serial numbers
-
-Otherwise the board ID is the platform's own serial number, which is the device-tree serial on Raspberry Pi hardware.
+Otherwise the board ID MUST be the platform serial number, which on Raspberry Pi hardware is the device-tree serial.
 
 ## Probing and reading
 
-Establishing which sources a board has is separate from reading the value one of them holds.
+A device MUST establish which sources are present by probing each, and MUST read a value only from the source that wins the precedence.
 
-Presence is cheap to establish: a device node exists or it does not, one-time-programmable memory reads as written or as blank, a serial is readable or absent.
-
-Reading a value is not uniformly cheap.
-A TPM Endorsement Key name is obtained by regenerating the key from the endorsement seed under the pinned template, which is a key generation inside the TPM rather than a file read, and it is paid every time the value is wanted.
-
-Evaluating the precedence therefore means probing each source for presence, and reading a value only from the one that wins.
+> [!NOTE]
+> Probing is cheap: a device node exists or it does not, one-time-programmable memory reads as written or as blank, a serial is readable or absent.
+> Reading is not uniformly cheap. An Endorsement Key name is obtained by regenerating the key inside the TPM, which is paid every time the value is wanted.
 
 ## Sources that carry no identity
 
-A source can be present and still hold no identity.
-A value reading as all zeros, as all ones, or as a known vendor constant is a placeholder whatever its nominal width, and deriving from it would give every board in the same position the same secret.
+A source whose value reads as all zeros, as all ones, or as a known vendor constant MUST be treated as absent whatever the value's nominal width, and the precedence MUST fall through to the next source.
 
-Such a source is skipped and precedence falls through to the next one.
-Unwritten one-time-programmable memory is the ordinary case, reading as zeros on every unprogrammed board, and a board in that state derives from its serial number instead.
+Reaching the end of the precedence with no usable source MUST be reported as [DEV](device.md) requires, rather than derived past.
 
-Reaching the end of the precedence with no usable source is a failure, reported as specified in [BLI](overview.md) rather than derived past.
+> [!NOTE]
+> Such a value is a placeholder, and deriving from it would give every board in the same position the same token.
+> Unwritten one-time-programmable memory is the ordinary case, reading as zeros on every unprogrammed board.
 
 ## When the board ID changes
 
-Fitting hardware that carries a stronger source changes which source wins, and so changes the board ID and every value below it.
-A board that gains a TPM, or has its one-time-programmable memory written after its QR code was printed, no longer matches that code.
+Fitting hardware that carries a stronger source changes which source wins, and so changes the board ID and every value derived from it.
 
-The platform serial number identifies the board across such a change.
-Being the last tier of the precedence, it is present on every board in scope, so it is available whichever source wins, and it does not itself change when stronger hardware is fitted.
+Where a board's platform serial is unchanged but its strongest present source is stronger than the one it last derived from, its QR code is dead, and the device MUST report that as [DEV](device.md) requires rather than advertise a handle no client can match.
 
-A board whose platform serial is unchanged, but whose strongest present source is stronger than the one it last derived from, has gained hardware, and the QR code on its enclosure is dead.
-That is reported, rather than the device advertising a handle no client can match.
-Recovering from it means printing a new QR code for that board.
+Where a board's platform serial differs, it is a different board, and the device MUST derive from the board it now sits on without reporting a fault.
 
-A board whose platform serial differs is a different board, reached by moving a disk from one enclosure into another.
-It derives from the board it now sits on, and matches the QR code already fixed to that enclosure, so this is not a fault and is not reported.
+Where a board offers no platform serial, any change in its board ID MUST be reported.
 
-A board that offers no platform serial has no weaker source for a stronger one to supersede, so any change in its board ID is reported.
+A source that will supersede a platform serial MUST be written before that board's QR code is derived.
 
-Because a board ID derived from a newly written source supersedes one derived from a serial number, writing that source is done before the QR code is derived and printed.
+> [!NOTE]
+> The platform serial is the last tier of the precedence, so it is present whichever source wins, and it does not itself change when stronger hardware is fitted. That is what makes it able to identify a board across a change of source.
+> A differing serial is the case of a disk moved from one enclosure into another, where the board matches the QR code already fixed to its new enclosure.
+> Recovering from a dead code means printing a new one for that board.
 
 ## Hardware in scope
 
-bliti derives a board ID on physical machines.
-Detecting virtualised or cloned machines is not part of the system.
+A board ID is derived on physical machines.

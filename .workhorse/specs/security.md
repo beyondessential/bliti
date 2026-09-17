@@ -82,7 +82,12 @@ Because the derivation constants are public, that attack needs neither the devic
 A recorded handshake serves as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
 What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
-For boards whose only identifier is a short serial number that product is small, and those boards carry a weaker guarantee than boards with a hardware-backed identifier.
+
+Where a board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, that space is large enough that the derivation cost is not what holds the scheme up.
+
+Where it comes from a platform serial, the cost is what the guarantee rests on, and it does not make every such board safe.
+A Raspberry Pi 4 or 5 serial occupies its full width and is out of reach.
+A serial that collapses to a short value, as on earlier boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 
 ### Authentication proves the secret, not the board
 

@@ -44,7 +44,7 @@ impl SourceKind {
 	];
 
 	/// The tag byte mixed into the derivation. Stable and versioned; never reused. Zero is reserved
-	/// as "no source" and is not assigned to any kind. 4 was the SMBIOS system UUID and is retired.
+	/// as "no source" and is not assigned to any kind.
 	pub const fn tag(self) -> u8 {
 		match self {
 			SourceKind::TpmEndorsementKey => 1,

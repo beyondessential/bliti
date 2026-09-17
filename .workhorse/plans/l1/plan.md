@@ -300,7 +300,7 @@ Two things the bulk replacement got wrong, both caught rather than shipped:
 - It rewrote snake_case identifiers into `QR code` with a space, which the compiler caught immediately.
 - It rewrote a **test input**. `QrPayload::read("not a sticker")` was chosen because it does not parse; `"not a QR code"` happens to base32-decode with a first byte of 107, so the test asserting Malformed got UnsupportedVersion(107) instead. A blanket replacement over source treats prose, identifiers and data as one thing, and only the last of those is silent. The test caught it, which is the argument for running them rather than trusting a clean compile.
 
-The removal of SMBIOS also freed tag 4 in `SourceKind::tag()`. It stays retired rather than reused, noted in the code, because reusing it would silently change derivations for a future source.
+The removal of SMBIOS freed tag 4 in `SourceKind::tag()`. It is reusable: retiring a tag is a compatibility constraint that only exists once devices are in the field, and AGENTS.md is explicit that nothing has shipped. A note claiming otherwise was written and removed.
 
 **Not swept, deliberately:** `sticker` survives in `.workhorse/breakdowns/d1/`, `.workhorse/working-docs/d1/` and `.workhorse/test-cases/e1/`. Those are other cards' artefacts and are not this card's to edit.
 
