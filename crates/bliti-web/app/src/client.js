@@ -36,6 +36,19 @@ export function createClient() {
 	let channel = null
 
 	return {
+		// Why this browser cannot run the client, or null where it can. The real client owns this
+		// because the reasons are its own: a secure context and Web Bluetooth are what it needs, and
+		// nothing else in the application should have to know that.
+		unsupported() {
+			if (!window.isSecureContext) {
+				return 'This page needs a secure context. Open it over https, or over localhost while developing.'
+			}
+			if (!navigator.bluetooth) {
+				return 'This browser does not offer Web Bluetooth. Chrome on Android is the tested one.'
+			}
+			return null
+		},
+
 		// Both paths a sticker arrives by land here, and the payload is treated identically once read.
 		async readSticker(text) {
 			await protocol()

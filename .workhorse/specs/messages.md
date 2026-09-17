@@ -30,9 +30,6 @@ Type names are lower case, with words separated by hyphens.
 
 Every other member sits alongside `type` in the same object rather than nested under a payload member.
 
-Where this spec or a feature spec gives a member's JSON type, a sender sends that type and no other.
-A member is never sent as a different JSON type to mean the same thing, because a receiver that does not recognise the member cannot know what the substitution meant.
-
 ## Member names, and which members are critical
 
 A member name is made of lower case letters, digits and hyphens, and is written either wholly in lower case or wholly in upper case.

@@ -8,22 +8,12 @@ import { cameraAvailable, scan } from './scanner.js'
 // so subscribing here is correct against both and carries no readings until a device offers them.
 const TOPIC = 'system'
 
-function supportProblem() {
-	if (!window.isSecureContext) {
-		return 'This page needs a secure context. Open it over https, or over localhost while developing.'
-	}
-	if (!navigator.bluetooth) {
-		return 'This browser does not offer Web Bluetooth. Chrome on Android is the tested one.'
-	}
-	return null
-}
-
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
 	// Bluetooth in the loop.
 	const client = useMemo(() => window.__blitiClient ?? createClient(), [])
 
-	const [unsupported] = useState(supportProblem)
+	const [unsupported] = useState(() => client.unsupported())
 	const [sticker, setSticker] = useState(null)
 	const [readError, setReadError] = useState('')
 	const [scanning, setScanning] = useState(false)
