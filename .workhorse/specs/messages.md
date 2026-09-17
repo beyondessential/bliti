@@ -39,7 +39,7 @@ A name in mixed case names nothing, and a message carrying one is malformed, as 
 The case is what marks a member critical, after the convention X.509 and JWT use for extensions and header parameters.
 
 An upper case name marks the member **critical**.
-A receiver that does not recognise it must not act on the object carrying it, because acting on the rest would mean acting on a partial reading of something the sender has said cannot be partially read.
+A receiver that does not recognise it must not act on the object carrying it; acting on the rest would mean acting on a partial reading of something the sender has said cannot be partially read.
 
 A lower case name marks the member ignorable.
 A receiver that does not recognise it passes over it and reads the rest.
