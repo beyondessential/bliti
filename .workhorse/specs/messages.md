@@ -20,8 +20,12 @@ This delimiting sits inside the framing of [BLI-CHN](channel.md) and is not the 
 That framing delimits Noise messages on the link; this delimits application messages within one yamux stream.
 The two use the same encoding at different layers, and a receiver that conflates them reads nonsense.
 
-A message is at most one mebibyte of JSON.
+A message is at most 128 kibibytes of JSON.
 A receiver sent a longer one MUST treat it as a fault.
+
+The ceiling is set by the link rather than by JSON.
+The channel of [BLI-CHN](channel.md) runs over BLE, where a message is carried as a stream of small notifications, and one large enough to take thousands of them denies the connection to everything else for as long as it takes.
+A feature with more to say than this sends it in several messages.
 
 ## How a message is shaped
 

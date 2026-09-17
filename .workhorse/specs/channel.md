@@ -30,6 +30,13 @@ The sticker secret is a full-width value rather than a short code a person types
 
 An eavesdropper who records a handshake can attempt the same offline search against the transcript as against an advertisement, and the same derivation cost and the same limits apply.
 
+## How fast a device may send
+
+A device sends no more than about a hundred kibibytes, and no more than about two hundred notifications, in any second.
+
+Both ceilings exist because the link is shared with everything else the session is doing, including the client's own messages and the notifications that carry them.
+A device with a backlog takes longer to clear it rather than taking the connection down, which is the outcome worth having: a slow reading beats a dropped session.
+
 ## Transport
 
 The channel runs over GATT, under the service UUID of [BLI-ADV](discovery.md), using two characteristics:

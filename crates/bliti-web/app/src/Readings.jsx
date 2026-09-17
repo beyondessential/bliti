@@ -16,14 +16,14 @@ import {
 	seriesOf,
 } from './readings.js'
 
-export default function Readings({ readings, window: history }) {
+export default function Readings({ readings, window: live, history }) {
 	if (readings.length === 0) {
 		return <p className="muted">Nothing reported yet.</p>
 	}
 	return (
 		<div className="tiles">
 			{groupReadings(readings).map((entry) => (
-				<Tile key={entry.key} entry={entry} history={history} />
+				<Tile key={entry.key} entry={entry} live={live} history={history} />
 			))}
 		</div>
 	)
@@ -31,14 +31,14 @@ export default function Readings({ readings, window: history }) {
 
 /// Whether a reading has anything behind its headline. A tile with nothing to reveal is not a tap
 /// target: offering one that does nothing teaches an operator that tapping is not worth trying.
-function hasMore(reading, history) {
+function hasMore(reading, live, history) {
 	return Boolean(
 		reading.error ||
 			reading.note ||
 			reading.detail?.length ||
 			reading.limits?.length ||
 			scaleOf(reading.value) !== null ||
-			seriesOf(history, reading.name).length > 1,
+			seriesOf(history, live, reading.name).length > 1,
 	)
 }
 
@@ -54,12 +54,12 @@ function isWide(entry) {
 
 /// One tile. The face carries a label and the headline value and nothing else; everything else is
 /// revealed by tapping. Trouble colours the number rather than adding an element to the face.
-function Tile({ entry, history }) {
+function Tile({ entry, live, history }) {
 	const [open, setOpen] = useState(false)
 	const pair = opposedPair(entry)
 	const wide = isWide(entry)
 	const trouble = entry.readings.some(isTrouble)
-	const more = entry.readings.some((reading) => hasMore(reading, history))
+	const more = entry.readings.some((reading) => hasMore(reading, live, history))
 
 	const className = `tile${wide ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
 	const body = (
@@ -69,10 +69,10 @@ function Tile({ entry, history }) {
 			{open && (
 				<div className="detail">
 					{pair ? (
-						<Mirrored inbound={pair[0]} outbound={pair[1]} history={history} />
+						<Mirrored inbound={pair[0]} outbound={pair[1]} live={live} history={history} />
 					) : (
 						entry.readings.map((reading) => (
-							<Revealed key={reading.name} reading={reading} history={history} />
+							<Revealed key={reading.name} reading={reading} live={live} history={history} />
 						))
 					)}
 				</div>
@@ -126,9 +126,9 @@ function tone(reading) {
 }
 
 /// What a tap reveals for one reading: why it failed, or its scale, history, detail and note.
-function Revealed({ reading, history }) {
+function Revealed({ reading, live, history }) {
 	const scale = scaleOf(reading.value)
-	const series = seriesOf(history, reading.name)
+	const series = seriesOf(history, live, reading.name)
 
 	return (
 		<div className="revealed">
@@ -208,11 +208,11 @@ function Sparkline({ points }) {
 /// Each side is scaled to its own peak, and both peaks are stated: the directions routinely differ by
 /// an order of magnitude, and sharing a scale would flatten the quieter one to a line, losing the
 /// shape that makes a graph worth drawing at all.
-function Mirrored({ inbound, outbound, history }) {
+function Mirrored({ inbound, outbound, live, history }) {
 	const width = 240
 	const half = 34
-	const up = polyline(seriesOf(history, outbound.name), { width, height: half, flip: false })
-	const down = polyline(seriesOf(history, inbound.name), { width, height: half, flip: true })
+	const up = polyline(seriesOf(history, live, outbound.name), { width, height: half, flip: false })
+	const down = polyline(seriesOf(history, live, inbound.name), { width, height: half, flip: true })
 
 	return (
 		<div className="revealed">

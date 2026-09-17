@@ -71,10 +71,14 @@ pub enum DeviceMessage {
 
 	/// The buffered window, sent first on a `system` subscription so a graph is populated the moment
 	/// it appears rather than filling from empty (BLI-SYS).
+	///
+	/// Numbers only, one series per reading. Sending whole samples would repeat every reading's
+	/// description against every past point, which is far more bytes than the numbers and more than a
+	/// BLE link will carry.
 	#[serde(rename = "system-history")]
 	SystemHistory {
-		/// Earlier samples, oldest first.
-		samples: Vec<readings::Sample>,
+		/// The past values, one entry per reading that has any.
+		series: Vec<readings::Series>,
 	},
 }
 
@@ -138,7 +142,7 @@ mod tests {
 	use super::{
 		super::{
 			envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
-			readings::{Sample, Value},
+			readings::{Series, Value},
 		},
 		*,
 	};
@@ -221,9 +225,9 @@ mod tests {
 				readings: vec![cpu()],
 			},
 			DeviceMessage::SystemHistory {
-				samples: vec![Sample {
-					at: 20_306_140,
-					readings: vec![cpu()],
+				series: vec![Series {
+					name: "cpu".to_owned(),
+					points: vec![(20_306_140, 0.12)],
 				}],
 			},
 		] {
@@ -323,9 +327,9 @@ mod tests {
 				readings: vec![cpu()],
 			},
 			DeviceMessage::SystemHistory {
-				samples: vec![Sample {
-					at: 1,
-					readings: vec![cpu()],
+				series: vec![Series {
+					name: "cpu".to_owned(),
+					points: vec![(1, 0.12)],
 				}],
 			},
 		];

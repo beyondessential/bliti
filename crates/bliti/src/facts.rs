@@ -204,3 +204,65 @@ mod tests {
 		));
 	}
 }
+
+#[cfg(test)]
+mod size {
+	use super::*;
+	use bliti_core::channel::{
+		messages::DeviceMessage,
+		readings::{Sample, Series},
+	};
+
+	/// What a subscription puts on the wire. The link is BLE, so this is not a curiosity: sending the
+	/// window as whole samples measured at 865 kB, which is thousands of notifications and drowns the
+	/// connection before anything else can be said.
+	#[test]
+	#[ignore = "reports sizes rather than asserting"]
+	fn report_the_size_of_a_window() {
+		let mut facts = Facts::new();
+		facts.sample(true);
+		std::thread::sleep(Duration::from_millis(50));
+		let readings = facts.sample(true);
+
+		let one = DeviceMessage::SystemSample {
+			at: 1,
+			readings: readings.clone(),
+		}
+		.to_json();
+		println!(
+			"one slow sample: {} bytes, {} readings",
+			one.len(),
+			readings.len()
+		);
+
+		let as_samples = DeviceMessage::SystemHistory { series: Vec::new() };
+		let _ = as_samples;
+
+		let window: Vec<Sample> = (0..300)
+			.map(|index| Sample {
+				at: index * 1000,
+				readings: readings.clone(),
+			})
+			.collect();
+		let whole = serde_json::to_vec(&window).unwrap();
+		println!("300 samples, whole: {} bytes", whole.len());
+
+		let series: Vec<Series> = readings
+			.iter()
+			.filter_map(|reading| {
+				let number = match reading.value.as_ref()? {
+					Value::Fraction(number) | Value::Quantity { number, .. } => *number,
+					Value::Duration(seconds) => *seconds,
+					_ => return None,
+				};
+				Some(Series {
+					name: reading.name.clone(),
+					points: (0..300).map(|index| (index * 1000, number)).collect(),
+				})
+			})
+			.collect();
+		let sent = DeviceMessage::SystemHistory { series }.to_json();
+		println!("300 samples, as series: {} bytes", sent.len());
+		println!("  at a 247-byte MTU: {} notifications", sent.len() / 244);
+	}
+}

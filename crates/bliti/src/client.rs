@@ -319,8 +319,9 @@ pub async fn connect(
 					println!("  {}", render(reading));
 				}
 			}
-			Ok(Reading::Message(DeviceMessage::SystemHistory { samples })) => {
-				println!("history:  {} samples", samples.len());
+			Ok(Reading::Message(DeviceMessage::SystemHistory { series })) => {
+				let points: usize = series.iter().map(|each| each.points.len()).sum();
+				println!("history:  {} series, {points} points", series.len());
 			}
 			// A device newer than this build: passed over, or not acted on, but never fatal.
 			Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),

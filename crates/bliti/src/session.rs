@@ -147,7 +147,7 @@ where
 	S: AsyncRead + AsyncWrite + Unpin,
 {
 	let history = DeviceMessage::SystemHistory {
-		samples: sampler.window(),
+		series: sampler.series(),
 	};
 	write_message(stream, &history.to_json())
 		.await
@@ -441,14 +441,16 @@ mod tests {
 			.expect("the window arrives")
 			.unwrap()
 			.unwrap();
-		let Reading::Message(DeviceMessage::SystemHistory { samples }) =
+		let Reading::Message(DeviceMessage::SystemHistory { series }) =
 			read::<DeviceMessage>(&raw).unwrap()
 		else {
 			panic!("the first message on a subscription is the window");
 		};
 		// It may be empty on a device that has only just started, which is a valid window.
-		for pair in samples.windows(2) {
-			assert!(pair[0].at <= pair[1].at, "the window is oldest first");
+		for each in &series {
+			for pair in each.points.windows(2) {
+				assert!(pair[0].0 <= pair[1].0, "a series is oldest first");
+			}
 		}
 	}
 

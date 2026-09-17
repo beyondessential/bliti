@@ -25,7 +25,12 @@ use serde::{
 use serde_json::{Map, Value};
 
 /// The largest application message, as a count of JSON bytes.
-pub const MAX_MESSAGE: usize = 1024 * 1024;
+///
+/// Sized for the link rather than for JSON. A mebibyte is nothing to a socket and far too much for
+/// BLE: a message that size is thousands of notifications, and one was enough to drown a connection
+/// before anything else could be said. This leaves room for anything a feature has reason to send in
+/// one piece while keeping the worst case to a second or two on the air.
+pub const MAX_MESSAGE: usize = 128 * 1024;
 
 /// A set of message types that can be read from the wire.
 pub trait Message: DeserializeOwned + Serialize {

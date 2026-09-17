@@ -80,9 +80,26 @@ On receiving the subscription the device MUST send `system-history` as the first
 
 | member | type | meaning |
 | --- | --- | --- |
-| `samples` | array | earlier samples, each shaped as a `system-sample` without its `type`, in ascending order of `at` |
+| `series` | array | the past values, one entry per reading that has any |
+
+Each series is an object:
+
+| member | type | meaning |
+| --- | --- | --- |
+| `name` | string | the reading these are the past values of |
+| `points` | array | each point as a two-element array of the time it was taken and the value then, in ascending order of time |
+
+The window carries numbers and nothing else. A reading's description reaches a client with the live
+samples, and repeating it against every past point costs far more than the numbers do: the whole
+window is one message sent the instant a client subscribes, and the link it crosses is BLE.
+
+A device MAY send fewer points than it holds, spread across the window, where it holds more than a
+graph can draw. It MUST keep the newest, so the end of a graph is where the reading is rather than
+wherever the spread fell.
 
 A sample need not carry every reading, and the set MAY differ between samples.
+
+A reading whose value is not a number has no series, because there is no graph to draw.
 
 Times are measured from boot rather than from an epoch, because a device in the field may have no set clock and no way to reach one.
 A client MUST treat `at` as meaningful only relative to other `at` values from the same device.

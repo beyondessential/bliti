@@ -14,7 +14,7 @@ use std::{
 	time::Duration,
 };
 
-use bliti_core::channel::readings::Sample;
+use bliti_core::channel::readings::{Sample, Series, Value};
 use tokio::sync::broadcast;
 
 use crate::facts::Facts;
@@ -33,6 +33,13 @@ const IDLE_STOP: Duration = Duration::from_secs(30 * 60);
 
 /// How many samples the window can hold, at the fastest cadence.
 const CAPACITY: usize = (WINDOW.as_secs() / FAST.as_secs()) as usize;
+
+/// The most points one series carries when the window is sent.
+///
+/// The window is kept at full resolution; this thins only what goes on the wire. A graph on a phone
+/// cannot draw more than this, and the link it crosses is BLE: every point costs notifications, and
+/// the whole window arrives in one message the moment a client subscribes.
+const MAX_POINTS: usize = 150;
 
 /// The recent window, and a feed of samples as they are taken.
 #[derive(Debug, Clone)]
@@ -55,13 +62,42 @@ impl Sampler {
 		sampler
 	}
 
-	/// The window as it stands, oldest first.
-	pub fn window(&self) -> Vec<Sample> {
-		self.window
+	/// The window as it stands, as one series of numbers per reading that has any.
+	///
+	/// Numbers only. Sending the window as whole samples repeats every reading's description against
+	/// every point, which measured at 865 kB for a five-minute window: over a BLE link that is
+	/// thousands of notifications and it drowns the connection before anything else can be said.
+	pub fn series(&self) -> Vec<Series> {
+		let window = self
+			.window
 			.lock()
-			.expect("the window is never held across a panic")
-			.iter()
-			.cloned()
+			.expect("the window is never held across a panic");
+
+		// Insertion-ordered so the series come out in the order the readings were first seen, which is
+		// the order a client will show them in.
+		let mut order: Vec<String> = Vec::new();
+		let mut points: std::collections::HashMap<String, Vec<(u64, f64)>> =
+			std::collections::HashMap::new();
+
+		for sample in window.iter() {
+			for reading in &sample.readings {
+				let Some(number) = numeric(reading.value.as_ref()) else {
+					continue;
+				};
+				let held = points.entry(reading.name.clone()).or_insert_with(|| {
+					order.push(reading.name.clone());
+					Vec::new()
+				});
+				held.push((sample.at, number));
+			}
+		}
+
+		order
+			.into_iter()
+			.filter_map(|name| {
+				let points = thin(points.remove(&name)?);
+				Some(Series { name, points })
+			})
 			.collect()
 	}
 
@@ -148,6 +184,39 @@ impl Sampler {
 	}
 }
 
+/// Every point where there are few enough, and an even spread of them where there are not.
+///
+/// The newest point is always kept, so the end of the graph is where the reading actually is rather
+/// than wherever the spread happened to land.
+fn thin(points: Vec<(u64, f64)>) -> Vec<(u64, f64)> {
+	if points.len() <= MAX_POINTS {
+		return points;
+	}
+	let last = points.len() - 1;
+	let step = points.len() as f64 / MAX_POINTS as f64;
+	let mut thinned: Vec<(u64, f64)> = (0..MAX_POINTS)
+		.map(|index| points[((index as f64 * step) as usize).min(last)])
+		.collect();
+	if thinned.last() != points.last() {
+		thinned.push(points[last]);
+	}
+	thinned
+}
+
+/// The number behind a value, where it has one, rounded to what a graph can show. A text value has
+/// none, and nor has a kind this build does not know.
+fn numeric(value: Option<&Value>) -> Option<f64> {
+	let raw = match value? {
+		Value::Fraction(number) => *number,
+		Value::Quantity { number, .. } => *number,
+		Value::Duration(seconds) => *seconds,
+		Value::Text(_) | Value::Unknown(_) => return None,
+	};
+	// Four significant places is finer than any graph can draw and keeps the numbers short, which is
+	// the whole point of sending a series rather than the samples.
+	Some((raw * 10_000.0).round() / 10_000.0)
+}
+
 /// Holds sampling open for as long as a session lasts.
 #[derive(Debug)]
 pub struct SessionGuard {
@@ -202,13 +271,49 @@ mod tests {
 
 		// Long enough for several samples, well short of the window.
 		tokio::time::sleep(FAST * 4 + Duration::from_millis(100)).await;
-		let window = sampler.window();
-		assert!(!window.is_empty(), "sampling fills the window");
+		let series = sampler.series();
+		assert!(!series.is_empty(), "sampling fills the window");
 
 		// Times are boot-relative and ascending, which is what lets a client space a graph by them.
-		for pair in window.windows(2) {
-			assert!(pair[0].at <= pair[1].at, "{:?} then {:?}", pair[0], pair[1]);
+		for each in &series {
+			for pair in each.points.windows(2) {
+				assert!(pair[0].0 <= pair[1].0, "{} went backwards", each.name);
+			}
 		}
+	}
+
+	/// Text has no number to graph, so it is left out of the series rather than sent as something a
+	/// graph cannot draw.
+	#[test]
+	fn only_values_with_a_number_become_a_series() {
+		assert_eq!(numeric(Some(&Value::Fraction(0.125))), Some(0.125));
+		assert_eq!(numeric(Some(&Value::quantity(4.19, "V"))), Some(4.19));
+		assert_eq!(numeric(Some(&Value::Duration(20.0))), Some(20.0));
+		assert_eq!(numeric(Some(&Value::text("Mains"))), None);
+		assert_eq!(numeric(None), None);
+	}
+
+	/// A short series is sent whole; a long one is spread evenly and keeps its newest point, so the
+	/// end of the graph is where the reading actually is.
+	#[test]
+	fn a_long_series_is_thinned_and_keeps_its_newest_point() {
+		let short: Vec<(u64, f64)> = (0..10).map(|index| (index, index as f64)).collect();
+		assert_eq!(thin(short.clone()), short);
+
+		let long: Vec<(u64, f64)> = (0..1000).map(|index| (index, index as f64)).collect();
+		let thinned = thin(long.clone());
+		assert!(thinned.len() <= MAX_POINTS + 1, "{}", thinned.len());
+		assert_eq!(thinned.first(), long.first());
+		assert_eq!(thinned.last(), long.last());
+		for pair in thinned.windows(2) {
+			assert!(pair[0].0 < pair[1].0, "still in order");
+		}
+	}
+
+	/// Long decimals are what make a series large, and no graph can draw them.
+	#[test]
+	fn numbers_are_rounded_to_what_a_graph_can_show() {
+		assert_eq!(numeric(Some(&Value::Fraction(0.123_456_789))), Some(0.1235));
 	}
 
 	#[tokio::test(start_paused = true)]

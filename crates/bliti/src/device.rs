@@ -157,6 +157,15 @@ const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(2
 const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
 const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// What a device may put on the air in any one second (BLI-CHN, "How fast a device may send").
+///
+/// The link is shared with everything else the session is doing, including the client's own messages
+/// and the notifications carrying them. A device with a backlog takes longer to clear it rather than
+/// taking the connection down, which is the outcome worth having: a slow reading beats a dropped
+/// session.
+const NOTIFY_BYTES_A_SECOND: usize = 100 * 1024;
+const NOTIFY_PACKETS_A_SECOND: usize = 200;
+
 /// A handle rendered for a person to read in a log line.
 fn hex(handle: Handle) -> String {
 	handle
@@ -255,10 +264,32 @@ fn application(
 								// other and the device stays busy with a client that left.
 								let (left, gone) = tokio::sync::oneshot::channel();
 								let pump = tokio::spawn(async move {
+									let mut since = std::time::Instant::now();
+									let (mut bytes, mut packets) = (0usize, 0usize);
 									loop {
 										tokio::select! {
 											chunk = outbound.next() => {
 												let Some(chunk) = chunk else { break };
+
+												let second = std::time::Duration::from_secs(1);
+												let elapsed = since.elapsed();
+												if elapsed >= second {
+													since = std::time::Instant::now();
+													bytes = 0;
+													packets = 0;
+												} else if bytes + chunk.len() > NOTIFY_BYTES_A_SECOND
+													|| packets + 1 > NOTIFY_PACKETS_A_SECOND
+												{
+													// Out of allowance: wait out the rest of the second
+													// rather than pushing on and swamping the link.
+													tokio::time::sleep(second - elapsed).await;
+													since = std::time::Instant::now();
+													bytes = 0;
+													packets = 0;
+												}
+												bytes += chunk.len();
+												packets += 1;
+
 												if notifier.notify(chunk).await.is_err() {
 													break;
 												}

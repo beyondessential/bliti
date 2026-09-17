@@ -403,6 +403,21 @@ macro_rules! string_enum {
 string_enum!(State, "ok" => Self::Ok, "warn" => Self::Warn, "fault" => Self::Fault);
 string_enum!(Direction, "in" => Self::In, "out" => Self::Out);
 
+/// The past values of one reading, for drawing a graph from.
+///
+/// Carries numbers and nothing else. A reading's description is sent with the live samples, and
+/// repeating it against every past point is what made a window unsendable: the descriptions are far
+/// larger than the numbers, and over a BLE link that difference is the difference between a
+/// subscription that works and one that drowns the connection.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Series {
+	/// Which reading these are the past values of.
+	pub name: String,
+	/// Each point as the time it was taken and the value then, oldest first. The time is milliseconds
+	/// since the device booted, as on a sample.
+	pub points: Vec<(u64, f64)>,
+}
+
 /// One sample: every reading taken at one moment.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Sample {
@@ -584,6 +599,17 @@ mod tests {
 		let nested = r#"{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1,"precision":3}}"#;
 		let reading: Reading = serde_json::from_str(nested).unwrap();
 		assert_eq!(reading.value, Some(Value::Fraction(0.1)));
+	}
+
+	#[test]
+	fn a_series_round_trips_and_stays_compact() {
+		let series = Series {
+			name: "cpu".to_owned(),
+			points: vec![(1000, 0.12), (2000, 0.5)],
+		};
+		let json = serde_json::to_string(&series).unwrap();
+		assert_eq!(json, r#"{"name":"cpu","points":[[1000,0.12],[2000,0.5]]}"#);
+		assert_eq!(serde_json::from_str::<Series>(&json).unwrap(), series);
 	}
 
 	#[test]

@@ -135,18 +135,33 @@ export function pushSample(window, sample) {
 	return next.filter((each) => newest - each.at <= WINDOW_MS)
 }
 
-/// Merge the buffered window a device sends on subscribing.
-export function mergeHistory(window, samples) {
-	return samples.reduce((held, sample) => pushSample(held, sample), window)
+/// The buffered window a device sends on subscribing, as points by reading name.
+///
+/// It arrives as numbers rather than as whole samples: repeating every reading's description against
+/// every past point is far more bytes than the numbers, and more than the link will carry.
+export function readHistory(series) {
+	const held = new Map()
+	for (const each of series) {
+		held.set(
+			each.name,
+			each.points.map(([at, number]) => ({ at, number })),
+		)
+	}
+	return held
 }
 
 /// The history of one reading, as points a graph can be drawn from.
 ///
-/// Spaced by the time each sample was taken rather than evenly, so a gap in sampling shows as a gap
-/// rather than being smoothed away.
-export function seriesOf(window, name) {
-	const points = []
+/// The window the device sent on subscribing, extended by every sample since. Spaced by the time
+/// each point was taken rather than evenly, so a gap in sampling shows as a gap rather than being
+/// smoothed away.
+export function seriesOf(history, window, name) {
+	const points = [...(history.get(name) ?? [])]
+	const earliest = points.length > 0 ? points[points.length - 1].at : -Infinity
 	for (const sample of window) {
+		// A live sample may repeat a point the window already carried; the window is what the device
+		// had at the moment of subscribing, and sampling did not stop while it was being sent.
+		if (sample.at <= earliest) continue
 		const reading = sample.readings.find((each) => each.name === name)
 		if (!reading) continue
 		const number = numberOf(reading.value)

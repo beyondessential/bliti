@@ -395,6 +395,30 @@ mod tests {
 		assert_eq!(direction.value, Value::text("Full"));
 	}
 
+	/// Reads the hardware itself, so it says nothing on a machine with no backup board fitted and is
+	/// ignored by default. Run it on one with `--ignored --nocapture`.
+	#[test]
+	#[ignore = "needs a device with a backup board fitted"]
+	fn the_real_hardware_answers() {
+		let mut watch = Watch::default();
+		match watch.gauge() {
+			Ok(gauge) => println!("gauge: {:.3} V, {:.2}%", gauge.volts, gauge.charge),
+			Err(err) => println!("gauge FAILED: {err}"),
+		}
+		match gpio::read_by_name(POWER_LINE) {
+			Ok(high) => println!("{POWER_LINE}: {}", if high { "high" } else { "low" }),
+			Err(err) => println!("{POWER_LINE} FAILED: {err}"),
+		}
+		let readings = watch.readings();
+		println!("readings: {}", readings.len());
+		for reading in &readings {
+			println!(
+				"  {} = {:?} state={:?}",
+				reading.name, reading.value, reading.state
+			);
+		}
+	}
+
 	#[test]
 	fn the_gauge_maths_matches_what_the_hardware_reported() {
 		// The words read from the test device, big-endian as the gauge sends them.

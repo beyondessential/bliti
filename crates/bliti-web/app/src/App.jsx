@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Readings from './Readings.jsx'
 import { createClient } from './client.js'
-import { latest, mergeHistory, pushSample } from './readings.js'
+import { latest, pushSample, readHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // The topic the diagnostics feature defines. A device that does not serve it sends nothing and does
@@ -41,6 +41,7 @@ export default function App() {
 	// moment it appears rather than filling from empty while an operator waits (BLI-SYS).
 	const [statics, setStatics] = useState([])
 	const [window_, setWindow] = useState([])
+	const [history, setHistory] = useState(() => new Map())
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
 	const video = useRef(null)
@@ -82,7 +83,7 @@ export default function App() {
 							pushSample(held, { at: event.message.at, readings: event.message.readings }),
 						)
 					} else if (event.message.type === 'system-history') {
-						setWindow((held) => mergeHistory(held, event.message.samples))
+						setHistory(readHistory(event.message.series))
 					}
 					if (!STREAMED.has(event.message.type)) note('in', describe(event.message))
 					break
@@ -206,6 +207,7 @@ export default function App() {
 		setConnectStatus('')
 		setStatics([])
 		setWindow([])
+		setHistory(new Map())
 		note('note', 'disconnected')
 	}
 
@@ -309,7 +311,7 @@ export default function App() {
 							{each.detail}
 						</p>
 					))}
-					<Readings readings={latest(statics, window_)} window={window_} />
+					<Readings readings={latest(statics, window_)} window={window_} history={history} />
 				</>
 			)}
 

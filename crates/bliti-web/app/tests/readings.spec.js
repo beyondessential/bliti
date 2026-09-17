@@ -13,7 +13,7 @@ const sample = (at, readings) => ({
 	kind: 'message',
 	message: { type: 'system-sample', at, readings },
 })
-const history = (samples) => ({ kind: 'message', message: { type: 'system-history', samples } })
+const history = (series) => ({ kind: 'message', message: { type: 'system-history', series } })
 
 const fraction = (number) => ({ kind: 'fraction', number })
 
@@ -229,13 +229,12 @@ test.describe('history', () => {
 	/// than filling from empty while an operator waits.
 	test('a graph is drawn from the window sent on subscribing', async ({ page }) => {
 		await openChannel(page)
+		// The device sends the window as numbers, not as whole samples, so the label comes from the
+		// live reading and the shape comes from here.
+		await emit(page, identity([{ name: 'cpu', label: 'CPU', value: fraction(0.2) }]))
 		await emit(
 			page,
-			history([
-				{ at: 1000, readings: [{ name: 'cpu', label: 'CPU', value: fraction(0.1) }] },
-				{ at: 2000, readings: [{ name: 'cpu', label: 'CPU', value: fraction(0.5) }] },
-				{ at: 3000, readings: [{ name: 'cpu', label: 'CPU', value: fraction(0.2) }] },
-			]),
+			history([{ name: 'cpu', points: [[1000, 0.1], [2000, 0.5], [3000, 0.2]] }]),
 		)
 		await page.getByRole('button', { name: /CPU/ }).click()
 		await expect(page.locator('.tile .spark polyline')).toBeVisible()
@@ -270,11 +269,12 @@ test.describe('history', () => {
 				value: { kind: 'quantity', number: outbound, unit: 'MB/s' },
 			},
 		]
+		await emit(page, identity(pair(2.8, 0.08)))
 		await emit(
 			page,
 			history([
-				{ at: 1000, readings: pair(1.0, 0.05) },
-				{ at: 2000, readings: pair(2.8, 0.08) },
+				{ name: 'network-in-end0', points: [[1000, 1.0], [2000, 2.8]] },
+				{ name: 'network-out-end0', points: [[1000, 0.05], [2000, 0.08]] },
 			]),
 		)
 
