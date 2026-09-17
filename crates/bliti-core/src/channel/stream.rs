@@ -442,6 +442,30 @@ mod tests {
 		assert!(over, "a dropped stream must reach the peer");
 	}
 
+	/// Application messages are delimited within a stream by the same four-byte big-endian prefix the
+	/// link uses for Noise messages, one layer down (BLI-MSG). A message is reassembled whatever sizes
+	/// the reads arrive in, and several in one read are separated.
+	#[tokio::test]
+	async fn messages_are_delimited_within_a_stream() {
+		let (mut client, mut device) = paired().await;
+
+		let mut cs = client.open().await.unwrap();
+		// Three messages written back to back, which the peer may read in any grouping.
+		for each in [b"one".as_slice(), b"two".as_slice(), b"three".as_slice()] {
+			write_message(&mut cs, each).await.unwrap();
+		}
+
+		let mut ds = device.accept().await.unwrap();
+		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), b"one");
+		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), b"two");
+		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), b"three");
+
+		// A message far larger than any one read, reassembled byte for byte.
+		let long = vec![b'x'; 40_000];
+		write_message(&mut cs, &long).await.unwrap();
+		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), long);
+	}
+
 	#[tokio::test]
 	async fn streams_open_from_each_end() {
 		let (mut client, mut device) = paired().await;

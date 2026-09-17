@@ -259,6 +259,39 @@ mod tests {
 		.unwrap();
 	}
 
+	/// A client newer than this device, saying something that must not be half read, is refused and
+	/// costs nothing: the stream stays open. This is the distinction most at risk of being collapsed
+	/// into the fault path (BLI-MSG).
+	#[tokio::test]
+	async fn a_refused_message_leaves_the_stream_open() {
+		let mut streams = paired(&secret(0x42)).await;
+		let _reporting = streams.accept().await.unwrap();
+
+		let mut stream = streams.open().await.unwrap();
+		write_message(
+			&mut stream,
+			br#"{"type":"subscribe","topic":"system","REDACT":["cpu"]}"#,
+		)
+		.await
+		.unwrap();
+
+		// Nothing is answered, and the stream is not torn down: a further message is still served.
+		let quiet =
+			tokio::time::timeout(Duration::from_millis(250), read_message(&mut stream)).await;
+		assert!(quiet.is_err(), "a refusal is silent on the wire");
+
+		write_message(
+			&mut stream,
+			&ClientMessage::Hello {
+				name: "test-client".to_owned(),
+				version: "0.0.0".to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.expect("the stream a refusal arrived on stays open");
+	}
+
 	/// A client that is not speaking the protocol loses the stream it did it on, and nothing else
 	/// (BLI-MSG, "What the base protocol guarantees").
 	#[tokio::test]

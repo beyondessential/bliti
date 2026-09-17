@@ -45,7 +45,7 @@ A lower case name marks the member ignorable.
 A receiver that does not recognise it passes over it and reads the rest.
 
 The convention applies to member names alone and never to values: a `topic` of `system` and a `topic` of `SYSTEM` are different topics.
-It holds for every object in a message at any depth. If arbitrary 
+It holds for every object in a message at any depth. If arbitrarily-cased 
 
 ## Which stream carries what
 
