@@ -117,7 +117,8 @@ dd { margin: 0; font-size: 0.9rem; }
 			<button class="tile"><div class="label">Disk</div><div class="value">1<span class="unit">%</span></div></button>
 			<button class="tile"><div class="label">Battery</div><div class="value">100<span class="unit">%</span></div></button>
 			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
-			<button class="tile"><div class="label">Power</div><div class="value small">Healthy</div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
 			<button class="tile wide">
 				<div class="label">Network</div>
 				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
@@ -160,7 +161,8 @@ dd { margin: 0; font-size: 0.9rem; }
 				</div>
 			</button>
 			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
-			<button class="tile"><div class="label">Power</div><div class="value small">Healthy</div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
 		</div>
 	</div>
 </figure>
@@ -179,7 +181,8 @@ dd { margin: 0; font-size: 0.9rem; }
 		</section>
 		<div class="tiles">
 			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
-			<button class="tile"><div class="label">Power</div><div class="value small">Healthy</div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
 			<button class="tile expanded wide">
 				<div class="label">Network</div>
 				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
@@ -245,11 +248,13 @@ dd { margin: 0; font-size: 0.9rem; }
 						<dt>Disk</dt><dd>61 &deg;C</dd>
 						<dt>Slows down at</dt><dd>about 85 &deg;C</dd>
 						<dt>Fan</dt><dd class="bad">Stopped</dd>
+						<dt>Speed</dt><dd>1.5 GHz of 2.4 GHz</dd>
 					</dl>
 					<p class="note">This is the CPU core, not the case or the room. Above 70 &deg;C is normal under load, and the board slows itself down well before anything is at risk.</p>
 				</div>
 			</button>
-			<button class="tile"><div class="label">Power</div><div class="value small bad">Undervolted</div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Battery</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small bad">Undervolted</div></button>
 			<button class="tile wide"><div class="label">Network</div><div class="value small bad">Nothing is up</div></button>
 		</div>
 	</div>

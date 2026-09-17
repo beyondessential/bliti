@@ -27,12 +27,14 @@ The self-describing reading is wire contract, so it lives in `bliti-core` and bo
 - [ ] `memory` from `/proc/meminfo`, using available rather than free.
 - [ ] `disk` one reading per block device. Deduplicate by device before building readings, so `/` and `/var/lib/postgresql` on one `/dev/mapper/root` are one reading.
 - [ ] `temperature` from `thermal_zone0`, with the NVMe hwmon under `detail`, and `limits` from the zone's declared trip points.
-- [ ] `power` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
+- [ ] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
+- [ ] `power-source` from the UPS board's power-loss line on GPIO 6, where 1 is external power present and 0 is running on battery. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
 - [ ] `fan` from `hwmon/pwmfan/fan1_input`.
 - [ ] `uptime` from `/proc/uptime`.
 - [ ] `network-in` and `network-out` from `/proc/net/dev` counter deltas, one pair per reported interface, grouped as `network` with `direction` set. Handle counter wrap.
-- [ ] Battery from the fuel gauge on I2C bus 1 at `0x36`: state of charge as the headline, voltage under `detail`. There is no kernel driver bound and no `upower`, so this is a raw register read. Confirm the exact part before trusting register semantics beyond voltage and charge.
-- [ ] Battery direction derived from the buffered history, with the `note` saying it is derived. Report no direction until there is enough history for it to be steady.
+- [ ] Battery from the fuel gauge on I2C bus 1 at `0x36`: state of charge from `0x04` as the headline, voltage from `0x02` under `detail`. There is no kernel driver bound and no `upower`, so this is a raw register read. The part is a MAX17040, so VCELL is the top twelve bits at 1.25 mV per step and SOC is the high byte as whole percent with the low byte as the fraction.
+- [ ] Battery direction from `power-source`, falling back to the buffered history where no power-source line is present. The `note` says which it came from, and a derived direction is withheld until there is enough history for it to be steady.
+- [ ] Battery set to `warn` when external power is reported present while the charge falls steadily. A poor pogo-pin contact between the UPS board and the Pi makes GPIO 6 read as AC-present with the plug out, and that is a documented failure on this board rather than a hypothetical.
 - [ ] A source that is absent omits its reading; a source that is present but fails produces a reading with `error`. These are different paths and both need covering.
 
 Sources are Pi-specific where the Pi is what we ship, but every reading needs to degrade to something on a development laptop, because that is where most of the view gets built.
@@ -78,6 +80,10 @@ Bespoke treatment sits on top of generic rendering and never replaces it. Each o
 
 `.workhorse/design/mockups/d1/device-diagnostics.html` holds the four frames: at a glance, battery tapped, network tapped, and a device in trouble. Match the built view to it, and update it if the build finds the layout wrong.
 
-## Open
+## Hardware, as confirmed on the test device
 
-- [ ] Confirm the fuel gauge part number on the test device before relying on any register beyond voltage and state of charge. The `'48`/`'49` variants expose a charge-rate register the `'40`/`'43` do not, and it would give direction without deriving it.
+The UPS board is a Geekworm X1208: a single 21700 lithium-ion cell, charged at up to 1.5 A, terminal voltage 4.23 V.
+
+The fuel gauge is a MAX17040 at `0x36` on I2C bus 1. Registers `0x16`, `0x18` and `0x1a` all read `0xffff`, so they are unimplemented and this is not a MAX17048 or '49; RCOMP at `0x0c` reads `0x97`, the MAX17040 default. There is therefore no charge-rate register, which is why direction comes from the power-source line or from history rather than from the gauge.
+
+The power-loss line is GPIO 6, high when external power is present.
