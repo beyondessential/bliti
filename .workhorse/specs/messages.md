@@ -5,7 +5,7 @@ id: BLI-MSG
 # Application messages
 
 The channel of [BLI-CHN](channel.md) carries application messages inside a common envelope, whatever the feature.
-This spec is that envelope: how a message is delimited and shaped, which stream carries what, how the two ends name themselves, how each skips what it does not recognise, and how live data is subscribed to.
+This spec is that envelope: how a message is delimited and shaped, which stream carries what, how the two ends name themselves, what each does with what it does not recognise, and how live data is subscribed to.
 A feature spec describes the message types it adds and inherits everything here.
 
 Everything in this spec is wire contract.
@@ -32,6 +32,26 @@ Every other member sits alongside `type` in the same object rather than nested u
 
 Where this spec or a feature spec gives a member's JSON type, a sender sends that type and no other.
 A member is never sent as a different JSON type to mean the same thing, because a receiver that does not recognise the member cannot know what the substitution meant.
+
+## Member names, and which members are critical
+
+A member name is made of lower case letters, digits and hyphens, and is written either wholly in lower case or wholly in upper case.
+The two forms name the same member: names are matched without regard to case, so `topic` and `TOPIC` are one member and not two.
+A name in mixed case names nothing, and a message carrying one is malformed, as is a message carrying the same name twice whatever the case of each.
+
+The case is what marks a member critical, after the convention X.509 and JWT use for extensions and header parameters.
+
+An upper case name marks the member **critical**.
+A receiver that does not recognise it must not act on the object carrying it, because acting on the rest would mean acting on a partial reading of something the sender has said cannot be partially read.
+
+A lower case name marks the member ignorable.
+A receiver that does not recognise it passes over it and reads the rest.
+
+Case carries no other meaning.
+A receiver that recognises a member handles it the same whichever case it arrived in, so criticality bites only where a member is not recognised.
+
+The convention applies to member names alone and never to values: a `topic` of `system` and a `topic` of `SYSTEM` are different topics.
+It holds for every object in a message at any depth, which is what lets a sender mark one part of a larger message as something that must not be half read.
 
 ## Which stream carries what
 
@@ -88,11 +108,8 @@ No message exists by which one end tells the other it is unwilling to continue.
 Both ends are at the same base protocol version before a channel exists, so each may hold the other to this spec.
 
 Every message is therefore valid UTF-8, is valid JSON, is a JSON object, and carries a `type` member whose value is a string.
-A message whose type the receiver recognises carries the members that type requires, each as the JSON type given for it.
-
-A message type's required members are fixed for the life of a base protocol version.
-A later version of either end adds members rather than removing or repurposing them, and adds message types rather than reshaping existing ones, which is what makes the guarantee above safe to rely on.
-A change that cannot be made that way is a change to the base protocol version.
+Every member name in it is well formed and appears once.
+A message whose type the receiver recognises carries the members that type required when it was defined, each as the JSON type given for it.
 
 A message that breaks any of this is not a version difference, because a version difference cannot produce one.
 It is a fault in the peer, and it is reported rather than passed over: the device logs it, and the client surfaces it to the operator, because a device that is not speaking the protocol is something the person standing in front of it needs told rather than left to read a blank screen.
@@ -100,19 +117,49 @@ It is a fault in the peer, and it is reported rather than passed over: the devic
 The receiver closes the stream the message arrived on, and leaves the connection and every other stream alive, so whatever else the peer can still say keeps arriving.
 A message beyond the size ceiling above is a fault of the same kind and is handled the same way.
 
+## How a message type grows
+
+A later version of either end adds members to a type rather than removing or repurposing them, and the case it names them in says what a receiver that has never heard of them is to do.
+
+A member added in lower case is one the message still means something without, and an older receiver passes over it and reads the rest.
+A member added in upper case is one the message does not mean anything without, and an older receiver refuses the message and says so rather than acting on a reading the sender has told it is incomplete.
+
+This is what removes the need for a type's members to be closed when it is defined, or for a version to be carried inside each type.
+A sender that must be understood says so on the member itself, and a receiver that predates it finds out without either end comparing a version.
+
+The members a type required when it was defined stay required and keep their meaning.
+Removing one, or changing what one means, is a change to the base protocol version.
+
+## A critical member the receiver does not know
+
+A receiver that meets an unrecognised critical member does not act on the object carrying it.
+
+Where that object is the message, the message is not processed.
+Where it is nested within the message, the receiver treats that part as unusable and reads the rest, which is what lets a client show every reading in a report but one.
+
+The receiver reports it where reports belong: the device logs it, and the client tells the operator that the device has said something this version of the application is too old to act on.
+
+This is not a fault in the peer and is not treated as one.
+The stream stays open and the connection is untouched, and the receiver goes on handling and displaying everything else it does understand.
+A client behind a device is the ordinary case, and an operator is better served by most of a view, plainly marked as partial, than by none of it.
+
+A `device-hello` the client cannot process leaves it without the device's name and version.
+It says so and carries on with the session rather than refusing it, because what the operator came to do does not depend on knowing what the device is running.
+
 ## What is not recognised is skipped
 
-Within that floor, a receiver skips what it does not know and carries on:
+Everything else a receiver does not recognise it passes over, and carries on:
 
 - a message whose `type` names a type the receiver does not recognise: the message is skipped whole
-- a member the receiver does not recognise within a message whose type it does: the member is skipped and the rest of the message is read
+- an ignorable member the receiver does not recognise: the member is skipped and the rest of the object is read
 - a value the receiver does not recognise where a feature spec says an unrecognised one is skipped, of which a `subscribe` for an unknown topic is the one this spec defines
 
 Skipping is silent on the wire.
 Nothing is sent in reply, the stream stays open, and the connection is untouched.
 A receiver may record what it skipped.
 
-This holds in both directions, and it is what lets either end gain a message type or a member while the other has never heard of it, with no release coordinated between them.
+A sender that needs a whole message not to be passed over in silence names its `type` member in upper case.
+That makes the type itself critical, and a receiver that does not know the type reports it rather than skipping it.
 
 A stream whose first message is skipped is a stream whose role the receiver never learns.
 It stays open and carries nothing until the end that opened it closes it.
