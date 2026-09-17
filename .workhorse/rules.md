@@ -12,6 +12,8 @@ It is read by someone deciding whether the implementation is correct, or re-impl
 
 Specs are written in markdown prose with each sentence on its own line and no hard-wrapping, rather than the checkbox acceptance-criteria style shown in `spec-format.md`.
 This balances ease of writing and diff parseability.
+Use a standards/RFC spec voice, as in RFC 2119.
+Do not include justifications unless the justification is critical to a spec.
 
 ## Cross-references
 
@@ -25,6 +27,7 @@ Code references the spec it implements with an inline `// spec: BAK` comment, as
 - Acceptable, because external actors or other components depend on them: interface contracts — config file paths and formats, on-disk and on-the-wire shapes, endpoint shapes, partition UUIDs, credential scopes.
 - The test: would someone re-implementing the feature from scratch be constrained to the same choice?
   If not, it's an implementation detail and doesn't belong in the spec.
+  Note that wherever contracts exist, enough must be included in the spec such that someone can write a *compatible* re-implementation from scratch.
 
 ## Present, not past
 
@@ -40,12 +43,3 @@ Code references the spec it implements with an inline `// spec: BAK` comment, as
 - Don't scaffold or label: no "Strategy A/B", "Phase N", or plan tags in spec prose.
   Describe the mechanism directly.
 
-## Plans and the unplan lifecycle
-
-A plan captures the design and outstanding work for a feature while it is being built.
-Plans are point-in-time working documents: open questions, options, and trade-offs are welcome, unlike in specs.
-
-- A plan is added in a `plan:` commit and lives in `.workhorse/plans/` until its work is implemented.
-- Once the work has shipped, the plan is deleted in an `unplan:` commit.
-  If the feature has durable behaviour worth recording, fold it into a spec under `.workhorse/specs/` in that same commit, then delete the plan.
-- A plan that documents a genuinely undecided question may stay until the decision is made.
