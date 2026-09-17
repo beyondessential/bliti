@@ -47,6 +47,18 @@ Two cases, and only the first is a defect:
 
 Sweep results: `discovery.md` 15 and `sticker.md` 18 restate durably as above. `system-info.md` 8 and `web-app.md` 8 are feature motivation rather than constraint, and go under the justification test. `web-app.md` 30 is a real requirement and only needs the terminology fix.
 
+### A demonstrative points at a noun, not at an argument
+
+SEC said "Anyone who has had access to a device, or who otherwise knows its board ID, can derive its presence token, and can then both impersonate the device and connect to it. The same is true of anyone holding a photograph of the QR code."
+
+The first sentence makes three claims, so "the same" has no single referent, and it is false for two of them: a photograph holder derives nothing, because the code carries the token outright, and learns no board ID, which SEC guarantees two sections above. Rewritten so the consequence is stated once and each route to it stands on its own.
+
+The working rule: a demonstrative may point at a preceding noun, as "Such an observer" and "Such a source" do harmlessly. Pointing it at a whole proposition is where it fails, and pointing it at a proposition making several claims is where it starts asserting things that are not true.
+
+Sweep: the fuzzy cases cluster in `messages.md` (120, 162, and to a lesser degree 84 and 93), which is consistent with it being the essay-prose spec. Several are attached to justifications that go under the justification test anyway.
+
+That section was also retitled. "The QR code is the credential" predates the rename: the token is the credential, and the QR code is one of two ways to obtain it. Now "Holding the token is enough", which is what it says.
+
 ## Conventions settled
 
 ### Requirements notation lives in BLI
