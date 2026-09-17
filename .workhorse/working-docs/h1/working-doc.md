@@ -94,9 +94,28 @@ VER's list of what the marker covers already says "the handshake, framing, trans
 The pipeline is `NoiseStream` (`AsyncRead + AsyncWrite`) with yamux above it, so the compression layer is a wrapper sitting between them: yamux's bytes go through the compressor, then into Noise framing.
 Compress then encrypt, necessarily, because encrypted bytes do not compress.
 
-`poll_flush` is the natural carrier for the flush rule.
-yamux flushes the stream beneath it when its send queue drains, so mapping the layer's flush onto a zlib sync flush gives the burst-coalescing optimisation for free, without the compressor ever needing to see a message boundary.
-A sync flush emits an empty stored block, four or five bytes, which is what makes flushing per message affordable.
+The compressor is wired inside `multiplex()` rather than composed by each caller, so no call site can assemble an uncompressed channel.
+The always-on property becomes structural instead of a convention the daemon and the web client each have to remember.
+
+### How the flush rule actually reaches the compressor
+
+`poll_flush` carries it, but not by the route first assumed.
+
+A yamux `Stream`'s flush only pushes its frame to the connection driver.
+What reaches the compressor is the driver's own `poll_flush` on the socket, which `connection.rs` calls on every iteration of its poll loop, after draining pending frames and before parking.
+So the flush lands once the driver has nothing further to send, which is the coalescing behaviour wanted: writes still in the queue ride into the same deflate run, and the bytes go out when the queue empties.
+
+`write_message` already flushes after each message, so the message-boundary default needs no new call.
+
+The driver flushing every iteration would be a problem if a redundant sync flush emitted bytes, because an idle connection would dribble empty stored blocks forever and spend both the notification budget and the device's radio.
+zlib emits nothing for a sync flush with no pending input, which makes this safe.
+That is a property of the implementation rather than of the format, so it is pinned by a test rather than assumed of `miniz_oxide`.
+
+### Read path: returning zero means end of stream
+
+An inflating `poll_read` that has consumed input without producing output yet must return `Pending`, never `Ok(0)`.
+`Ok(0)` means end of stream to every `AsyncRead` caller, so returning it while merely waiting for the rest of a deflate block would tear down the connection at random.
+Worth naming here because it is easy to write and reads as correct.
 
 ### Codec: a wasm codec, not the browser's
 
@@ -105,11 +124,23 @@ The browser's built-in compression cannot do this job.
 `DecompressionStream` is unaffected and would serve the receiving direction, but compressing client-to-device needs a real encoder regardless.
 
 Since an encoder has to be in wasm anyway, putting the decoder there too keeps the whole layer in `bliti-core`, identical on both ends, with no JS boundary in the middle of an `AsyncWrite` pipeline.
-Candidates are `flate2` on its pure-Rust `miniz_oxide` backend, or `zlib-rs`; both build for `wasm32-unknown-unknown`.
-Encoder-plus-decoder code size is the number to measure before committing. The browser is the tight constraint; the Pi has room to spare.
+`flate2` on its pure-Rust `miniz_oxide` backend is the choice, measured rather than assumed.
+
+Each variant built as a cdylib for `wasm32-unknown-unknown` under the workspace release profile, exercising `Compress` and `Decompress` with a sync flush so the linker keeps what matters, against a baseline doing the same work without a codec:
+
+| backend | raw added | gzipped added | share of the gzipped bundle |
+| --- | --- | --- | --- |
+| `flate2` on `miniz_oxide` | 45,692 B | 18,880 B | about 6% |
+| `flate2` on `zlib-rs` | 116,065 B | 45,795 B | about 16% |
+
+The bundle today is 1,081,989 bytes raw and 293,340 gzipped.
+`zlib-rs` costs 2.4x what `miniz_oxide` does and buys speed on large buffers, which is not this workload: messages are hundreds of bytes, and the device has time to spare on every one of them.
+
+Driving `miniz_oxide` directly might trim a little further by skipping the wrapper, at the cost of running the inflate and deflate state machines by hand. Not worth it unless 6% turns out to matter.
 
 Compression level is not wire content: any level decodes the same, so it stays out of the spec and is a per-end choice.
-Deflate at the full 32 KiB window costs a few hundred kilobytes of state per context, two per connection, which neither end will notice.
+State is asymmetric and small either way: at the full 32 KiB window the deflate side runs to a couple of hundred kilobytes and the inflate side to a few tens, one of each per connection per end.
+Neither the Pi nor a browser tab will notice.
 
 ### A framing divergence to fix on the way past
 
@@ -118,11 +149,29 @@ CHN requires a Noise message to be prefixed with its length as two bytes, big-en
 The spec's own note argues for two specifically, since a prefix expressing exactly the range a Noise message can occupy needs no rule refusing an over-large one, so the code is what moves.
 It is the same area of code and the same kind of change as narrowing the message prefix, so it rides along on this card.
 
-### yamux flow control now sits above compression
+The two changes collide in one place worth knowing about before starting.
+`frame()` is currently shared: the message layer delimits with it and says so in its own comment, "this is the same four-byte length prefix the transport framing uses".
+Once the Noise prefix is two bytes and the message prefix is three, that sharing ends, and framing has to carry the width rather than hardcode one.
+The `Reassembler` maximum follows the same width, which is what keeps the structural bound honest at each layer.
 
-yamux counts uncompressed bytes, because it is above the compressor.
-Its default receive window is far smaller than the 16 MiB a message may now be, so a large message only moves if the receiver consumes and credits as it arrives, and the layer reassembling a message accepts it in pieces rather than waiting for the whole.
-Worth checking against the current wiring, which was written when no message could exceed 128 KiB.
+### yamux flow control, and why the defaults stand
+
+yamux counts uncompressed bytes, because it sits above the compressor.
+
+A 16 MiB message is therefore far larger than the 256 KiB receive window, and moves only if the receiver consumes and credits as it arrives rather than waiting for the whole.
+The current `read_message` already does this: it grows with what has actually arrived instead of reserving the claimed length, precisely so a peer cannot make this end allocate on a claim.
+So the read path needs no change for the ceiling's removal, only a test at the new maximum.
+
+The initial window stays as it is, and could not be lowered anyway: `DEFAULT_CREDIT` is a constant in yamux 0.14, and the only window setting is `max_connection_receive_window`, which caps the connection total and does not bite until 256 KiB times the stream count.
+
+The case for wanting it lower is also weaker than it first appears.
+A 256 KiB window is many times the bandwidth-delay product of a BLE link, which is the classic shape of queueing delay that buys no throughput, but the window counts uncompressed bytes while the link carries compressed ones.
+A window's worth of queued backfill is around 25 KiB on the wire, about half a second at the send-rate ceiling rather than the five and a half seconds the raw figure suggests.
+Compression takes most of the latency out by itself.
+
+`split_send_size` is the lever if live-feed latency behind a backfill ever does show up.
+It caps one data frame, and so bounds how long a bulk stream holds the send path before another stream's frame can interleave.
+At its 16 KiB default, a frame of backfill is roughly 1.6 KiB compressed, about 33 milliseconds of link time, which is short enough to leave alone until measurement says otherwise.
 
 ## Trade-offs
 
@@ -175,5 +224,7 @@ This is a consequence to be aware of rather than a way in: reaching the channel 
 - A client-to-device message decodes on the device, covering the symmetric direction.
 - A truncated or corrupt compressed stream closes the connection, and a malformed message on one stream still closes only that stream. The two faults are distinguishable.
 - A Noise message carries a two-byte length prefix, and the reassembler refuses a longer claim structurally.
+- A flush with nothing written since the last flush emits no bytes, so an idle connection stays silent under the driver's per-iteration flush. Pinned against `miniz_oxide` rather than assumed from zlib.
+- A decompressor waiting for the rest of a block returns pending rather than zero, so a partial block is not read as end of stream.
 - The round trip holds in the wasm build, not only in native tests.
 - Encoder-plus-decoder contribution to the wasm bundle is measured and recorded.
