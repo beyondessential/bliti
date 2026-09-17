@@ -20,6 +20,7 @@ pub mod envelope;
 pub mod framing;
 pub mod messages;
 pub mod noise;
+pub mod readings;
 pub mod stream;
 
 /// A failure in the channel below the application layer.

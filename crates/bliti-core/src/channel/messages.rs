@@ -12,7 +12,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::envelope::{Criticality, Message};
+use super::{
+	envelope::{Criticality, Message},
+	readings,
+};
 
 /// A message from the client to the device.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,7 +40,7 @@ pub enum ClientMessage {
 }
 
 /// A message from the device to the client.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum DeviceMessage {
 	/// The device naming itself, first on the reporting stream it opens.
@@ -49,14 +52,29 @@ pub enum DeviceMessage {
 		version: String,
 	},
 
-	/// The device's hostname and network addresses, sent on connect and again whenever they change.
-	#[serde(rename = "identity")]
-	Identity {
-		/// The device's hostname.
-		hostname: String,
-		/// Every global address the device has, each with the interface it belongs to. Loopback and
-		/// link-local addresses are left out; the client decides what is worth showing.
-		addresses: Vec<Address>,
+	/// What the device is: readings that do not change while it runs, or change rarely. Sent on the
+	/// reporting stream and again whenever they change (BLI-SYS).
+	#[serde(rename = "system-identity")]
+	SystemIdentity {
+		/// The static readings.
+		readings: Vec<readings::Reading>,
+	},
+
+	/// One sample of the device's live readings, sent on a `system` subscription (BLI-SYS).
+	#[serde(rename = "system-sample")]
+	SystemSample {
+		/// Milliseconds since the device booted, when the sample was taken.
+		at: u64,
+		/// The readings taken. Need not carry every reading.
+		readings: Vec<readings::Reading>,
+	},
+
+	/// The buffered window, sent first on a `system` subscription so a graph is populated the moment
+	/// it appears rather than filling from empty (BLI-SYS).
+	#[serde(rename = "system-history")]
+	SystemHistory {
+		/// Earlier samples, oldest first.
+		samples: Vec<readings::Sample>,
 	},
 }
 
@@ -85,38 +103,20 @@ impl Message for ClientMessage {
 
 impl Message for DeviceMessage {
 	fn knows(type_name: &str) -> bool {
-		matches!(type_name, "device-hello" | "identity")
+		matches!(
+			type_name,
+			"device-hello" | "system-identity" | "system-sample" | "system-history"
+		)
 	}
 
-	/// `device-hello` carries no critical member. `identity` belongs to the feature that reports it,
-	/// which pins nothing.
+	/// `device-hello` carries no critical member. The system types belong to BLI-SYS, which pins
+	/// nothing.
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {
 			"device-hello" => Criticality::Exactly(&[]),
 			_ => Criticality::Unconstrained,
 		}
 	}
-}
-
-/// One network address the device holds, with the interface it belongs to.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Address {
-	/// The address in its textual form.
-	pub address: String,
-	/// The interface the address belongs to.
-	pub interface: String,
-	/// The address family.
-	pub family: AddressFamily,
-}
-
-/// The family of a network address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum AddressFamily {
-	/// An IPv4 address.
-	Ipv4,
-	/// An IPv6 address.
-	Ipv6,
 }
 
 impl ClientMessage {
@@ -136,9 +136,17 @@ impl DeviceMessage {
 #[cfg(test)]
 mod tests {
 	use super::{
-		super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
+		super::{
+			envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
+			readings::{Sample, Value},
+		},
 		*,
 	};
+
+	/// A reading standing in for whatever a device reports, for exercising the envelope around it.
+	fn cpu() -> readings::Reading {
+		readings::Reading::new("cpu", "CPU", Value::Fraction(0.12))
+	}
 
 	fn client(json: &str) -> Result<Reading<ClientMessage>, Fault> {
 		read(json.as_bytes())
@@ -199,17 +207,29 @@ mod tests {
 	}
 
 	#[test]
-	fn device_identity_round_trips() {
-		let message = DeviceMessage::Identity {
-			hostname: "tamanu-iti".to_owned(),
-			addresses: vec![Address {
-				address: "192.0.2.10".to_owned(),
-				interface: "eth0".to_owned(),
-				family: AddressFamily::Ipv4,
-			}],
-		};
-		let json = message.to_json();
-		assert_eq!(read(&json).unwrap(), Reading::Message(message));
+	fn the_system_types_round_trip() {
+		for message in [
+			DeviceMessage::SystemIdentity {
+				readings: vec![readings::Reading::new(
+					"hostname",
+					"Hostname",
+					Value::text("tamanu-iti"),
+				)],
+			},
+			DeviceMessage::SystemSample {
+				at: 20_308_140,
+				readings: vec![cpu()],
+			},
+			DeviceMessage::SystemHistory {
+				samples: vec![Sample {
+					at: 20_306_140,
+					readings: vec![cpu()],
+				}],
+			},
+		] {
+			let json = message.to_json();
+			assert_eq!(read(&json).unwrap(), Reading::Message(message));
+		}
 	}
 
 	#[test]
@@ -280,12 +300,32 @@ mod tests {
 				name: "a".to_owned(),
 				version: "1".to_owned(),
 			},
-			DeviceMessage::Identity {
-				hostname: "iti".to_owned(),
-				addresses: vec![Address {
-					address: "192.0.2.10".to_owned(),
-					interface: "end0".to_owned(),
-					family: AddressFamily::Ipv4,
+			DeviceMessage::SystemIdentity {
+				readings: vec![
+					readings::Reading::new("hostname", "Hostname", Value::text("iti")),
+					// Every optional member set, so one skipping its serialisation would show up.
+					readings::Reading::new(
+						"temperature",
+						"Temperature",
+						Value::scaled(48.5, "C", 110.0),
+					)
+					.with_detail("Disk", Value::quantity(37.8, "C"))
+					.with_note("The processor core, not the case.")
+					.with_state(readings::State::Warn)
+					.with_limit(75.0, "Cooling")
+					.in_group("thermal")
+					.flowing(readings::Direction::Out),
+					readings::Reading::failed("battery", "Battery", "no answer from the gauge"),
+				],
+			},
+			DeviceMessage::SystemSample {
+				at: 1,
+				readings: vec![cpu()],
+			},
+			DeviceMessage::SystemHistory {
+				samples: vec![Sample {
+					at: 1,
+					readings: vec![cpu()],
 				}],
 			},
 		];
@@ -355,7 +395,7 @@ mod tests {
 	/// The prohibition is per type, not per build: a type a feature owns still takes the general rule.
 	#[test]
 	fn a_feature_type_still_refuses_rather_than_faults() {
-		let json = r#"{"type":"identity","hostname":"iti","addresses":[],"REDACT":["cpu"]}"#;
+		let json = r#"{"type":"system-identity","readings":[],"REDACT":["cpu"]}"#;
 		assert_eq!(
 			device(json).unwrap(),
 			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
@@ -375,14 +415,14 @@ mod tests {
 	/// message: only the path that carried it is named.
 	#[test]
 	fn a_nested_critical_member_is_found() {
-		let json = r#"{"type":"identity","hostname":"iti","addresses":[
-			{"address":"192.0.2.10","interface":"eth0","family":"ipv4"},
-			{"address":"192.0.2.11","interface":"eth1","family":"ipv4","SCOPE":"site"}
+		let json = r#"{"type":"system-identity","readings":[
+			{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1}},
+			{"name":"disk","label":"Disk","value":{"kind":"fraction","number":0.5},"SCOPE":"site"}
 		]}"#;
 		assert_eq!(
 			device(json).unwrap(),
 			Reading::Refused(Refusal::CriticalMembers(vec![
-				"addresses.1.scope".to_owned()
+				"readings.1.scope".to_owned()
 			]))
 		);
 	}
@@ -390,14 +430,14 @@ mod tests {
 	/// A nested ignorable member is passed over, and the message is read.
 	#[test]
 	fn a_nested_ignorable_member_is_skipped() {
-		let json = r#"{"type":"identity","hostname":"iti","addresses":[
-			{"address":"192.0.2.10","interface":"eth0","family":"ipv4","scope":"site"}
+		let json = r#"{"type":"system-identity","readings":[
+			{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1},"cores":4}
 		]}"#;
-		let Reading::Message(DeviceMessage::Identity { addresses, .. }) = device(json).unwrap()
+		let Reading::Message(DeviceMessage::SystemIdentity { readings }) = device(json).unwrap()
 		else {
-			panic!("expected an identity")
+			panic!("expected a system identity")
 		};
-		assert_eq!(addresses.len(), 1);
+		assert_eq!(readings.len(), 1);
 	}
 
 	#[test]

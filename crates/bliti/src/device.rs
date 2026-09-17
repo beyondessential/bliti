@@ -4,6 +4,7 @@
 
 use std::{path::Path, sync::Arc};
 
+use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
@@ -18,7 +19,6 @@ use bluer::{
 	},
 };
 use futures::{FutureExt, StreamExt};
-use miette::{IntoDiagnostic, Result, WrapErr};
 
 use crate::{
 	SALT_ROTATION,
@@ -30,9 +30,7 @@ use crate::{
 pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// Establish identity before touching Bluetooth: a board whose sticker is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
-	let identity = identity::establish(cache)
-		.into_diagnostic()
-		.wrap_err("establishing this board's identity")?;
+	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
 		tracing::info!(source = %identity.kind, "derived this board's sticker secret");
 	} else {
@@ -40,13 +38,13 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	}
 	let secret = Arc::new(identity.secret);
 
-	let session = bluer::Session::new().await.into_diagnostic()?;
+	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
-		Some(name) => session.adapter(name).into_diagnostic()?,
-		None => session.default_adapter().await.into_diagnostic()?,
+		Some(name) => session.adapter(name)?,
+		None => session.default_adapter().await?,
 	};
-	adapter.set_powered(true).await.into_diagnostic()?;
-	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await.into_diagnostic()?, "adapter ready");
+	adapter.set_powered(true).await?;
+	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume when it
@@ -55,11 +53,19 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// and the loop re-registers the advertisement in response, which is what puts the device back on
 	// the air.
 	let readvertise = Arc::new(tokio::sync::Notify::new());
+
+	// Sampling starts with the daemon rather than with the first session, so a client that connects
+	// to a device that has been up a while finds a populated window (BLI-SYS).
+	let sampler = crate::sampler::Sampler::start();
 	let _application = adapter
-		.serve_gatt_application(application(&sink, secret.clone(), readvertise.clone()))
+		.serve_gatt_application(application(
+			&sink,
+			secret.clone(),
+			readvertise.clone(),
+			sampler.clone(),
+		))
 		.await
-		.into_diagnostic()
-		.wrap_err("registering the GATT application")?;
+		.context("registering the GATT application")?;
 
 	// A device advertises whenever it is running, re-registering the advertisement each time the salt
 	// rolls and each time a session ends. Anyone in range can connect and begin a handshake that will
@@ -76,8 +82,7 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 		let _advertisement = adapter
 			.advertise(advertisement(advertised))
 			.await
-			.into_diagnostic()
-			.wrap_err("registering the advertisement")?;
+			.context("registering the advertisement")?;
 		tracing::info!(local_name = %advertised.to_local_name(), "advertising");
 
 		tokio::select! {
@@ -106,8 +111,8 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 /// stopping the daemon is the one way that skips unregistering from BlueZ.
 async fn shutdown() -> Result<()> {
 	use tokio::signal::unix::{SignalKind, signal};
-	let mut terminate = signal(SignalKind::terminate()).into_diagnostic()?;
-	let mut interrupt = signal(SignalKind::interrupt()).into_diagnostic()?;
+	let mut terminate = signal(SignalKind::terminate())?;
+	let mut interrupt = signal(SignalKind::interrupt())?;
 	tokio::select! {
 		_ = terminate.recv() => {}
 		_ = interrupt.recv() => {}
@@ -165,6 +170,7 @@ fn application(
 	sink: &InboundSink,
 	secret: Arc<StickerSecret>,
 	readvertise: Arc<tokio::sync::Notify>,
+	sampler: crate::sampler::Sampler,
 ) -> Application {
 	let write_sink = sink.clone();
 	let notify_sink = sink.clone();
@@ -201,6 +207,7 @@ fn application(
 							let sink = notify_sink.clone();
 							let secret = secret.clone();
 							let readvertise = readvertise.clone();
+							let sampler = sampler.clone();
 							async move {
 								tracing::info!("client subscribed; opening a session");
 								let (transport, mut outbound) = GattTransport::open(&sink);
@@ -235,7 +242,7 @@ fn application(
 								// A failed handshake is an ordinary outcome: anyone in range can
 								// connect and try, and the device stays reachable afterwards.
 								tokio::select! {
-									result = session::run(transport, &secret) => match result {
+									result = session::run(transport, &secret, sampler) => match result {
 										Ok(()) => tracing::info!("session ended"),
 										Err(err) => tracing::info!(%err, "session ended"),
 									},
@@ -269,14 +276,14 @@ pub async fn scan(
 	seconds: u64,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
-	let session = bluer::Session::new().await.into_diagnostic()?;
+	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
-		Some(name) => session.adapter(name).into_diagnostic()?,
-		None => session.default_adapter().await.into_diagnostic()?,
+		Some(name) => session.adapter(name)?,
+		None => session.default_adapter().await?,
 	};
-	adapter.set_powered(true).await.into_diagnostic()?;
+	adapter.set_powered(true).await?;
 
-	let mut events = adapter.discover_devices().await.into_diagnostic()?;
+	let mut events = adapter.discover_devices().await?;
 	let deadline = tokio::time::sleep(std::time::Duration::from_secs(seconds));
 	let mut deadline = std::pin::pin!(deadline);
 	let mut matched = 0usize;
@@ -297,7 +304,7 @@ pub async fn scan(
 		if !seen.insert(address) {
 			continue;
 		}
-		let device = adapter.device(address).into_diagnostic()?;
+		let device = adapter.device(address)?;
 		let name = device.name().await.ok().flatten();
 		let carries_bliti = device
 			.uuids()

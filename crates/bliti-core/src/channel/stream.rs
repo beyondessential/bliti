@@ -395,14 +395,14 @@ mod tests {
 		let received = read_message(&mut ds).await.unwrap().unwrap();
 		assert_eq!(read(&received).unwrap(), Reading::Message(subscribe));
 
-		// Device to client, on the same stream: identity.
-		let identity = DeviceMessage::Identity {
-			hostname: "tamanu-iti".to_owned(),
-			addresses: Vec::new(),
+		// Device to client, on the same stream: a sample for that subscription.
+		let sample = DeviceMessage::SystemSample {
+			at: 20_308_140,
+			readings: Vec::new(),
 		};
-		write_message(&mut ds, &identity.to_json()).await.unwrap();
+		write_message(&mut ds, &sample.to_json()).await.unwrap();
 		let back = read_message(&mut cs).await.unwrap().unwrap();
-		assert_eq!(read(&back).unwrap(), Reading::Message(identity));
+		assert_eq!(read(&back).unwrap(), Reading::Message(sample));
 	}
 
 	/// Closing a stream is the unsubscribe, and it is a half-close: the peer reads end of stream while

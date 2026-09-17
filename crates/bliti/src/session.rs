@@ -21,10 +21,13 @@ use bliti_core::{
 };
 use futures::{AsyncRead, AsyncWrite};
 
-use crate::facts;
+use crate::{facts::Facts, sampler::Sampler};
 
-/// How often to look for a change in the device's addresses while a client is connected.
-const ADDRESS_POLL: Duration = Duration::from_secs(2);
+/// How often to look for a change in what the device reports about itself.
+const IDENTITY_POLL: Duration = Duration::from_secs(2);
+
+/// The topic carrying the device's live readings (BLI-SYS).
+const SYSTEM_TOPIC: &str = "system";
 
 /// What the device calls itself to a client, and the version it is at.
 ///
@@ -38,7 +41,11 @@ const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns once the client goes away or the channel fails. A failed handshake is an ordinary outcome
 /// rather than an error worth stopping the daemon for: anyone in range can connect and try, and the
 /// device stays reachable by a legitimate operator afterwards (BLI-ADV, "Advertising continuously").
-pub async fn run<S>(transport: S, secret: &StickerSecret) -> Result<(), SessionError>
+pub async fn run<S>(
+	transport: S,
+	secret: &StickerSecret,
+	sampler: Sampler,
+) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -54,14 +61,18 @@ where
 		}
 	});
 
-	let result = converse(&mut streams).await;
+	// Holds sampling open for as long as this session lasts, so a device that had gone quiet starts
+	// filling its window again the moment somebody connects (BLI-SYS).
+	let _session = sampler.session();
+
+	let result = converse(&mut streams, &sampler).await;
 	driving.abort();
 	result
 }
 
 /// The device's half of the conversation: name itself and report unsolicited, and serve whatever the
 /// client opens.
-async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
+async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), SessionError> {
 	// The device speaks first, without being asked. This is the property the stream layer exists for.
 	let mut reporting = streams
 		.open()
@@ -78,24 +89,35 @@ async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
 		.await
 		.map_err(|err| SessionError::Stream(err.to_string()))?;
 
-	let mut last = facts::identity_message();
-	write_message(&mut reporting, &last.to_json())
-		.await
-		.map_err(|err| SessionError::Stream(err.to_string()))?;
+	let facts = Facts::new();
+	let mut last = facts.statics();
+	write_message(
+		&mut reporting,
+		&DeviceMessage::SystemIdentity {
+			readings: last.clone(),
+		}
+		.to_json(),
+	)
+	.await
+	.map_err(|err| SessionError::Stream(err.to_string()))?;
 
-	let mut ticker = tokio::time::interval(ADDRESS_POLL);
+	let mut ticker = tokio::time::interval(IDENTITY_POLL);
 	ticker.tick().await;
 
 	loop {
 		tokio::select! {
-			// State that changes while a client is connected is sent as it happens.
+			// What the device is changes rarely, but an address appearing is among the first things an
+			// installer is waiting for, so it is sent as it happens rather than waited for.
 			_ = ticker.tick() => {
-				let current = facts::identity_message();
+				let current = facts.statics();
 				if current != last {
-					tracing::info!("device facts changed; reporting");
-					write_message(&mut reporting, &current.to_json())
-						.await
-						.map_err(|err| SessionError::Stream(err.to_string()))?;
+					tracing::info!("what the device reports about itself changed");
+					write_message(
+						&mut reporting,
+						&DeviceMessage::SystemIdentity { readings: current.clone() }.to_json(),
+					)
+					.await
+					.map_err(|err| SessionError::Stream(err.to_string()))?;
 					last = current;
 				}
 			}
@@ -105,8 +127,9 @@ async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
 					tracing::info!("client disconnected");
 					return Ok(());
 				};
+				let sampler = sampler.clone();
 				tokio::spawn(async move {
-					if let Err(err) = serve_stream(&mut stream).await {
+					if let Err(err) = serve_stream(&mut stream, &sampler).await {
 						tracing::debug!(%err, "stream ended");
 					}
 				});
@@ -115,9 +138,47 @@ async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
 	}
 }
 
+/// Serve a subscription to the device's live readings, until the client closes the stream.
+///
+/// The window goes first, so a graph is populated the moment it appears rather than filling from
+/// empty while an operator waits (BLI-SYS).
+async fn serve_system<S>(stream: &mut S, sampler: &Sampler) -> Result<(), SessionError>
+where
+	S: AsyncRead + AsyncWrite + Unpin,
+{
+	let history = DeviceMessage::SystemHistory {
+		samples: sampler.window(),
+	};
+	write_message(stream, &history.to_json())
+		.await
+		.map_err(|err| SessionError::Stream(err.to_string()))?;
+
+	let mut live = sampler.live();
+	loop {
+		match live.recv().await {
+			Ok(sample) => {
+				let message = DeviceMessage::SystemSample {
+					at: sample.at,
+					readings: sample.readings,
+				};
+				// A write failing is the client having gone away, which is the unsubscribe.
+				if write_message(stream, &message.to_json()).await.is_err() {
+					return Ok(());
+				}
+			}
+			// A client too slow to keep up misses samples rather than stalling the sampler. The next
+			// one it receives is current, which is what a live view wants.
+			Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
+				tracing::debug!(missed, "subscriber fell behind");
+			}
+			Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+		}
+	}
+}
+
 /// Serve one stream a client opened, until it ends. Whatever happens here leaves the other streams
 /// and the connection alive.
-async fn serve_stream<S>(stream: &mut S) -> Result<(), SessionError>
+async fn serve_stream<S>(stream: &mut S, sampler: &Sampler) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -141,10 +202,14 @@ where
 				// branches on it (BLI-MSG).
 				tracing::info!(client = %name, client_version = %version, "client named itself");
 			}
+			Ok(Reading::Message(ClientMessage::Subscribe { topic })) if topic == SYSTEM_TOPIC => {
+				tracing::info!(%topic, "serving a subscription");
+				return serve_system(stream, sampler).await;
+			}
 			Ok(Reading::Message(ClientMessage::Subscribe { topic })) => {
-				// No topic is defined yet, so every topic is one this device does not recognise: it
-				// sends nothing and leaves the stream open until the client closes it. That is what a
-				// device older than its client looks like, and it fails nothing.
+				// A topic this device does not recognise is skipped as anything else is: it sends
+				// nothing and leaves the stream open until the client closes it. That is what a device
+				// older than its client looks like, and it fails nothing (BLI-MSG).
 				tracing::info!(%topic, "subscription to a topic this device does not serve");
 			}
 			Ok(Reading::Skipped(skip)) => {
@@ -198,7 +263,7 @@ mod tests {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device_psk = psk.clone();
 		tokio::spawn(async move {
-			let _ = run(device_side.compat(), &device_psk).await;
+			let _ = run(device_side.compat(), &device_psk, Sampler::start()).await;
 		});
 
 		let encrypted = connect_initiator(client_side.compat(), psk).await.unwrap();
@@ -224,10 +289,13 @@ mod tests {
 		assert_eq!(version, DEVICE_VERSION);
 
 		let raw = read_message(&mut reporting).await.unwrap().unwrap();
-		let Reading::Message(DeviceMessage::Identity { hostname, .. }) = read(&raw).unwrap() else {
-			panic!("the device reports its identity after naming itself");
+		let Reading::Message(DeviceMessage::SystemIdentity { readings }) = read(&raw).unwrap()
+		else {
+			panic!("the device says what it is after naming itself");
 		};
-		assert!(!hostname.is_empty());
+		// Rendered from what each reading says about itself, so the test names no reading either.
+		assert!(!readings.is_empty());
+		assert!(readings.iter().all(|reading| reading.is_coherent()));
 	}
 
 	/// A message the device does not recognise draws no reply at all, and costs nothing: the stream
@@ -308,29 +376,88 @@ mod tests {
 		let ended = matches!(read_message(&mut bad).await, Ok(None) | Err(_));
 		assert!(ended, "a fault closes the stream it arrived on");
 
-		// The connection is untouched: another stream is still served, and the reporting stream is
-		// still there.
+		// The connection is untouched: another stream is still served.
 		let mut good = streams.open().await.unwrap();
 		write_message(
 			&mut good,
 			&ClientMessage::Subscribe {
-				topic: "system".to_owned(),
+				topic: SYSTEM_TOPIC.to_owned(),
 			}
 			.to_json(),
 		)
 		.await
 		.unwrap();
-		let quiet = tokio::time::timeout(Duration::from_millis(250), read_message(&mut good)).await;
-		assert!(
-			quiet.is_err(),
-			"an unknown topic sends nothing and leaves the stream open"
-		);
+		let raw = tokio::time::timeout(Duration::from_secs(2), read_message(&mut good))
+			.await
+			.expect("a served topic answers")
+			.unwrap()
+			.unwrap();
+		assert!(matches!(
+			read::<DeviceMessage>(&raw).unwrap(),
+			Reading::Message(DeviceMessage::SystemHistory { .. })
+		));
+	}
+
+	/// A topic this device does not serve is skipped like anything else it does not recognise: it
+	/// sends nothing and leaves the stream open for the client to close. That is what a device older
+	/// than its client looks like, and it fails nothing (BLI-MSG).
+	#[tokio::test]
+	async fn an_unknown_topic_is_quiet_and_leaves_the_stream_open() {
+		let mut streams = paired(&secret(0x42)).await;
+		let mut subscription = streams.open().await.unwrap();
+		write_message(
+			&mut subscription,
+			&ClientMessage::Subscribe {
+				topic: "weather".to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.unwrap();
+
+		let quiet =
+			tokio::time::timeout(Duration::from_millis(250), read_message(&mut subscription)).await;
+		assert!(quiet.is_err(), "nothing is sent for a topic not served");
+	}
+
+	/// The window comes before anything live, so a graph is populated the moment it appears rather
+	/// than filling from empty while an operator waits (BLI-SYS).
+	#[tokio::test]
+	async fn a_subscription_receives_the_window_before_anything_live() {
+		let mut streams = paired(&secret(0x42)).await;
+		let mut subscription = streams.open().await.unwrap();
+		write_message(
+			&mut subscription,
+			&ClientMessage::Subscribe {
+				topic: SYSTEM_TOPIC.to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.unwrap();
+
+		let raw = tokio::time::timeout(Duration::from_secs(2), read_message(&mut subscription))
+			.await
+			.expect("the window arrives")
+			.unwrap()
+			.unwrap();
+		let Reading::Message(DeviceMessage::SystemHistory { samples }) =
+			read::<DeviceMessage>(&raw).unwrap()
+		else {
+			panic!("the first message on a subscription is the window");
+		};
+		// It may be empty on a device that has only just started, which is a valid window.
+		for pair in samples.windows(2) {
+			assert!(pair[0].at <= pair[1].at, "the window is oldest first");
+		}
 	}
 
 	#[tokio::test]
 	async fn a_client_with_the_wrong_sticker_cannot_open_a_session() {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
-		let device = tokio::spawn(async move { run(device_side.compat(), &secret(0x01)).await });
+		let device = tokio::spawn(async move {
+			run(device_side.compat(), &secret(0x01), Sampler::start()).await
+		});
 
 		// A client holding a different sticker fails the handshake, in both directions.
 		assert!(

@@ -8,12 +8,13 @@
 
 use std::{path::PathBuf, time::Duration};
 
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use miette::{IntoDiagnostic, Result, WrapErr};
 
 mod facts;
 mod gatt;
 mod identity;
+mod sampler;
 mod session;
 mod sticker;
 
@@ -95,7 +96,7 @@ fn main() -> Result<()> {
 		.init();
 
 	let cli = Cli::parse();
-	let runtime = tokio::runtime::Runtime::new().into_diagnostic()?;
+	let runtime = tokio::runtime::Runtime::new()?;
 	runtime.block_on(run(cli))
 }
 
@@ -122,15 +123,15 @@ async fn run(cli: Cli) -> Result<()> {
 fn board_id() -> Result<()> {
 	use bliti_core::board_id::{BoardIdSource, strongest_present};
 
-	identity::guard_unreadable_sources().into_diagnostic()?;
+	identity::guard_unreadable_sources()?;
 	let sources = identity::sources();
 	for source in &sources {
-		let presence = source.probe().into_diagnostic()?;
+		let presence = source.probe()?;
 		println!("{:>28}  {presence:?}", source.kind().to_string());
 	}
 
 	let refs: Vec<&dyn BoardIdSource> = sources.iter().map(AsRef::as_ref).collect();
-	match strongest_present(&refs).into_diagnostic()? {
+	match strongest_present(&refs)? {
 		Some(kind) => println!("\nwinning source: {kind}"),
 		None => println!("\nno usable source: this board cannot derive a sticker"),
 	}
@@ -139,15 +140,13 @@ fn board_id() -> Result<()> {
 
 /// Print the sticker for this board, deriving its secret if the cache does not already hold it.
 fn make_sticker(cache: &std::path::Path, svg: bool) -> Result<()> {
-	let identity = identity::establish(cache)
-		.into_diagnostic()
-		.wrap_err("establishing this board's identity")?;
+	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
 		tracing::info!(source = %identity.kind, "derived this board's sticker secret");
 	}
 
 	let payload = bliti_core::sticker::StickerPayload::new(identity.secret);
-	let sticker = sticker::Sticker::new(&payload).into_diagnostic()?;
+	let sticker = sticker::Sticker::new(&payload)?;
 
 	if svg {
 		println!("{}", sticker.to_svg());
@@ -168,9 +167,7 @@ async fn daemon(cache: &std::path::Path, adapter: Option<&str>) -> Result<()> {
 /// Read a sticker however it was given: the URL a code encodes, its fragment alone, or the
 /// human-readable rendering printed beneath the code. All three carry the same payload.
 fn read_sticker(given: &str) -> Result<bliti_core::sticker::StickerPayload> {
-	bliti_core::sticker::StickerPayload::read(given)
-		.into_diagnostic()
-		.wrap_err("reading the sticker")
+	bliti_core::sticker::StickerPayload::read(given).context("reading the sticker")
 }
 
 #[cfg(target_os = "linux")]
@@ -184,22 +181,21 @@ async fn connect(sticker: &str, address: Option<&str>, adapter: Option<&str>) ->
 	let address = address
 		.map(str::parse::<bluer::Address>)
 		.transpose()
-		.into_diagnostic()
-		.wrap_err("reading the device address")?;
+		.context("reading the device address")?;
 	client::connect(address, payload.secret(), adapter).await
 }
 
 #[cfg(not(target_os = "linux"))]
 async fn connect(_s: &str, _a: Option<&str>, _t: &str, _ad: Option<&str>) -> Result<()> {
-	miette::bail!("connecting runs on Linux, against BlueZ")
+	anyhow::bail!("connecting runs on Linux, against BlueZ")
 }
 
 #[cfg(not(target_os = "linux"))]
 async fn scan(_sticker: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> {
-	miette::bail!("scanning runs on Linux, against BlueZ")
+	anyhow::bail!("scanning runs on Linux, against BlueZ")
 }
 
 #[cfg(not(target_os = "linux"))]
 async fn daemon(_cache: &std::path::Path, _adapter: Option<&str>) -> Result<()> {
-	miette::bail!("the bliti daemon runs on Linux, against BlueZ")
+	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")
 }
