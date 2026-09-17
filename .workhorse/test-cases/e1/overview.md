@@ -8,20 +8,37 @@ Three levels own different things: Rust owns protocol and parse behaviour, Playw
 
 Each case names the level that owns it. An independently written client should pass the same cases from the spec alone.
 
-### Skipping what is not recognised
+### Member names and casing
 
-- [ ] A message whose `type` the receiver does not recognise is skipped, nothing is sent in reply, and the stream stays open (Rust, both directions).
-- [ ] A member the receiver does not recognise inside a message whose type it does is skipped, and the rest of the message is read (Rust, both directions).
-- [ ] A client skips an unrecognised message type and unrecognised members from the device, and the view carries on (Playwright).
-- [ ] Skipping never closes the stream or the connection, in any of the above.
+- [ ] `topic` and `TOPIC` reach the same member, and a receiver that knows it behaves identically for both (Rust).
+- [ ] A mixed-case name is malformed and takes the fault path (Rust).
+- [ ] The same name twice, in any combination of casings, is malformed and takes the fault path (Rust).
+- [ ] Casing applies to names and not values: a `topic` of `SYSTEM` is a different topic from `system`, not the same one marked critical (Rust).
 
-### Reporting what is broken
+### Ignorable unknowns are skipped
 
-A peer that breaks the base protocol is a fault, not a version difference, and is reported rather than skipped.
+- [ ] An unrecognised lower-case member is skipped and the rest of the object is read (Rust, both directions).
+- [ ] A message whose `type` the receiver does not recognise is skipped whole, with nothing sent in reply and the stream left open (Rust, both directions).
+- [ ] A client skips unrecognised lower-case members and unknown types from the device, and the view carries on (Playwright).
+- [ ] Skipping never closes the stream or the connection.
+
+### Critical unknowns are refused, not faulted
+
+- [ ] An unrecognised upper-case member means the object carrying it is not processed (Rust, both directions).
+- [ ] The stream stays open and the connection is untouched: this is a newer peer, not a broken one (Rust). Regression guard against collapsing this into the fault path.
+- [ ] A critical unknown nested inside a message leaves the rest of the message processed, so a report showing many readings loses only the one it cannot read (Rust).
+- [ ] An unknown type named by an upper-case `TYPE` member is reported rather than skipped (Rust).
+- [ ] The client shows the operator that the device said something it is too old to act on, while still rendering everything else, and does not present it as a fault or blank the view (Playwright).
+- [ ] A `device-hello` carrying an unrecognised critical member leaves the client without the device name and version, saying so and carrying on with the session rather than refusing it (Playwright).
+- [ ] The device logs a critical unknown from a client (Rust / manual: check the device log).
+
+### Faults are reported
+
+A peer that breaks the base protocol is a fault, not a version difference, and is reported rather than skipped or refused.
 
 - [ ] Bytes that are not valid UTF-8, not valid JSON, or JSON that is not an object are reported and close the stream they arrived on (Rust).
 - [ ] An object with no `type`, or whose `type` is not a string, is reported and closes the stream (Rust).
-- [ ] A recognised type missing a required member, or carrying one as the wrong JSON type, is reported and closes the stream (Rust).
+- [ ] A recognised type missing a member it required when defined, or carrying one as the wrong JSON type, is reported and closes the stream (Rust).
 - [ ] A message beyond one mebibyte is reported and closes the stream, without the receiver having buffered it (Rust).
 - [ ] None of the above closes the connection or disturbs another stream: the reporting stream keeps delivering (Rust).
 - [ ] The client surfaces a protocol fault to the operator rather than showing a blank or frozen view (Playwright).
