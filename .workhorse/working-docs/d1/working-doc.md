@@ -245,6 +245,12 @@ None outstanding. Every decision the interview opened has been closed; what rema
 
 ## Notes for the split
 
+### The spec rules changed under us
+
+`.workhorse/rules.md` now asks for a standards voice in the manner of RFC 2119, and for justifications to be left out unless one is critical. This doc is the opposite by design, and stays that way: working voice is where the reasoning lives. The split is what has to change. Every behaviour section below becomes normative statements with the reasoning dropped, not prose carried across.
+
+The rules also now require that wherever a contract exists, the spec carry enough for someone to write a compatible re-implementation from scratch. The self-describing reading format is a contract, so its spec has to name the fields, their types and how a client renders from them, rather than describing the idea of self-description.
+
 - Behaviour folds into specs for this card. The self-describing reading format goes with it.
 - The envelope half of the wire contract — version skew, skipping unknowns, push and subscribe — is already specified as BLI-MSG in `.workhorse/specs/messages.md`. This card's spec inherits it and adds only the reading format and the readings themselves.
 - The client half of the feature belongs under its own heading, per the rule at the end of `.workhorse/specs/web-app.md`.
