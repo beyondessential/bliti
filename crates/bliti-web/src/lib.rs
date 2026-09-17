@@ -18,14 +18,20 @@ use std::{cell::RefCell, rc::Rc};
 use bliti_core::{
 	advertisement::Advertised,
 	channel::{
-		messages::ClientMessage,
+		envelope::{Reading, read},
+		messages::{ClientMessage, DeviceMessage},
 		stream::{
 			Mode, Stream, Streams, connect_initiator, multiplex, read_message, write_message,
 		},
 	},
 	sticker::StickerPayload,
 };
-use futures::{channel::mpsc, lock::Mutex};
+use futures::{
+	AsyncWriteExt,
+	channel::{mpsc, oneshot},
+	future::{self, Either},
+	lock::Mutex,
+};
 use js_sys::{Function, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -149,6 +155,10 @@ struct Inner {
 	// An async lock rather than a cell: it is held across opening a stream, and two sends in
 	// flight queue behind each other rather than colliding over the handle.
 	streams: Mutex<Option<Streams>>,
+	// The stream this client named itself on, held open for whatever a feature gives a client to send.
+	control: Mutex<Option<Stream>>,
+	// Closes the device's reporting stream, the same way a subscription is closed.
+	reporting_closer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
 /// A channel to a device: the handshake of BLI-CHN and the streams above it.
@@ -173,6 +183,8 @@ impl Channel {
 				transport: RefCell::new(Some(transport)),
 				inbound: RefCell::new(inbound),
 				streams: Mutex::new(None),
+				control: Mutex::new(None),
+				reporting_closer: RefCell::new(None),
 			}),
 		}
 	}
@@ -182,12 +194,19 @@ impl Channel {
 		let _ = self.inner.inbound.borrow_mut().try_send(bytes.to_vec());
 	}
 
-	/// Run the handshake and take the device's first message, resolving to it as JSON.
+	/// Run the handshake, name this client to the device, and start reading what the device reports.
 	///
-	/// The device speaks first, without being asked: it opens a stream and reports its identity. Every
-	/// later report on that stream — the device sends one whenever its addresses change — is passed to
-	/// `on_message`, and `on_closed` is called once the stream ends.
-	pub fn connect(&self, on_message: Function, on_closed: Function) -> Promise {
+	/// The client opens a control stream and sends its hello without waiting for the device's, and the
+	/// device opens its reporting stream without being asked; neither blocks on the other (BLI-MSG).
+	/// Every message the device sends is passed to `on_message` as one of the outcomes described in
+	/// [`describe`], and `on_closed` is called once the reporting stream ends.
+	pub fn connect(
+		&self,
+		name: String,
+		version: String,
+		on_message: Function,
+		on_closed: Function,
+	) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let transport = inner
@@ -205,26 +224,41 @@ impl Channel {
 				let _ = driver.await;
 			});
 
-			let mut reporting = streams
+			// This client names itself, on a control stream of its own. The device logs it and never
+			// acts on it, and nothing here waits for an answer because there is none.
+			let mut control = streams
+				.open()
+				.await
+				.map_err(|err| JsError::new(&format!("opening the control stream: {err}")))?;
+			let hello = ClientMessage::Hello { name, version };
+			write_message(&mut control, &hello.to_json())
+				.await
+				.map_err(|err| JsError::new(&format!("naming this client: {err}")))?;
+
+			let reporting = streams
 				.accept()
 				.await
 				.ok_or_else(|| JsError::new("the device closed the channel before reporting"))?;
-			let first = read_message(&mut reporting)
-				.await
-				.map_err(|err| JsError::new(&format!("reading the device's report: {err}")))?
-				.ok_or_else(|| JsError::new("the device reported nothing"))?;
+			// The reporting stream is closed the same way a subscription is, so that dropping the
+			// channel does not leave a reader holding it.
+			let (closer, closing) = oneshot::channel();
+			spawn_local(report_until_closed(
+				reporting, closing, on_message, on_closed,
+			));
+			*inner.reporting_closer.borrow_mut() = Some(closer);
 
-			// The device reports again whenever what it reported changes, so the stream is read for as
-			// long as it lives rather than once.
-			spawn_local(report_until_closed(reporting, on_message, on_closed));
-
+			*inner.control.lock().await = Some(control);
 			*inner.streams.lock().await = Some(streams);
-			Ok(JsValue::from_str(&String::from_utf8_lossy(&first)))
+			Ok(JsValue::UNDEFINED)
 		})
 	}
 
-	/// Send a line of text for the device to print, proving the client-to-device direction.
-	pub fn send_text(&self, text: String) -> Promise {
+	/// Subscribe to what the device sends continuously on a topic.
+	///
+	/// The subscription is the stream: it begins with this message and ends when the stream is closed,
+	/// so [`Subscription::close`] is the unsubscribe and there is no message for it (BLI-MSG). A topic
+	/// the device does not know yields no data and no error, which is what an older device looks like.
+	pub fn subscribe(&self, topic: String, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let mut streams = inner.streams.lock().await;
@@ -234,33 +268,111 @@ impl Channel {
 			let mut stream = streams
 				.open()
 				.await
-				.map_err(|err| JsError::new(&format!("opening a stream: {err}")))?;
-			let message = ClientMessage::Text { text };
-			write_message(&mut stream, &message.to_json())
+				.map_err(|err| JsError::new(&format!("opening a subscription: {err}")))?;
+			write_message(&mut stream, &ClientMessage::Subscribe { topic }.to_json())
 				.await
-				.map_err(|err| JsError::new(&format!("sending the text: {err}")))?;
-			Ok(JsValue::UNDEFINED)
+				.map_err(|err| JsError::new(&format!("subscribing: {err}")))?;
+
+			let (closer, closing) = oneshot::channel();
+			spawn_local(report_until_closed(stream, closing, on_message, on_closed));
+			Ok(JsValue::from(SubscriptionHandle {
+				closer: RefCell::new(Some(closer)),
+			}))
 		})
 	}
 }
 
-/// Pass every further message the device sends on its reporting stream to the application, then say
-/// when the stream ends.
-async fn report_until_closed(mut reporting: Stream, on_message: Function, on_closed: Function) {
-	loop {
-		match read_message(&mut reporting).await {
-			Ok(Some(raw)) => {
-				let _ = on_message.call1(
-					&JsValue::NULL,
-					&JsValue::from_str(&String::from_utf8_lossy(&raw)),
-				);
-			}
-			Ok(None) => break,
-			Err(err) => {
-				let _ = on_closed.call1(&JsValue::NULL, &JsValue::from_str(&err.to_string()));
-				return;
-			}
+/// One open subscription, which lasts exactly as long as its stream.
+#[wasm_bindgen]
+pub struct SubscriptionHandle {
+	closer: RefCell<Option<oneshot::Sender<()>>>,
+}
+
+#[wasm_bindgen]
+impl SubscriptionHandle {
+	/// Unsubscribe, by asking the reader to close the stream.
+	///
+	/// The reader owns the stream and selects on this alongside its read, rather than the two
+	/// contending for one lock: a read is pending essentially always, including the ordinary case of a
+	/// device that does not know the topic and sends nothing, so a closer that had to take the stream
+	/// from under the reader would wait forever and the unsubscribe would never happen.
+	///
+	/// Closed rather than dropped: closing sends the graceful end of stream the device reads to stop
+	/// sending, where dropping would reach it as a reset. Either ends the subscription, but the
+	/// ordinary path should be the graceful one.
+	pub fn close(&self) {
+		if let Some(closer) = self.closer.borrow_mut().take() {
+			let _ = closer.send(());
 		}
 	}
-	let _ = on_closed.call1(&JsValue::NULL, &JsValue::NULL);
+}
+
+/// Pass everything a stream carries to the application, until it ends or the application asks to
+/// close it.
+///
+/// Each message is described rather than handed over raw, so the application is told which of the
+/// outcomes of BLI-MSG it is looking at and can render accordingly. A fault is the exception: the
+/// receiver closes the stream a fault arrived on (BLI-MSG), so it ends the read here rather than
+/// being reported and read past, which would let a peer that has completed the handshake stream
+/// malformed messages indefinitely.
+async fn report_until_closed(
+	mut stream: Stream,
+	closing: oneshot::Receiver<()>,
+	on_message: Function,
+	on_closed: Function,
+) {
+	let mut closing = closing;
+	let ended = loop {
+		let read = read_message(&mut stream);
+		futures::pin_mut!(read);
+		match future::select(read, &mut closing).await {
+			Either::Left((Ok(Some(raw)), _)) => {
+				let (described, fault) = describe(&raw);
+				let _ = on_message.call1(&JsValue::NULL, &JsValue::from_str(&described));
+				if let Some(fault) = fault {
+					break Some(fault);
+				}
+			}
+			Either::Left((Ok(None), _)) => break None,
+			Either::Left((Err(err), _)) => break Some(err.to_string()),
+			// The application has unsubscribed, or is going away.
+			Either::Right(_) => break None,
+		}
+	};
+
+	let _ = stream.close().await;
+	let _ = on_closed.call1(
+		&JsValue::NULL,
+		&match ended {
+			Some(why) => JsValue::from_str(&why),
+			None => JsValue::NULL,
+		},
+	);
+}
+
+/// Describe one message to the application as JSON, and say whether it was a fault.
+///
+/// The three outcomes of BLI-MSG are kept apart here rather than in the application, so every client
+/// surface inherits the same reading of the wire. `message` is what this build understood, `skipped`
+/// is a device newer than this build saying something safe to pass over, `refused` is one saying
+/// something that must not be half read, and `fault` is a device not speaking the protocol.
+fn describe(raw: &[u8]) -> (String, Option<String>) {
+	match read::<DeviceMessage>(raw) {
+		Ok(Reading::Message(message)) => (
+			serde_json::json!({ "kind": "message", "message": message }).to_string(),
+			None,
+		),
+		Ok(Reading::Skipped(skip)) => (
+			serde_json::json!({ "kind": "skipped", "detail": skip.to_string() }).to_string(),
+			None,
+		),
+		Ok(Reading::Refused(refusal)) => (
+			serde_json::json!({ "kind": "refused", "detail": refusal.to_string() }).to_string(),
+			None,
+		),
+		Err(fault) => (
+			serde_json::json!({ "kind": "fault", "detail": fault.to_string() }).to_string(),
+			Some(fault.to_string()),
+		),
+	}
 }

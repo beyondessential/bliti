@@ -23,7 +23,7 @@ Both derivations are specified in [BLI-KEY](key-schedule.md).
 What is printed on the sticker, and how one is generated, is specified in [BLI-STK](sticker.md).
 
 A client scans the sticker, recomputes the handle, and matches it against what it hears, as specified in [BLI-ADV](discovery.md).
-Client and device then authenticate to each other and open a channel, as specified in [BLI-CHN](channel.md).
+Client and device then authenticate to each other and open a channel, as specified in [BLI-CHN](channel.md), and exchange application messages within the envelope specified in [BLI-MSG](messages.md).
 The client that does this in a browser is specified in [BLI-WEB](web-app.md).
 
 There is no fleet key and no authoritative per-device record.
@@ -65,10 +65,24 @@ Each layer depends only on the one beneath it carrying bytes reliably and in ord
 | BLE GATT | reliable, ordered bytes |
 | framing | message boundaries across the negotiated attribute size |
 | Noise `NNpsk0` | mutual authentication, encryption, a session key |
-| stream multiplexing | either end opens unidirectional or bidirectional streams |
+| yamux | either end opens streams without coordinating identifiers |
 | JSON | application messages |
+| message envelope | length-delimited JSON: naming, skipping unknowns, subscription streams |
 
 Replacing the bottom layer with another BLE transport changes nothing above it, and the choice can differ per client while the layers above stay identical.
+
+## The base protocol version
+
+One version number spans the whole stack, and it is the only version anything in the system acts on.
+It is carried in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md), and it is the same number in both.
+
+It covers every layer in the table above: the derivations of [BLI-KEY](key-schedule.md), the handshake, transport and streams of [BLI-CHN](channel.md), and the fact that application messages are JSON in the envelope of [BLI-MSG](messages.md).
+
+A client reads the advertised marker before it recomputes a handle.
+Where it does not implement that version it reports a device present at a version it does not support, and goes no further, because no shared secret could be computed and nothing it said afterwards would be understood.
+
+Above that version nothing is gated.
+The software each end runs carries its own version, which is exchanged and displayed and never acted on, as specified in [BLI-MSG](messages.md).
 
 ## Reporting
 
