@@ -74,14 +74,6 @@ Such an observer can also tell that two advertisements come from the same device
 
 bliti claims only that such an observer cannot tell *which* device it is hearing.
 
-### A board ID may be public already
-
-Where a board ID derives from a vendor's service tag, it is not secret at all.
-Such a tag is printed on the outside of the machine, quoted in support correspondence, and recorded in asset registers, so an attacker reads or looks it up rather than searching for it, and the cost of the derivation buys nothing.
-
-Boards in that position carry the weakest guarantee in the system.
-Which source a given board uses is determined by the precedence of [BLI-BID](board-id.md).
-
 ### A board ID can be searched for
 
 Search here means exhaustive enumeration, not consulting a record: an attacker derives the advertised handle for each candidate board ID in turn and compares it against a handle observed on the air.

@@ -4,7 +4,7 @@ id: BLI-BID
 
 # Board ID
 
-The board ID is the firmware-provided identifier that every other value in [BLI](overview.md) descends from.
+The board ID is the firmware-provided identifier the presence token is derived from.
 Its job is to make the presence token reproducible: the same sticker can be regenerated from the board alone, with no per-device database to keep in sync.
 
 The board ID is not a secret.
@@ -40,7 +40,7 @@ Where the board carries customer-programmable one-time-programmable memory that 
 
 ### Platform serial numbers
 
-Otherwise the board ID is the platform's own serial number: the device-tree serial on Raspberry Pi hardware, or the SMBIOS system UUID on UEFI machines.
+Otherwise the board ID is the platform's own serial number, which is the device-tree serial on Raspberry Pi hardware.
 
 ## Probing and reading
 

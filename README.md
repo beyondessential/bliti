@@ -43,6 +43,22 @@ pre-shared key, then multiplex JSON messages over streams either end can open.
 `bliti-core` builds without its default features for wasm, which drops the argon2id derivation and
 every board-ID backend: a client reads the sticker secret from the payload rather than deriving it.
 
+## Hardware
+
+bliti derives a device's identity from a hardware-backed board ID, and how good that identity is
+depends entirely on what the board offers.
+
+A device that is not a Raspberry Pi needs a TPM 2.0. Nothing else on such hardware qualifies as a
+source, so the daemon refuses to run without one. Vendor identifiers such as an SMBIOS system UUID
+are not used: on many machines they are a reformatting of a service tag that is printed on the
+chassis and kept in asset registers, which makes them public rather than secret.
+
+On Raspberry Pi hardware, write at least 64 bits of random data into the customer OTP region, or fit
+a TPM. Either gives a board ID an attacker cannot search for. The device-tree serial is accepted as
+a fallback so that boards already in the field keep working, but a Pi serial is a fixed structured
+value rather than a secret, and a device identified by one carries a weaker guarantee. Do not choose
+it for new deployments.
+
 ## Running a device
 
 The daemon advertises whenever it is running and serves sessions to clients that authenticate:
@@ -56,7 +72,7 @@ to be peripheral-only, because a stack that resolves the connecting client's att
 ask to pair, and no client bliti serves can pair. The drop-in points bluetoothd at the config
 shipped here rather than editing `/etc/bluetooth/main.conf`, which is a package conffile.
 
-The daemon derives its sticker secret on its first start after imaging, and after a board change;
+The daemon derives its presence token on its first start after imaging, and after a board change;
 every later start reads the cache. The derivation wants 2 GiB of memory at once, and the kernel
 kills a process that asks for more than there is rather than failing the allocation, so the daemon
 establishes there is room before it begins.

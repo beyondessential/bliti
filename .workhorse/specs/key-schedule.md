@@ -28,7 +28,7 @@ The argon2id password is a source tag byte followed by the raw bytes of the sour
 The argon2id salt is the fixed constant.
 
 The raw bytes are used, never a text rendering of them.
-A Raspberry Pi serial is read as characters and an SMBIOS system UUID as a dashed string, and deriving from those characters rather than from the eight and sixteen bytes they denote produces a different secret, permanently, once a sticker carrying it has been printed.
+A Raspberry Pi serial is read as characters, and deriving from those characters rather than from the eight bytes they denote produces a different secret, permanently, once a code carrying it has been printed.
 
 The tag identifies which kind of source the value came from, so a value that is byte-identical across two kinds of source still derives differently.
 Lengths are fixed per kind of source, so the tag leaves the input unambiguous without a length prefix.
@@ -41,7 +41,7 @@ For a board whose board ID comes from a TPM Endorsement Key or from written one-
 
 For a board identified by a serial number, the cost is what the guarantee rests on, and it does not make every such board safe.
 A Raspberry Pi 4 or 5 serial number occupies its full width and is out of reach.
-A serial number that collapses to a short value, as on earlier Raspberry Pi boards, and a SMBIOS system UUID that merely reformats a vendor's service tag, are both small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
+A serial number that collapses to a short value, as on earlier Raspberry Pi boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 Those boards carry the weaker guarantee described in [BLI](overview.md).
 
 ### Deriving on the device

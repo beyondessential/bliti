@@ -57,7 +57,11 @@ Where the jargon is doing no work, it goes instead of getting a definition. The 
 
 **Settled, and worse than a size problem.** Pinning search to enumeration raised the question of whether a board ID is reachable by other routes. On Dell hardware it plainly is. Decoding a real SMBIOS UUID, `4c4c4544-0042-4710-804d-b3c04f485832`, gives `LLED` (DELL byte-reversed) followed by six of the seven characters of the service tag `3BGMHX2` as literal ASCII. The UUID carries no entropy beyond the tag, which KEY already said, but the tag itself is printed on the chassis, quoted in support tickets and kept in asset registers. So on those boards the board ID is read or looked up, not searched for, and the derivation cost buys nothing at all.
 
-SEC gained "A board ID may be public already" to state it. KEY treats this case purely as a small search space, which understates it and should be corrected in KEY's rewrite.
+**Resolved by removing the source.** SMBIOS system UUIDs are no longer a board ID source at all. The precedence is the TPM Endorsement Key, then provisioned OTP, then the Raspberry Pi device-tree serial.
+
+Closing it by deletion rather than by a new rule has two good properties. "A device that is not a Raspberry Pi must have a TPM" now falls out of the precedence running dry on such hardware, so no rule has to name a platform and BID's own "no rule names a particular model" principle survives. And the published-board-ID limit SEC had just gained has nothing left to describe, so it was deleted: a design change dissolved a security limit instead of documenting one.
+
+Hardware selection guidance went to the README rather than the specs, per the decision: TPM required off Pi, 64 bits of random in Pi OTP or a fitted TPM, serial fallback kept only so boards already in the field keep working. The specs say nothing about "legacy", which would be point-in-time language they are not allowed to carry.
 
 This also bounds the NKpsk0 redesign. The new device static key derives from the board ID, so on service-tag boards an attacker who reads a chassis label obtains the static key as well as the token, and the new guarantee buys nothing there. It is strong exactly where the board ID is strong, which is the TPM and OTP tiers, and the tiering should be stated as applying to every guarantee resting on board-ID secrecy rather than to the search cost alone.
 
