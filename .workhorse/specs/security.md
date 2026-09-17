@@ -76,12 +76,13 @@ bliti claims only that such an observer cannot tell *which* device it is hearing
 
 ### A board ID can be searched for
 
-Because the derivation constants are public, finding a device requires neither its QR code nor physical access to it, only its board ID, and board IDs can be searched for rather than known.
+Search here means exhaustive enumeration, not consulting a record: an attacker derives the advertised handle for each candidate board ID in turn and compares it against a handle observed on the air.
 
-A recorded handshake serves that search as well as a recorded advertisement does, because either lets a guess be tested offline.
+Because the derivation constants are public, that attack needs neither the device's QR code nor physical access to it.
+A recorded handshake serves as the oracle as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
-What stands against the search is the cost of the derivation and the size of the board ID's space, both specified in [BLI-KEY](key-schedule.md).
-For boards whose only identifier is a short serial number that margin is narrow, and those boards carry a weaker guarantee than boards with a hardware-backed identifier.
+What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [BLI-KEY](key-schedule.md).
+For boards whose only identifier is a short serial number that product is small, and those boards carry a weaker guarantee than boards with a hardware-backed identifier.
 
 ### Authentication proves the secret, not the board
 
