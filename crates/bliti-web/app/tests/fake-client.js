@@ -16,6 +16,11 @@ window.__blitiClient = {
 		window.__blitiDisconnect = onDisconnected
 	},
 	async subscribe(topic, { onEvent }) {
+		// A subscription does not resolve instantly in the real client, and the window while it is in
+		// flight is where a close can be missed. The harness can widen that window on purpose.
+		if (window.__blitiSubscribeDelay) {
+			await new Promise((r) => setTimeout(r, window.__blitiSubscribeDelay))
+		}
 		const record = { topic, open: true, events: onEvent }
 		window.__blitiSubscriptions.push(record)
 		window.__blitiEmitSub = onEvent

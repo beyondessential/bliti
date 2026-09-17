@@ -111,6 +111,10 @@ jobs:
       # The harness fakes at the message layer, with no wasm and no Bluetooth in
       # the loop. Protocol and transport coverage stays in the Rust tests, and
       # nothing here pretends to be a Bluetooth stack.
+      #
+      # It builds its own bundle, in test mode and to its own directory: the seam
+      # it supplies a client through is compiled into that build alone, and never
+      # into the one uploaded above.
       - name: Install the browser the harness drives
         run: npx playwright install --with-deps chromium
         working-directory: crates/bliti-web/app

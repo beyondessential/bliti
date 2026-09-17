@@ -74,6 +74,13 @@ impl Message for ClientMessage {
 			_ => Criticality::Unconstrained,
 		}
 	}
+
+	fn critical_members(type_name: &str) -> &'static [&'static str] {
+		match type_name {
+			"subscribe" => &["topic"],
+			_ => &[],
+		}
+	}
 }
 
 impl Message for DeviceMessage {
@@ -129,7 +136,7 @@ impl DeviceMessage {
 #[cfg(test)]
 mod tests {
 	use super::{
-		super::envelope::{Fault, Reading, Refusal, Skip, read},
+		super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
 		*,
 	};
 
@@ -245,6 +252,62 @@ mod tests {
 			client(r#"{"type":"reboot","when":"now"}"#).unwrap(),
 			Reading::Skipped(Skip::UnknownType("reboot".to_owned()))
 		);
+	}
+
+	/// Unknown members are found by round-tripping through these types, so a member that serialises
+	/// away would be read as one this build has never heard of. Checked rather than remembered.
+	#[test]
+	fn every_message_type_survives_the_round_trip() {
+		let clients = [
+			ClientMessage::Hello {
+				name: "a".to_owned(),
+				version: "1".to_owned(),
+			},
+			ClientMessage::Subscribe {
+				topic: "system".to_owned(),
+			},
+		];
+		for message in &clients {
+			assert_eq!(
+				round_trip_omissions(message),
+				Vec::<String>::new(),
+				"{message:?}"
+			);
+		}
+
+		let devices = [
+			DeviceMessage::Hello {
+				name: "a".to_owned(),
+				version: "1".to_owned(),
+			},
+			DeviceMessage::Identity {
+				hostname: "iti".to_owned(),
+				addresses: vec![Address {
+					address: "192.0.2.10".to_owned(),
+					interface: "end0".to_owned(),
+					family: AddressFamily::Ipv4,
+				}],
+			},
+		];
+		for message in &devices {
+			assert_eq!(
+				round_trip_omissions(message),
+				Vec::<String>::new(),
+				"{message:?}"
+			);
+		}
+	}
+
+	/// A pinned type's members are pinned at every depth, not only at the top: BLI-MSG says those
+	/// types carry no critical member beyond what it names, and says nothing about depth. A nested one
+	/// is therefore a peer breaking the pin rather than a peer newer than this build.
+	#[test]
+	fn a_nested_critical_member_on_a_pinned_type_is_a_fault() {
+		let json = r#"{"type":"client-hello","name":"a","version":"1","extra":{"NESTED":true}}"#;
+		assert!(matches!(
+			client(json).unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
 	}
 
 	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol rather

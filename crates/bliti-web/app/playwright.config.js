@@ -10,7 +10,9 @@ export default defineConfig({
 	use: { baseURL: 'http://localhost:4173', trace: 'on-first-retry' },
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 	webServer: {
-		command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+		// Built in test mode, which is the only mode that compiles in the seam this harness supplies
+		// its client through. CI builds the shipped bundle separately and uploads that one.
+		command: 'npm run build -- --mode test && npm run preview -- --mode test --port 4173 --strictPort',
 		url: 'http://localhost:4173',
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,

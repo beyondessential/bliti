@@ -25,9 +25,17 @@ export const CLIENT_VERSION = __APP_VERSION__
 
 let loaded
 async function protocol() {
-	loaded ??= init({ module_or_path: wasmUrl }).then(() => {
-		start()
-	})
+	// The failure is not cached along with the success: a wasm fetch that fails once, on a flaky
+	// network before the service worker has cached it, would otherwise leave every later call
+	// rethrowing the same stale error with no way back short of a reload.
+	loaded ??= init({ module_or_path: wasmUrl })
+		.then(() => {
+			start()
+		})
+		.catch((error) => {
+			loaded = undefined
+			throw error
+		})
 	await loaded
 }
 
@@ -110,11 +118,23 @@ export function createClient() {
 		// A subscription is a stream: it begins here and ends when the handle is closed, which is the
 		// unsubscribe (BLI-MSG, "Subscribing").
 		async subscribe(topic, { onEvent, onClosed }) {
-			return channel.subscribe(
+			const handle = await channel.subscribe(
 				topic,
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
+			// The handle is a wasm-bindgen object, so its Rust allocation lives until JS frees it.
+			// Closing and freeing are paired here so the caller cannot leak one per visibility toggle,
+			// and the guard makes closing twice harmless rather than a use-after-free.
+			let closed = false
+			return {
+				close: async () => {
+					if (closed) return
+					closed = true
+					handle.close()
+					handle.free()
+				},
+			}
 		},
 
 		disconnect() {

@@ -334,8 +334,18 @@ pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Op
 			format!("message of {len} bytes exceeds the {MAX_MESSAGE}-byte maximum"),
 		));
 	}
-	let mut message = vec![0u8; len];
-	stream.read_exact(&mut message).await?;
+	// Grow with what has actually arrived rather than reserving the claimed length up front. A peer
+	// can open many streams and claim the maximum on each while sending almost nothing, and the device
+	// is the thing that has to stay reachable.
+	let mut message = Vec::new();
+	let mut chunk = [0u8; READ_CHUNK];
+	let mut remaining = len;
+	while remaining > 0 {
+		let take = remaining.min(chunk.len());
+		stream.read_exact(&mut chunk[..take]).await?;
+		message.extend_from_slice(&chunk[..take]);
+		remaining -= take;
+	}
 	Ok(Some(message))
 }
 

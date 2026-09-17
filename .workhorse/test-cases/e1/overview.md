@@ -44,6 +44,8 @@ A peer that breaks the base protocol is a fault, not a version difference, and i
 - [x] An object with no `type`, or whose `type` is not a string, is reported and closes the stream (Rust).
 - [x] A recognised type missing a member it required when defined, or carrying one as the wrong JSON type, is reported and closes the stream (Rust).
 - [x] A message beyond one mebibyte is reported and closes the stream, without the receiver having buffered it (Rust).
+- [x] A message is read into a buffer that grows with what arrives, so a peer claiming the maximum on many streams does not pin memory it never sends (Rust).
+- [x] A fault from the device ends the client's read of that stream rather than being reported and read past (Rust/wasm).
 - [x] None of the above closes the connection or disturbs another stream: the reporting stream keeps delivering (Rust).
 - [x] The client surfaces a protocol fault to the operator rather than showing a blank or frozen view (Playwright).
 - [ ] The device logs a protocol fault (Rust / manual: check the device log).
@@ -58,6 +60,7 @@ A peer that breaks the base protocol is a fault, not a version difference, and i
 - [ ] `device-hello` is the first message on the device's reporting stream; `client-hello` is the first on the client's control stream (Rust).
 - [ ] Each end sends its hello without waiting for the other's, and either arrival order works (Rust).
 - [x] The device's `name` and `version` are shown in the view (Playwright).
+- [x] Every message type survives the round trip the unknown-member detection depends on (Rust).
 - [ ] The device records the client's `name` and `version` (Rust / manual: check the device log).
 - [ ] No version is compared above the base protocol version: a client older than the device, and a device older than the client, both reach an open channel and a device view.
 - [ ] A device advertising a base protocol version the client does not implement is reported as exactly that, before any handshake is attempted (Rust).
@@ -75,6 +78,8 @@ A peer that breaks the base protocol is a fault, not a version difference, and i
 - [x] A `subscribe` for a topic the device does not recognise is skipped: the stream stays open, carries nothing, and nothing errors (Rust).
 - [ ] Two subscriptions are independent: closing one leaves the other delivering (Rust).
 - [x] Hiding the page closes the client's subscription streams; showing it opens fresh ones (Playwright, page-visibility).
+- [x] A subscription opened while the page is being hidden is closed anyway, rather than stranded open by a close that arrived while the open was in flight (Playwright).
+- [x] Unsubscribing completes while a read is pending, which is the ordinary case for a topic the device does not serve (Rust, envelope reader).
 
 ## The prototype is gone
 

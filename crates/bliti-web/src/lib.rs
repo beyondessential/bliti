@@ -26,7 +26,12 @@ use bliti_core::{
 	},
 	sticker::StickerPayload,
 };
-use futures::{AsyncWriteExt, channel::mpsc, lock::Mutex};
+use futures::{
+	AsyncWriteExt,
+	channel::{mpsc, oneshot},
+	future::{self, Either},
+	lock::Mutex,
+};
 use js_sys::{Function, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -152,6 +157,8 @@ struct Inner {
 	streams: Mutex<Option<Streams>>,
 	// The stream this client named itself on, held open for whatever a feature gives a client to send.
 	control: Mutex<Option<Stream>>,
+	// Closes the device's reporting stream, the same way a subscription is closed.
+	reporting_closer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
 /// A channel to a device: the handshake of BLI-CHN and the streams above it.
@@ -177,6 +184,7 @@ impl Channel {
 				inbound: RefCell::new(inbound),
 				streams: Mutex::new(None),
 				control: Mutex::new(None),
+				reporting_closer: RefCell::new(None),
 			}),
 		}
 	}
@@ -231,7 +239,13 @@ impl Channel {
 				.accept()
 				.await
 				.ok_or_else(|| JsError::new("the device closed the channel before reporting"))?;
-			spawn_local(report_until_closed(reporting, on_message, on_closed));
+			// The reporting stream is closed the same way a subscription is, so that dropping the
+			// channel does not leave a reader holding it.
+			let (closer, closing) = oneshot::channel();
+			spawn_local(report_until_closed(
+				reporting, closing, on_message, on_closed,
+			));
+			*inner.reporting_closer.borrow_mut() = Some(closer);
 
 			*inner.control.lock().await = Some(control);
 			*inner.streams.lock().await = Some(streams);
@@ -259,9 +273,11 @@ impl Channel {
 				.await
 				.map_err(|err| JsError::new(&format!("subscribing: {err}")))?;
 
-			let (reader, handle) = SubscriptionHandle::new(stream);
-			spawn_local(report_until_closed(reader, on_message, on_closed));
-			Ok(JsValue::from(handle))
+			let (closer, closing) = oneshot::channel();
+			spawn_local(report_until_closed(stream, closing, on_message, on_closed));
+			Ok(JsValue::from(SubscriptionHandle {
+				closer: RefCell::new(Some(closer)),
+			}))
 		})
 	}
 }
@@ -269,115 +285,94 @@ impl Channel {
 /// One open subscription, which lasts exactly as long as its stream.
 #[wasm_bindgen]
 pub struct SubscriptionHandle {
-	stream: Rc<Mutex<Option<Stream>>>,
-}
-
-impl SubscriptionHandle {
-	/// Split a stream into the half that is read and the handle that closes it.
-	fn new(stream: Stream) -> (SubscriptionReader, SubscriptionHandle) {
-		let shared = Rc::new(Mutex::new(Some(stream)));
-		(
-			SubscriptionReader {
-				stream: shared.clone(),
-			},
-			SubscriptionHandle { stream: shared },
-		)
-	}
+	closer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
 #[wasm_bindgen]
 impl SubscriptionHandle {
-	/// Unsubscribe, by closing the stream.
+	/// Unsubscribe, by asking the reader to close the stream.
+	///
+	/// The reader owns the stream and selects on this alongside its read, rather than the two
+	/// contending for one lock: a read is pending essentially always, including the ordinary case of a
+	/// device that does not know the topic and sends nothing, so a closer that had to take the stream
+	/// from under the reader would wait forever and the unsubscribe would never happen.
 	///
 	/// Closed rather than dropped: closing sends the graceful end of stream the device reads to stop
 	/// sending, where dropping would reach it as a reset. Either ends the subscription, but the
 	/// ordinary path should be the graceful one.
-	pub fn close(&self) -> Promise {
-		let stream = self.stream.clone();
-		future_to_promise(async move {
-			if let Some(mut stream) = stream.lock().await.take() {
-				let _ = stream.close().await;
-			}
-			Ok(JsValue::UNDEFINED)
-		})
+	pub fn close(&self) {
+		if let Some(closer) = self.closer.borrow_mut().take() {
+			let _ = closer.send(());
+		}
 	}
 }
 
-/// The reading half of a subscription, which gives the stream up once it is closed.
-struct SubscriptionReader {
-	stream: Rc<Mutex<Option<Stream>>>,
-}
-
-/// Pass everything a stream carries to the application, then say when it ends.
+/// Pass everything a stream carries to the application, until it ends or the application asks to
+/// close it.
 ///
 /// Each message is described rather than handed over raw, so the application is told which of the
-/// outcomes of BLI-MSG it is looking at and can render accordingly.
-async fn report_until_closed<R: ReadsMessages>(
-	mut source: R,
+/// outcomes of BLI-MSG it is looking at and can render accordingly. A fault is the exception: the
+/// receiver closes the stream a fault arrived on (BLI-MSG), so it ends the read here rather than
+/// being reported and read past, which would let a peer that has completed the handshake stream
+/// malformed messages indefinitely.
+async fn report_until_closed(
+	mut stream: Stream,
+	closing: oneshot::Receiver<()>,
 	on_message: Function,
 	on_closed: Function,
 ) {
-	loop {
-		match source.next().await {
-			Ok(Some(raw)) => {
-				let _ = on_message.call1(&JsValue::NULL, &JsValue::from_str(&describe(&raw)));
+	let mut closing = closing;
+	let ended = loop {
+		let read = read_message(&mut stream);
+		futures::pin_mut!(read);
+		match future::select(read, &mut closing).await {
+			Either::Left((Ok(Some(raw)), _)) => {
+				let (described, fault) = describe(&raw);
+				let _ = on_message.call1(&JsValue::NULL, &JsValue::from_str(&described));
+				if let Some(fault) = fault {
+					break Some(fault);
+				}
 			}
-			Ok(None) => break,
-			Err(err) => {
-				let _ = on_closed.call1(&JsValue::NULL, &JsValue::from_str(&err));
-				return;
-			}
+			Either::Left((Ok(None), _)) => break None,
+			Either::Left((Err(err), _)) => break Some(err.to_string()),
+			// The application has unsubscribed, or is going away.
+			Either::Right(_) => break None,
 		}
-	}
-	let _ = on_closed.call1(&JsValue::NULL, &JsValue::NULL);
+	};
+
+	let _ = stream.close().await;
+	let _ = on_closed.call1(
+		&JsValue::NULL,
+		&match ended {
+			Some(why) => JsValue::from_str(&why),
+			None => JsValue::NULL,
+		},
+	);
 }
 
-/// Something a message can be read from, so a plain stream and a subscription share one reader.
-trait ReadsMessages {
-	async fn next(&mut self) -> Result<Option<Vec<u8>>, String>;
-}
-
-impl ReadsMessages for Stream {
-	async fn next(&mut self) -> Result<Option<Vec<u8>>, String> {
-		read_message(self).await.map_err(|err| err.to_string())
-	}
-}
-
-impl ReadsMessages for SubscriptionReader {
-	async fn next(&mut self) -> Result<Option<Vec<u8>>, String> {
-		let mut guard = self.stream.lock().await;
-		let Some(stream) = guard.as_mut() else {
-			// Closed by the application: the subscription is over.
-			return Ok(None);
-		};
-		read_message(stream).await.map_err(|err| err.to_string())
-	}
-}
-
-/// Describe one message to the application as JSON.
+/// Describe one message to the application as JSON, and say whether it was a fault.
 ///
 /// The three outcomes of BLI-MSG are kept apart here rather than in the application, so every client
 /// surface inherits the same reading of the wire. `message` is what this build understood, `skipped`
 /// is a device newer than this build saying something safe to pass over, `refused` is one saying
 /// something that must not be half read, and `fault` is a device not speaking the protocol.
-fn describe(raw: &[u8]) -> String {
-	let described = match read::<DeviceMessage>(raw) {
-		Ok(Reading::Message(message)) => serde_json::json!({
-			"kind": "message",
-			"message": message,
-		}),
-		Ok(Reading::Skipped(skip)) => serde_json::json!({
-			"kind": "skipped",
-			"detail": skip.to_string(),
-		}),
-		Ok(Reading::Refused(refusal)) => serde_json::json!({
-			"kind": "refused",
-			"detail": refusal.to_string(),
-		}),
-		Err(fault) => serde_json::json!({
-			"kind": "fault",
-			"detail": fault.to_string(),
-		}),
-	};
-	described.to_string()
+fn describe(raw: &[u8]) -> (String, Option<String>) {
+	match read::<DeviceMessage>(raw) {
+		Ok(Reading::Message(message)) => (
+			serde_json::json!({ "kind": "message", "message": message }).to_string(),
+			None,
+		),
+		Ok(Reading::Skipped(skip)) => (
+			serde_json::json!({ "kind": "skipped", "detail": skip.to_string() }).to_string(),
+			None,
+		),
+		Ok(Reading::Refused(refusal)) => (
+			serde_json::json!({ "kind": "refused", "detail": refusal.to_string() }).to_string(),
+			None,
+		),
+		Err(fault) => (
+			serde_json::json!({ "kind": "fault", "detail": fault.to_string() }).to_string(),
+			Some(fault.to_string()),
+		),
+	}
 }

@@ -45,6 +45,40 @@ pub trait Message: DeserializeOwned + Serialize {
 	fn criticality(_type_name: &str) -> Criticality {
 		Criticality::Unconstrained
 	}
+
+	/// The members this build writes as critical on the named type.
+	///
+	/// Separate from [`Message::criticality`], which is what BLI-MSG pins for the types it defines.
+	/// This is the growth rule's sending half: a feature adding a member its message does not mean
+	/// anything without names it here, and an older peer refuses the message rather than acting on a
+	/// reading the sender has said is incomplete. A pinned type's two must agree.
+	fn critical_members(_type_name: &str) -> &'static [&'static str] {
+		&[]
+	}
+}
+
+/// Whether a message survives the round trip the unknown-member detection in [`read`] depends on.
+///
+/// That detection works by serialising a parsed message back and treating whatever the input had
+/// that the round trip does not as a member this build has never heard of. A type that skips
+/// serialising one of its own members therefore makes that member look unknown, and if it arrives
+/// critical the message is refused. The failure is silent and hard to trace to the serde attribute
+/// that caused it, so a feature adding a message type should assert this over an example of each.
+///
+/// Returns the paths of members that did not survive, empty where the type is sound.
+pub fn round_trip_omissions<T: Message>(message: &T) -> Vec<String> {
+	let Ok(written) = serde_json::to_value(message) else {
+		return vec!["<does not serialise>".to_owned()];
+	};
+	let Ok(parsed) = serde_json::from_value::<T>(written.clone()) else {
+		return vec!["<does not round trip>".to_owned()];
+	};
+	let Ok(again) = serde_json::to_value(&parsed) else {
+		return vec!["<does not serialise>".to_owned()];
+	};
+	let mut lost = BTreeSet::new();
+	collect_unknown(&written, &again, &mut String::new(), &mut lost);
+	lost.into_iter().collect()
 }
 
 /// What BLI-MSG requires of criticality on a message type.
@@ -276,7 +310,7 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 ///
 /// Casing is applied here rather than in each message type's own declaration, because the convention
 /// belongs to the envelope: a type says what it carries, and this says how a member is named on the
-/// wire. Members the type pins as critical go out in upper case.
+/// wire. Members the type names in [`Message::critical_members`] go out in upper case.
 pub fn write<T: Message>(message: &T) -> Vec<u8> {
 	let mut value = serde_json::to_value(message).expect("a message serialises");
 	let type_name = value
@@ -284,12 +318,10 @@ pub fn write<T: Message>(message: &T) -> Vec<u8> {
 		.and_then(Value::as_str)
 		.map(str::to_owned)
 		.unwrap_or_default();
-	if let Criticality::Exactly(required) = T::criticality(&type_name) {
-		if let Value::Object(object) = &mut value {
-			for name in required {
-				if let Some(member) = object.remove(*name) {
-					object.insert(name.to_ascii_uppercase(), member);
-				}
+	if let Value::Object(object) = &mut value {
+		for name in T::critical_members(&type_name) {
+			if let Some(member) = object.remove(*name) {
+				object.insert(name.to_ascii_uppercase(), member);
 			}
 		}
 	}

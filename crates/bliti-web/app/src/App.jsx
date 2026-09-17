@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createClient } from './client.js'
 import { cameraAvailable, scan } from './scanner.js'
@@ -8,10 +8,15 @@ import { cameraAvailable, scan } from './scanner.js'
 // so subscribing here is correct against both and carries no readings until a device offers them.
 const TOPIC = 'system'
 
+// How many notices and activity lines are kept. The far end decides how many arrive.
+const KEPT = 20
+
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
-	// Bluetooth in the loop.
-	const client = useMemo(() => window.__blitiClient ?? createClient(), [])
+	// Bluetooth in the loop. Compiled out of any build but the harness's, because anything able to run
+	// a script on this origin before the app mounts could otherwise install its own client and become
+	// the device's peer, and the sticker secret is the only credential there is.
+	const client = useMemo(() => (__TEST_SEAM__ && window.__blitiClient) || createClient(), [])
 
 	const [unsupported] = useState(() => client.unsupported())
 	const [sticker, setSticker] = useState(null)
@@ -25,10 +30,19 @@ export default function App() {
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
 	const video = useRef(null)
+	const scanning_ = useRef(null)
 
-	const note = useCallback((line) => setLog((lines) => [...lines, line]), [])
+	// Both are fed by the far end, so both are bounded: a device repeating a fault or a refusal must
+	// cost a fixed amount of memory rather than growing the view until the phone the operator is
+	// trying to diagnose stops responding.
+	const note = useCallback((line) => setLog((lines) => [...lines, line].slice(-KEPT)), [])
 	const notice = useCallback(
-		(kind, detail) => setNotices((all) => [...all, { kind, detail, id: `${Date.now()}${all.length}` }]),
+		(kind, detail) =>
+			setNotices((all) => {
+				const last = all[all.length - 1]
+				if (last && last.kind === kind && last.detail === detail) return all
+				return [...all, { kind, detail, id: `${Date.now()}-${all.length}` }].slice(-KEPT)
+			}),
 		[],
 	)
 
@@ -83,18 +97,33 @@ export default function App() {
 	// phone in a pocket from pulling samples over a link nobody is reading (BLI-MSG).
 	useEffect(() => {
 		if (!connected) return
-		let handle = null
+		// The in-flight open is tracked rather than the handle it resolves to. Tracking the handle
+		// means a close arriving while an open is still in flight finds nothing to close, and the
+		// stream that arrives a moment later is never closed by anyone: the device goes on pushing to
+		// a page that is hidden or gone, which is the one thing this mechanism exists to prevent.
+		let opening = null
 		let stopped = false
 
-		const open = async () => {
-			if (handle || stopped || document.hidden) return
-			handle = await client.subscribe(TOPIC, { onEvent, onClosed: () => {} })
+		const open = () => {
+			if (opening || stopped || document.hidden) return
+			opening = client.subscribe(TOPIC, { onEvent, onClosed: () => {} }).then(async (handle) => {
+				// The page may have been hidden, or the effect torn down, while this was in flight.
+				if (stopped || document.hidden) {
+					await handle.close()
+					return null
+				}
+				return handle
+			})
 		}
+
 		const close = async () => {
-			const open = handle
-			handle = null
-			if (open) await open.close()
+			const inFlight = opening
+			opening = null
+			if (!inFlight) return
+			const handle = await inFlight
+			if (handle) await handle.close()
 		}
+
 		const onVisibility = () => (document.hidden ? close() : open())
 
 		open()
@@ -133,12 +162,15 @@ export default function App() {
 	}
 
 	async function startScan() {
+		const controller = new AbortController()
+		scanning_.current = controller
 		setScanning(true)
 		setReadError('')
 		try {
 			const found = await scan(video.current, {
 				read: (text) => client.readSticker(text),
 				onRejected: setReadError,
+				signal: controller.signal,
 			})
 			if (found) {
 				setSticker(found)
@@ -147,9 +179,14 @@ export default function App() {
 		} catch (error) {
 			setReadError(`The camera is not available: ${error.message ?? error}`)
 		} finally {
+			scanning_.current = null
 			setScanning(false)
 		}
 	}
+
+	// Leaving the sticker screen with the camera running would leave it running with nothing showing
+	// it, so the scan is cancelled on the way out as well as by the button.
+	useEffect(() => () => scanning_.current?.abort(), [])
 
 	if (unsupported) {
 		return (
@@ -174,9 +211,15 @@ export default function App() {
 					<TypedSticker onRead={readFrom} />
 					{cameraAvailable() && (
 						<div className="row" style={{ marginTop: 8 }}>
-							<button className="secondary" onClick={startScan} disabled={scanning}>
-								Scan with camera
-							</button>
+							{scanning ? (
+								<button className="secondary" onClick={() => scanning_.current?.abort()}>
+									Stop the camera
+								</button>
+							) : (
+								<button className="secondary" onClick={startScan}>
+									Scan with camera
+								</button>
+							)}
 						</div>
 					)}
 					{readError && <p className="bad">{readError}</p>}
@@ -231,10 +274,10 @@ export default function App() {
 								<dt>Hostname</dt>
 								<dd>{identity.hostname}</dd>
 								{identity.addresses.map((address) => (
-									<Fragment2 key={`${address.interface}-${address.address}`}>
+									<Fragment key={`${address.interface}-${address.address}`}>
 										<dt>{address.interface}</dt>
 										<dd>{address.address}</dd>
-									</Fragment2>
+									</Fragment>
 								))}
 							</>
 						)}
@@ -254,11 +297,6 @@ export default function App() {
 			)}
 		</main>
 	)
-}
-
-// A grid of terms and details wants its pairs as siblings, so a keyed wrapper that renders neither.
-function Fragment2({ children }) {
-	return <>{children}</>
 }
 
 function TypedSticker({ onRead }) {

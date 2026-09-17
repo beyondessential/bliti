@@ -118,6 +118,25 @@ test.describe('the subscription lifecycle', () => {
 		await expect.poll(async () => (await subscriptions(page))[1].open).toBe(true)
 	})
 
+	// A close arriving while the open is still in flight must still close the stream that open
+	// produces. Tracking the resolved handle rather than the in-flight promise leaves that stream
+	// open forever, and the device goes on pushing to a page nobody is looking at.
+	test('a subscription opened while the page is being hidden is closed anyway', async ({ page }) => {
+		await page.addInitScript('window.__blitiSubscribeDelay = 300')
+		await openChannel(page)
+
+		// Hide the page while the first subscribe is still in flight.
+		await page.evaluate(() => {
+			Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+			document.dispatchEvent(new Event('visibilitychange'))
+		})
+
+		await expect.poll(() => subscriptions(page)).toHaveLength(1)
+		await expect
+			.poll(async () => (await subscriptions(page))[0].open)
+			.toBe(false)
+	})
+
 	// Samples already queued when the stream ends may still arrive, and are discarded rather than
 	// treated as a fault (BLI-MSG, "Subscribing").
 	test('data in flight after unsubscribing is discarded rather than faulting', async ({ page }) => {
