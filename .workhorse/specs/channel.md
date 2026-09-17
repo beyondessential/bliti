@@ -76,9 +76,29 @@ Where the host's Bluetooth stack would resolve the connecting client's attribute
 > All authentication and secrecy come from the handshake above, so an encrypted link and a stored bond add nothing the protocol relies on.
 > A stack that resolves the peer's attributes can meet one whose read requires an encrypted link, ask to pair to satisfy it, and drop the link partway through a session that was otherwise working.
 
+## Compression
+
+Above the handshake, the encrypted byte stream MUST carry one zlib stream of [RFC 1950](https://www.rfc-editor.org/rfc/rfc1950) in each direction.
+
+Each direction's compression context MUST be established with the connection and MUST last as long as it.
+A context MUST NOT be reset, and MUST NOT be established per stream or per message.
+
+A context MUST NOT use a preset dictionary.
+
+A sender MUST NOT leave a message it has finished writing unreadable by the receiver.
+A sender MAY defer flushing while it has more to write.
+
+A receiver that cannot decompress what arrives MUST treat it as a fault in the peer, MUST report it, and MUST close the connection.
+
+> [!NOTE]
+> Compression is unconditional, so there is nothing to negotiate, nothing to carry in a hello, and no uncompressed path. The marker of [VER](version.md) covers this section, and both ends are at the same marker before a channel exists.
+> One context per direction, rather than one per stream or one per message, is what sees the redundancy that lives across messages rather than within one: every sample a device sends repeats the labels, units and state strings of the one before it. What it costs is that a receiver cannot skip an unknown message without decompressing it, since the context must stay fed, and it has to decompress to learn the type in any case.
+> Flushing at each message boundary satisfies the rule above, and deferring is what lets a burst compress as one run.
+> The context is shared by every stream and is unrecoverable once it has diverged, which is why a decompression failure ends the connection rather than the one stream, unlike the message faults of [MSG](messages.md). A conforming peer cannot produce one: the compressed bytes sit inside the Noise transport, so neither corruption on the link nor an observer can reach them.
+
 ## Streams
 
-Above the handshake, the encrypted byte stream MUST carry [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md), with the client as the yamux client and the device as the yamux server.
+Above the compression, the byte stream MUST carry [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md), with the client as the yamux client and the device as the yamux server.
 Closing one stream MUST leave the other streams and the connection alive.
 
 > [!NOTE]

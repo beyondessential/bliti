@@ -17,15 +17,13 @@ The channel of [CHN](channel.md) carries application messages inside a common en
 
 ## How a message is delimited
 
-A message MUST be a JSON object encoded as UTF-8, prefixed with its length as four bytes, big-endian, giving the number of bytes of JSON that follow.
+A message MUST be a JSON object encoded as UTF-8, prefixed with its length as three bytes, big-endian, giving the number of bytes of JSON that follow.
 
 A message MUST NOT carry a trailing newline or padding, and the next message's prefix MUST begin at the byte after the last byte of JSON.
 
-A message MUST be at most 128 kibibytes of JSON, and a receiver sent a longer one MUST treat it as a fault.
-
 > [!NOTE]
-> This delimiting sits inside the framing of [CHN](channel.md) and is not the same thing: that framing delimits Noise messages on the link, while this delimits application messages within one stream.
-> The ceiling is set by the link rather than by JSON. The channel runs over BLE, where a message is carried as a stream of small notifications, and one large enough to take thousands of them denies the connection to everything else for as long as it takes. A feature with more to say sends it in several messages.
+> This delimiting sits inside the framing of [CHN](channel.md) and is not the same thing: that framing delimits Noise messages on the link, while this delimits application messages within one stream. The two prefixes are of different widths, so code that reads one cannot be code that reads the other.
+> A three-byte prefix expresses exactly what a receiver can be asked to buffer, so an over-long message is unrepresentable and no rule is needed to refuse one. The width is a bound rather than an invitation: a feature with bulk to send carries it as many messages on a stream of its own, which is what leaves the connection usable for everything else while it does.
 
 ## How a message is shaped
 
@@ -97,7 +95,7 @@ Every message is therefore valid UTF-8, is valid JSON, is a JSON object, and car
 
 A message that breaks any of that MUST be treated as a fault in the peer and MUST be reported rather than passed over.
 
-On such a fault, and on a message beyond the size ceiling, the receiver MUST close the stream the message arrived on, and MUST leave the connection and every other stream alive.
+On such a fault the receiver MUST close the stream the message arrived on, and MUST leave the connection and every other stream alive.
 
 > [!NOTE]
 > A version difference cannot produce a malformed message, which is why one is a fault rather than skew.

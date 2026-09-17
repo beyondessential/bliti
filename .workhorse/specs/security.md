@@ -98,6 +98,15 @@ Where it comes from a platform serial, the cost is what the guarantee rests on, 
 A Raspberry Pi 4 or 5 serial occupies its full width and is out of reach.
 A serial that collapses to a short value, as on earlier boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 
+### Compressed sizes carry a signal about content
+
+The channel compresses what it carries, as [CHN](channel.md) specifies, so what crosses the link varies with a message's content and not with its length alone.
+
+An observer learns nothing of what is said, and something of how much of a message the compression context had already seen.
+
+> [!NOTE]
+> The attacks that recover a secret from compressed sizes need input an attacker chooses to share a context with the secret. Neither direction offers that: the presence token is never sent, and each end compresses only what it chose to say.
+
 ### What a handshake proves
 
 A handshake proves that the device holds a static key derived from its own board ID, and that the client holds that device's presence token.
