@@ -143,7 +143,7 @@ This is not a fault in the peer and is not treated as one.
 The stream stays open and the connection is untouched, and the receiver goes on handling and displaying everything else it does understand.
 A client behind a device is the ordinary case, and an operator is better served by most of a view, plainly marked as partial, than by none of it.
 
-The `device-hello` the client cannot process leaves it without the device's name and version.
+The `device-hello` and `client-hello` message types are  the client cannot process leaves it without the device's name and version.
 It says so and carries on with the session rather than refusing it, because what the operator came to do does not depend on knowing what the device is running.
 
 ## What is not recognised is skipped
