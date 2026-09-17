@@ -184,6 +184,10 @@ Open:
 
 ## Other findings
 
+- The board ID was described as the value "every other value in the system descends from", in the deleted chain, in the glossary, and in `board-id.md` line 7. It is false. It descends to the presence secret and the advertised handle and nothing else: the rotation salt is random, the version marker is not derived, the service and characteristic UUIDs are constants, and session keys come out of the handshake. Corrected in the glossary; **`board-id.md` still carries it and is corrected in its rewrite.**
+
+  Worth noting how it surfaced. The claim sat unremarked in three places while the surrounding prose was long, and became conspicuous the moment the glossary entry was cut to two lines. Compression is what made a false sentence visible, which is an argument for the rewrite beyond the voice itself.
+
 - Em-dashes violated the house rule in `overview.md` only (two, now fixed). The other eight were clean.
 - The link checker runs `--offline`, so external URLs are not checked and CI stays deterministic. It guards local links and heading anchors, which is the breakage the deep-link convention introduces. External link rot would want a separate scheduled job.
 - No anchor links existed anywhere in the specs before this card, so the convention and its guard arrive together.
