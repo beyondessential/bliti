@@ -23,30 +23,25 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 ### Board ID
 
-The identifier the board's own firmware provides, from which every other value in the system descends.
-It is not a secret, and any software on the device can read it.
-Which sources qualify, and in what order of precedence, are specified in [BLI-BID](board-id.md).
+The identifier a board's own firmware provides, from which every other value in the system descends.
+Defined in [BLI-BID](board-id.md).
 
 ### Presence secret
 
-The 32-byte secret derived from the board ID, encoded in the device's QR code, and used as the pre-shared key that authenticates a channel.
-Holding it stands as proof that the holder has read the QR code on the device itself.
-Its derivation is specified in [BLI-KEY](key-schedule.md).
+The secret derived from the board ID and encoded in the device's QR code.
+Defined in [BLI-KEY](key-schedule.md).
 
 ### Advertised handle
 
-The value derived from the presence secret and the current rotation salt, which the device broadcasts continuously.
-A client holding the presence secret recomputes it to recognise the device; an observer without the secret cannot tell which device it belongs to.
-Its derivation is specified in [BLI-KEY](key-schedule.md), and its use in [BLI-ADV](discovery.md).
+The value a device broadcasts so that a client holding its presence secret can recognise it.
+Defined in [BLI-KEY](key-schedule.md).
 
 ### QR code
 
-The machine-readable code carried on the outside of a device, encoding the presence secret and the base protocol version.
-What it encodes, and how one is produced, are specified in [BLI-STK](sticker.md).
+The machine-readable code carried on the outside of a device, encoding the presence secret and the version marker.
+Defined in [BLI-STK](sticker.md).
 
 ### Version marker
 
-The number identifying the version of the protocol a device speaks, carried both in its QR code and in its advertisement.
-It is the only version any part of the system acts on.
-What it covers, and how each end acts on it, are specified in [VER](version.md).
-
+The number identifying the version of the protocol a device speaks.
+Defined in [VER](version.md).
