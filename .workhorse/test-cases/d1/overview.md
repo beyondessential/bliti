@@ -34,6 +34,8 @@ An independently written client should pass the client-side cases from the spec 
 - [ ] A derived direction is withheld until there is enough history to be steady (Rust).
 - [ ] External power reported present while charge falls steadily sets the battery reading to `warn` with a note (Rust). This is the poor-pogo-pin case, which is a documented failure on this board.
 - [ ] Every reading degrades to something on a machine that is not a Pi (Rust, plus a manual run on the development laptop).
+- [ ] A machine with no UPS fitted reports neither a battery nor a `power-source` reading (Rust, plus a manual run on the development laptop). The pull-up on GPIO 6 makes an unconnected pin read as external power present, so this is the guard against reporting a UPS that is not there.
+- [ ] The gauge reading works unchanged on both board models, since both carry the same part at the same address (Rust; manual on each of v3 and v4).
 
 ## Sampling and the buffer (verifies spec: BLI-SYS)
 
@@ -69,6 +71,8 @@ An independently written client should pass the client-side cases from the spec 
 ## Against real hardware
 
 Manual, or agentic over ssh to `tamanu-iti-v4-prototype`. Web Bluetooth cannot run in Chrome on the development laptop, so these go through a phone.
+
+The test device is a v4. Anything board-specific needs running again on a v3, whose power-loss pin is not documented and has to be established on the hardware.
 
 - [ ] Every reading shows a plausible value on the test device, checked against the same figure read over ssh.
 - [ ] The fuel gauge reading matches what the gauge reports directly.

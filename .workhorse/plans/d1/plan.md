@@ -80,10 +80,24 @@ Bespoke treatment sits on top of generic rendering and never replaces it. Each o
 
 `.workhorse/design/mockups/d1/device-diagnostics.html` holds the four frames: at a glance, battery tapped, network tapped, and a device in trouble. Match the built view to it, and update it if the build finds the layout wrong.
 
-## Hardware, as confirmed on the test device
+## The UPS hardware
 
-The UPS board is a Geekworm X1208: a single 21700 lithium-ion cell, charged at up to 1.5 A, terminal voltage 4.23 V.
+Two board models are in the field.
 
-The fuel gauge is a MAX17040 at `0x36` on I2C bus 1. Registers `0x16`, `0x18` and `0x1a` all read `0xffff`, so they are unimplemented and this is not a MAX17048 or '49; RCOMP at `0x0c` reads `0x97`, the MAX17040 default. There is therefore no charge-rate register, which is why direction comes from the power-source line or from history rather than from the gauge.
+**v4** carries a Geekworm X1208: a single 21700 lithium-ion cell, charged at up to 1.5 A, terminal voltage 4.23 V.
 
-The power-loss line is GPIO 6, high when external power is present.
+**v3** carries a Geekworm X1201: two 18650 cells in parallel, the same nominal and terminal voltage.
+
+Both integrate a Maxim gauge at `0x36` on I2C bus 1, so the gauge reading is one code path. State of charge is a proportion, so the differing cell count and capacity need no special handling.
+
+Confirmed by reading the gauge on the v4 test device: registers `0x16`, `0x18` and `0x1a` all read `0xffff`, so they are unimplemented and the part is not a MAX17048 or '49; RCOMP at `0x0c` reads `0x97`, the MAX17040 default. There is no charge-rate register on either board, which is why direction comes from the power-source line or from history rather than from the gauge.
+
+The power-loss line on v4 is GPIO 6, high when external power is present. Geekworm does not document the pin or its active level for the X1201, so v3's must be confirmed against real v3 hardware rather than assumed from the family convention.
+
+### Deciding what is fitted
+
+The device must not report a UPS it does not have. GPIO 6 defaults to a pull-up on a Pi, so an unconnected pin reads high, and a machine with no UPS at all would otherwise report itself confidently running on mains.
+
+- [ ] Gate every UPS reading on the gauge answering at `0x36`. No gauge means no battery reading and no `power-source` reading, and the tiles do not appear.
+- [ ] Never read the power-loss line unless the gauge answered. A floating input is not a measurement.
+- [ ] Test on a machine with no UPS fitted, which is every development laptop, and confirm neither reading appears.
