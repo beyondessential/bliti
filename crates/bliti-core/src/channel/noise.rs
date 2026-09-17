@@ -1,9 +1,9 @@
 //! The Noise `NNpsk0` handshake and the transport it produces.
 //!
-//! Behaviour is specified in BLI-CHN, "Authentication". Both ends bring only ephemeral keys and all
+//! Behaviour is specified in CHN, "Authentication". Both ends bring only ephemeral keys and all
 //! authentication comes from the pre-shared secret, so completing the handshake proves in both
-//! directions that each end holds the sticker secret. The handshake produces a fresh session key
-//! and gives the session forward secrecy, so recovering a sticker secret later does not decrypt a
+//! directions that each end holds the presence token. The handshake produces a fresh session key
+//! and gives the session forward secrecy, so recovering a presence token later does not decrypt a
 //! recorded session.
 //!
 //! `snow`'s pure-Rust default resolver is used, so this builds for `wasm32-unknown-unknown` and the
@@ -12,7 +12,7 @@
 use snow::{Builder, HandshakeState, TransportState};
 
 use super::ChannelError;
-use crate::key_schedule::StickerSecret;
+use crate::key_schedule::PresenceToken;
 
 /// The Noise protocol: `NNpsk0` over X25519, ChaCha20-Poly1305, and BLAKE2s. The PSK sits at
 /// position 0, mixed in before the first message. This string is part of the wire contract; changing
@@ -37,17 +37,17 @@ pub struct Handshake {
 }
 
 impl Handshake {
-	/// Build the initiating side, keyed by the sticker secret. The client is the initiator.
-	pub fn initiator(psk: &StickerSecret) -> Result<Self, ChannelError> {
+	/// Build the initiating side, keyed by the presence token. The client is the initiator.
+	pub fn initiator(psk: &PresenceToken) -> Result<Self, ChannelError> {
 		Self::build(psk, true)
 	}
 
-	/// Build the responding side, keyed by the sticker secret. The device is the responder.
-	pub fn responder(psk: &StickerSecret) -> Result<Self, ChannelError> {
+	/// Build the responding side, keyed by the presence token. The device is the responder.
+	pub fn responder(psk: &PresenceToken) -> Result<Self, ChannelError> {
 		Self::build(psk, false)
 	}
 
-	fn build(psk: &StickerSecret, initiator: bool) -> Result<Self, ChannelError> {
+	fn build(psk: &PresenceToken, initiator: bool) -> Result<Self, ChannelError> {
 		let params = NOISE_PARAMS
 			.parse()
 			.map_err(|err| ChannelError::Handshake(format!("invalid Noise parameters: {err}")))?;
@@ -136,15 +136,15 @@ impl Transport {
 mod tests {
 	use super::*;
 
-	fn secret(byte: u8) -> StickerSecret {
-		StickerSecret::from_bytes([byte; 32])
+	fn secret(byte: u8) -> PresenceToken {
+		PresenceToken::from_bytes([byte; 32])
 	}
 
 	/// Drive a full handshake between two ends holding the given secrets, returning their transports
 	/// if it completes.
 	fn run(
-		client_psk: &StickerSecret,
-		device_psk: &StickerSecret,
+		client_psk: &PresenceToken,
+		device_psk: &PresenceToken,
 	) -> Result<(Transport, Transport), ChannelError> {
 		let mut client = Handshake::initiator(client_psk)?;
 		let mut device = Handshake::responder(device_psk)?;
@@ -175,7 +175,7 @@ mod tests {
 
 	#[test]
 	fn wrong_secret_fails_the_handshake() {
-		// A client that scanned a different sticker cannot complete the handshake.
+		// A client that scanned a different QR code cannot complete the handshake.
 		let result = run(&secret(0x01), &secret(0x02));
 		assert!(matches!(result, Err(ChannelError::Handshake(_))));
 	}

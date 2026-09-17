@@ -1,6 +1,6 @@
 //! The battery and where the device's power is coming from.
 //!
-//! Behaviour is specified in BLI-SYS, "Power source and battery". The hardware is a Geekworm X120x
+//! Behaviour is specified in SYS, "Power source and battery". The hardware is a Geekworm X120x
 //! backup board: a Maxim gauge on I2C reporting cell voltage and state of charge, and a line the
 //! board pulls high while external power reaches it.
 //!

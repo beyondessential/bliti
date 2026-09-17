@@ -1,6 +1,6 @@
 //! The application message envelope: how a message is shaped, named, and read.
 //!
-//! Behaviour is specified in BLI-MSG. A message is a JSON object carrying a `type` member, and the
+//! Behaviour is specified in MSG. A message is a JSON object carrying a `type` member, and the
 //! case of a member's name says what a receiver that does not recognise it must do: an upper case
 //! name is critical and the object carrying it must not be acted on, a lower case name is ignorable.
 //!
@@ -40,7 +40,7 @@ pub trait Message: DeserializeOwned + Serialize {
 	/// it knows but cannot parse: the first is a newer peer, the second a broken one.
 	fn knows(type_name: &str) -> bool;
 
-	/// What BLI-MSG requires of criticality on the named message type.
+	/// What MSG requires of criticality on the named message type.
 	///
 	/// The types that spec defines are pinned, so that the messages opening a conversation never put a
 	/// receiver in the position of weighing criticality, and so that a request to be sent something
@@ -53,7 +53,7 @@ pub trait Message: DeserializeOwned + Serialize {
 
 	/// The members this build writes as critical on the named type.
 	///
-	/// Separate from [`Message::criticality`], which is what BLI-MSG pins for the types it defines.
+	/// Separate from [`Message::criticality`], which is what MSG pins for the types it defines.
 	/// This is the growth rule's sending half: a feature adding a member its message does not mean
 	/// anything without names it here, and an older peer refuses the message rather than acting on a
 	/// reading the sender has said is incomplete. A pinned type's two must agree.
@@ -86,7 +86,7 @@ pub fn round_trip_omissions<T: Message>(message: &T) -> Vec<String> {
 	lost.into_iter().collect()
 }
 
-/// What BLI-MSG requires of criticality on a message type.
+/// What MSG requires of criticality on a message type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Criticality {
 	/// Nothing beyond the general rules, as for a type a feature owns.
@@ -194,7 +194,7 @@ pub enum Fault {
 	#[error("`type` is not a string")]
 	TypeNotString,
 
-	/// A critical member on a message type that BLI-MSG forbids carrying one.
+	/// A critical member on a message type that MSG forbids carrying one.
 	#[error("{type_name} may not carry a critical member, but carried {names}")]
 	CriticalNotAllowed {
 		/// The message type that carried it.
@@ -257,7 +257,7 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 		});
 	}
 
-	// A type whose criticality BLI-MSG pins, carrying something other than what it pins, is a peer
+	// A type whose criticality MSG pins, carrying something other than what it pins, is a peer
 	// breaking the protocol rather than a peer newer than this build.
 	if let Criticality::Exactly(required) = T::criticality(&type_name) {
 		let surplus: Vec<&str> = critical
@@ -516,7 +516,7 @@ mod tests {
 
 	/// A message type standing in for one a feature defines later.
 	///
-	/// It is needed because every type BLI-MSG itself defines forbids a critical member, so none of
+	/// It is needed because every type MSG itself defines forbids a critical member, so none of
 	/// them can carry one legally and none can serve as the vehicle for the general rules below.
 	#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 	#[serde(tag = "type")]

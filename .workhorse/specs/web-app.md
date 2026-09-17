@@ -1,59 +1,61 @@
 ---
-id: BLI-WEB
+id: WEB
 ---
 
 # Web application
 
-The web application is the client for [BLI](overview.md): it reads a sticker, finds the device that sticker belongs to, and opens a channel to it.
-It runs in a browser without being installed first, which is what lets a device be provisioned by whoever is standing in front of it.
+The web application is a client that runs in a browser: it reads a QR code, finds the device the code belongs to, and opens a channel to it.
 
-## Reading a sticker
+## Borrowed terms
 
-A sticker reaches the application by two paths.
+| term | meaning |
+| --- | --- |
+| secure context | A browsing context a browser considers safe enough to expose powerful features to. An `https://` origin satisfies it, as does `http://localhost`. |
+| chooser | The picker a browser may present in place of the advertisements themselves, from which a person selects the one device a page may talk to. |
+| fragment | The part of a URL after `#`, which a browser resolves locally and does not send to a server. |
 
-Following the link opens the application with the payload already in the fragment.
-This is the path for a device scanned with a generic phone camera, by an operator with nothing installed.
+## Reading a QR code
 
-Capturing the QR code with the camera reads a sticker into an application that is already open.
-This is the path for provisioning several devices in one session, where returning through the link for each one would mean leaving and re-entering the application every time.
+The application MUST accept a payload by either path: following the link, which opens the application with the payload already in the fragment, or capturing the code with the camera while the application is already open.
 
-Both paths yield the same payload, and the application treats it identically once read.
+The application MUST treat a payload identically however it arrived.
 
-The fragment is read in the browser and is not sent to a server.
+The application MUST report a payload it cannot parse and a payload at an unsupported version as the distinct conditions they are.
 
-A payload the application cannot parse, and one carrying a version the application does not support, are each reported as what they are.
+> [!NOTE]
+> The link is the path for a device scanned with a generic phone camera, by an operator with nothing installed. The camera is the path for provisioning several devices in one session, where returning through the link each time would mean leaving and re-entering the application.
 
 ## Finding the device
 
-The application scans for the service UUID of [BLI-ADV](discovery.md), and matches the handle it recomputes from the sticker against the advertisements it hears.
+The application MUST scan for the service UUID of [ADV](discovery.md), and MUST match on the recomputed handle as [ADV](discovery.md) specifies.
 
-Where the browser offers a chooser rather than the advertisements themselves, the application filters that chooser by the local name, so that the device whose sticker was read is the one presented.
+Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by the local name.
+
+> [!NOTE]
+> Filtering the chooser is what puts the device whose QR code was read in front of the operator, rather than every bliti device in range.
 
 ## Opening the channel
 
-The application runs the handshake of [BLI-CHN](channel.md) with the sticker secret, and carries messages over the channel that handshake establishes.
+The application MUST run the handshake of [CHN](channel.md) with the presence token read from the payload.
 
-The application computes the handle, which is a fast hash, and does not run the memory-hard derivation of [BLI-KEY](key-schedule.md).
-The sticker secret is read from the payload rather than derived, so nothing in the client needs the argon2id parameters or the memory they ask for.
+The application MUST NOT run the memory-hard derivation of [KEY](key-schedule.md).
 
-Within the channel the application exchanges messages under the envelope of [BLI-MSG](messages.md): it names itself to the device and displays the version the device reports, subscribes to live data only while the operator is looking, and skips anything it does not recognise.
+> [!NOTE]
+> A client reads the token from the payload rather than deriving it, so nothing in a client needs the argon2id parameters or the memory they ask for. The handle a client does compute is a fast hash.
 
-## Installable and available offline
+## Installation and offline use
 
-The application is served from a hosted origin, which is the one the sticker encodes, as specified in [BLI-STK](sticker.md).
-It needs no installation to run, so a device can be provisioned by whoever is standing in front of it.
+The application MUST be served from the origin the QR code encodes, as [QR](qr-code.md) specifies.
 
-The application can also be installed, and once it has been loaded it works offline, so a phone that has opened it before is useful at a site with no connectivity.
-The only transport to a device is the BLE channel of [BLI-CHN](channel.md); there is no device-side server and no second path, so a client reaches a device the same way whether it was installed or freshly loaded.
+The application MUST run without being installed first, and MUST remain usable offline once it has been loaded.
 
-A cached or installed application is itself a source of the version skew [BLI-MSG](messages.md) absorbs, an older client meeting a device that has since been updated.
+> [!NOTE]
+> Running uninstalled is what lets whoever is standing in front of a device provision it.
+> Working offline is what makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).
 
 ## Secure context
 
-The application requires a secure context, because neither the camera nor Bluetooth is available without one.
-An `https://` origin satisfies this, as does `http://localhost` when the application is served locally.
+The application MUST be served from an origin that constitutes a secure context.
 
-## Where a feature's client half is specified
-
-A spec for a feature carried over the channel describes what the application does with that feature under a heading of its own, rather than in this spec.
-This spec covers reading a sticker, finding a device, and opening a channel, which every feature shares.
+> [!NOTE]
+> Neither the camera nor Bluetooth is available to a page without one.

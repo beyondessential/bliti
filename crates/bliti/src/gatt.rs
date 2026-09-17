@@ -1,7 +1,7 @@
 //! The GATT transport: a byte stream carried by a characteristic the client writes and a
 //! characteristic the device notifies on.
 //!
-//! Behaviour is specified in BLI-CHN, "Transport". This is the bottom layer, and the only part of the
+//! Behaviour is specified in CHN, "Transport". This is the bottom layer, and the only part of the
 //! device that knows about BlueZ. Everything above it — framing, the handshake, streams, messages —
 //! sees an ordered byte stream and nothing else, which is what lets the same stack run over L2CAP
 //! later, or in a browser over Web Bluetooth, without changing.

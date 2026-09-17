@@ -5,7 +5,7 @@
 //! different transport later without changing.
 //!
 //! The device opens a reporting stream as soon as the handshake completes, naming itself and then
-//! reporting what it is, and serves whatever streams a client opens (BLI-MSG). It never answers a
+//! reporting what it is, and serves whatever streams a client opens (MSG). It never answers a
 //! message on the wire: one it does not recognise is passed over, one carrying something critical it
 //! does not know is refused, and one that breaks the protocol closes the stream it arrived on.
 
@@ -17,7 +17,7 @@ use bliti_core::{
 		messages::{ClientMessage, DeviceMessage},
 		stream::{Mode, Streams, accept_responder, multiplex, read_message, write_message},
 	},
-	key_schedule::StickerSecret,
+	key_schedule::PresenceToken,
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -26,12 +26,12 @@ use crate::{facts::Facts, sampler::Sampler};
 /// How often to look for a change in what the device reports about itself.
 const IDENTITY_POLL: Duration = Duration::from_secs(2);
 
-/// The topic carrying the device's live readings (BLI-SYS).
+/// The topic carrying the device's live readings (SYS).
 const SYSTEM_TOPIC: &str = "system";
 
 /// What the device calls itself to a client, and the version it is at.
 ///
-/// Both are opaque to the client, which displays them and never acts on them (BLI-MSG). They are the
+/// Both are opaque to the client, which displays them and never acts on them (MSG). They are the
 /// package's own name and version, so a device reports what was actually built and installed.
 const DEVICE_NAME: &str = env!("CARGO_PKG_NAME");
 const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -40,10 +40,10 @@ const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// Returns once the client goes away or the channel fails. A failed handshake is an ordinary outcome
 /// rather than an error worth stopping the daemon for: anyone in range can connect and try, and the
-/// device stays reachable by a legitimate operator afterwards (BLI-ADV, "Advertising continuously").
+/// device stays reachable by a legitimate operator afterwards (ADV, "Advertising continuously").
 pub async fn run<S>(
 	transport: S,
-	secret: &StickerSecret,
+	secret: &PresenceToken,
 	sampler: Sampler,
 ) -> Result<(), SessionError>
 where
@@ -62,7 +62,7 @@ where
 	});
 
 	// Holds sampling open for as long as this session lasts, so a device that had gone quiet starts
-	// filling its window again the moment somebody connects (BLI-SYS).
+	// filling its window again the moment somebody connects (SYS).
 	let _session = sampler.session();
 
 	let result = converse(&mut streams, &sampler).await;
@@ -141,7 +141,7 @@ async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), Sessio
 /// Serve a subscription to the device's live readings, until the client closes the stream.
 ///
 /// The window goes first, so a graph is populated the moment it appears rather than filling from
-/// empty while an operator waits (BLI-SYS).
+/// empty while an operator waits (SYS).
 async fn serve_system<S>(stream: &mut S, sampler: &Sampler) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -169,7 +169,7 @@ where
 	let mut live = sampler.live();
 
 	// The client closing its sending side is the unsubscribe, and reading end of stream is how the
-	// device learns of it (BLI-MSG, "Subscribing"). It has to be read for: a half-close leaves this
+	// device learns of it (MSG, "Subscribing"). It has to be read for: a half-close leaves this
 	// end's write side open, so a device watching only for a failed write would go on sending to a
 	// client that has said it is done, which is the case the mechanism exists to prevent.
 	let (reader, mut writer) = stream.split();
@@ -214,7 +214,7 @@ where
 /// Resolve when the peer closes its sending side, or the stream ends any other way.
 ///
 /// A subscription lasts exactly as long as its stream, so a reset or a dropped link ends it just as a
-/// graceful close does, and none of them is a fault either end reports (BLI-MSG). Nothing is defined
+/// graceful close does, and none of them is a fault either end reports (MSG). Nothing is defined
 /// on a subscription stream after the `subscribe`, so anything that arrives before the end is passed
 /// over rather than acted on.
 async fn until_end_of_stream<R: AsyncRead + Unpin>(mut reader: R) {
@@ -238,7 +238,7 @@ where
 			Ok(Some(raw)) => raw,
 			// The end of the stream. Where it was a subscription, this is the unsubscribe: there is
 			// nothing to stop yet because no topic is defined, but the shape is the one a feature
-			// hangs its topic on (BLI-MSG, "Subscribing").
+			// hangs its topic on (MSG, "Subscribing").
 			Ok(None) => {
 				tracing::debug!("client closed a stream");
 				return Ok(());
@@ -250,7 +250,7 @@ where
 		match read::<ClientMessage>(&raw) {
 			Ok(Reading::Message(ClientMessage::Hello { name, version })) => {
 				// Recorded so that what is in the field talking to these devices can be known. Nothing
-				// branches on it (BLI-MSG).
+				// branches on it (MSG).
 				tracing::info!(client = %name, client_version = %version, "client named itself");
 			}
 			Ok(Reading::Message(ClientMessage::Subscribe { topic })) if topic == SYSTEM_TOPIC => {
@@ -260,7 +260,7 @@ where
 			Ok(Reading::Message(ClientMessage::Subscribe { topic })) => {
 				// A topic this device does not recognise is skipped as anything else is: it sends
 				// nothing and leaves the stream open until the client closes it. That is what a device
-				// older than its client looks like, and it fails nothing (BLI-MSG).
+				// older than its client looks like, and it fails nothing (MSG).
 				tracing::info!(%topic, "subscription to a topic this device does not serve");
 			}
 			Ok(Reading::Skipped(skip)) => {
@@ -283,7 +283,7 @@ where
 /// A failure within one session. None of these stops the daemon.
 #[derive(Debug, thiserror::Error)]
 pub enum SessionError {
-	/// The handshake did not complete: a client that has not scanned this device's sticker, or noise
+	/// The handshake did not complete: a client that has not scanned this device's QR code, or noise
 	/// on the link.
 	#[error("handshake failed: {0}")]
 	Handshake(String),
@@ -305,12 +305,12 @@ mod tests {
 
 	use super::*;
 
-	fn secret(byte: u8) -> StickerSecret {
-		StickerSecret::from_bytes([byte; 32])
+	fn secret(byte: u8) -> PresenceToken {
+		PresenceToken::from_bytes([byte; 32])
 	}
 
 	/// Open a client against a device session over an in-memory duplex, with no BLE involved.
-	async fn paired(psk: &StickerSecret) -> Streams {
+	async fn paired(psk: &PresenceToken) -> Streams {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device_psk = psk.clone();
 		tokio::spawn(async move {
@@ -325,7 +325,7 @@ mod tests {
 		streams
 	}
 
-	/// The device names itself first and reports second, both without being asked (BLI-MSG).
+	/// The device names itself first and reports second, both without being asked (MSG).
 	#[tokio::test]
 	async fn the_device_names_itself_then_reports_unsolicited() {
 		let mut streams = paired(&secret(0x42)).await;
@@ -350,7 +350,7 @@ mod tests {
 	}
 
 	/// A message the device does not recognise draws no reply at all, and costs nothing: the stream
-	/// stays open and the session carries on (BLI-MSG).
+	/// stays open and the session carries on (MSG).
 	#[tokio::test]
 	async fn an_unrecognised_message_is_passed_over_in_silence() {
 		let mut streams = paired(&secret(0x42)).await;
@@ -380,10 +380,10 @@ mod tests {
 
 	/// A client newer than this device, saying something that must not be half read, is refused and
 	/// costs nothing: the stream stays open. This is the distinction most at risk of being collapsed
-	/// into the fault path (BLI-MSG).
+	/// into the fault path (MSG).
 	///
 	/// The vehicle is a message type this device does not know, marked critical by an upper case
-	/// `TYPE`. It has to be: every type BLI-MSG defines forbids a critical member, so a refusal on one
+	/// `TYPE`. It has to be: every type MSG defines forbids a critical member, so a refusal on one
 	/// of those is impossible and a critical member there would be a fault instead.
 	#[tokio::test]
 	async fn a_refused_message_leaves_the_stream_open() {
@@ -413,7 +413,7 @@ mod tests {
 	}
 
 	/// A client that is not speaking the protocol loses the stream it did it on, and nothing else
-	/// (BLI-MSG, "What the base protocol guarantees").
+	/// (MSG, "What the base protocol guarantees").
 	#[tokio::test]
 	async fn a_protocol_fault_costs_the_stream_and_not_the_connection() {
 		let mut streams = paired(&secret(0x42)).await;
@@ -454,7 +454,7 @@ mod tests {
 
 	/// A topic this device does not serve is skipped like anything else it does not recognise: it
 	/// sends nothing and leaves the stream open for the client to close. That is what a device older
-	/// than its client looks like, and it fails nothing (BLI-MSG).
+	/// than its client looks like, and it fails nothing (MSG).
 	#[tokio::test]
 	async fn an_unknown_topic_is_quiet_and_leaves_the_stream_open() {
 		let mut streams = paired(&secret(0x42)).await;
@@ -475,7 +475,7 @@ mod tests {
 	}
 
 	/// The window comes before anything live, so a graph is populated the moment it appears rather
-	/// than filling from empty while an operator waits (BLI-SYS).
+	/// than filling from empty while an operator waits (SYS).
 	#[tokio::test]
 	async fn a_subscription_receives_the_window_before_anything_live() {
 		let mut streams = paired(&secret(0x42)).await;
@@ -512,7 +512,7 @@ mod tests {
 	}
 
 	/// Closing the client's sending side is the unsubscribe, and the device learns of it by reading
-	/// end of stream (BLI-MSG, "Subscribing"). The half-close leaves the device's write side open, so
+	/// end of stream (MSG, "Subscribing"). The half-close leaves the device's write side open, so
 	/// nothing but reading tells it: a device watching only for a failed write would go on sending to
 	/// a client that has said it is done.
 	#[tokio::test]
@@ -561,13 +561,13 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn a_client_with_the_wrong_sticker_cannot_open_a_session() {
+	async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device = tokio::spawn(async move {
 			run(device_side.compat(), &secret(0x01), Sampler::start()).await
 		});
 
-		// A client holding a different sticker fails the handshake, in both directions.
+		// A client holding a different QR code fails the handshake, in both directions.
 		assert!(
 			connect_initiator(client_side.compat(), &secret(0x02))
 				.await

@@ -1,7 +1,7 @@
 //! The board ID: the firmware-provided identifier every other value in bliti descends from.
 //!
-//! Behaviour is specified in `.workhorse/specs/board-id.md` (BLI-BID). The board ID makes
-//! the sticker secret reproducible from the board alone: the same sticker regenerates from the
+//! Behaviour is specified in `.workhorse/specs/board-id.md` (BID). The board ID makes
+//! the presence token reproducible from the board alone: the same QR code regenerates from the
 //! board with no per-device database to keep in sync. It is not a secret; what protects it is the
 //! cost of the derivation in [`crate::key_schedule`] and the size of its space.
 
@@ -12,13 +12,13 @@ mod backends;
 #[cfg(feature = "tpm")]
 pub use backends::TpmEndorsementKeySource;
 #[cfg(feature = "backends")]
-pub use backends::{OneTimeProgrammableSource, RaspberryPiSerialSource, SmbiosSystemUuidSource};
+pub use backends::{OneTimeProgrammableSource, RaspberryPiSerialSource};
 
 /// The kind of source a board ID was read from.
 ///
 /// Each kind carries a **tag byte**, mixed into the derivation in [`crate::key_schedule`] so that a
 /// value that is byte-identical across two kinds of source still derives a different secret. The tag
-/// is part of the versioned key schedule (BLI-KEY): changing it re-derives every board ID taken
+/// is part of the versioned key schedule (KEY): changing it re-derives every board ID taken
 /// under the old value, so the assignments here are load-bearing and never reused.
 ///
 /// The kinds are also ordered by **precedence**, strongest first, evaluated by kind rather than by
@@ -31,19 +31,16 @@ pub enum SourceKind {
 	TpmEndorsementKey,
 	/// Customer-programmable one-time-programmable memory that has been written.
 	OneTimeProgrammable,
-	/// The Raspberry Pi device-tree serial. One of the two platform-serial kinds.
+	/// The Raspberry Pi device-tree serial: the platform-serial kind.
 	RaspberryPiSerial,
-	/// The SMBIOS system UUID on a UEFI machine. One of the two platform-serial kinds.
-	SmbiosSystemUuid,
 }
 
 impl SourceKind {
 	/// Every kind, strongest first. This order is the precedence.
-	pub const ALL: [SourceKind; 4] = [
+	pub const ALL: [SourceKind; 3] = [
 		SourceKind::TpmEndorsementKey,
 		SourceKind::OneTimeProgrammable,
 		SourceKind::RaspberryPiSerial,
-		SourceKind::SmbiosSystemUuid,
 	];
 
 	/// The tag byte mixed into the derivation. Stable and versioned; never reused. Zero is reserved
@@ -53,7 +50,6 @@ impl SourceKind {
 			SourceKind::TpmEndorsementKey => 1,
 			SourceKind::OneTimeProgrammable => 2,
 			SourceKind::RaspberryPiSerial => 3,
-			SourceKind::SmbiosSystemUuid => 4,
 		}
 	}
 
@@ -63,21 +59,15 @@ impl SourceKind {
 		match self {
 			SourceKind::TpmEndorsementKey => 3,
 			SourceKind::OneTimeProgrammable => 2,
-			// The two platform-serial kinds share a conceptual tier and never co-occur on one
-			// board, so the order between them is a formality that only makes selection total.
 			SourceKind::RaspberryPiSerial => 1,
-			SourceKind::SmbiosSystemUuid => 0,
 		}
 	}
 
 	/// Whether this kind is a platform serial number: the last tier of the precedence, present on
 	/// every board in scope and stable when stronger hardware is fitted, so it identifies a board
-	/// across a change of source (BLI-BID, "When the board ID changes").
+	/// across a change of source (BID, "When the board ID changes").
 	pub const fn is_platform_serial(self) -> bool {
-		matches!(
-			self,
-			SourceKind::RaspberryPiSerial | SourceKind::SmbiosSystemUuid
-		)
+		matches!(self, SourceKind::RaspberryPiSerial)
 	}
 
 	/// Whether this kind wins the precedence over `other`.
@@ -92,7 +82,6 @@ impl fmt::Display for SourceKind {
 			SourceKind::TpmEndorsementKey => "TPM Endorsement Key",
 			SourceKind::OneTimeProgrammable => "one-time-programmable memory",
 			SourceKind::RaspberryPiSerial => "Raspberry Pi serial",
-			SourceKind::SmbiosSystemUuid => "SMBIOS system UUID",
 		};
 		f.write_str(name)
 	}
@@ -101,8 +90,7 @@ impl fmt::Display for SourceKind {
 /// A board ID: the raw bytes of a source value together with the kind of source they came from.
 ///
 /// The bytes are the raw value, most significant first, never a text rendering of it: a Raspberry Pi
-/// serial is the eight bytes it denotes, not its characters, and an SMBIOS system UUID is the
-/// sixteen bytes it denotes, not its dashed string (BLI-KEY, "What is derived from").
+/// serial is the eight bytes it denotes, not its characters (KEY, "What is derived from").
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoardId {
 	kind: SourceKind,
@@ -114,7 +102,7 @@ impl BoardId {
 	///
 	/// Fails if the bytes are empty, or if they are a placeholder that carries no identity (all
 	/// zeros or all ones), because deriving from a placeholder would give every board in the same
-	/// position the same secret (BLI-BID, "Sources that carry no identity").
+	/// position the same secret (BID, "Sources that carry no identity").
 	pub fn new(kind: SourceKind, bytes: impl Into<Vec<u8>>) -> Result<Self, BoardIdError> {
 		let bytes = bytes.into();
 		if bytes.is_empty() {
@@ -146,7 +134,7 @@ pub fn is_sentinel(bytes: &[u8]) -> bool {
 
 /// Whether a source is present on a board, established cheaply and without reading its value.
 ///
-/// Presence is separate from reading (BLI-BID, "Probing and reading"): a TPM Endorsement Key name
+/// Presence is separate from reading (BID, "Probing and reading"): a TPM Endorsement Key name
 /// costs a key generation inside the TPM to read, so the precedence is evaluated by probing every
 /// source for presence and reading a value only from the one that wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,7 +171,7 @@ pub trait BoardIdSource {
 /// Evaluate the precedence over a set of backends and read the winning board ID.
 ///
 /// Backends are probed strongest first; the first one present with an identity wins, and only its
-/// value is read (BLI-BID, "Probing and reading"). Reaching the end with no usable source is a
+/// value is read (BID, "Probing and reading"). Reaching the end with no usable source is a
 /// failure rather than something to derive past.
 pub fn select(sources: &[&dyn BoardIdSource]) -> Result<BoardId, BoardIdError> {
 	for kind in SourceKind::ALL {
@@ -275,7 +263,7 @@ impl BoardIdSource for TestSource {
 pub type PlatformSerial = Option<Vec<u8>>;
 
 /// What a device knows about itself from the last derivation, held so the memory-hard derivation
-/// runs only when the board no longer matches it (BLI-KEY, "Deriving on the device"). It is a cache
+/// runs only when the board no longer matches it (KEY, "Deriving on the device"). It is a cache
 /// the device can rebuild, not authoritative state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheState {
@@ -293,10 +281,10 @@ pub enum CacheDecision {
 	/// derivation runs.
 	Fresh,
 	/// The board has gained hardware carrying a stronger source, or otherwise no longer derives to
-	/// the cached secret, and the sticker on its enclosure is dead. Reported rather than derived
+	/// the cached secret, and the QR code on its enclosure is dead. Reported rather than derived
 	/// past.
-	StickerDead,
-	/// The board does not match the cache and is not a dead sticker: the cache is absent, or the
+	QrDead,
+	/// The board does not match the cache and is not a dead QR code: the cache is absent, or the
 	/// board is a different one (its platform serial differs, as when a disk is moved into another
 	/// enclosure). The precedence is evaluated, the winning source read, and the secret derived.
 	Rederive,
@@ -308,8 +296,8 @@ pub enum CacheDecision {
 /// platform serial read from the board now. `strongest_present` is the strongest kind of source
 /// found present now, from [`strongest_present`], or `None` if none is present.
 ///
-/// Implements the start-up decision of BLI-KEY, "Deriving on the device", and the identity-change
-/// rules of BLI-BID, "When the board ID changes".
+/// Implements the start-up decision of KEY, "Deriving on the device", and the identity-change
+/// rules of BID, "When the board ID changes".
 pub fn evaluate_cache(
 	cache: Option<&CacheState>,
 	observed_serial: &PlatformSerial,
@@ -328,15 +316,15 @@ pub fn evaluate_cache(
 	if observed_serial.is_some() {
 		if *observed_serial != cache.platform_serial {
 			// A different board: the disk sits in another enclosure now. It derives from the board
-			// it is on and matches the sticker already fixed to that enclosure. Not a fault.
+			// it is on and matches the QR code already fixed to that enclosure. Not a fault.
 			return CacheDecision::Rederive;
 		}
 		// Same board. The cache holds only if the strongest source present is still the one it
-		// derived from; any other outcome orphans the sticker.
+		// derived from; any other outcome orphans the QR code.
 		if present == cache.board_id_kind {
 			CacheDecision::Fresh
 		} else {
-			CacheDecision::StickerDead
+			CacheDecision::QrDead
 		}
 	} else {
 		// A board that offers no platform serial has no weaker source for a stronger one to
@@ -345,7 +333,7 @@ pub fn evaluate_cache(
 		if present == cache.board_id_kind {
 			CacheDecision::Fresh
 		} else {
-			CacheDecision::StickerDead
+			CacheDecision::QrDead
 		}
 	}
 }
@@ -399,19 +387,17 @@ mod tests {
 
 	#[test]
 	fn tags_are_stable_and_distinct() {
-		// Load-bearing: these tags are versioned into every sticker.
+		// Load-bearing: these tags are versioned into every QR code.
 		assert_eq!(SourceKind::TpmEndorsementKey.tag(), 1);
 		assert_eq!(SourceKind::OneTimeProgrammable.tag(), 2);
 		assert_eq!(SourceKind::RaspberryPiSerial.tag(), 3);
-		assert_eq!(SourceKind::SmbiosSystemUuid.tag(), 4);
 	}
 
 	#[test]
 	fn precedence_is_strongest_first() {
 		assert!(SourceKind::TpmEndorsementKey.is_stronger_than(SourceKind::OneTimeProgrammable));
 		assert!(SourceKind::OneTimeProgrammable.is_stronger_than(SourceKind::RaspberryPiSerial));
-		assert!(SourceKind::RaspberryPiSerial.is_stronger_than(SourceKind::SmbiosSystemUuid));
-		assert!(!SourceKind::SmbiosSystemUuid.is_stronger_than(SourceKind::TpmEndorsementKey));
+		assert!(!SourceKind::RaspberryPiSerial.is_stronger_than(SourceKind::TpmEndorsementKey));
 	}
 
 	#[test]
@@ -506,19 +492,19 @@ mod tests {
 
 	#[test]
 	fn cache_dead_when_board_gains_stronger_hardware() {
-		// Same board (serial unchanged), but a TPM is now present: the sticker is dead.
+		// Same board (serial unchanged), but a TPM is now present: the QR code is dead.
 		let c = cache(SourceKind::RaspberryPiSerial, Some(vec![1, 2, 3]));
 		let decision = evaluate_cache(
 			Some(&c),
 			&Some(vec![1, 2, 3]),
 			Some(SourceKind::TpmEndorsementKey),
 		);
-		assert_eq!(decision, CacheDecision::StickerDead);
+		assert_eq!(decision, CacheDecision::QrDead);
 	}
 
 	#[test]
 	fn cache_rederive_when_disk_moved_to_another_board() {
-		// A different platform serial is a different board: derive and match its own sticker.
+		// A different platform serial is a different board: derive and match its own QR code.
 		let c = cache(SourceKind::RaspberryPiSerial, Some(vec![1, 2, 3]));
 		let decision = evaluate_cache(
 			Some(&c),
@@ -543,6 +529,6 @@ mod tests {
 		// A board offering no platform serial reports any change in its board ID.
 		let c = cache(SourceKind::TpmEndorsementKey, None);
 		let decision = evaluate_cache(Some(&c), &None, Some(SourceKind::OneTimeProgrammable));
-		assert_eq!(decision, CacheDecision::StickerDead);
+		assert_eq!(decision, CacheDecision::QrDead);
 	}
 }

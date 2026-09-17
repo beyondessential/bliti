@@ -1,90 +1,89 @@
 ---
-id: BLI-CHN
+id: CHN
 ---
 
 # Authenticated channel
 
-Once a client has matched a device by the handle in [BLI-ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
+Once a client has matched a device by its [advertised handle](overview.md#advertised-handle), as specified in [ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
 
-Everything this spec states about the wire is contract: an independently written client that follows it interoperates with a device that follows it.
+## Borrowed terms
+
+| term | meaning |
+| --- | --- |
+| characteristic | A GATT attribute holding a value that a peer can read, write, or be notified of, with the operations it permits declared alongside it. |
+| notification | A transfer the GATT server initiates to send a characteristic value to a client, which the client does not acknowledge. The acknowledged counterpart is an indication. |
+| write, write without response | The two ATT operations by which a client sends a characteristic value. The device acknowledges a write; it does not acknowledge a write without response. |
+| ATT_MTU | The largest ATT protocol data unit the two ends have negotiated for a connection. The payload of one operation is three bytes smaller. |
+| pairing, bonding | The Security Manager procedures that encrypt a link and store keys for reconnecting to the same peer later. |
+| peripheral, central | The GAP roles: a peripheral advertises and accepts connections, a central scans and initiates them. These are separate from the GATT server and client roles. |
 
 ## Authentication
 
-Client and device run a Noise `NNpsk0` handshake with the sticker secret of [BLI-KEY](key-schedule.md) as the pre-shared key.
+Client and device MUST run a Noise `NKpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
 
-The protocol name is `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`: X25519 for the ephemeral exchange, ChaCha20-Poly1305 for the cipher, and BLAKE2s for the hash.
-The pre-shared key is at position zero, mixed in before the first handshake message, and is the 32-byte sticker secret used exactly as [BLI-KEY](key-schedule.md) produces it with no further derivation.
-The client is the initiator and the device the responder.
-`NNpsk0` is a two-message pattern: the initiator writes the first message, the responder reads it and writes the second, the initiator reads that, and both then move into transport mode.
+The Noise protocol name MUST be `Noise_NKpsk0_25519_ChaChaPoly_BLAKE2s`.
 
-Both ends bring only ephemeral keys, and all authentication comes from the pre-shared secret.
-This proves in both directions that each end holds the sticker secret, which is what "this is the device whose sticker I scanned" and "you scanned my sticker" both reduce to.
-Neither a replayed advertisement nor a spoofed one yields a session, because an attacker cannot complete the handshake behind it.
+The responder's static key, which `NKpsk0` requires the initiator to know in advance, MUST be the device static key of [KEY](key-schedule.md). The client MUST take its public half from the QR code, and the device MUST hold the private half.
 
-The handshake produces a fresh session key and gives the session forward secrecy, so recovering a sticker secret later does not decrypt a recorded session.
+The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [KEY](key-schedule.md) produces it with no further derivation.
 
-A device's board ID is not verified directly, and cannot be: it is absent from the QR payload and the derivation does not run backwards.
-Possession of the sticker secret is the proof, and it is equivalent, because deriving the secret requires the board ID.
+The handshake gives the session forward secrecy.
 
-The sticker secret is a full-width value rather than a short code a person types, which is why no password-authenticated key exchange is used: the resistance of the secret to guessing comes from the derivation in [BLI-KEY](key-schedule.md).
+The security properties this upholds, and their limits, are specified in [SEC](security.md).
 
-An eavesdropper who records a handshake can attempt the same offline search against the transcript as against an advertisement, and the same derivation cost and the same limits apply.
+> [!NOTE]
+> The two credentials authenticate different things. The static key proves the device holds something derived from its own board ID, which nothing in the QR code yields. The pre-shared key proves the client read that device's code.
+> `NKpsk0` encrypts the client's first message to the device's static key, so a party without the private half cannot read it at all, rather than merely failing to prove itself.
 
-## How fast a device may send
+## Send rate
 
-A device sends no more than about a hundred kibibytes, and no more than about two hundred notifications, in any second.
+A device MUST NOT send more than 200 notifications in any one-second window.
 
-Both ceilings exist because the link is shared with everything else the session is doing, including the client's own messages and the notifications that carry them.
-A device with a backlog takes longer to clear it rather than taking the connection down, which is the outcome worth having: a slow reading beats a dropped session.
+> [!NOTE]
+> The ceiling counts notifications rather than bytes because it is the count that overruns a controller's buffers, and overrunning them takes the connection down rather than slowing it.
+> A device with a backlog therefore clears it more slowly, because a slow reading beats a dropped session.
 
 ## Transport
 
-The channel runs over GATT, under the service UUID of [BLI-ADV](discovery.md), using two characteristics:
+The channel MUST run over GATT, under the service UUID of [ADV](discovery.md), using two characteristics:
 
 | characteristic | UUID | direction |
 | --- | --- | --- |
 | client transmit | `973bed6f-f4f9-4cae-b237-1b51701a77f5` | written by the client, carrying bytes to the device |
 | device transmit | `a7aabad6-3fc2-4c9b-953b-03a70a193ec4` | notified on by the device, carrying bytes to the client |
 
-Each direction is a stream of bytes, chunked by the sender into writes or notifications no larger than the negotiated attribute size, and reassembled by the receiver into the byte stream the sender wrote.
-A chunk boundary carries no meaning: a receiver concatenates what arrives in the order it arrives and reads messages out of the result.
+GATT is specified in Volume 3, Part G of the [Bluetooth Core Specification](https://www.bluetooth.com/specifications/specs/core-specification-6-3/), and the Attribute Protocol beneath it, including the ATT_MTU negotiation referred to below, in Volume 3, Part F.
+The device MUST accept both a write with response and a write without response on the client transmit characteristic, and a client MAY use either.
 
-Within that byte stream, each Noise message, handshake or transport, is prefixed with its length as four bytes, big-endian, giving the number of bytes that follow.
-This is what lets a message exceed the attribute size.
-A Noise message is at most 65535 bytes including its 16-byte authentication tag, so a receiver refuses a prefix claiming more than that rather than buffering without bound.
+Each direction is a stream of bytes.
+The sender MUST chunk it into writes or notifications whose payload is at most the negotiated ATT_MTU less the three-byte ATT header.
+The receiver MUST concatenate what arrives in the order it arrives and read messages out of the result; a chunk boundary is not a message boundary.
 
-GATT is the transport every client platform can reach, including browsers, which have no other.
+Within that byte stream, each Noise message, handshake or transport, MUST be prefixed with its length as two bytes, big-endian, giving the number of bytes that follow.
+A Noise message is at most 65535 bytes, including its 16-byte authentication tag.
+
+> [!NOTE]
+> A two-byte prefix expresses exactly the range a Noise message can occupy, so a receiver cannot be asked to buffer more than the maximum and needs no rule refusing one.
+> The prefix is also what lets a message exceed the negotiated ATT_MTU.
 
 ## The device is a peripheral only
 
-The device acts only as a GATT server, and never as a GATT client against the client that connects to it.
+The device MUST act only as a GATT server, and MUST NOT act as a GATT client against the client that connects to it.
+The device MUST NOT initiate pairing, and the channel MUST NOT depend on the link being encrypted or the peer being bonded.
+Where the host's Bluetooth stack would resolve the connecting client's attributes or initiate pairing by default, it MUST be configured not to, as a prerequisite for running a device.
 
-A Bluetooth stack that resolves the connecting client's attributes in turn will meet one whose read requires an encrypted link, and ask to pair in order to read it.
-No client this protocol serves can pair: a browser cannot drive pairing at all, and the sticker is what stands in for it.
-The pairing attempt is therefore refused, and the device drops the link partway through a session that was otherwise working.
-
-The device likewise never initiates pairing, and the channel never depends on the link being encrypted or the peer being bonded.
-All of the protocol's authentication and secrecy comes from the handshake above.
-
-Where the Bluetooth stack does this by default, turning it off is a prerequisite for running a device, alongside the stack itself.
+> [!NOTE]
+> All authentication and secrecy come from the handshake above, so an encrypted link and a stored bond add nothing the protocol relies on.
+> A stack that resolves the peer's attributes can meet one whose read requires an encrypted link, ask to pair to satisfy it, and drop the link partway through a session that was otherwise working.
 
 ## Streams
 
-Above the handshake, the encrypted byte stream carries yamux, which is what lets either end open streams without coordinating identifiers with the other end and without asking permission, and lets several be in flight at once.
+Above the handshake, the encrypted byte stream MUST carry [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md), with the client as the yamux client and the device as the yamux server.
+Closing one stream MUST leave the other streams and the connection alive.
 
-The client is the yamux client and the device the yamux server, which is what puts the two ends' stream identifiers in disjoint spaces so they cannot collide.
-Both ends run yamux's own defaults, including its 256 KiB initial receive window.
-Flow control is carried on the wire as window updates, so neither end has to be told the other's settings, and an implementation that follows the yamux specification interoperates without further agreement.
-
-Closing one stream leaves the other streams and the connection itself alive.
-
-This is what lets a device send without being asked, rather than only answering requests.
-State that changes while a client is connected is sent as it happens rather than waiting to be polled for.
+> [!NOTE]
+> Making the client the yamux client puts the two ends' stream identifiers in disjoint spaces, so they cannot collide.
 
 ## Messages
 
-Application messages are JSON, carried on the streams above.
-
-The volumes involved are small, every client platform reads JSON without a library, and a conversation can be read directly while developing.
-
-How a message is delimited and encoded, which streams carry which messages, how the two ends name themselves, how each skips what it does not recognise, and how live data is subscribed to, are specified in [BLI-MSG](messages.md).
+The streams above carry application messages, as specified in [MSG](messages.md).

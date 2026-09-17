@@ -1,6 +1,6 @@
 //! The TPM 2.0 Endorsement Key as a board ID source: the strongest source in the precedence.
 //!
-//! Specified in BLI-BID, "TPM Endorsement Key". The board ID is the *name* of the Endorsement Key:
+//! Specified in BID, "TPM Endorsement Key". The board ID is the *name* of the Endorsement Key:
 //! the hash algorithm identifier followed by the digest of the key's public area, which is what the
 //! TPM itself computes and what the specification means by a key's name. On a SHA-256 TPM that is 34
 //! bytes: two bytes of algorithm identifier and a 32-byte digest.
@@ -103,7 +103,7 @@ impl BoardIdSource for TpmEndorsementKeySource {
 	}
 
 	/// Presence is the device node existing. Deliberately no key generation and no TPM command: a
-	/// board carrying a TPM is probed without paying for the Endorsement Key (BLI-BID, "Probing and
+	/// board carrying a TPM is probed without paying for the Endorsement Key (BID, "Probing and
 	/// reading").
 	fn probe(&self) -> Result<Presence, BoardIdError> {
 		Ok(match self.device() {

@@ -1,6 +1,6 @@
 // The browser half of the client (BLI-WEB): Web Bluetooth, the camera, and nothing else.
 //
-// Everything with protocol in it is in the wasm module: reading a sticker, matching an
+// Everything with protocol in it is in the wasm module: reading a QR code, matching an
 // advertisement, the handshake, the streams, and reading a message into one of the outcomes of
 // BLI-MSG. This file drives the browser APIs and hands their bytes across, and the boundary is the
 // same one the prototype drew.
@@ -11,7 +11,7 @@
 
 import init, {
 	Channel,
-	Sticker,
+	QrCode,
 	client_tx_uuid,
 	device_tx_uuid,
 	service_uuid,
@@ -57,20 +57,20 @@ export function createClient() {
 			return null
 		},
 
-		// Both paths a sticker arrives by land here, and the payload is treated identically once read.
-		async readSticker(text) {
+		// Both paths a QR code arrives by land here, and the payload is treated identically once read.
+		async readCode(text) {
 			await protocol()
-			const sticker = new Sticker(text)
-			return { sticker, human: sticker.human, version: sticker.version }
+			const qr = new QrCode(text)
+			return { qr, human: qr.human, version: qr.version }
 		},
 
-		// Finding the device the sticker belongs to (BLI-ADV, "Matching").
+		// Finding the device the QR code belongs to (ADV, "Matching").
 		//
 		// The browser gives a chooser rather than the advertisements themselves, and the payload it
 		// filters on holds a salt that changes, so the chooser cannot be narrowed to one device ahead
 		// of time. It is filtered to devices carrying the bliti service, and the one the operator picks
-		// is checked against the sticker before anything is sent to it.
-		async connect(sticker, { onEvent, onClosed, onDisconnected, onActivity }) {
+		// is checked against the QR code before anything is sent to it.
+		async connect(qr, { onEvent, onClosed, onDisconnected, onActivity }) {
 			const say = (direction, text) => onActivity?.(direction, text)
 			await protocol()
 			say('note', 'asking the browser to choose a device')
@@ -78,20 +78,20 @@ export function createClient() {
 				filters: [{ services: [service_uuid()] }],
 			})
 
-			const advertised = device.name ? sticker.read_local_name(device.name) : undefined
+			const advertised = device.name ? qr.read_local_name(device.name) : undefined
 			if (!advertised) {
 				throw new Error('That device is not advertising a bliti payload.')
 			}
-			if (advertised.version !== sticker.version) {
+			if (advertised.version !== qr.version) {
 				throw new Error(
 					`That device speaks bliti version ${advertised.version}, which this app does not read.`,
 				)
 			}
 			if (!advertised.matches) {
-				throw new Error('That is a different bliti device. Pick the one whose sticker you read.')
+				throw new Error('That is a different bliti device. Pick the one whose code you read.')
 			}
 
-			say('note', `matched the sticker against ${device.name}`)
+			say('note', `matched the code against ${device.name}`)
 			const server = await device.gatt.connect()
 			const service = await server.getPrimaryService(service_uuid())
 			const clientTx = await service.getCharacteristic(client_tx_uuid())
@@ -99,7 +99,7 @@ export function createClient() {
 
 			// Writes are acknowledged, so the device is never sent more than it has taken. The bytes are
 			// copied because the channel hands over a view it may reuse.
-			channel = new Channel(sticker, (bytes) => clientTx.writeValueWithResponse(bytes.slice()))
+			channel = new Channel(qr, (bytes) => clientTx.writeValueWithResponse(bytes.slice()))
 
 			deviceTx.addEventListener('characteristicvaluechanged', (event) => {
 				channel.receive(new Uint8Array(event.target.value.buffer))

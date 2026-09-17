@@ -33,7 +33,7 @@ jobs:
           rustup default stable
       # bluer links the system libdbus, and the TPM board-ID backend links
       # tpm2-tss. Both are on by default, and the TPM one deliberately so: which
-      # board-ID sources a build can see decides which sticker secret a board
+      # board-ID sources a build can see decides which presence token a board
       # derives, so CI builds the same set the device does.
       - run: |
           sudo apt-get update
@@ -100,7 +100,7 @@ jobs:
         run: npm run build
         working-directory: crates/bliti-web/app
 
-      # Kept so that hosting it at the sticker's origin is later wiring rather
+      # Kept so that hosting it at the QR code's origin is later wiring rather
       # than work.
       - uses: actions/upload-artifact@v4
         with:

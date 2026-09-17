@@ -25,11 +25,11 @@ export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
 	// Bluetooth in the loop. Compiled out of any build but the harness's, because anything able to run
 	// a script on this origin before the app mounts could otherwise install its own client and become
-	// the device's peer, and the sticker secret is the only credential there is.
+	// the device's peer, and the presence token is the only credential there is.
 	const client = useMemo(() => (__TEST_SEAM__ && window.__blitiClient) || createClient(), [])
 
 	const [unsupported] = useState(() => client.unsupported())
-	const [sticker, setSticker] = useState(null)
+	const [code, setCode] = useState(null)
 	const [readError, setReadError] = useState('')
 	const [scanning, setScanning] = useState(false)
 	const [connecting, setConnecting] = useState(false)
@@ -107,14 +107,14 @@ export default function App() {
 	const readFrom = useCallback(
 		async (text) => {
 			try {
-				const read = await client.readSticker(text)
-				setSticker(read)
+				const read = await client.readCode(text)
+				setCode(read)
 				setReadError('')
-				note('note', `sticker read  ${read.human}`)
+				note('note', `code read  ${read.human}`)
 			} catch (error) {
 				const why = error.message ?? String(error)
 				setReadError(why)
-				note('note', `sticker not read: ${why}`)
+				note('note', `code not read: ${why}`)
 			}
 		},
 		[client, note],
@@ -175,7 +175,7 @@ export default function App() {
 		setConnecting(true)
 		setConnectStatus('Looking for the device...')
 		try {
-			await client.connect(sticker.sticker, {
+			await client.connect(code.qr, {
 				onEvent,
 				onActivity: note,
 				onClosed: (why) => note('note', why ? `reporting stream ended: ${why}` : 'reporting stream ended'),
@@ -218,14 +218,14 @@ export default function App() {
 		setReadError('')
 		try {
 			const found = await scan(video.current, {
-				read: (text) => client.readSticker(text),
+				read: (text) => client.readCode(text),
 				onRejected: setReadError,
 				signal: controller.signal,
 			})
 			if (found) {
-				setSticker(found)
+				setCode(found)
 				setReadError('')
-				note('note', `sticker read from the camera  ${found.human}`)
+				note('note', `code read from the camera  ${found.human}`)
 			}
 		} catch (error) {
 			setReadError(`The camera is not available: ${error.message ?? error}`)
@@ -235,7 +235,7 @@ export default function App() {
 		}
 	}
 
-	// Leaving the sticker screen with the camera running would leave it running with nothing showing
+	// Leaving the code screen with the camera running would leave it running with nothing showing
 	// it, so the scan is cancelled on the way out as well as by the button.
 	useEffect(() => () => scanning_.current?.abort(), [])
 
@@ -255,11 +255,11 @@ export default function App() {
 		<main>
 			<h1>bliti</h1>
 
-			{!sticker && (
+			{!code && (
 				<section>
-					<h2>Sticker</h2>
+					<h2>QR code</h2>
 					<p className="muted">Scan the code on the device, or type the letters printed under it.</p>
-					<TypedSticker onRead={readFrom} />
+					<TypedCode onRead={readFrom} />
 					{cameraAvailable() && (
 						<div className="row" style={{ marginTop: 8 }}>
 							{scanning ? (
@@ -278,20 +278,20 @@ export default function App() {
 				</section>
 			)}
 
-			{sticker && !connected && (
+			{code && !connected && (
 				<section>
-					<h2>Sticker read</h2>
-					<p className="code">{sticker.human}</p>
+					<h2>QR code read</h2>
+					<p className="code">{code.human}</p>
 					<p className="muted">
 						Your device appears as a jumble of letters that changes. Pick it, and this checks it
-						against your sticker.
+						against your code.
 					</p>
 					<div className="row">
 						<button onClick={connect} disabled={connecting}>
 							Find the device
 						</button>
-						<button className="secondary" onClick={() => setSticker(null)}>
-							Use another sticker
+						<button className="secondary" onClick={() => setCode(null)}>
+							Use another code
 						</button>
 					</div>
 					{connectStatus && <p className="muted">{connectStatus}</p>}
@@ -357,7 +357,7 @@ function describe(message) {
 	return summary ? `${type}  ${summary}` : type
 }
 
-function TypedSticker({ onRead }) {
+function TypedCode({ onRead }) {
 	const [typed, setTyped] = useState('')
 	return (
 		<div className="row">

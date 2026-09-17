@@ -1,6 +1,6 @@
 //! Customer-programmable one-time-programmable memory as a board ID source.
 //!
-//! Specified in BLI-BID, "Provisioned one-time-programmable memory": where the board carries
+//! Specified in BID, "Provisioned one-time-programmable memory": where the board carries
 //! customer-programmable one-time-programmable memory that has been written, its contents are the
 //! board ID.
 //!

@@ -1,5 +1,5 @@
 project: bliti
-description: QR-anchored BLE device provisioning, as a daemon, a sticker generator, and a browser client
+description: QR-anchored BLE device provisioning, as a daemon, a QR code generator, and a browser client
 
 # Added to the built-in defaults (Cargo.lock and friends are already stripped).
 ignore_patterns:

@@ -1,6 +1,6 @@
 //! What a device broadcasts, and how a client reads it back.
 //!
-//! Behaviour is specified in `.workhorse/specs/discovery.md` (BLI-ADV). The advertisement
+//! Behaviour is specified in `.workhorse/specs/discovery.md` (ADV). The advertisement
 //! carries the service UUID; the local name carries the handle, the rotation salt, and the version
 //! marker, rendered as base32.
 //!
@@ -42,7 +42,7 @@ const _: () = {
 /// What a device advertises: the handle, the salt it was computed under, and the version marker.
 ///
 /// A client reads the version before recomputing, so that a device speaking a version the client
-/// does not hold is reported as exactly that rather than as silence (BLI-ADV, "Matching").
+/// does not hold is reported as exactly that rather than as silence (ADV, "Matching").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Advertised {
 	/// The advertised handle.
@@ -107,9 +107,9 @@ impl Advertised {
 
 	/// Whether this advertisement belongs to the device holding `secret`.
 	///
-	/// One fast hash per advertisement heard per sticker held. The caller checks the version first,
+	/// One fast hash per advertisement heard per QR code held. The caller checks the version first,
 	/// because no two versions produce a matching handle and silence would not say which it was.
-	pub fn matches(self, secret: &crate::key_schedule::StickerSecret) -> bool {
+	pub fn matches(self, secret: &crate::key_schedule::PresenceToken) -> bool {
 		secret.handle(self.salt) == self.handle
 	}
 }
@@ -117,7 +117,7 @@ impl Advertised {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::key_schedule::StickerSecret;
+	use crate::key_schedule::PresenceToken;
 
 	fn handle(first: u8) -> Handle {
 		Handle::from_bytes([first, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
@@ -175,9 +175,9 @@ mod tests {
 	}
 
 	#[test]
-	fn a_client_matches_only_the_device_whose_sticker_it_holds() {
-		let ours = StickerSecret::from_bytes([0x5a; 32]);
-		let theirs = StickerSecret::from_bytes([0x5b; 32]);
+	fn a_client_matches_only_the_device_whose_code_it_holds() {
+		let ours = PresenceToken::from_bytes([0x5a; 32]);
+		let theirs = PresenceToken::from_bytes([0x5b; 32]);
 		let salt = RotationSalt::from_bytes([4, 3, 2, 1]);
 
 		let advertised = Advertised::new(ours.handle(salt), salt);
@@ -187,14 +187,14 @@ mod tests {
 
 	#[test]
 	fn a_device_is_recognised_across_a_salt_change() {
-		let ours = StickerSecret::from_bytes([0x77; 32]);
+		let ours = PresenceToken::from_bytes([0x77; 32]);
 		let first = RotationSalt::from_bytes([0, 0, 0, 1]);
 		let second = RotationSalt::from_bytes([0, 0, 0, 2]);
 
 		let before = Advertised::new(ours.handle(first), first);
 		let after = Advertised::new(ours.handle(second), second);
 
-		// An observer without the sticker sees two unrelated handles.
+		// An observer without the QR code sees two unrelated handles.
 		assert_ne!(before.handle, after.handle);
 		// A client holding it recognises both.
 		assert!(before.matches(&ours));
