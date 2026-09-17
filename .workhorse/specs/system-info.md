@@ -124,7 +124,8 @@ Live:
 | `disk` | `fraction` | one reading per block device, grouped as `disk`, never one per mount point |
 | `battery` | `fraction` | state of charge, with voltage and direction of travel under `detail` |
 | `temperature` | `quantity` | the processor core, with any further sensors under `detail` |
-| `power` | `text` | whether the board is throttling |
+| `power-source` | `text` | whether the board runs on external power or on its battery |
+| `throttling` | `text` | what is currently limiting the board |
 | `fan` | `quantity` | fan speed |
 | `uptime` | `duration` | time since boot |
 | `network-in`, `network-out` | `quantity` | throughput per direction, grouped as `network`, `direction` set accordingly |
@@ -134,15 +135,20 @@ Live:
 A device reports one reading per block device.
 Several mount points on one block device are one reading, not one each.
 
-### Battery
+### Power source and battery
 
-The headline is state of charge.
+`power-source` reports whether the device is running on external power or on its battery.
+
+The battery headline is state of charge.
 Voltage and the direction of travel go under `detail`.
 
-Direction is derived from how the state of charge has moved across the buffered history where the hardware does not measure current.
-A device that derives it MUST say so in `note` and MUST NOT report a direction it does not yet have enough history to establish.
+Direction is taken from `power-source` where the hardware reports the presence of external power, and is derived from how the state of charge has moved across the buffered history otherwise.
+A device that derives it MUST say so in `note`, and MUST NOT report a derived direction it does not yet have enough history to establish.
 
-### Temperature and power
+Where a device has both signals and they disagree, it reports `power-source` as the hardware gives it and sets the battery reading to `warn`, with a `note` saying the charge is moving against the reported source.
+External power reported as present while the charge falls steadily is a fault in the supply or in the board's own sensing, and an operator cannot see either from outside the case.
+
+### Temperature and throttling
 
 `limits` carries the board's own declared thresholds, so the reading is drawn against what the board means by hot rather than against an invented scale.
 
@@ -150,7 +156,7 @@ A device that derives it MUST say so in `note` and MUST NOT report a direction i
 Its `note` states that the figure is the processor core rather than the case or the ambient air, and gives the range that is ordinary under load.
 This note is required: without it the number is routinely read as a fault on a device that is working correctly.
 
-`power` reports throttling as the conditions the platform can establish: the supply voltage being low, and the processor running below the speed it is capable of.
+`throttling` reports the conditions the platform can establish: the supply voltage being low, and the processor running below the speed it is capable of.
 
 ### Network
 
