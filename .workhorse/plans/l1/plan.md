@@ -55,7 +55,13 @@ The rule is narrower than "define your jargon". A term of art needs defining whe
 
 Where the jargon is doing no work, it goes instead of getting a definition. The same section said a recorded handshake "serves as the oracle", which the clause beside it already explained: either lets a candidate be tested offline. Cut rather than defined.
 
-**Open, and adjacent.** Once search is pinned to enumeration, the question it raises is whether a board ID is obtainable by other routes at all. `key-schedule.md` notes that an SMBIOS system UUID may "merely reformat a vendor's service tag", and treats that purely as a size problem. If such a tag is also printed on a chassis or answerable by a vendor, that is a cheaper route than any enumeration, and neither KEY nor SEC covers it. To check against the board families actually in scope rather than assumed.
+**Settled, and worse than a size problem.** Pinning search to enumeration raised the question of whether a board ID is reachable by other routes. On Dell hardware it plainly is. Decoding a real SMBIOS UUID, `4c4c4544-0042-4710-804d-b3c04f485832`, gives `LLED` (DELL byte-reversed) followed by six of the seven characters of the service tag `3BGMHX2` as literal ASCII. The UUID carries no entropy beyond the tag, which KEY already said, but the tag itself is printed on the chassis, quoted in support tickets and kept in asset registers. So on those boards the board ID is read or looked up, not searched for, and the derivation cost buys nothing at all.
+
+SEC gained "A board ID may be public already" to state it. KEY treats this case purely as a small search space, which understates it and should be corrected in KEY's rewrite.
+
+This also bounds the NKpsk0 redesign. The new device static key derives from the board ID, so on service-tag boards an attacker who reads a chassis label obtains the static key as well as the token, and the new guarantee buys nothing there. It is strong exactly where the board ID is strong, which is the TPM and OTP tiers, and the tiering should be stated as applying to every guarantee resting on board-ID secrecy rather than to the search cost alone.
+
+Also examined and rejected as alternative sources on the same machine: `SKU Number` and the baseboard `Product Name` are model-level and identical across units; the baseboard serial `/3BGMHX2/CNPEC0034A0227/` repeats the service tag and appends a PPID, which is structured (country, vendor, part, date, sequence), printed on a board label, and follows the board where the service tag follows the chassis. Using it would break BID's "combining sources is not done" rule, since the two diverge on a warranty board swap and either moving orphans a printed code.
 
 ### A demonstrative points at a noun, not at an argument
 
