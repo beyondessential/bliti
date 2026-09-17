@@ -51,9 +51,9 @@ BCP 14 keyword notation sits in `overview.md`, worded "in bliti's specifications
 
 ### Two tiers of glossary
 
-**Global, in BLI.** Terms bliti coins: board ID, presence secret, advertised handle, QR code, version marker. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence secret](overview.md#presence-secret)`. Convention is to link the first occurrence per spec.
+**Global, in BLI.** Terms bliti coins: board ID, presence token, advertised handle, version marker. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence token](overview.md#presence-token)`. Convention is to link the first occurrence per spec.
 
-An entry is one sentence of gloss and then `Defined in [SPEC](file.md).` Enough to know what the thing is and where to go; nothing more. Every entry had grown a middle sentence making a claim that its owning spec already made — that the board ID is not secret, that holding the presence secret proves presence, that an observer cannot link a handle, that the marker is the only version acted on. A glossary that states properties is a second place for them to drift out of step, and in a non-normative spec it states them without force as well.
+An entry is one sentence of gloss and then `Defined in [SPEC](file.md).` Enough to know what the thing is and where to go; nothing more. Every entry had grown a middle sentence making a claim that its owning spec already made — that the board ID is not secret, that holding the presence token proves presence, that an observer cannot link a handle, that the marker is the only version acted on. A glossary that states properties is a second place for them to drift out of step, and in a non-normative spec it states them without force as well.
 
 **Per-spec, under `## Borrowed terms`.** Terms imported from other standards, as a table near the top so a reader meets them before use. A borrowed term used in one spec does not belong in the root glossary.
 
@@ -61,11 +61,10 @@ The division is coined versus imported. BLI's `## External documents` is the sam
 
 A section does not introduce itself. `## Terminology` goes straight into its entries, and so do `## External documents` and `## Borrowed terms`: a heading plus the table's own column names say what a table holds, and a sentence restating it is the same defect as a spec announcing it is binding. Where the introduction carried a real distinction, as "terms this spec borrows" did, that distinction goes in the heading.
 
-`overview.md`'s chain section keeps wayfinding and the reproducibility property, and no longer defines the terms.
 
-### BLI is the map, SEC is the threat model
+### BLI is the meta spec, SEC is the threat model
 
-BLI becomes a terse entryway and a meta spec: what the project is, the requirement keywords, the external documents, the global glossary, and the map of how the specs relate. A casual reader can start and stop there.
+BLI becomes a terse entryway and a meta spec: one sentence on what the project is, the requirement keywords, the external documents, and the global glossary. A casual reader can start and stop there.
 
 SEC owns the security properties and their limits. Each property names the mechanism that upholds it, and the mechanism specs carry the requirements. CHN keeps only what a re-implementer of the handshake needs.
 
@@ -105,11 +104,19 @@ VER opened by restating a system property with no normative force, and used "mar
 
 The general rule: a term the specs coin is defined in BLI's glossary before any spec leans on it, and a term they import is defined in the borrowing spec's own terms table.
 
-### presence secret, not sticker secret
+### presence token, not sticker secret
 
 Named by role, not by the artefact carrying it. Holding it proves the holder read the code on the device.
 
-"presence key" was considered; "secret" avoids collision with the session key the handshake produces.
+It went through "presence secret" first, and "secret" turned out to be the wrong word. The value is secret with respect to the radio, where SEC guarantees a listener never learns it, and public with respect to the enclosure, where it is printed in the open. No one word carries both, so the choice is which misreading to avoid. A reader who assumes it is hidden concludes that photographing a device is harmless, which is the dangerous error and the one "secret" invites. A reader who assumes it is public concludes nothing harmful, because nothing in the system invites transmitting it.
+
+"Token" foregrounds possession rather than concealment, which is the actual model and what SEC's "the QR code is the credential" already says. "presence key" was the other candidate, literally accurate since the value is used byte-for-byte as the Noise pre-shared key, but pre-shared keys are conventionally protected too, so it inherits the same objection.
+
+Renaming reached the specs in one sweep with `sticker secret`, those being the same value under two wrong names.
+
+### QR code is borrowed, not coined
+
+The glossary carried a `QR code` entry. QR codes are defined by an external standard, so by the coined-versus-imported rule the term belongs in the `## Borrowed terms` table of the spec that borrows it, with a citation, not in BLI. Removed; it lands in BLI-STK when that spec is rewritten, and the standard's number is to be verified then rather than taken from memory.
 
 ### The QR code is the invariant, the substrate is not
 
@@ -135,7 +142,7 @@ Still needed: the Core Specification Supplement for BLI-ADV's advertising data f
 
 - [x] Pilot the voice on `channel.md`
 - [x] Requirements notation and global glossary in `overview.md`
-- [x] presence secret and QR code terminology in `overview.md` and `channel.md`
+- [x] presence token and QR code terminology in `overview.md` and `channel.md`
 - [x] Per-spec terms glossary in `channel.md`
 - [x] Link and anchor checking in CI (`.github/workflows/links.yml`)
 - [ ] Terminology sweep across the remaining seven specs
@@ -184,7 +191,7 @@ Open:
 
 ## Other findings
 
-- The board ID was described as the value "every other value in the system descends from", in the deleted chain, in the glossary, and in `board-id.md` line 7. It is false. It descends to the presence secret and the advertised handle and nothing else: the rotation salt is random, the version marker is not derived, the service and characteristic UUIDs are constants, and session keys come out of the handshake. Corrected in the glossary; **`board-id.md` still carries it and is corrected in its rewrite.**
+- The board ID was described as the value "every other value in the system descends from", in the deleted chain, in the glossary, and in `board-id.md` line 7. It is false. It descends to the presence token and the advertised handle and nothing else: the rotation salt is random, the version marker is not derived, the service and characteristic UUIDs are constants, and session keys come out of the handshake. Corrected in the glossary; **`board-id.md` still carries it and is corrected in its rewrite.**
 
   Worth noting how it surfaced. The claim sat unremarked in three places while the surrounding prose was long, and became conspicuous the moment the glossary entry was cut to two lines. Compression is what made a false sentence visible, which is an argument for the rewrite beyond the voice itself.
 
