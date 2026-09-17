@@ -18,8 +18,6 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 ## External documents
 
-The specifications bliti builds on, each cited where it bears on a requirement.
-
 | document | what it covers |
 | --- | --- |
 | [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) | the requirement keywords above |

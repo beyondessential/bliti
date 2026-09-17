@@ -6,9 +6,7 @@ id: BLI-CHN
 
 Once a client has matched a device by its [advertised handle](overview.md#advertised-handle), as specified in [BLI-ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
 
-## Terms
-
-Terms this spec borrows from the standards it references.
+## Borrowed terms
 
 | term | meaning |
 | --- | --- |
