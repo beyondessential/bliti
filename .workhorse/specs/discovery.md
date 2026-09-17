@@ -4,64 +4,68 @@ id: ADV
 
 # Discovery and matching
 
-A device advertises continuously over BLE.
-A client that holds a QR code recomputes the expected handle from it and matches that against the advertisements it hears, which is what lets an operator pick one device out of everything advertising nearby.
+A device advertises continuously, and a client that holds a QR code recomputes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against what it hears.
+
+## Borrowed terms
+
+| term | meaning |
+| --- | --- |
+| advertisement | The packet a BLE peripheral broadcasts so that scanners learn it is there. |
+| scan response | A second packet a peripheral sends only when a scanner asks for one. |
+| AD type | One element of an advertisement or scan response, each defined in Part A of the [Core Specification Supplement](https://www.bluetooth.com/specifications/specs/core-specification-supplement/). |
+| flags, local name, service UUID, service data | Four such AD types: the mandatory discoverability bits, the name a device calls itself, the services it offers, and arbitrary bytes keyed by one of those service UUIDs. |
+| legacy advertising | Advertising as it was before extended advertising, offering 31 bytes for the advertisement and 31 for the scan response. |
 
 ## What is advertised
 
-The advertisement carries a service UUID identifying the device as speaking bliti.
-The local name carries the advertised handle of [KEY](key-schedule.md), the current rotation salt, and the version marker.
+A device MUST advertise a 128-bit service UUID identifying it as speaking bliti, in the advertisement rather than in the scan response.
 
-The service UUID is a 128-bit UUID and appears in the advertisement rather than the scan response, because filtering a scan by service UUID is the only filtering some client platforms offer and it is applied to the advertisement.
+A device MUST carry its payload in the local name.
 
-The payload is carried in the local name rather than in service data, because a device cannot choose where each element is placed.
-A controller that does only legacy advertising offers 31 bytes for the advertisement and 31 for the scan response, and the host decides which element goes in which.
-The mandatory flags take three bytes and a 128-bit service UUID eighteen, so 21 of the advertisement's 31 are already spent, and service data keyed by that same UUID needs 31 of its own before it will fit anywhere.
-Carrying the payload as a local name costs two bytes of element header rather than eighteen of repeated UUID, and a local name is the one element a host will place in the scan response, so the whole advertisement fits a legacy controller.
+The payload MUST be 13 bytes: the eight-byte handle, the four-byte [rotation salt](overview.md#rotation-salt), then the one-byte [version marker](overview.md#version-marker), rendered as 21 characters of base32 without padding.
 
-The payload is 13 bytes: an eight-byte handle, a four-byte salt, and a one-byte version marker.
-It is rendered as 21 characters of unpadded base32, which is what the local name holds.
-
-Eight bytes of handle makes a collision between two devices at one site implausible.
-
-A client platform that can only filter by name prefix has the rendering to filter on, and the handle is not secret, so carrying it in the clear costs nothing.
+> [!NOTE]
+> A scan filter is applied to advertisement data and never to the scan response, so a service UUID a client filters on has to sit in the advertisement.
+> The payload rides in the local name because a host, not a device, decides which element goes in which packet. On a legacy controller the mandatory flags take three bytes and a 128-bit service UUID eighteen, leaving ten of the advertisement's 31, while service data keyed by that same UUID would need 31 of its own before it fit anywhere. A local name costs two bytes of element header rather than eighteen of repeated UUID, and is the one element a host will place in the scan response.
+> Eight bytes of handle makes a collision between two devices at one site implausible. The handle is not secret, so carrying it in the clear costs nothing, and a client that can only filter by name prefix has the rendering to filter on.
 
 ## Matching
 
-A client scans, reads the local name of each device advertising the service UUID, decodes it, recomputes the handle from the QR code it holds together with the salt it observes, and compares.
+A client MUST read the version marker before recomputing a handle, as [VER](version.md) requires.
 
-A local name that is not a bliti payload belongs to a device that is not one, and is passed over.
+A client MUST recompute the handle from the QR code it holds together with the salt it observes, and compare that against what it read.
 
-Matching is by payload rather than by device address, so a client that is never shown the peer's address can still identify the device, and a device whose address rotates is still recognised.
+A client MUST match on the payload rather than on the peer's address.
 
-The cost to a client is one fast hash per advertisement heard per QR code held.
+A local name that is not a bliti payload MUST be passed over.
 
-The version marker is the base protocol version of [BLI](overview.md), which covers every layer from the derivations to the shape of application messages.
-
-A client reads the advertised version marker before recomputing.
-Where it differs from the version of the QR code the client holds, the client reports a device present at a version it does not support.
-No two versions produce a matching handle, so reading the marker is what separates that from a device the client cannot hear at all.
+> [!NOTE]
+> Matching on the payload means a client that is never shown the peer's address can still identify a device, and a device whose address rotates is still recognised.
+> The cost to a client is one fast hash per advertisement heard, per QR code held.
 
 ## Rotation
 
-The rotation salt is a short random value advertised in the clear, and it changes every fifteen minutes.
+A device MUST change its rotation salt every fifteen minutes, and MUST re-register its advertisement when it does.
 
-Rotating it is what stops the handle being a fixed beacon: without the salt changing, a passive observer could follow a device by its handle alone even though the handle reveals nothing about which device it is.
-An observer who has not scanned the QR code cannot link two advertisements across a salt change, while a client that holds the QR code recognises the device across it by recomputing.
+A client MUST recompute against whatever salt it observes.
 
-Rotating the salt means re-registering the advertisement, and a client recomputes against whatever salt it observes, so nothing a client does depends on the rotation period.
-The local name changes with the handle, so what a client filters on changes at the same time.
-
-## Address privacy
-
-The privacy of the BLE address itself is a property of how the adapter is configured, and bliti neither sets it nor depends on it.
-
-Where the adapter's address does not rotate, an observer can link a device's advertisements by address regardless of the salt, and the guarantee is the one stated in [BLI](overview.md): such an observer learns that a device is present and that it is the same device, but not which device it is.
+> [!NOTE]
+> Were the salt fixed, a passive observer could follow a device by its handle alone, even though the handle reveals nothing about which device it is.
+> Because a client recomputes against what it observes, nothing a client does depends on the rotation period.
 
 ## Advertising continuously
 
-A device advertises whenever it is running, rather than only during a window after starting.
+A device MUST advertise whenever it is running.
 
-Anyone in range can therefore open a connection and begin a handshake that will fail.
-Repeated failures leave the device reachable by a legitimate operator: there is no lockout, because someone in range could otherwise deny an operator their own device, which is worse than the attempts a lockout would prevent.
-Failed attempts are not recorded so freely that someone in range can exhaust the device's storage by making them.
+A device MUST NOT lock a peer out after failed handshakes.
+
+A device MUST bound what it records about failed attempts.
+
+> [!NOTE]
+> Anyone in range can open a connection and begin a handshake that will fail. A lockout would let someone in range deny an operator their own device, which is worse than the attempts it would prevent, and unbounded recording would let them exhaust the device's storage instead.
+
+## Address privacy
+
+The privacy of the BLE address is a property of how the adapter is configured, which bliti neither sets nor depends on.
+
+What an observer learns either way is specified in [SEC](security.md).

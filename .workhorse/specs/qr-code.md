@@ -4,40 +4,57 @@ id: QR
 
 # QR code
 
-The QR code is carried on the outside of a device and encodes the presence token of [KEY](key-schedule.md).
-It is the credential: scanning it is what lets a client recognise and authenticate to that device.
+A device's QR code carries the [presence token](overview.md#presence-token) and the [version marker](overview.md#version-marker) on the outside of the device.
+
+## Borrowed terms
+
+| term | meaning |
+| --- | --- |
+| QR code | The two-dimensional bar code symbology defined in ISO/IEC 18004. |
+| error correction level | One of the four Reed-Solomon strengths that symbology offers, L, M, Q and H in increasing order, each trading data capacity for tolerance of damage. |
+| base32 | The encoding of [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648), over the alphabet A to Z followed by 2 to 7. |
+| fragment | The part of a URL after `#`, which a client resolves locally and does not send to a server. |
 
 ## Payload
 
-The QR payload carries the presence token and the version marker, and nothing else.
+The payload MUST be 33 bytes: the version marker, followed by the 32 bytes of the presence token.
 
-The board ID is not carried alongside the secret.
-Putting it there would hand the board ID to anyone who photographs a QR code, which is the property the derivation exists to provide.
+The payload MUST be encoded as base32 without padding, giving 53 characters.
 
-The QR code encodes the URL `https://bliti.tamanu.app/`, with the payload in its fragment.
-A generic phone camera opens the page, so a device is usable without installing anything first, and the fragment is never sent to a server, so the secret stays on the device that scanned it.
-A native application can claim the link, so scanning opens that application where it is installed.
+> [!NOTE]
+> RFC 4648 pads by default and leaves it to a referencing specification to say when padding is omitted.
 
-The payload is rendered as unpadded base32 in the fragment, in the same characters as the rendering printed beneath the code.
-A QR code spends fewer bits on digits and upper-case letters than on mixed-case text, so the longer base32 rendering produces a coarser code than a shorter mixed-case one would, and a coarser code is what a phone camera reads off an enclosure.
-The URL is lower case, because a native application claims a link by matching the scheme and host literally.
+## The URL
 
-A client that is already open reads the code with its own camera instead of following the link, as specified in [WEB](web-app.md).
-Both paths yield the same payload: the URL carries it rather than forming part of it.
+The QR code MUST encode the URL `https://bliti.tamanu.app/` with the payload as its fragment.
+
+The URL MUST be lower case.
+
+A client that is already open MAY read the code with its own camera rather than follow the link, as [WEB](web-app.md) specifies. Both paths yield the same payload.
+
+> [!NOTE]
+> A generic phone camera opens the page, so a device is reachable without installing anything first, and the fragment never leaves the device that scanned it.
+> A native application claims a link by matching scheme and host literally, which is what fixes the case.
 
 ## Printing
 
-A human-readable rendering of the payload is printed beneath the QR code, so a device whose code is scuffed or damaged remains usable.
+A QR code SHOULD be produced at error correction level H.
+
+A human-readable rendering of the payload SHOULD be printed alongside the code, in the same characters as the fragment.
+
+> [!NOTE]
+> Level H tolerates the most damage of the four, which is what a code fixed to an enclosure needs.
+> The rendering is what keeps a device reachable once the code itself is scuffed.
+> Base32 draws a coarser code than mixed-case text carrying the same payload would, because the symbology spends fewer bits on upper-case letters and digits, and a coarser code is what a phone camera reads off an enclosure.
 
 ## Generation
 
-A QR code is generated from a board ID, read either from the board in front of the generator or from a list of board IDs gathered beforehand.
+A QR code MUST be generated from a board ID, read either from the board in front of the generator or from a list gathered beforehand.
 
-Whether such a list can be gathered before the boards are to hand depends on which source won the precedence in [BID](board-id.md).
-A platform serial number can be known without the board present.
-A board ID taken from a TPM Endorsement Key, or from written one-time-programmable memory, is readable only from the board itself, so QR codes for those boards are generated with the board to hand.
+A generator MUST produce the same payload for a given board every time.
 
-The payload for a board is fixed, and no record of what was issued is kept or needed.
-A damaged QR code is replaced by printing the same payload again, recovered from the code itself or from the human-readable rendering beneath it, and by deriving it from the board again where neither can be read.
+Generation MUST be refused where the board offers no usable source, as [BID](board-id.md) specifies.
 
-Generation is refused where the board offers no usable source, as specified in [BID](board-id.md).
+> [!NOTE]
+> Whether a list can be gathered before the boards are to hand depends on which source wins the precedence in [BID](board-id.md). A platform serial can be known without the board present, while an Endorsement Key name or written one-time-programmable memory is readable only from the board itself.
+> Because the payload for a board is fixed, no record of what was issued is kept or needed, and a damaged code is replaced by printing the same payload again, recovered from the code, from the rendering alongside it, or by deriving it from the board once more.
