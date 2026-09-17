@@ -80,7 +80,7 @@ Streams are bidirectional, so a device may reply on the stream a client opened.
 Both are opaque.
 
 The client SHOULD display the device's `name` and `version`.
-The device records the client's, which is how it can be known what is actually in the field talking to these devices.
+The device MUST records the client's, which is how it can be known what is actually in the field talking to these devices.
 
 Their being opaque is what keeps this from becoming the version gate below.
 A value with no structure the other end reads is a value the other end cannot branch on.
