@@ -25,12 +25,14 @@ Every message in this spec carries readings and nothing else of substance.
 | `value` | object | no | the headline value, shaped as below |
 | `detail` | array | no | further values, each an object with `label` and `value` |
 | `note` | string | no | plain prose about what the reading means |
-| `state` | string | no | `ok`, `warn` or `fault`; `ok` when absent |
+| `state` | string | yes | `ok`, `warn` or `fault` |
 | `limits` | array | no | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 | `group` | string | no | name tying this reading to others for display |
 | `direction` | string | no | `in` or `out`, for a reading that measures flow |
-| `graph` | boolean | no | whether the reading's history is worth drawing; drawn when absent |
+| `graph` | boolean | yes | whether the reading's history is worth drawing |
 | `error` | string | no | why the reading could not be taken |
+
+`state` and `graph` are always sent. A reading carries no rule a reader must know before it can be read: where a member is absent, nothing is what that means.
 
 A reading MUST carry either `value` or `error`.
 A reading carrying `error` MUST have `state` of `fault` and MUST NOT carry `value`.
