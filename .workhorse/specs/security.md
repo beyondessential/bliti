@@ -79,7 +79,7 @@ bliti claims only that such an observer cannot tell *which* device it is hearing
 Search here means exhaustive enumeration, not consulting a record: an attacker derives the advertised handle for each candidate board ID in turn and compares it against a handle observed on the air.
 
 Because the derivation constants are public, that attack needs neither the device's QR code nor physical access to it.
-A recorded handshake serves as the oracle as well as a recorded advertisement does, because either lets a candidate be tested offline.
+A recorded handshake serves as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
 What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [BLI-KEY](key-schedule.md).
 For boards whose only identifier is a short serial number that product is small, and those boards carry a weaker guarantee than boards with a hardware-backed identifier.

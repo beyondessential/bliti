@@ -47,6 +47,16 @@ Two cases, and only the first is a defect:
 
 Sweep results: `discovery.md` 15 and `sticker.md` 18 restate durably as above. `system-info.md` 8 and `web-app.md` 8 are feature motivation rather than constraint, and go under the justification test. `web-app.md` 30 is a real requirement and only needs the terminology fix.
 
+### A term of art is defined where the everyday reading is also plausible
+
+SEC's "A board ID can be searched for" used "search" in the cryptographic sense of exhaustive enumeration against an oracle. The everyday reading, looking a value up in a register, is a completely different attack at a completely different price, and a reader who takes the cheap reading prices the whole guarantee wrong. Now stated outright: "Search here means exhaustive enumeration, not consulting a record."
+
+The rule is narrower than "define your jargon". A term of art needs defining where the everyday reading is *also plausible in context* and leads somewhere different. "Forward secrecy" and "domain separation" have no competing everyday reading and need none.
+
+Where the jargon is doing no work, it goes instead of getting a definition. The same section said a recorded handshake "serves as the oracle", which the clause beside it already explained: either lets a candidate be tested offline. Cut rather than defined.
+
+**Open, and adjacent.** Once search is pinned to enumeration, the question it raises is whether a board ID is obtainable by other routes at all. `key-schedule.md` notes that an SMBIOS system UUID may "merely reformat a vendor's service tag", and treats that purely as a size problem. If such a tag is also printed on a chassis or answerable by a vendor, that is a cheaper route than any enumeration, and neither KEY nor SEC covers it. To check against the board families actually in scope rather than assumed.
+
 ### A demonstrative points at a noun, not at an argument
 
 SEC said "Anyone who has had access to a device, or who otherwise knows its board ID, can derive its presence token, and can then both impersonate the device and connect to it. The same is true of anyone holding a photograph of the QR code."
