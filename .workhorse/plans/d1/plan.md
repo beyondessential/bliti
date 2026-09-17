@@ -28,7 +28,11 @@ The self-describing reading is wire contract, so it lives in `bliti-core` and bo
 - [ ] `disk` one reading per block device. Deduplicate by device before building readings, so `/` and `/var/lib/postgresql` on one `/dev/mapper/root` are one reading.
 - [ ] `temperature` from `thermal_zone0`, with the NVMe hwmon under `detail`, and `limits` from the zone's declared trip points.
 - [ ] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
-- [ ] `power-source` from the UPS board's power-loss line on GPIO 6, where 1 is external power present and 0 is running on battery. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
+- [ ] `power-source` from the UPS board's power-loss line on GPIO 6 together with the charge trend, giving three states. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
+  - GPIO 6 high: external power through the UPS.
+  - GPIO 6 low, charge falling: on battery.
+  - GPIO 6 low, charge steady while running: fed through the Pi's own socket, UPS bypassed. Report `warn`.
+- [ ] Until the charge has been watched long enough to tell steady from falling, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
 - [ ] `fan` from `hwmon/pwmfan/fan1_input`.
 - [ ] `uptime` from `/proc/uptime`.
 - [ ] `network-in` and `network-out` from `/proc/net/dev` counter deltas, one pair per reported interface, grouped as `network` with `direction` set. Handle counter wrap.
@@ -93,6 +97,14 @@ Both integrate a Maxim gauge at `0x36` on I2C bus 1, so the gauge reading is one
 Confirmed by reading the gauge on the v4 test device: registers `0x16`, `0x18` and `0x1a` all read `0xffff`, so they are unimplemented and the part is not a MAX17048 or '49; RCOMP at `0x0c` reads `0x97`, the MAX17040 default. There is no charge-rate register on either board, which is why direction comes from the power-source line or from history rather than from the gauge.
 
 The power-loss line on v4 is GPIO 6, high when external power is present. Geekworm does not document the pin or its active level for the X1201, so v3's must be confirmed against real v3 hardware rather than assumed from the family convention.
+
+### The bypass, and why it matters
+
+Both boards have their own USB-C input, and the Pi has one of its own. Measured on v4: with the supply in the Pi's own socket and the UPS's input empty, GPIO 6 reads low, the charge sits perfectly still, and the device runs normally with a battery at 96%. Removing that supply halts the Pi outright. The UPS does not take over, because in that configuration it was never carrying the device.
+
+This is a misconfiguration with no outward sign and a real cost: an unclean halt on a box running a database, at the moment the power goes, on a device someone believed was protected. It is also the state reached by plugging into the more obvious of the two sockets. Surfacing it is the most valuable thing this reading does.
+
+The firmware is no help in spotting it. `usbpd_power_data_objects` under `/proc/device-tree/chosen/power` reads all zeros whether the Pi is fed through its own socket or through the UPS, and `max_current` and `usb_max_current_enable` are identical across both. The GPIO and the charge trend are the only signals.
 
 ### Deciding what is fitted
 

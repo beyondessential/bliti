@@ -28,7 +28,10 @@ An independently written client should pass the client-side cases from the spec 
 - [ ] `temperature` carries its note, and the note names the processor core and gives the ordinary range (Rust).
 - [ ] A device running warm but healthy reports `state` of `ok`, not `warn` (Rust). This is the regression guard for the behaviour that prompted the note.
 - [ ] `throttling` reports undervoltage and frequency capping independently, and reports neither when both are clear (Rust).
-- [ ] `power-source` reports external power when the power-loss line is high and battery when it is low (Rust).
+- [ ] `power-source` reports external power when the power-loss line is high (Rust).
+- [ ] The line low with the charge falling reports on battery (Rust).
+- [ ] The line low with the charge steady reports the backup supply bypassed, as `warn`, with a note saying a power cut will stop the device (Rust).
+- [ ] Before there is enough history to tell steady from falling, on battery is reported rather than a bypass (Rust). Asserting a bypass early would send someone to move a plug that is already correct.
 - [ ] The GPIO chip is resolved by line name, so the reading works on a kernel that numbers the chips differently (Rust).
 - [ ] Battery direction comes from `power-source` where that reading exists, and from history where it does not; the `note` says which (Rust).
 - [ ] A derived direction is withheld until there is enough history to be steady (Rust).
@@ -76,8 +79,10 @@ The test device is a v4. Anything board-specific needs running again on a v3, wh
 
 - [ ] Every reading shows a plausible value on the test device, checked against the same figure read over ssh.
 - [ ] The fuel gauge reading matches what the gauge reports directly.
-- [ ] Unplugging power flips `power-source` to battery immediately, and replugging flips it back.
+- [ ] With the supply in the UPS's own input, pulling it keeps the device running on battery, `power-source` flips to battery, and replugging flips it back.
+- [ ] With the supply in the Pi's own socket instead, `power-source` reports the bypass and warns.
 - [ ] Battery direction follows `power-source` rather than waiting for history to establish it.
+- [ ] The device survives a power cut in the supported configuration and does not in the bypassed one. This is the behaviour the warning exists for, and confirming it is what makes the warning honest.
 - [ ] Loading the device shows `cpu` moving and the graph following.
 - [ ] Pulling the network cable shows the interface reading change and throughput fall to nothing.
 - [ ] The view is legible at arm's length on a phone, held at the distance an operator actually stands from the device.

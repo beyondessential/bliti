@@ -124,7 +124,7 @@ Live:
 | `disk` | `fraction` | one reading per block device, grouped as `disk`, never one per mount point |
 | `battery` | `fraction` | state of charge, with voltage and direction of travel under `detail` |
 | `temperature` | `quantity` | the processor core, with any further sensors under `detail` |
-| `power-source` | `text` | whether the board runs on external power or on its battery |
+| `power-source` | `text` | where the device's power is coming from |
 | `throttling` | `text` | what is currently limiting the board |
 | `fan` | `quantity` | fan speed |
 | `uptime` | `duration` | time since boot |
@@ -137,10 +137,24 @@ Several mount points on one block device are one reading, not one each.
 
 ### Power source and battery
 
-`power-source` reports whether the device is running on external power or on its battery.
+`power-source` reports where the device's power is coming from, as one of three states:
+
+| state | meaning |
+| --- | --- |
+| external power through the backup supply | the ordinary state, and the only one in which a power cut is survived |
+| the battery | external power is absent and the backup supply is carrying the device |
+| external power bypassing the backup supply | the device is fed directly and the backup supply is idle |
+
+The third state MUST be reported as `warn`, and its `note` MUST say that a power cut will stop the device without warning and that moving the supply to the backup's own input restores protection.
+
+A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery.
+Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 
 The battery headline is state of charge.
 Voltage and the direction of travel go under `detail`.
+
+The three states are distinguished by the presence of external power at the backup supply together with the movement of the charge: present is the first state, absent with the charge falling is the second, and absent with the charge steady while the device runs is the third.
+The third is only distinguishable once the charge has been watched for long enough to tell steady from falling, and until then the device MUST report the second rather than assert the third.
 
 Direction is taken from `power-source` where the hardware reports the presence of external power, and is derived from how the state of charge has moved across the buffered history otherwise.
 A device that derives it MUST say so in `note`, and MUST NOT report a derived direction it does not yet have enough history to establish.
