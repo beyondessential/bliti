@@ -26,7 +26,11 @@ A spec that announces it is binding is compensating for prose that does not read
 
 The same logic removes sentences written *about* other sentences in the spec. "The two ceilings are independent, and a device MUST satisfy both" existed only because the two ceilings shared one sentence; written as two requirements, it evaporates.
 
-Outstanding instances of the class: `messages.md` 8, 11-12; `system-info.md` 10, 13-14, 205; `overview.md` 46. Three flavours — contract boasts, table-of-contents openers restating the headings, and defensive commentary ("properties of the design rather than gaps in it", "This note is required"). In each case the buried real requirement is already stated normatively elsewhere, so they delete cleanly.
+The class also points outward. `channel.md` closed by enumerating what BLI-MSG specifies, which duplicates that spec's headings and rots when they change. Replaced by a pointer naming the subject rather than the contents: a cross-reference says what the target is about, and does not summarise what it says.
+
+The same enumeration also sat inside `messages.md` as self-description, so the list existed in two places and was load-bearing in neither. Where a cross-reference and its target both recite the same list, the headings are the real list and both copies go.
+
+Outstanding instances of the class: `messages.md` 8, 11-12; `system-info.md` 10, 11, 13-14, 205; `overview.md` 46. Four flavours — contract boasts, table-of-contents openers restating the headings, defensive commentary ("properties of the design rather than gaps in it", "This note is required"), and cross-references reciting their target. In each case the buried real requirement is already stated normatively elsewhere, so they delete cleanly.
 
 ### A rationale must outlive the capability it cites
 

@@ -85,5 +85,4 @@ Closing one stream MUST leave the other streams and the connection alive.
 
 ## Messages
 
-Application messages are JSON, carried on the streams above.
-How a message is delimited and encoded, which streams carry which messages, how the two ends name themselves, how each skips what it does not recognise, and how live data is subscribed to, are specified in [BLI-MSG](messages.md).
+The streams above carry application messages, as specified in [BLI-MSG](messages.md).
