@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 ---
 
 # Diagnostic and informational data display
@@ -242,6 +242,16 @@ Verified on the `tamanu-iti-v4-prototype` test device (Raspberry Pi 5 Model B Re
 ## Open questions
 
 None outstanding. Every decision the interview opened has been closed; what remains is the shape of the split.
+
+## Where this was split to
+
+This doc has been split. It stays as the record of the reasoning; the artefacts below are the live ones.
+
+- Behaviour and the reading format became [BLI-SYS](../../specs/system-info.md), `.workhorse/specs/system-info.md`.
+- Implementation went to `.workhorse/plans/d1/plan.md`.
+- Testing notes became `.workhorse/test-cases/d1/overview.md`.
+- The envelope half of the wire contract was already specified as BLI-MSG by E1 and was not duplicated.
+- `.workhorse/specs/web-app.md` needed no change: it defers a feature's client half to the feature's own spec, and BLI-SYS carries it.
 
 ## Notes for the split
 
