@@ -1,0 +1,19 @@
+name: Links
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+jobs:
+  run:
+    name: Spec links and anchors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check links and heading anchors
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments=anchor-only --no-progress ".workhorse/specs/**/*.md"
+          fail: true
