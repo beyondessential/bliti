@@ -331,3 +331,71 @@ test.describe('the activity log', () => {
 		await expect(page.locator('.log')).toContainText('refused')
 	})
 })
+
+test.describe('what the reveal shows', () => {
+	/// Some readings move too slowly for a graph to say anything, and some only ever climb. The device
+	/// says which, because it knows what it is measuring.
+	test('a reading that says its history is not worth drawing gets no graph', async ({ page }) => {
+		await openChannel(page)
+		await emit(
+			page,
+			identity([
+				{ name: 'cpu', label: 'CPU', value: fraction(0.12) },
+				{ name: 'disk', label: 'Disk', value: fraction(0.5), graph: false },
+			]),
+		)
+		await emit(
+			page,
+			history([
+				{ name: 'cpu', points: [[1000, 0.1], [2000, 0.5]] },
+				{ name: 'disk', points: [[1000, 0.5], [2000, 0.5]] },
+			]),
+		)
+
+		await page.getByRole('button', { name: /CPU/ }).click()
+		await expect(page.locator('.tile.expanded .spark')).toHaveCount(1)
+		await page.getByRole('button', { name: /CPU/ }).click()
+
+		await page.getByRole('button', { name: /Disk/ }).click()
+		await expect(page.locator('.tile.expanded .spark')).toHaveCount(0)
+		// It still reveals its scale, so the tap is not wasted.
+		await expect(page.locator('.tile.expanded .bar')).toHaveCount(1)
+	})
+
+	/// Reading figures and graphs through a half-width column is what the tap was avoiding.
+	test('an opened tile takes the whole row', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, identity([{ name: 'cpu', label: 'CPU', value: fraction(0.12) }]))
+		await expect(page.locator('.tile.wide')).toHaveCount(0)
+		await page.getByRole('button', { name: /CPU/ }).click()
+		await expect(page.locator('.tile.expanded.wide')).toHaveCount(1)
+	})
+
+	/// A graph with one line above the axis and one below is unreadable without saying which is which.
+	test('a mirrored graph names each direction', async ({ page }) => {
+		await openChannel(page)
+		const pair = [
+			{ name: 'network-in', label: 'In', group: 'network', direction: 'in',
+			  value: { kind: 'quantity', number: 1.2, unit: 'MB/s' } },
+			{ name: 'network-out', label: 'Out', group: 'network', direction: 'out',
+			  value: { kind: 'quantity', number: 0.08, unit: 'MB/s' } },
+		]
+		await emit(page, identity(pair))
+		await emit(
+			page,
+			history([
+				{ name: 'network-in', points: [[1000, 1.0], [2000, 2.8]] },
+				{ name: 'network-out', points: [[1000, 0.05], [2000, 0.08]] },
+			]),
+		)
+
+		// One tile for the pair, titled for the group.
+		await expect(page.locator('.tile')).toHaveCount(1)
+		await expect(page.locator('.tile .label')).toHaveText('Network')
+
+		await page.locator('.tile').click()
+		await expect(page.locator('.axis-label.up')).toContainText('Out')
+		await expect(page.locator('.axis-label.down')).toContainText('In')
+		await expect(page.locator('.axis-label.up .key')).toBeVisible()
+	})
+})

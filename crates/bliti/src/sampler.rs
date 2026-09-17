@@ -101,6 +101,43 @@ impl Sampler {
 			.collect()
 	}
 
+	/// The newest value of every reading the window holds, as one sample.
+	///
+	/// Merged across samples rather than taken from the last one: the readings that move slowly are
+	/// taken every fifth sample, so the newest sample on its own is missing most of them.
+	pub fn latest(&self) -> Option<Sample> {
+		let window = self
+			.window
+			.lock()
+			.expect("the window is never held across a panic");
+
+		let mut order: Vec<String> = Vec::new();
+		let mut newest: std::collections::HashMap<String, bliti_core::channel::readings::Reading> =
+			std::collections::HashMap::new();
+		let mut at = 0;
+		for sample in window.iter() {
+			at = at.max(sample.at);
+			for reading in &sample.readings {
+				if newest
+					.insert(reading.name.clone(), reading.clone())
+					.is_none()
+				{
+					order.push(reading.name.clone());
+				}
+			}
+		}
+		if order.is_empty() {
+			return None;
+		}
+		Some(Sample {
+			at,
+			readings: order
+				.into_iter()
+				.filter_map(|name| newest.remove(&name))
+				.collect(),
+		})
+	}
+
 	/// Subscribe to samples as they are taken.
 	pub fn live(&self) -> broadcast::Receiver<Sample> {
 		self.live.subscribe()
@@ -308,6 +345,24 @@ mod tests {
 		for pair in thinned.windows(2) {
 			assert!(pair[0].0 < pair[1].0, "still in order");
 		}
+	}
+
+	/// The slow readings are taken every fifth sample, so the newest sample alone is missing most of
+	/// them. An operator would see a view that filled in over five seconds for no reason.
+	#[tokio::test(start_paused = true)]
+	async fn the_latest_merges_across_samples_rather_than_taking_the_last() {
+		let sampler = Sampler::start();
+		let _session = sampler.session();
+		tokio::time::sleep(FAST * 7).await;
+
+		let latest = sampler.latest().expect("something was sampled");
+		let names: Vec<&str> = latest.readings.iter().map(|r| r.name.as_str()).collect();
+		assert!(names.contains(&"cpu"), "{names:?}");
+		// Taken on the slow tier, so a newest-sample-only answer would usually miss it.
+		assert!(
+			names.iter().any(|name| name.starts_with("uptime")),
+			"{names:?}"
+		);
 	}
 
 	/// Long decimals are what make a series large, and no graph can draw them.

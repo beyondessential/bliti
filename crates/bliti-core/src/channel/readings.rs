@@ -56,9 +56,25 @@ pub struct Reading {
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub direction: Option<Direction>,
 
+	/// Whether this reading's history is worth drawing. Absent means it is.
+	///
+	/// Some readings move too slowly for a graph to say anything, and some only ever climb. Drawing a
+	/// flat line or a ramp costs the reveal its space and tells an operator nothing, so the device,
+	/// which knows what it is measuring, says so.
+	#[serde(default = "yes", skip_serializing_if = "is_yes")]
+	pub graph: bool,
+
 	/// Why the reading could not be taken. Present only where there is no value.
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub error: Option<String>,
+}
+
+fn yes() -> bool {
+	true
+}
+
+fn is_yes(graph: &bool) -> bool {
+	*graph
 }
 
 impl Reading {
@@ -74,6 +90,7 @@ impl Reading {
 			limits: Vec::new(),
 			group: None,
 			direction: None,
+			graph: true,
 			error: None,
 		}
 	}
@@ -95,6 +112,7 @@ impl Reading {
 			limits: Vec::new(),
 			group: None,
 			direction: None,
+			graph: true,
 			error: Some(why.to_string()),
 		}
 	}
@@ -137,6 +155,13 @@ impl Reading {
 	#[must_use]
 	pub fn in_group(mut self, group: impl Into<String>) -> Self {
 		self.group = Some(group.into());
+		self
+	}
+
+	/// Say that this reading's history is not worth drawing.
+	#[must_use]
+	pub fn ungraphed(mut self) -> Self {
+		self.graph = false;
 		self
 	}
 
@@ -537,6 +562,29 @@ mod tests {
 		assert!(!json.contains("state"), "{json}");
 		assert!(!json.contains("detail"), "{json}");
 		assert!(!json.contains("note"), "{json}");
+	}
+
+	/// A reading is graphed unless it says otherwise, so a device that has never heard of the member
+	/// is not silently left without graphs.
+	#[test]
+	fn a_reading_is_graphed_unless_it_says_otherwise() {
+		let reading = Reading::new("cpu", "CPU", Value::Fraction(0.1));
+		assert!(reading.graph);
+		assert!(!serde_json::to_string(&reading).unwrap().contains("graph"));
+
+		let quiet = reading.clone().ungraphed();
+		assert!(!quiet.graph);
+		assert!(
+			serde_json::to_string(&quiet)
+				.unwrap()
+				.contains(r#""graph":false"#)
+		);
+
+		let older: Reading = serde_json::from_str(
+			r#"{"name":"cpu","label":"CPU","value":{"kind":"fraction","number":0.1}}"#,
+		)
+		.unwrap();
+		assert!(older.graph);
 	}
 
 	#[test]

@@ -136,7 +136,12 @@ fn rates(
 	current: &BTreeMap<String, Counters>,
 	seconds: f64,
 ) -> Vec<Reading> {
-	let mut readings = Vec::new();
+	// Summed across interfaces for the headline, with each interface behind it. A device with several
+	// links is answering one question at a glance, which is whether anything is moving at all.
+	let mut total_in = 0u64;
+	let mut total_out = 0u64;
+	let mut per_interface: Vec<(String, u64, u64)> = Vec::new();
+
 	for (name, now) in current {
 		let Some(then) = previous.get(name) else {
 			// An interface that appeared since the last sample has no interval behind it either.
@@ -149,28 +154,31 @@ fn rates(
 		) else {
 			continue;
 		};
-
 		let per_second = |count: u64| (count as f64 / seconds) as u64;
-		readings.push(
-			Reading::new(
-				format!("network-in-{name}"),
-				format!("{name} in"),
-				rate(per_second(received)),
-			)
-			.in_group("network-throughput")
-			.flowing(Direction::In),
-		);
-		readings.push(
-			Reading::new(
-				format!("network-out-{name}"),
-				format!("{name} out"),
-				rate(per_second(sent)),
-			)
-			.in_group("network-throughput")
-			.flowing(Direction::Out),
-		);
+		let (inbound, outbound) = (per_second(received), per_second(sent));
+		total_in += inbound;
+		total_out += outbound;
+		per_interface.push((name.clone(), inbound, outbound));
 	}
-	readings
+
+	if per_interface.is_empty() {
+		return Vec::new();
+	}
+
+	let mut inbound = Reading::new("network-in", "In", rate(total_in))
+		.in_group("network")
+		.flowing(Direction::In);
+	let mut outbound = Reading::new("network-out", "Out", rate(total_out))
+		.in_group("network")
+		.flowing(Direction::Out);
+	// Only worth breaking down where there is more than one link to break it into.
+	if per_interface.len() > 1 {
+		for (name, each_in, each_out) in &per_interface {
+			inbound = inbound.with_detail(name, rate(*each_in));
+			outbound = outbound.with_detail(name, rate(*each_out));
+		}
+	}
+	vec![inbound, outbound]
 }
 
 /// A rate, in the unit that suits the count, per second.
@@ -280,6 +288,75 @@ mod tests {
 		assert!(rates(&previous, &current, 1.0).is_empty());
 	}
 
+	/// One tile answers the question at a glance, and a device with several links sums into it rather
+	/// than making an operator add up four numbers.
+	#[test]
+	fn throughput_is_summed_across_interfaces() {
+		let previous = BTreeMap::from([
+			(
+				"end0".to_owned(),
+				Counters {
+					received: 0,
+					sent: 0,
+				},
+			),
+			(
+				"wld0".to_owned(),
+				Counters {
+					received: 0,
+					sent: 0,
+				},
+			),
+		]);
+		let current = BTreeMap::from([
+			(
+				"end0".to_owned(),
+				Counters {
+					received: 2_000,
+					sent: 1_000,
+				},
+			),
+			(
+				"wld0".to_owned(),
+				Counters {
+					received: 3_000,
+					sent: 500,
+				},
+			),
+		]);
+		let readings = rates(&previous, &current, 1.0);
+		assert_eq!(
+			readings.len(),
+			2,
+			"one reading a direction, however many links"
+		);
+		assert_eq!(readings[0].value, Some(rate(5_000)));
+		assert_eq!(readings[1].value, Some(rate(1_500)));
+		// Each link is still there, behind the tap.
+		assert_eq!(readings[0].detail.len(), 2);
+	}
+
+	/// With one link there is nothing to break down, so the detail stays empty.
+	#[test]
+	fn a_single_interface_gets_no_breakdown() {
+		let previous = BTreeMap::from([(
+			"end0".to_owned(),
+			Counters {
+				received: 0,
+				sent: 0,
+			},
+		)]);
+		let current = BTreeMap::from([(
+			"end0".to_owned(),
+			Counters {
+				received: 2_000,
+				sent: 1_000,
+			},
+		)]);
+		let readings = rates(&previous, &current, 1.0);
+		assert!(readings[0].detail.is_empty());
+	}
+
 	#[test]
 	fn both_directions_are_reported_and_opposed() {
 		let previous = BTreeMap::from([(
@@ -302,8 +379,10 @@ mod tests {
 		let inbound = readings[0].direction.clone().unwrap();
 		let outbound = readings[1].direction.clone().unwrap();
 		assert!(inbound.opposes(&outbound));
-		// Grouped together, so a client shows them as one reading with two directions.
-		assert_eq!(readings[0].group, readings[1].group);
+		// Grouped together, so a client shows them as one reading with two directions, and exactly two
+		// so the pair can be drawn mirrored about one axis.
+		assert_eq!(readings[0].group.as_deref(), Some("network"));
+		assert_eq!(readings[1].group.as_deref(), Some("network"));
 	}
 
 	/// An interface that appeared since the last sample has no interval behind it.

@@ -29,6 +29,7 @@ Every message in this spec carries readings and nothing else of substance.
 | `limits` | array | no | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 | `group` | string | no | name tying this reading to others for display |
 | `direction` | string | no | `in` or `out`, for a reading that measures flow |
+| `graph` | boolean | no | whether the reading's history is worth drawing; drawn when absent |
 | `error` | string | no | why the reading could not be taken |
 
 A reading MUST carry either `value` or `error`.
@@ -67,7 +68,9 @@ The device's own software name and version are not repeated here; they are carri
 
 Live readings are carried on the topic `system`.
 
-On receiving the subscription the device MUST send `system-history` as the first message on that stream, then `system-sample` at its own cadence for as long as the stream is open.
+On receiving the subscription the device sends the newest value of every reading it holds as a `system-sample`, then `system-history`, then a `system-sample` at its own cadence for as long as the stream is open.
+
+The readings come before the window so that everything an operator is waiting for appears at once and the graphs fill in behind it. The other way round leaves the view empty for as long as the window takes to cross the link, which is the part of it nobody is waiting on.
 
 `system-sample`:
 
@@ -138,19 +141,24 @@ Live:
 | --- | --- | --- |
 | `cpu` | `fraction` | processor in use across all cores |
 | `memory` | `fraction` | memory in use, with total and used under `detail` |
-| `disk` | `fraction` | one reading per block device, grouped as `disk`, never one per mount point |
+| `disk` | `fraction` | how full the fullest filesystem is, with each behind it |
 | `battery` | `fraction` | state of charge, with voltage and direction of travel under `detail` |
 | `temperature` | `quantity` | the processor core, with any further sensors under `detail` |
 | `power-source` | `text` | where the device's power is coming from |
 | `throttling` | `text` | what is currently limiting the board |
 | `fan` | `quantity` | fan speed |
 | `uptime` | `duration` | time since boot |
-| `network-in`, `network-out` | `quantity` | throughput per direction, grouped as `network`, `direction` set accordingly |
+| `network-in`, `network-out` | `quantity` | throughput summed across interfaces per direction, grouped as `network`, `direction` set accordingly |
 
 ### Disk
 
-A device reports one reading per block device.
-Several mount points on one block device are one reading, not one each.
+A device reports how full its fullest filesystem is, with every filesystem behind it.
+Several mount points on one block device count once, not once each.
+
+A boot partition does not set the headline.
+Those are small, written once when the device is imaged, and sit near full for its whole life, so one setting the headline would show every device as nearly out of space.
+
+Filesystem use does not move fast enough for a graph to say anything, so the reading says its history is not worth drawing.
 
 ### Power source and battery
 
@@ -219,6 +227,7 @@ A reading carrying `error` is shown as failing, with the reason.
 Each reading is shown as a tile.
 
 The tile's face carries the reading's `label` and its headline value and nothing else.
+A tile whose detail is open takes the full width, because figures and graphs are not read through half a column.
 `detail`, `note`, `limits`, any scale drawn as a bar, and any history drawn as a graph are revealed when the operator taps the tile.
 
 A reading whose `state` is `warn` or `fault` is coloured on the face.
@@ -228,11 +237,12 @@ Readings sharing a `group` are shown as one tile.
 
 ### Graphs
 
-Where the application holds history for a reading, the reveal shows it as a graph.
+Where the application holds history for a reading, and the reading does not say its history is not worth drawing, the reveal shows it as a graph.
 The application holds history from `system-history` on subscribing, and extends it with each `system-sample`.
 
 Two readings in one group carrying opposed `direction` values are drawn as a single graph mirrored about a shared time axis, one direction above it and the other below.
-Each direction is scaled to its own peak, and each peak is stated beside it.
+Each direction is scaled to its own peak, and each peak is stated beside it, along with which line it belongs to.
+A graph with two lines and no way to tell them apart is not readable.
 
 Samples are spaced by their `at` values rather than evenly.
 

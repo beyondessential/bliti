@@ -38,7 +38,7 @@ function hasMore(reading, live, history) {
 			reading.detail?.length ||
 			reading.limits?.length ||
 			scaleOf(reading.value) !== null ||
-			seriesOf(history, live, reading.name).length > 1,
+			(reading.graph !== false && seriesOf(history, live, reading.name).length > 1),
 	)
 }
 
@@ -61,7 +61,7 @@ function Tile({ entry, live, history }) {
 	const trouble = entry.readings.some(isTrouble)
 	const more = entry.readings.some((reading) => hasMore(reading, live, history))
 
-	const className = `tile${wide ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
+	const className = `tile${wide || open ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
 	const body = (
 		<>
 			<div className="label">{entry.label}</div>
@@ -147,7 +147,7 @@ function Revealed({ reading, live, history }) {
 				</div>
 			)}
 
-			{series.length > 1 && <Sparkline points={series} />}
+			{reading.graph !== false && series.length > 1 && <Sparkline points={series} />}
 
 			{(reading.detail?.length > 0 || reading.limits?.length > 0) && (
 				<dl>
@@ -218,7 +218,7 @@ function Mirrored({ inbound, outbound, live, history }) {
 		<div className="revealed">
 			<div className="mirror">
 				<span className="axis-label up">
-					{outbound.label} · peak {trimPeak(up.peak, outbound)}
+					<i className="key out" /> {outbound.label} · peak {trimPeak(up.peak, outbound)}
 				</span>
 				<svg
 					viewBox={`0 0 ${width} ${half * 2}`}
@@ -243,7 +243,7 @@ function Mirrored({ inbound, outbound, live, history }) {
 					/>
 				</svg>
 				<span className="axis-label down">
-					{inbound.label} · peak {trimPeak(down.peak, inbound)}
+					<i className="key in" /> {inbound.label} · peak {trimPeak(down.peak, inbound)}
 				</span>
 			</div>
 			<p className="note">Each direction is drawn to its own scale.</p>

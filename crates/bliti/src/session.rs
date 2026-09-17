@@ -146,6 +146,19 @@ async fn serve_system<S>(stream: &mut S, sampler: &Sampler) -> Result<(), Sessio
 where
 	S: AsyncRead + AsyncWrite + Unpin,
 {
+	// The readings first, so every tile an operator is waiting for renders at once, and the window
+	// after, so the graphs fill in behind them. The other way round the view sits empty for as long as
+	// the window takes to cross the link, which is the part of it nobody is waiting on.
+	if let Some(latest) = sampler.latest() {
+		let now = DeviceMessage::SystemSample {
+			at: latest.at,
+			readings: latest.readings,
+		};
+		write_message(stream, &now.to_json())
+			.await
+			.map_err(|err| SessionError::Stream(err.to_string()))?;
+	}
+
 	let history = DeviceMessage::SystemHistory {
 		series: sampler.series(),
 	};
@@ -394,7 +407,10 @@ mod tests {
 			.unwrap();
 		assert!(matches!(
 			read::<DeviceMessage>(&raw).unwrap(),
-			Reading::Message(DeviceMessage::SystemHistory { .. })
+			// The readings come first, then the window.
+			Reading::Message(
+				DeviceMessage::SystemSample { .. } | DeviceMessage::SystemHistory { .. }
+			)
 		));
 	}
 
@@ -436,15 +452,18 @@ mod tests {
 		.await
 		.unwrap();
 
-		let raw = tokio::time::timeout(Duration::from_secs(2), read_message(&mut subscription))
-			.await
-			.expect("the window arrives")
-			.unwrap()
-			.unwrap();
-		let Reading::Message(DeviceMessage::SystemHistory { series }) =
-			read::<DeviceMessage>(&raw).unwrap()
-		else {
-			panic!("the first message on a subscription is the window");
+		// The readings come first so the view fills at once; the window follows for the graphs.
+		let mut seen = Vec::new();
+		for _ in 0..2 {
+			let raw = tokio::time::timeout(Duration::from_secs(2), read_message(&mut subscription))
+				.await
+				.expect("a message arrives")
+				.unwrap()
+				.unwrap();
+			seen.push(read::<DeviceMessage>(&raw).unwrap());
+		}
+		let Reading::Message(DeviceMessage::SystemHistory { series }) = seen.pop().unwrap() else {
+			panic!("the window follows the readings");
 		};
 		// It may be empty on a device that has only just started, which is a valid window.
 		for each in &series {

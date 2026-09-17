@@ -80,16 +80,20 @@ impl Facts {
 
 		let mut readings = Vec::new();
 		readings.extend(compute::cpu(&mut self.cpu));
+		// Memory is a single file read and belongs beside processor use, both in what it costs and in
+		// where an operator looks for it.
+		readings.extend(compute::memory());
 		readings.extend(network::throughput(&mut self.network, elapsed));
 
 		if slow {
-			readings.extend(compute::memory());
 			readings.extend(storage::disks());
 			readings.extend(thermal::readings());
 			readings.extend(self.power.readings());
 			readings.extend(
-				uptime()
-					.map(|up| Reading::new("uptime", "Uptime", Value::Duration(up.as_secs_f64()))),
+				// Uptime only ever climbs, so its graph is a ramp that says nothing.
+				uptime().map(|up| {
+					Reading::new("uptime", "Uptime", Value::Duration(up.as_secs_f64())).ungraphed()
+				}),
 			);
 		}
 		readings

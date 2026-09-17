@@ -15,9 +15,12 @@ struct Mount {
 	point: String,
 }
 
-/// Use per block device, named for the shortest mount point that reaches it.
-pub fn disks() -> Vec<Reading> {
-	let mut readings = Vec::new();
+/// How full the device is: the fullest block device, with each of them behind it.
+///
+/// One number, because the question at a glance is whether anything is about to run out, and that is
+/// answered by whichever is closest to doing so.
+pub fn disks() -> Option<Reading> {
+	let mut found: Vec<(String, String, u64, u64)> = Vec::new();
 	for (device, point) in by_device(&mounts()) {
 		let Some((used, total)) = usage(&point) else {
 			continue;
@@ -25,19 +28,51 @@ pub fn disks() -> Vec<Reading> {
 		if total == 0 {
 			continue;
 		}
-		readings.push(
-			Reading::new(
-				format!("disk-{}", point.replace('/', "-").trim_matches('-')),
-				point.clone(),
-				Value::Fraction((used as f64 / total as f64).clamp(0.0, 1.0)),
-			)
-			.in_group("disk")
-			.with_detail("Free", bytes(total.saturating_sub(used)))
-			.with_detail("Total", bytes(total))
-			.with_detail("Device", Value::text(device)),
-		);
+		found.push((point, device, used, total));
 	}
-	readings
+	if found.is_empty() {
+		return None;
+	}
+	found.sort_by(|a, b| a.0.cmp(&b.0));
+
+	// The boot partitions are small, written once at imaging, and sit near full for the life of the
+	// device. Letting one set the headline would show every device as nearly out of space.
+	let fullest = found
+		.iter()
+		.filter(|(point, ..)| !is_boot(point))
+		.map(|(_, _, used, total)| *used as f64 / *total as f64)
+		.fold(f64::NAN, f64::max);
+	let headline = if fullest.is_nan() {
+		// Nothing but boot partitions, which is not a machine we ship, but reporting nothing at all
+		// would be worse than reporting what there is.
+		found
+			.iter()
+			.map(|(_, _, used, total)| *used as f64 / *total as f64)
+			.fold(0.0, f64::max)
+	} else {
+		fullest
+	};
+
+	let mut reading = Reading::new("disk", "Disk", Value::Fraction(headline.clamp(0.0, 1.0)))
+		// A filesystem does not move fast enough for a graph to say anything, so the reveal keeps its
+		// space for the figures instead.
+		.ungraphed();
+	for (point, device, used, total) in &found {
+		reading = reading
+			.with_detail(
+				point,
+				Value::Fraction((*used as f64 / *total as f64).clamp(0.0, 1.0)),
+			)
+			.with_detail("  free", bytes(total.saturating_sub(*used)))
+			.with_detail("  of", bytes(*total))
+			.with_detail("  on", Value::text(device));
+	}
+	Some(reading)
+}
+
+/// Whether a mount is one of the boot partitions, which are small and permanently near full.
+fn is_boot(point: &str) -> bool {
+	point == "/boot" || point.starts_with("/boot/")
 }
 
 /// One mount per device: where a device carries several, the shortest path wins, being the one an
@@ -147,15 +182,30 @@ mod tests {
 
 	#[test]
 	fn the_root_filesystem_is_reported() {
-		let readings = disks();
-		assert!(!readings.is_empty(), "every machine has a root filesystem");
-		for reading in &readings {
-			assert!(reading.is_coherent());
-			assert_eq!(reading.group.as_deref(), Some("disk"));
-			let Some(Value::Fraction(used)) = reading.value else {
-				panic!("disk use is a fraction")
-			};
-			assert!((0.0..=1.0).contains(&used), "{used}");
-		}
+		let reading = disks().expect("every machine has a root filesystem");
+		assert!(reading.is_coherent());
+		assert!(
+			!reading.graph,
+			"a filesystem does not move fast enough to draw"
+		);
+		let Some(Value::Fraction(used)) = reading.value else {
+			panic!("disk use is a fraction")
+		};
+		assert!((0.0..=1.0).contains(&used), "{used}");
+		assert!(
+			!reading.detail.is_empty(),
+			"every filesystem is behind the headline"
+		);
+	}
+
+	/// Boot partitions are small, written once at imaging, and sit near full forever. One setting the
+	/// headline would show every device we ship as nearly out of space.
+	#[test]
+	fn a_boot_partition_is_not_the_headline() {
+		assert!(is_boot("/boot"));
+		assert!(is_boot("/boot/firmware"));
+		assert!(!is_boot("/"));
+		assert!(!is_boot("/bootstrap"));
+		assert!(!is_boot("/var/lib/postgresql"));
 	}
 }
