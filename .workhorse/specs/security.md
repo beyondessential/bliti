@@ -102,6 +102,8 @@ A serial that collapses to a short value, as on earlier boards, is small enough 
 
 The channel compresses what it carries, as [CHN](channel.md) specifies, so what crosses the link varies with a message's content and not with its length alone.
 
+An observer counts notifications rather than messages, which is coarser than a compressed size for each: one context spans every stream, and its output is chunked for the link rather than at message boundaries.
+
 An observer learns nothing of what is said, and something of how much of a message the compression context had already seen.
 
 > [!NOTE]

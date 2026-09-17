@@ -40,8 +40,6 @@ The application MUST run the handshake of [CHN](channel.md) with the presence to
 
 The application MUST NOT run the memory-hard derivation of [KEY](key-schedule.md).
 
-The application MUST report a channel that has closed, and SHOULD offer to open it again.
-
 > [!NOTE]
 > A client reads the token from the payload rather than deriving it, so nothing in a client needs the argon2id parameters or the memory they ask for. The handle a client does compute is a fast hash.
 

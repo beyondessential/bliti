@@ -88,7 +88,9 @@ A context MUST NOT use a preset dictionary.
 A sender MUST NOT leave a message it has finished writing unreadable by the receiver.
 A sender MAY defer flushing while it has more to write.
 
-A receiver that cannot decompress what arrives MUST treat it as a fault in the peer, MUST report it, and MUST close the connection.
+A receiver that cannot decompress what arrives MUST treat it as a fault in the peer and MUST close the connection.
+
+The receiver MUST report it: a device by logging it, a client by telling the operator that the connection to the device has failed.
 
 > [!NOTE]
 > Compression is unconditional, so there is nothing to negotiate, nothing to carry in a hello, and no uncompressed path. The marker of [VER](version.md) covers this section, and both ends are at the same marker before a channel exists.
@@ -107,3 +109,11 @@ Closing one stream MUST leave the other streams and the connection alive.
 ## Messages
 
 The streams above carry application messages, as specified in [MSG](messages.md).
+
+## When the channel closes
+
+A client MUST report a channel that has closed, and SHOULD offer to open it again.
+
+> [!NOTE]
+> A channel closes with nothing having gone wrong, when the operator walks out of range or the device restarts, as readily as it closes on a fault.
+> An operator is served by knowing the view has stopped either way, and by a way back to it short of reading the code again.

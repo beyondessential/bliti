@@ -1,6 +1,6 @@
 # Compress the channel
 
-Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Compression", with consequences in [MSG](../../specs/messages.md), [SEC](../../specs/security.md) and [WEB](../../specs/web-app.md).
+Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Compression" and "When the channel closes", with consequences in [MSG](../../specs/messages.md) and [SEC](../../specs/security.md).
 
 ## The shared context
 
@@ -18,7 +18,7 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 
 ## Faults
 
-- [ ] A corrupt or truncated compressed stream closes the connection. Verifies spec: CHN
+- [ ] A corrupt or truncated compressed stream closes the connection, and the failure is reported: logged on a device, surfaced to the operator on a client. Verifies spec: CHN
 - [ ] A malformed message closes only the stream it arrived on, leaving the connection and other streams alive. The two faults are distinguishable from one another. Verifies spec: CHN, MSG
 - [ ] A decompressor waiting for the rest of a block returns pending rather than zero, so a partial block is not read as end of stream.
 
@@ -31,7 +31,7 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 
 ## Client
 
-- [ ] The application reports a channel that has closed and offers to open it again. Verifies spec: WEB
+- [ ] The application reports a channel that has closed and offers to open it again. Verifies spec: CHN
 - [ ] The round trip holds in the wasm build, not only in native tests.
 
 ## Measurements

@@ -1,6 +1,6 @@
 # Compress the channel
 
-Implementation notes and build steps for H1. Behaviour is in [CHN](../../specs/channel.md) under "Compression", with the consequences in [MSG](../../specs/messages.md), [SEC](../../specs/security.md) and [WEB](../../specs/web-app.md). Reasoning, measurements and rejected options are in the working doc at `.workhorse/working-docs/h1/working-doc.md`.
+Implementation notes and build steps for H1. Behaviour is in [CHN](../../specs/channel.md) under "Compression" and "When the channel closes", with the consequences in [MSG](../../specs/messages.md) and [SEC](../../specs/security.md). Reasoning, measurements and rejected options are in the working doc at `.workhorse/working-docs/h1/working-doc.md`.
 
 ## Where the layer goes
 
