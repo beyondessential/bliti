@@ -28,16 +28,16 @@ An independently written client should pass the client-side cases from the spec 
 - [ ] `temperature` carries its note, and the note names the processor core and gives the ordinary range (Rust).
 - [ ] A device running warm but healthy reports `state` of `ok`, not `warn` (Rust). This is the regression guard for the behaviour that prompted the note.
 - [ ] `throttling` reports undervoltage and frequency capping independently, and reports neither when both are clear (Rust).
-- [ ] `power-source` reports external power when the power-loss line is high (Rust).
-- [ ] The line low with the cell voltage drifting down reports on battery (Rust).
-- [ ] The line low with the cell voltage static reports the backup supply bypassed, as `warn`, with a note saying a power cut will stop the device (Rust).
-- [ ] Detection uses voltage movement, not voltage level: a loaded cell at 4.149 V reads as on battery while an idle one at 4.156 V reads as bypassed (Rust). The levels overlap, so a threshold on the level would get both wrong.
-- [ ] Detection does not depend on seeing the transition: a client that starts watching well after the cut still reaches the right state from the drift alone (Rust).
-- [ ] Before there is enough history to tell drifting from static, on battery is reported rather than a bypass (Rust). Asserting a bypass early would send someone to move a plug that is already correct.
+- [x] `power-source` reports external power when the power-loss line is high (Rust).
+- [x] The line low with the cell voltage drifting down reports on battery (Rust).
+- [x] The line low with the cell voltage static reports the backup supply bypassed, as `warn`, with a note saying a power cut will stop the device (Rust).
+- [x] Detection uses voltage movement, not voltage level: a loaded cell at 4.149 V reads as on battery while an idle one at 4.156 V reads as bypassed (Rust). The levels overlap, so a threshold on the level would get both wrong.
+- [x] Detection does not depend on seeing the transition: a client that starts watching well after the cut still reaches the right state from the drift alone (Rust).
+- [x] Before there is enough history to tell drifting from static, on battery is reported rather than a bypass (Rust). Asserting a bypass early would send someone to move a plug that is already correct.
 - [ ] The GPIO chip is resolved by line name, so the reading works on a kernel that numbers the chips differently (Rust).
-- [ ] Battery direction comes from `power-source` where that reading exists, and from history where it does not; the `note` says which (Rust).
-- [ ] A derived direction is withheld until there is enough history to be steady (Rust).
-- [ ] External power reported present while charge falls steadily sets the battery reading to `warn` with a note (Rust). This is the poor-pogo-pin case, which is a documented failure on this board.
+- [x] Battery direction comes from `power-source` where that reading exists, and from history where it does not; the `note` says which (Rust).
+- [x] A derived direction is withheld until there is enough history to be steady (Rust).
+- [x] External power reported present while charge falls steadily sets the battery reading to `warn` with a note (Rust). This is the poor-pogo-pin case, which is a documented failure on this board.
 - [ ] Every reading degrades to something on a machine that is not a Pi (Rust, plus a manual run on the development laptop).
 - [ ] A machine with no UPS fitted reports neither a battery nor a `power-source` reading (Rust, plus a manual run on the development laptop). The pull-up on GPIO 6 makes an unconnected pin read as external power present, so this is the guard against reporting a UPS that is not there.
 - [ ] The gauge reading works unchanged on both board models, since both carry the same part at the same address (Rust; manual on each of v3 and v4).

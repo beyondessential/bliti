@@ -7,7 +7,9 @@ members = [
 ]
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# No blanket ban on unsafe: this is a daemon that talks to hardware, and reading a fuel gauge over
+# I2C or a GPIO line means ioctls. Each such block carries a SAFETY comment saying what makes it
+# sound.
 rust_2018_idioms = { level = "deny", priority = -1 }
 
 [workspace.dependencies]

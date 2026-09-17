@@ -24,6 +24,7 @@ use bliti_core::channel::readings::{Reading, Value};
 mod board;
 mod compute;
 mod network;
+mod power;
 mod storage;
 mod thermal;
 
@@ -35,6 +36,9 @@ mod thermal;
 pub struct Facts {
 	cpu: Option<compute::CpuCounters>,
 	network: BTreeMap<String, network::Counters>,
+	// The cell is watched across samples: what tells a battery carrying the device from one sitting
+	// idle is whether its voltage moves, which no single reading can say.
+	power: power::Watch,
 	taken: Option<Instant>,
 }
 
@@ -82,6 +86,7 @@ impl Facts {
 			readings.extend(compute::memory());
 			readings.extend(storage::disks());
 			readings.extend(thermal::readings());
+			readings.extend(self.power.readings());
 			readings.extend(
 				uptime()
 					.map(|up| Reading::new("uptime", "Uptime", Value::Duration(up.as_secs_f64()))),

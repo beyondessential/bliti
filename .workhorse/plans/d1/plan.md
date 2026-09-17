@@ -28,18 +28,18 @@ The self-describing reading is wire contract, so it lives in `bliti-core` and bo
 - [ ] `disk` one reading per block device. Deduplicate by device before building readings, so `/` and `/var/lib/postgresql` on one `/dev/mapper/root` are one reading.
 - [ ] `temperature` from `thermal_zone0`, with the NVMe hwmon under `detail`, and `limits` from the zone's declared trip points.
 - [ ] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
-- [ ] `power-source` from the UPS board's power-loss line on GPIO 6 together with the charge trend, giving three states. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
+- [x] `power-source` from the UPS board's power-loss line on GPIO 6 together with the charge trend, giving three states. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
   - GPIO 6 high: external power through the UPS.
   - GPIO 6 low, cell voltage drifting down: on battery.
   - GPIO 6 low, cell voltage static: fed through the Pi's own socket, UPS bypassed. Report `warn`.
-- [ ] Key the drift detection on cell voltage from register `0x02`, not on state of charge. Measured below: voltage is unambiguous within twenty to thirty seconds where the charge takes about eighty to move at all.
-- [ ] Until the voltage has been watched long enough to tell drifting from static, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
+- [x] Key the drift detection on cell voltage from register `0x02`, not on state of charge. Measured below: voltage is unambiguous within twenty to thirty seconds where the charge takes about eighty to move at all.
+- [x] Until the voltage has been watched long enough to tell drifting from static, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
 - [ ] `fan` from `hwmon/pwmfan/fan1_input`.
 - [ ] `uptime` from `/proc/uptime`.
 - [ ] `network-in` and `network-out` from `/proc/net/dev` counter deltas, one pair per reported interface, grouped as `network` with `direction` set. Handle counter wrap.
-- [ ] Battery from the fuel gauge on I2C bus 1 at `0x36`: state of charge from `0x04` as the headline, voltage from `0x02` under `detail`. There is no kernel driver bound and no `upower`, so this is a raw register read. The part is a MAX17040, so VCELL is the top twelve bits at 1.25 mV per step and SOC is the high byte as whole percent with the low byte as the fraction.
-- [ ] Battery direction from `power-source`, falling back to the buffered history where no power-source line is present. The `note` says which it came from, and a derived direction is withheld until there is enough history for it to be steady.
-- [ ] Battery set to `warn` when external power is reported present while the charge falls steadily. A poor pogo-pin contact between the UPS board and the Pi makes GPIO 6 read as AC-present with the plug out, and that is a documented failure on this board rather than a hypothetical.
+- [x] Battery from the fuel gauge on I2C bus 1 at `0x36`: state of charge from `0x04` as the headline, voltage from `0x02` under `detail`. There is no kernel driver bound and no `upower`, so this is a raw register read. The part is a MAX17040, so VCELL is the top twelve bits at 1.25 mV per step and SOC is the high byte as whole percent with the low byte as the fraction.
+- [x] Battery direction from `power-source`, falling back to the buffered history where no power-source line is present. The `note` says which it came from, and a derived direction is withheld until there is enough history for it to be steady.
+- [x] Battery set to `warn` when external power is reported present while the charge falls steadily. A poor pogo-pin contact between the UPS board and the Pi makes GPIO 6 read as AC-present with the plug out, and that is a documented failure on this board rather than a hypothetical.
 - [ ] A source that is absent omits its reading; a source that is present but fails produces a reading with `error`. These are different paths and both need covering.
 
 Sources are Pi-specific where the Pi is what we ship, but every reading needs to degrade to something on a development laptop, because that is where most of the view gets built.
@@ -77,9 +77,9 @@ The view is where the feature is, and it renders from the format rather than fro
 
 Bespoke treatment sits on top of generic rendering and never replaces it. Each of these must still render with recognition removed.
 
-- [ ] `temperature` drawn against its `limits`, with the note shown.
-- [ ] `battery` showing the derived direction and its caveat.
-- [ ] `network-in` and `network-out` mirrored.
+- [x] `temperature` drawn against its `limits`, with the note shown.
+- [x] `battery` showing the derived direction and its caveat.
+- [x] `network-in` and `network-out` mirrored.
 
 ## Testing on the device
 
@@ -135,6 +135,14 @@ The firmware is no help in spotting it. `usbpd_power_data_objects` under `/proc/
 
 The device must not report a UPS it does not have. GPIO 6 defaults to a pull-up on a Pi, so an unconnected pin reads high, and a machine with no UPS at all would otherwise report itself confidently running on mains.
 
-- [ ] Gate every UPS reading on the gauge answering at `0x36`. No gauge means no battery reading and no `power-source` reading, and the tiles do not appear.
-- [ ] Never read the power-loss line unless the gauge answered. A floating input is not a measurement.
-- [ ] Test on a machine with no UPS fitted, which is every development laptop, and confirm neither reading appears.
+- [x] Gate every UPS reading on the gauge answering at `0x36`. No gauge means no battery reading and no `power-source` reading, and the tiles do not appear.
+- [x] Never read the power-loss line unless the gauge answered. A floating input is not a measurement.
+- [ ] Test on a machine with no UPS fitted, which is every development laptop, and confirm neither reading appears. The path is there (no bus means no readings) but nothing asserts it.
+
+## Reaching the hardware
+
+I2C and the GPIO line are read through the kernel's character devices directly, on `rustix`, rather than through a crate. Both are two short ioctls over a stable ABI, and the alternatives either wrap a C library the cross-build would then have to carry in its sysroot, or wrap exactly this.
+
+This needed the workspace's `unsafe_code = "forbid"` lifted. It came from bestool, where nothing talks to hardware; a daemon that reads a fuel gauge and a GPIO line cannot hold it. Every unsafe block carries a SAFETY comment naming the opcode and the struct the kernel expects.
+
+The GPIO line is found by name rather than by number, and on this hardware that is not a nicety: line 6 of the pin header is `GPIO6`, while line 6 of the internal chip is `SD_FLG_N`. A hardcoded chip number reads a different pin on a kernel that numbers the chips differently.
