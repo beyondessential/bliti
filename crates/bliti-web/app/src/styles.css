@@ -159,3 +159,7 @@ button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bott
 .log .in .arrow { color: var(--accent); }
 .log .out .arrow { color: var(--good); }
 .log .note { color: var(--muted); }
+
+/* The tiles are no longer inside a section, so they carry the spacing a section would have given
+   them and keep the rhythm with whatever follows. */
+.tiles { margin-bottom: 12px; }
