@@ -155,17 +155,19 @@ Nothing about this is visible from outside the case, and it is the state an oper
 The battery headline is state of charge.
 Voltage and the direction of travel go under `detail`.
 
-The three states are distinguished by the presence of external power at the backup supply together with the movement of the cell voltage: present is the first, absent with the voltage drifting down is the second, and absent with the voltage entirely static is the third.
+`power-source` requires a hardware signal reporting whether external power reaches the backup supply. A device whose board exposes no such signal MUST omit the reading rather than guess at it, and its battery reading carries a derived direction alone.
+
+The three states are distinguished by that signal together with the movement of the cell voltage: present is the first, absent with the voltage drifting down is the second, and absent with the voltage entirely static is the third.
 
 The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, so the level separates neither. An idle cell's voltage does not move at all, while a cell carrying the device drifts down continuously.
 
 State of charge is not the signal here. It does not begin to move until long after the voltage has, and a device that waited for it would report the wrong state for the first minute of every outage.
 
-Direction is taken from `power-source` where the hardware reports the presence of external power, and is derived from how the state of charge has moved across the buffered history otherwise.
+Direction is taken from `power-source` where that reading exists, and is derived from the movement of the cell voltage across the buffered history otherwise.
 A device that derives it MUST say so in `note`, and MUST NOT report a derived direction it does not yet have enough history to establish.
 
-Where a device has both signals and they disagree, it reports `power-source` as the hardware gives it and sets the battery reading to `warn`, with a `note` saying the charge is moving against the reported source.
-External power reported as present while the charge falls steadily is a fault in the supply or in the board's own sensing, and an operator cannot see either from outside the case.
+Where a device has both signals and they disagree, it reports `power-source` as the hardware gives it and sets the battery reading to `warn`, with a `note` saying the cell is moving against the reported source.
+External power reported as present while the cell drains is a fault in the supply or in the board's own sensing, and an operator cannot see either from outside the case.
 
 ### Temperature and throttling
 

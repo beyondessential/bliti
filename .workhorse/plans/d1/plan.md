@@ -97,7 +97,7 @@ Both integrate a Maxim gauge at `0x36` on I2C bus 1, so the gauge reading is one
 
 Confirmed by reading the gauge on the v4 test device: registers `0x16`, `0x18` and `0x1a` all read `0xffff`, so they are unimplemented and the part is not a MAX17048 or '49; RCOMP at `0x0c` reads `0x97`, the MAX17040 default. There is no charge-rate register on either board, which is why direction comes from the power-source line or from history rather than from the gauge.
 
-The power-loss line on v4 is GPIO 6, high when external power is present. Geekworm does not document the pin or its active level for the X1201, so v3's must be confirmed against real v3 hardware rather than assumed from the family convention.
+The power-loss line on v4 is GPIO 6, high when external power is present. Geekworm does not document the pin or its active level for the X1201, so v3 is treated as having no power-loss line at all: no `power-source` reading, and battery direction from the voltage trend alone. Establishing the real pin is F1, and picking it up is a matter of adding a board case rather than reworking anything.
 
 ### The bypass, and why it matters
 
