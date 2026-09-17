@@ -29,9 +29,11 @@ An independently written client should pass the client-side cases from the spec 
 - [ ] A device running warm but healthy reports `state` of `ok`, not `warn` (Rust). This is the regression guard for the behaviour that prompted the note.
 - [ ] `throttling` reports undervoltage and frequency capping independently, and reports neither when both are clear (Rust).
 - [ ] `power-source` reports external power when the power-loss line is high (Rust).
-- [ ] The line low with the charge falling reports on battery (Rust).
-- [ ] The line low with the charge steady reports the backup supply bypassed, as `warn`, with a note saying a power cut will stop the device (Rust).
-- [ ] Before there is enough history to tell steady from falling, on battery is reported rather than a bypass (Rust). Asserting a bypass early would send someone to move a plug that is already correct.
+- [ ] The line low with the cell voltage drifting down reports on battery (Rust).
+- [ ] The line low with the cell voltage static reports the backup supply bypassed, as `warn`, with a note saying a power cut will stop the device (Rust).
+- [ ] Detection uses voltage movement, not voltage level: a loaded cell at 4.149 V reads as on battery while an idle one at 4.156 V reads as bypassed (Rust). The levels overlap, so a threshold on the level would get both wrong.
+- [ ] Detection does not depend on seeing the transition: a client that starts watching well after the cut still reaches the right state from the drift alone (Rust).
+- [ ] Before there is enough history to tell drifting from static, on battery is reported rather than a bypass (Rust). Asserting a bypass early would send someone to move a plug that is already correct.
 - [ ] The GPIO chip is resolved by line name, so the reading works on a kernel that numbers the chips differently (Rust).
 - [ ] Battery direction comes from `power-source` where that reading exists, and from history where it does not; the `note` says which (Rust).
 - [ ] A derived direction is withheld until there is enough history to be steady (Rust).

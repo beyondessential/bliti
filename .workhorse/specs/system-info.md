@@ -147,14 +147,19 @@ Several mount points on one block device are one reading, not one each.
 
 The third state MUST be reported as `warn`, and its `note` MUST say that a power cut will stop the device without warning and that moving the supply to the backup's own input restores protection.
 
+The third state MUST NOT be asserted until the voltage has been watched long enough to tell drifting from static. Until then the device reports the second.
+
 A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery.
 Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 
 The battery headline is state of charge.
 Voltage and the direction of travel go under `detail`.
 
-The three states are distinguished by the presence of external power at the backup supply together with the movement of the charge: present is the first state, absent with the charge falling is the second, and absent with the charge steady while the device runs is the third.
-The third is only distinguishable once the charge has been watched for long enough to tell steady from falling, and until then the device MUST report the second rather than assert the third.
+The three states are distinguished by the presence of external power at the backup supply together with the movement of the cell voltage: present is the first, absent with the voltage drifting down is the second, and absent with the voltage entirely static is the third.
+
+The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, so the level separates neither. An idle cell's voltage does not move at all, while a cell carrying the device drifts down continuously.
+
+State of charge is not the signal here. It does not begin to move until long after the voltage has, and a device that waited for it would report the wrong state for the first minute of every outage.
 
 Direction is taken from `power-source` where the hardware reports the presence of external power, and is derived from how the state of charge has moved across the buffered history otherwise.
 A device that derives it MUST say so in `note`, and MUST NOT report a derived direction it does not yet have enough history to establish.

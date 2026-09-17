@@ -30,9 +30,10 @@ The self-describing reading is wire contract, so it lives in `bliti-core` and bo
 - [ ] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
 - [ ] `power-source` from the UPS board's power-loss line on GPIO 6 together with the charge trend, giving three states. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
   - GPIO 6 high: external power through the UPS.
-  - GPIO 6 low, charge falling: on battery.
-  - GPIO 6 low, charge steady while running: fed through the Pi's own socket, UPS bypassed. Report `warn`.
-- [ ] Until the charge has been watched long enough to tell steady from falling, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
+  - GPIO 6 low, cell voltage drifting down: on battery.
+  - GPIO 6 low, cell voltage static: fed through the Pi's own socket, UPS bypassed. Report `warn`.
+- [ ] Key the drift detection on cell voltage from register `0x02`, not on state of charge. Measured below: voltage is unambiguous within twenty to thirty seconds where the charge takes about eighty to move at all.
+- [ ] Until the voltage has been watched long enough to tell drifting from static, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
 - [ ] `fan` from `hwmon/pwmfan/fan1_input`.
 - [ ] `uptime` from `/proc/uptime`.
 - [ ] `network-in` and `network-out` from `/proc/net/dev` counter deltas, one pair per reported interface, grouped as `network` with `direction` set. Handle counter wrap.
@@ -103,6 +104,22 @@ The power-loss line on v4 is GPIO 6, high when external power is present. Geekwo
 Both boards have their own USB-C input, and the Pi has one of its own. Measured on v4: with the supply in the Pi's own socket and the UPS's input empty, GPIO 6 reads low, the charge sits perfectly still, and the device runs normally with a battery at 96%. Removing that supply halts the Pi outright. The UPS does not take over, because in that configuration it was never carrying the device.
 
 This is a misconfiguration with no outward sign and a real cost: an unclean halt on a box running a database, at the moment the power goes, on a device someone believed was protected. It is also the state reached by plugging into the more obvious of the two sockets. Surfacing it is the most valuable thing this reading does.
+
+### Measured behaviour of the three states
+
+A full cycle on the v4 test device, cell near full, sampling every two seconds.
+
+| state | GPIO 6 | cell voltage | state of charge |
+| --- | --- | --- | --- |
+| mains through the UPS | 1 | 4.21 to 4.23 V, creeping up | rising slowly |
+| on battery | 0 | steps down about 39 mV at the cut, then drifts about 3 to 4 mV every ten seconds | no movement for about eighty seconds, then falls |
+| bypassed | 0 | entirely static, not one gauge step over sixty seconds | no movement |
+
+Restoring mains stepped the voltage up 62 mV within a single sample and GPIO 6 back to 1.
+
+Two traps this rules out. Absolute voltage does not separate on-battery from bypassed: loaded, the cell settled to 4.149 V, which is below the 4.156 V it held while idle and bypassed, because the charge differed between the two runs. And the initial 39 mV step is only visible to a client that was already watching, which the arrive-late case never is, so the steady drift is what the detection has to rest on.
+
+**The backup supply does carry the device.** Pulling mains from the UPS input left the device running throughout, with the ssh session unbroken. This is the control that makes the bypass warning honest rather than alarmist: correctly wired, a cut is survived; bypassed, it is not.
 
 The firmware is no help in spotting it. `usbpd_power_data_objects` under `/proc/device-tree/chosen/power` reads all zeros whether the Pi is fed through its own socket or through the UPS, and `max_current` and `usb_max_current_enable` are identical across both. The GPIO and the charge trend are the only signals.
 
