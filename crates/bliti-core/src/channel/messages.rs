@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::envelope::Message;
+use super::envelope::{Criticality, Message};
 
 /// A message from the client to the device.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,9 +65,14 @@ impl Message for ClientMessage {
 		matches!(type_name, "client-hello" | "subscribe")
 	}
 
-	/// Both of these are types BLI-MSG defines, and it forbids a critical member on them.
-	fn forbids_critical(type_name: &str) -> bool {
-		matches!(type_name, "client-hello" | "subscribe")
+	/// `client-hello` carries no critical member; `subscribe` carries exactly one, its selector, so
+	/// that a device cannot act on a request to be sent something it has not read (BLI-MSG).
+	fn criticality(type_name: &str) -> Criticality {
+		match type_name {
+			"client-hello" => Criticality::Exactly(&[]),
+			"subscribe" => Criticality::Exactly(&["topic"]),
+			_ => Criticality::Unconstrained,
+		}
 	}
 }
 
@@ -76,10 +81,13 @@ impl Message for DeviceMessage {
 		matches!(type_name, "device-hello" | "identity")
 	}
 
-	/// `device-hello` is a type BLI-MSG defines and forbids a critical member on. `identity` belongs to
-	/// the feature that reports it, which carries no such prohibition.
-	fn forbids_critical(type_name: &str) -> bool {
-		matches!(type_name, "device-hello")
+	/// `device-hello` carries no critical member. `identity` belongs to the feature that reports it,
+	/// which pins nothing.
+	fn criticality(type_name: &str) -> Criticality {
+		match type_name {
+			"device-hello" => Criticality::Exactly(&[]),
+			_ => Criticality::Unconstrained,
+		}
 	}
 }
 
@@ -143,6 +151,8 @@ mod tests {
 		assert_eq!(read(&json).unwrap(), Reading::Message(message));
 	}
 
+	/// Member order is not significant in JSON and nothing reads it. These pin the names and values a
+	/// peer will see; the order is whatever the writer's map yields, which is sorted.
 	#[test]
 	fn client_hello_json_shape_is_stable() {
 		let json = ClientMessage::Hello {
@@ -152,7 +162,7 @@ mod tests {
 		.to_json();
 		assert_eq!(
 			String::from_utf8(json).unwrap(),
-			r#"{"type":"client-hello","name":"bliti-web","version":"0.1.0"}"#
+			r#"{"name":"bliti-web","type":"client-hello","version":"0.1.0"}"#
 		);
 	}
 
@@ -164,7 +174,7 @@ mod tests {
 		.to_json();
 		assert_eq!(
 			String::from_utf8(json).unwrap(),
-			r#"{"type":"subscribe","topic":"system"}"#
+			r#"{"TOPIC":"system","type":"subscribe"}"#
 		);
 	}
 
@@ -177,7 +187,7 @@ mod tests {
 		.to_json();
 		assert_eq!(
 			String::from_utf8(json).unwrap(),
-			r#"{"type":"device-hello","name":"bliti","version":"0.1.0"}"#
+			r#"{"name":"bliti","type":"device-hello","version":"0.1.0"}"#
 		);
 	}
 
@@ -221,7 +231,7 @@ mod tests {
 	#[test]
 	fn an_unknown_ignorable_member_is_skipped() {
 		assert_eq!(
-			client(r#"{"type":"subscribe","topic":"system","cadence":"fast"}"#).unwrap(),
+			client(r#"{"type":"subscribe","TOPIC":"system","cadence":"fast"}"#).unwrap(),
 			Reading::Message(ClientMessage::Subscribe {
 				topic: "system".to_owned()
 			})
@@ -237,27 +247,46 @@ mod tests {
 		);
 	}
 
-	/// The three types this spec defines may not carry a critical member at all, so one arriving is a
-	/// peer breaking the protocol rather than a peer newer than this build (BLI-MSG).
+	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol rather
+	/// than a peer newer than this build (BLI-MSG).
 	#[test]
-	fn a_critical_member_on_a_type_that_forbids_one_is_a_fault() {
-		for json in [
-			r#"{"type":"subscribe","topic":"system","REDACT":["cpu"]}"#,
-			r#"{"TOPIC":"system","type":"subscribe"}"#,
-			r#"{"TYPE":"subscribe","topic":"system"}"#,
-			r#"{"type":"client-hello","name":"a","version":"1","MODE":"strict"}"#,
-		] {
-			assert!(
-				matches!(client(json).unwrap_err(), Fault::CriticalNotAllowed { .. }),
-				"{json} should be a fault"
-			);
-		}
-
+	fn a_critical_member_on_a_hello_is_a_fault() {
+		assert!(matches!(
+			client(r#"{"type":"client-hello","name":"a","version":"1","MODE":"strict"}"#)
+				.unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
 		assert!(matches!(
 			device(r#"{"type":"device-hello","name":"a","version":"1","CAPABILITY":"x"}"#)
 				.unwrap_err(),
 			Fault::CriticalNotAllowed { .. }
 		));
+	}
+
+	/// `subscribe` pins its selector critical: a device must not act on a request to be sent something
+	/// it has not read. Arriving plain is a fault, as is any other critical member alongside it.
+	#[test]
+	fn subscribe_pins_its_selector_critical() {
+		assert!(matches!(
+			client(r#"{"type":"subscribe","topic":"system"}"#).unwrap_err(),
+			Fault::CriticalRequired { .. }
+		));
+		assert!(matches!(
+			client(r#"{"type":"subscribe","TOPIC":"system","REDACT":["cpu"]}"#).unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
+		assert!(matches!(
+			client(r#"{"TYPE":"subscribe","TOPIC":"system"}"#).unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
+
+		// And the shape a conforming client sends is read.
+		assert_eq!(
+			client(r#"{"type":"subscribe","TOPIC":"system"}"#).unwrap(),
+			Reading::Message(ClientMessage::Subscribe {
+				topic: "system".to_owned()
+			})
+		);
 	}
 
 	/// The prohibition is per type, not per build: a type a feature owns still takes the general rule.
@@ -316,7 +345,7 @@ mod tests {
 
 	#[test]
 	fn a_member_of_the_wrong_json_type_is_a_fault() {
-		let err = client(r#"{"type":"subscribe","topic":42}"#).unwrap_err();
+		let err = client(r#"{"type":"subscribe","TOPIC":42}"#).unwrap_err();
 		assert!(matches!(err, Fault::Malformed { .. }), "got {err:?}");
 	}
 

@@ -35,15 +35,26 @@ pub trait Message: DeserializeOwned + Serialize {
 	/// it knows but cannot parse: the first is a newer peer, the second a broken one.
 	fn knows(type_name: &str) -> bool;
 
-	/// Whether the named type is one BLI-MSG forbids carrying a critical member.
+	/// What BLI-MSG requires of criticality on the named message type.
 	///
-	/// The three types that spec defines are, so that the messages opening a conversation never put a
-	/// receiver in the position of weighing criticality. A critical member on one is therefore a fault
-	/// rather than a refusal: a conforming peer cannot produce one. A type a feature defines carries no
-	/// such prohibition unless its own spec says so.
-	fn forbids_critical(_type_name: &str) -> bool {
-		false
+	/// The types that spec defines are pinned, so that the messages opening a conversation never put a
+	/// receiver in the position of weighing criticality, and so that a request to be sent something
+	/// cannot be half read. A message breaking the pin is a fault rather than a refusal: a conforming
+	/// peer cannot produce one. A type a feature defines is unconstrained unless its own spec says
+	/// otherwise.
+	fn criticality(_type_name: &str) -> Criticality {
+		Criticality::Unconstrained
 	}
+}
+
+/// What BLI-MSG requires of criticality on a message type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Criticality {
+	/// Nothing beyond the general rules, as for a type a feature owns.
+	Unconstrained,
+	/// Exactly these members are critical: each must arrive critical where it arrives at all, and no
+	/// other member of the message may be.
+	Exactly(&'static [&'static str]),
 }
 
 /// What reading one message yielded.
@@ -153,6 +164,15 @@ pub enum Fault {
 		names: String,
 	},
 
+	/// A member that must be critical on this message type arrived without being marked so.
+	#[error("{type_name} requires {names} to be critical, but it was not")]
+	CriticalRequired {
+		/// The message type that carried it.
+		type_name: String,
+		/// The members that had to be critical and were not.
+		names: String,
+	},
+
 	/// A known message type that does not carry what it requires.
 	#[error("{type_name} message is malformed: {detail}")]
 	Malformed {
@@ -198,13 +218,34 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 		});
 	}
 
-	// A type that may not carry a critical member, carrying one, is a peer breaking the protocol
-	// rather than a peer newer than this build.
-	if T::forbids_critical(&type_name) && !critical.is_empty() {
-		return Err(Fault::CriticalNotAllowed {
-			type_name,
-			names: critical.iter().cloned().collect::<Vec<_>>().join(", "),
-		});
+	// A type whose criticality BLI-MSG pins, carrying something other than what it pins, is a peer
+	// breaking the protocol rather than a peer newer than this build.
+	if let Criticality::Exactly(required) = T::criticality(&type_name) {
+		let surplus: Vec<&str> = critical
+			.iter()
+			.map(String::as_str)
+			.filter(|name| !required.contains(name))
+			.collect();
+		if !surplus.is_empty() {
+			return Err(Fault::CriticalNotAllowed {
+				type_name,
+				names: surplus.join(", "),
+			});
+		}
+
+		// A member absent altogether is left to the parse below, which says it is missing rather than
+		// that it is miscased.
+		let plain: Vec<&str> = required
+			.iter()
+			.copied()
+			.filter(|name| object.contains_key(*name) && !critical.contains(*name))
+			.collect();
+		if !plain.is_empty() {
+			return Err(Fault::CriticalRequired {
+				type_name,
+				names: plain.join(", "),
+			});
+		}
 	}
 
 	let normalised = Value::Object(object);
@@ -232,8 +273,27 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 }
 
 /// Write a message as the JSON bytes that go on a stream.
+///
+/// Casing is applied here rather than in each message type's own declaration, because the convention
+/// belongs to the envelope: a type says what it carries, and this says how a member is named on the
+/// wire. Members the type pins as critical go out in upper case.
 pub fn write<T: Message>(message: &T) -> Vec<u8> {
-	serde_json::to_vec(message).expect("a message serialises")
+	let mut value = serde_json::to_value(message).expect("a message serialises");
+	let type_name = value
+		.get("type")
+		.and_then(Value::as_str)
+		.map(str::to_owned)
+		.unwrap_or_default();
+	if let Criticality::Exactly(required) = T::criticality(&type_name) {
+		if let Value::Object(object) = &mut value {
+			for name in required {
+				if let Some(member) = object.remove(*name) {
+					object.insert(name.to_ascii_uppercase(), member);
+				}
+			}
+		}
+	}
+	serde_json::to_vec(&value).expect("a message serialises")
 }
 
 /// Whether a member name is well formed, and whether it is critical.

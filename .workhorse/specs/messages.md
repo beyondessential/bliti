@@ -132,7 +132,11 @@ This is not a fault in the peer and is not treated as one.
 The stream stays open and the connection is untouched, and the receiver goes on handling and displaying everything else it does understand.
 A client behind a device is the ordinary case, and an operator is better served by most of a view, plainly marked as partial, than by none of it.
 
-The `device-hello`, `client-hello`, and `subscribe` message types MUST NOT contain any critical members.
+The `device-hello` and `client-hello` message types MUST NOT contain any critical member.
+
+The `subscribe` message type MUST contain exactly one critical member, `TOPIC`, and MUST NOT contain any other.
+A subscription is a request to be sent something, and a device that acted on one whose selector it had not read would send something other than what was asked for.
+Marking the selector critical is what says so on the wire.
 
 ## What is not recognised is skipped
 
@@ -158,11 +162,11 @@ That is what a device older than the client looks like, and it fails nothing.
 What a device sends once, it pushes: its hello and its static data go on the reporting stream unasked.
 What a device sends continuously flows only while a client is subscribed to it.
 
-A client subscribes by opening a stream whose first message is `subscribe`, carrying one member beyond `type`:
+A client subscribes by opening a stream whose first message is `subscribe`, carrying one critical member beyond `type`:
 
 | member | type | meaning |
 | --- | --- | --- |
-| `topic` | string | what is being subscribed to |
+| `TOPIC` | string | what is being subscribed to |
 
 The device sends that topic's data on that same stream, for as long as the stream is open.
 

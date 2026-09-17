@@ -29,7 +29,9 @@ Each case names the level that owns it. An independently written client should p
 - [x] A critical unknown nested inside a message leaves the rest of the message processed, so a report showing many readings loses only the one it cannot read (Rust).
 - [x] An unknown type named by an upper-case `TYPE` member is reported rather than skipped (Rust).
 - [x] The client shows the operator that the device said something it is too old to act on, while still rendering everything else, and does not present it as a fault or blank the view (Playwright).
-- [x] A critical member on `client-hello`, `device-hello` or `subscribe` is a fault, not a refusal: BLI-MSG forbids one on those types, so a conforming peer cannot produce it (Rust).
+- [x] A critical member on `client-hello` or `device-hello` is a fault, not a refusal: BLI-MSG allows none on those types, so a conforming peer cannot produce one (Rust).
+- [x] `subscribe` pins its selector critical: a plain `topic` is a fault, a second critical member is a fault, and `TOPIC` alone is read (Rust).
+- [x] A conforming client writes the selector critical, so `subscribe` goes on the wire as `TOPIC` (Rust).
 - [x] The prohibition is per type: a type a feature owns still refuses rather than faults (Rust).
 - [x] A refusal arriving before the device has named itself leaves the client without the name and version, saying so and carrying on with the session (Playwright).
 - [ ] The device logs a critical unknown from a client (Rust / manual: check the device log).
