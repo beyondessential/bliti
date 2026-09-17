@@ -79,7 +79,7 @@ Streams are bidirectional, so a device may reply on the stream a client opened.
 
 Both are opaque.
 
-The client displays the device's `name` and `version`, because "what is this thing running" is a question an operator standing in front of a device has.
+The client SHOULD display the device's `name` and `version`, because "what is this thing running" is a question an operator standing in front of a device has.
 The device records the client's, which is how it can be known what is actually in the field talking to these devices.
 
 Their being opaque is what keeps this from becoming the version gate below.
