@@ -45,7 +45,7 @@ A local name that is not a bliti payload MUST be passed over.
 
 ## Rotation
 
-A device MUST change its rotation salt every fifteen minutes, and MUST re-register its advertisement when it does.
+A device SHOULD change its rotation salt every fifteen minutes, and MUST re-register its advertisement when it does.
 
 A client MUST recompute against whatever salt it observes.
 

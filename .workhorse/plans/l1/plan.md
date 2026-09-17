@@ -32,6 +32,17 @@ The same enumeration also sat inside `messages.md` as self-description, so the l
 
 Outstanding instances of the class: `messages.md` 8, 11-12; `system-info.md` 10, 11, 13-14, 205; `overview.md` 46. Four flavours — contract boasts, table-of-contents openers restating the headings, defensive commentary ("properties of the design rather than gaps in it", "This note is required"), and cross-references reciting their target. In each case the buried real requirement is already stated normatively elsewhere, so they delete cleanly.
 
+### A MUST is for what breaks interoperability or a security property
+
+Everything else is SHOULD or MAY. QR had "a QR code MUST be produced at error correction level H" and "a human-readable rendering MUST be printed beneath the code": a scanner reads any level, and a code with nothing beside it still works, so neither is a conformance matter. Both are now SHOULD. "Beneath" went too, because where a rendering sits is layout rather than protocol.
+
+Auditing the rest against that found two more:
+
+- ADV required a device to change its rotation salt **every fifteen minutes**, while the note directly beneath it said "nothing a client does depends on the rotation period". A client recomputes against whatever salt it observes, so the period is a privacy choice, not an interop one. Now SHOULD, and the re-registration that follows a change stays MUST.
+- QR required a code to be "generated from a board ID, read either from the board in front of the generator or from a list gathered beforehand", which fused a requirement with a choice. Split: the derivation from a board ID is MUST, where the generator reads it from is MAY.
+
+Product requirements are the exception that proves the rule. WEB's "MUST run without being installed" and "MUST remain usable offline" are not interop constraints either, but they are commitments the product makes, and weakening them would say something false about what bliti is for.
+
 ### A rationale must outlive the capability it cites
 
 `channel.md` grounded its peripheral-only requirement in "a browser cannot drive pairing at all". The requirement is architectural: pairing is irrelevant because authentication comes from the handshake, not from the link. Tying it to what browsers can do today gives the rationale an expiry date, and a reader who meets it after browsers gain pairing, or after a native client ships, concludes a still-correct rule is obsolete and removes it. Replaced with the architectural reason plus the failure mode, which hold either way.

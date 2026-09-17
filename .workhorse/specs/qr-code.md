@@ -49,7 +49,9 @@ A human-readable rendering of the payload SHOULD be printed alongside the code, 
 
 ## Generation
 
-A QR code MUST be generated from a board ID, read either from the board in front of the generator or from a list gathered beforehand.
+A QR code MUST be generated from a board ID.
+
+A generator MAY read that board ID from the board in front of it, or from a list gathered beforehand.
 
 A generator MUST produce the same payload for a given board every time.
 
