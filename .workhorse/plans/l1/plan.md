@@ -53,9 +53,11 @@ BCP 14 keyword notation sits in `overview.md`, worded "in bliti's specifications
 
 **Global, in BLI.** Terms bliti coins: board ID, presence secret, advertised handle, QR code. One `###` per term so each has a stable anchor. Uses elsewhere deep-link to it, e.g. `[presence secret](overview.md#presence-secret)`. Convention is to link the first occurrence per spec.
 
-**Per-spec, in the spec that borrows them.** Terms imported from other standards, as a table near the top so a reader meets them before use. A borrowed term used in one spec does not belong in the root glossary.
+**Per-spec, under `## Borrowed terms`.** Terms imported from other standards, as a table near the top so a reader meets them before use. A borrowed term used in one spec does not belong in the root glossary.
 
-The division is coined versus imported.
+The division is coined versus imported. BLI's `## External documents` is the same idea one level up: a glossary of the standards themselves rather than of the terms taken from them.
+
+A section does not introduce itself. `## Terminology` goes straight into its entries, and so do `## External documents` and `## Borrowed terms`: a heading plus the table's own column names say what a table holds, and a sentence restating it is the same defect as a spec announcing it is binding. Where the introduction carried a real distinction, as "terms this spec borrows" did, that distinction goes in the heading.
 
 `overview.md`'s chain section keeps wayfinding and the reproducibility property, and no longer defines the terms.
 
