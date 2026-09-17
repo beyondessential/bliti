@@ -112,7 +112,7 @@ Every member name in it is well formed and appears once.
 A message whose type the receiver recognises carries the members that type required when it was defined, each as the JSON type given for it.
 
 A message that breaks any of this is not a version difference, because a version difference cannot produce one.
-It is a fault in the peer, and it is reported rather than passed over: the device logs it, and the client surfaces it to the operator, because a device that is not speaking the protocol is something the person standing in front of it needs told rather than left to read a blank screen.
+It is a fault in the peer, and it MUST be reported rather than passed over: the device logs it, and the client surfaces it to the operator, because a device that is not speaking the protocol is something the person standing in front of it needs told rather than left to read a blank screen.
 
 The receiver closes the stream the message arrived on, and leaves the connection and every other stream alive, so whatever else the peer can still say keeps arriving.
 A message beyond the size ceiling above is a fault of the same kind and is handled the same way.

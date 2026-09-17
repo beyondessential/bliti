@@ -14,6 +14,7 @@ use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
 	channel::{
+		envelope::{Reading, read},
 		messages::{ClientMessage, DeviceMessage},
 		stream::{Mode, connect_initiator, multiplex, read_message, write_message},
 	},
@@ -178,7 +179,6 @@ async fn find(
 pub async fn connect(
 	address: Option<bluer::Address>,
 	secret: &StickerSecret,
-	text: &str,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
 	let session = bluer::Session::new().await.into_diagnostic()?;
@@ -272,41 +272,61 @@ pub async fn connect(
 		let _ = driver.await;
 	});
 
-	// The device speaks first, without being asked.
-	let reporting = tokio::time::timeout(std::time::Duration::from_secs(20), streams.accept())
-		.await
-		.map_err(|_| miette!("the device did not report its identity"))?;
-	let mut reporting = reporting.ok_or_else(|| miette!("the connection closed"))?;
-	let raw = read_message(&mut reporting)
-		.await
-		.into_diagnostic()?
-		.ok_or_else(|| miette!("no identity message"))?;
-	match serde_json::from_slice(&raw).into_diagnostic()? {
-		DeviceMessage::Identity {
-			hostname,
-			addresses,
-		} => {
-			println!("hostname: {hostname}");
-			for address in addresses {
-				println!("address:  {} on {}", address.address, address.interface);
-			}
-		}
-		other => println!("device said: {other:?}"),
-	}
-
-	// And the other direction: text the device prints.
-	let mut stream = streams.open().await.into_diagnostic()?;
-	let message = ClientMessage::Text {
-		text: text.to_owned(),
+	// The client names itself on a control stream of its own, without waiting to be asked and without
+	// waiting for the device's hello. The device logs it and never acts on it (BLI-MSG).
+	let mut control = streams.open().await.into_diagnostic()?;
+	let hello = ClientMessage::Hello {
+		name: env!("CARGO_PKG_NAME").to_owned(),
+		version: env!("CARGO_PKG_VERSION").to_owned(),
 	};
-	write_message(&mut stream, &message.to_json())
+	write_message(&mut control, &hello.to_json())
 		.await
 		.into_diagnostic()?;
-	println!("sent:     {text}");
 
-	// Let the writes drain and the device print before dropping the connection. Nothing acknowledges
-	// a line of text, so waiting is the only way to know it had the chance.
-	tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+	// The device speaks first too, without being asked.
+	let reporting = tokio::time::timeout(std::time::Duration::from_secs(20), streams.accept())
+		.await
+		.map_err(|_| miette!("the device did not open its reporting stream"))?;
+	let mut reporting = reporting.ok_or_else(|| miette!("the connection closed"))?;
+
+	// Read the reporting stream for as long as it lives, rather than once: the device sends again
+	// whenever what it reports changes.
+	let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+	while std::time::Instant::now() < deadline {
+		let next = tokio::time::timeout(
+			std::time::Duration::from_secs(1),
+			read_message(&mut reporting),
+		)
+		.await;
+		let Ok(raw) = next else { continue };
+		let Some(raw) = raw.into_diagnostic()? else {
+			break;
+		};
+
+		match read::<DeviceMessage>(&raw) {
+			Ok(Reading::Message(DeviceMessage::Hello { name, version })) => {
+				println!("device:   {name} {version}");
+			}
+			Ok(Reading::Message(DeviceMessage::Identity {
+				hostname,
+				addresses,
+			})) => {
+				println!("hostname: {hostname}");
+				for address in addresses {
+					println!("address:  {} on {}", address.address, address.interface);
+				}
+			}
+			// A device newer than this build: passed over, or not acted on, but never fatal.
+			Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
+			Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),
+			// A device that is not speaking the protocol. The stream goes; the connection does not.
+			Err(fault) => {
+				println!("fault:    {fault}");
+				break;
+			}
+		}
+	}
+
 	let _ = device.disconnect().await;
 	Ok(())
 }

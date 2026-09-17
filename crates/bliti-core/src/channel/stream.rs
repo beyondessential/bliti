@@ -32,6 +32,7 @@ pub use yamux::{Mode, Stream};
 
 use super::{
 	ChannelError,
+	envelope::MAX_MESSAGE,
 	framing::{Reassembler, frame},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 };
@@ -325,6 +326,14 @@ pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Op
 		Err(err) => return Err(err),
 	}
 	let len = u32::from_be_bytes(len) as usize;
+	// A peer claiming more than a message may be is refused rather than allowed to make this end
+	// allocate it (BLI-MSG). The stream is lost; the connection and every other stream are not.
+	if len > MAX_MESSAGE {
+		return Err(io::Error::new(
+			io::ErrorKind::InvalidData,
+			format!("message of {len} bytes exceeds the {MAX_MESSAGE}-byte maximum"),
+		));
+	}
 	let mut message = vec![0u8; len];
 	stream.read_exact(&mut message).await?;
 	Ok(Some(message))
@@ -336,7 +345,10 @@ mod tests {
 	use tokio_util::compat::TokioAsyncReadCompatExt;
 
 	use super::*;
-	use crate::channel::messages::{ClientMessage, DeviceMessage, parse_client_message};
+	use crate::channel::{
+		envelope::{Reading, read},
+		messages::{ClientMessage, DeviceMessage},
+	};
 
 	/// Set up a client and device connected over an in-memory duplex: a full `NNpsk0` handshake, then
 	/// yamux on both ends with their drivers spawned. No BLE is involved.
@@ -362,16 +374,16 @@ mod tests {
 	async fn handshake_then_bidirectional_exchange_on_one_stream() {
 		let (mut client, mut device) = paired().await;
 
-		// Client to device: text to print.
+		// Client to device: a subscription.
 		let mut cs = client.open().await.unwrap();
-		let text = ClientMessage::Text {
-			text: "print me".to_owned(),
+		let subscribe = ClientMessage::Subscribe {
+			topic: "system".to_owned(),
 		};
-		write_message(&mut cs, &text.to_json()).await.unwrap();
+		write_message(&mut cs, &subscribe.to_json()).await.unwrap();
 
 		let mut ds = device.accept().await.unwrap();
 		let received = read_message(&mut ds).await.unwrap().unwrap();
-		assert_eq!(parse_client_message(&received).unwrap(), text);
+		assert_eq!(read(&received).unwrap(), Reading::Message(subscribe));
 
 		// Device to client, on the same stream: identity.
 		let identity = DeviceMessage::Identity {
@@ -380,8 +392,54 @@ mod tests {
 		};
 		write_message(&mut ds, &identity.to_json()).await.unwrap();
 		let back = read_message(&mut cs).await.unwrap().unwrap();
-		let parsed: DeviceMessage = serde_json::from_slice(&back).unwrap();
-		assert_eq!(parsed, identity);
+		assert_eq!(read(&back).unwrap(), Reading::Message(identity));
+	}
+
+	/// Closing a stream is the unsubscribe, and it is a half-close: the peer reads end of stream while
+	/// its own write side stays open. A device that did not act on that would go on sending to a
+	/// client that has said it is done, which is the case the subscription mechanism exists to
+	/// prevent (BLI-MSG, "Subscribing").
+	#[tokio::test]
+	async fn closing_a_stream_is_read_as_end_of_stream_and_leaves_the_peer_writable() {
+		let (mut client, mut device) = paired().await;
+
+		let mut cs = client.open().await.unwrap();
+		let subscribe = ClientMessage::Subscribe {
+			topic: "system".to_owned(),
+		};
+		write_message(&mut cs, &subscribe.to_json()).await.unwrap();
+		let mut ds = device.accept().await.unwrap();
+		assert!(read_message(&mut ds).await.unwrap().is_some());
+
+		cs.close().await.unwrap();
+
+		// What the device acts on to drop the subscription.
+		assert!(read_message(&mut ds).await.unwrap().is_none());
+
+		// And the half-close leaves the device's own write side open, which is precisely why acting
+		// on the end of stream is the device's job rather than something the transport does for it.
+		write_message(&mut ds, b"still writable").await.unwrap();
+	}
+
+	/// A stream dropped without being closed reaches the peer as a reset rather than a graceful end,
+	/// so a subscription ends however its stream ends and no drop guard is needed (BLI-MSG).
+	#[tokio::test]
+	async fn dropping_a_stream_also_ends_it_for_the_peer() {
+		let (mut client, mut device) = paired().await;
+
+		let mut cs = client.open().await.unwrap();
+		write_message(&mut cs, b"opened").await.unwrap();
+		let mut ds = device.accept().await.unwrap();
+		assert!(read_message(&mut ds).await.unwrap().is_some());
+
+		drop(cs);
+
+		// Either a clean end or a reset: both tell the device the subscription is over.
+		let over = match read_message(&mut ds).await {
+			Ok(None) | Err(_) => true,
+			Ok(Some(_)) => false,
+		};
+		assert!(over, "a dropped stream must reach the peer");
 	}
 
 	#[tokio::test]

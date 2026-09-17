@@ -18,14 +18,15 @@ use std::{cell::RefCell, rc::Rc};
 use bliti_core::{
 	advertisement::Advertised,
 	channel::{
-		messages::ClientMessage,
+		envelope::{Reading, read},
+		messages::{ClientMessage, DeviceMessage},
 		stream::{
 			Mode, Stream, Streams, connect_initiator, multiplex, read_message, write_message,
 		},
 	},
 	sticker::StickerPayload,
 };
-use futures::{channel::mpsc, lock::Mutex};
+use futures::{AsyncWriteExt, channel::mpsc, lock::Mutex};
 use js_sys::{Function, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -149,6 +150,8 @@ struct Inner {
 	// An async lock rather than a cell: it is held across opening a stream, and two sends in
 	// flight queue behind each other rather than colliding over the handle.
 	streams: Mutex<Option<Streams>>,
+	// The stream this client named itself on, held open for whatever a feature gives a client to send.
+	control: Mutex<Option<Stream>>,
 }
 
 /// A channel to a device: the handshake of BLI-CHN and the streams above it.
@@ -173,6 +176,7 @@ impl Channel {
 				transport: RefCell::new(Some(transport)),
 				inbound: RefCell::new(inbound),
 				streams: Mutex::new(None),
+				control: Mutex::new(None),
 			}),
 		}
 	}
@@ -182,12 +186,19 @@ impl Channel {
 		let _ = self.inner.inbound.borrow_mut().try_send(bytes.to_vec());
 	}
 
-	/// Run the handshake and take the device's first message, resolving to it as JSON.
+	/// Run the handshake, name this client to the device, and start reading what the device reports.
 	///
-	/// The device speaks first, without being asked: it opens a stream and reports its identity. Every
-	/// later report on that stream — the device sends one whenever its addresses change — is passed to
-	/// `on_message`, and `on_closed` is called once the stream ends.
-	pub fn connect(&self, on_message: Function, on_closed: Function) -> Promise {
+	/// The client opens a control stream and sends its hello without waiting for the device's, and the
+	/// device opens its reporting stream without being asked; neither blocks on the other (BLI-MSG).
+	/// Every message the device sends is passed to `on_message` as one of the outcomes described in
+	/// [`describe`], and `on_closed` is called once the reporting stream ends.
+	pub fn connect(
+		&self,
+		name: String,
+		version: String,
+		on_message: Function,
+		on_closed: Function,
+	) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let transport = inner
@@ -205,26 +216,35 @@ impl Channel {
 				let _ = driver.await;
 			});
 
-			let mut reporting = streams
+			// This client names itself, on a control stream of its own. The device logs it and never
+			// acts on it, and nothing here waits for an answer because there is none.
+			let mut control = streams
+				.open()
+				.await
+				.map_err(|err| JsError::new(&format!("opening the control stream: {err}")))?;
+			let hello = ClientMessage::Hello { name, version };
+			write_message(&mut control, &hello.to_json())
+				.await
+				.map_err(|err| JsError::new(&format!("naming this client: {err}")))?;
+
+			let reporting = streams
 				.accept()
 				.await
 				.ok_or_else(|| JsError::new("the device closed the channel before reporting"))?;
-			let first = read_message(&mut reporting)
-				.await
-				.map_err(|err| JsError::new(&format!("reading the device's report: {err}")))?
-				.ok_or_else(|| JsError::new("the device reported nothing"))?;
-
-			// The device reports again whenever what it reported changes, so the stream is read for as
-			// long as it lives rather than once.
 			spawn_local(report_until_closed(reporting, on_message, on_closed));
 
+			*inner.control.lock().await = Some(control);
 			*inner.streams.lock().await = Some(streams);
-			Ok(JsValue::from_str(&String::from_utf8_lossy(&first)))
+			Ok(JsValue::UNDEFINED)
 		})
 	}
 
-	/// Send a line of text for the device to print, proving the client-to-device direction.
-	pub fn send_text(&self, text: String) -> Promise {
+	/// Subscribe to what the device sends continuously on a topic.
+	///
+	/// The subscription is the stream: it begins with this message and ends when the stream is closed,
+	/// so [`Subscription::close`] is the unsubscribe and there is no message for it (BLI-MSG). A topic
+	/// the device does not know yields no data and no error, which is what an older device looks like.
+	pub fn subscribe(&self, topic: String, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let mut streams = inner.streams.lock().await;
@@ -234,33 +254,130 @@ impl Channel {
 			let mut stream = streams
 				.open()
 				.await
-				.map_err(|err| JsError::new(&format!("opening a stream: {err}")))?;
-			let message = ClientMessage::Text { text };
-			write_message(&mut stream, &message.to_json())
+				.map_err(|err| JsError::new(&format!("opening a subscription: {err}")))?;
+			write_message(&mut stream, &ClientMessage::Subscribe { topic }.to_json())
 				.await
-				.map_err(|err| JsError::new(&format!("sending the text: {err}")))?;
+				.map_err(|err| JsError::new(&format!("subscribing: {err}")))?;
+
+			let (reader, handle) = SubscriptionHandle::new(stream);
+			spawn_local(report_until_closed(reader, on_message, on_closed));
+			Ok(JsValue::from(handle))
+		})
+	}
+}
+
+/// One open subscription, which lasts exactly as long as its stream.
+#[wasm_bindgen]
+pub struct SubscriptionHandle {
+	stream: Rc<Mutex<Option<Stream>>>,
+}
+
+impl SubscriptionHandle {
+	/// Split a stream into the half that is read and the handle that closes it.
+	fn new(stream: Stream) -> (SubscriptionReader, SubscriptionHandle) {
+		let shared = Rc::new(Mutex::new(Some(stream)));
+		(
+			SubscriptionReader {
+				stream: shared.clone(),
+			},
+			SubscriptionHandle { stream: shared },
+		)
+	}
+}
+
+#[wasm_bindgen]
+impl SubscriptionHandle {
+	/// Unsubscribe, by closing the stream.
+	///
+	/// Closed rather than dropped: closing sends the graceful end of stream the device reads to stop
+	/// sending, where dropping would reach it as a reset. Either ends the subscription, but the
+	/// ordinary path should be the graceful one.
+	pub fn close(&self) -> Promise {
+		let stream = self.stream.clone();
+		future_to_promise(async move {
+			if let Some(mut stream) = stream.lock().await.take() {
+				let _ = stream.close().await;
+			}
 			Ok(JsValue::UNDEFINED)
 		})
 	}
 }
 
-/// Pass every further message the device sends on its reporting stream to the application, then say
-/// when the stream ends.
-async fn report_until_closed(mut reporting: Stream, on_message: Function, on_closed: Function) {
+/// The reading half of a subscription, which gives the stream up once it is closed.
+struct SubscriptionReader {
+	stream: Rc<Mutex<Option<Stream>>>,
+}
+
+/// Pass everything a stream carries to the application, then say when it ends.
+///
+/// Each message is described rather than handed over raw, so the application is told which of the
+/// outcomes of BLI-MSG it is looking at and can render accordingly.
+async fn report_until_closed<R: ReadsMessages>(
+	mut source: R,
+	on_message: Function,
+	on_closed: Function,
+) {
 	loop {
-		match read_message(&mut reporting).await {
+		match source.next().await {
 			Ok(Some(raw)) => {
-				let _ = on_message.call1(
-					&JsValue::NULL,
-					&JsValue::from_str(&String::from_utf8_lossy(&raw)),
-				);
+				let _ = on_message.call1(&JsValue::NULL, &JsValue::from_str(&describe(&raw)));
 			}
 			Ok(None) => break,
 			Err(err) => {
-				let _ = on_closed.call1(&JsValue::NULL, &JsValue::from_str(&err.to_string()));
+				let _ = on_closed.call1(&JsValue::NULL, &JsValue::from_str(&err));
 				return;
 			}
 		}
 	}
 	let _ = on_closed.call1(&JsValue::NULL, &JsValue::NULL);
+}
+
+/// Something a message can be read from, so a plain stream and a subscription share one reader.
+trait ReadsMessages {
+	async fn next(&mut self) -> Result<Option<Vec<u8>>, String>;
+}
+
+impl ReadsMessages for Stream {
+	async fn next(&mut self) -> Result<Option<Vec<u8>>, String> {
+		read_message(self).await.map_err(|err| err.to_string())
+	}
+}
+
+impl ReadsMessages for SubscriptionReader {
+	async fn next(&mut self) -> Result<Option<Vec<u8>>, String> {
+		let mut guard = self.stream.lock().await;
+		let Some(stream) = guard.as_mut() else {
+			// Closed by the application: the subscription is over.
+			return Ok(None);
+		};
+		read_message(stream).await.map_err(|err| err.to_string())
+	}
+}
+
+/// Describe one message to the application as JSON.
+///
+/// The three outcomes of BLI-MSG are kept apart here rather than in the application, so every client
+/// surface inherits the same reading of the wire. `message` is what this build understood, `skipped`
+/// is a device newer than this build saying something safe to pass over, `refused` is one saying
+/// something that must not be half read, and `fault` is a device not speaking the protocol.
+fn describe(raw: &[u8]) -> String {
+	let described = match read::<DeviceMessage>(raw) {
+		Ok(Reading::Message(message)) => serde_json::json!({
+			"kind": "message",
+			"message": message,
+		}),
+		Ok(Reading::Skipped(skip)) => serde_json::json!({
+			"kind": "skipped",
+			"detail": skip.to_string(),
+		}),
+		Ok(Reading::Refused(refusal)) => serde_json::json!({
+			"kind": "refused",
+			"detail": refusal.to_string(),
+		}),
+		Err(fault) => serde_json::json!({
+			"kind": "fault",
+			"detail": fault.to_string(),
+		}),
+	};
+	described.to_string()
 }

@@ -4,15 +4,17 @@
 //! exercised over an in-memory duplex with no adapter involved, and so the same code serves a
 //! different transport later without changing.
 //!
-//! Milestone one carries one thing in each direction (BLI-CHN, and the channel demonstration): text
-//! from the client that the device prints, and the device's hostname and addresses, which it sends
-//! when a client arrives and again whenever they change, without being asked.
+//! The device opens a reporting stream as soon as the handshake completes, naming itself and then
+//! reporting what it is, and serves whatever streams a client opens (BLI-MSG). It never answers a
+//! message on the wire: one it does not recognise is passed over, one carrying something critical it
+//! does not know is refused, and one that breaks the protocol closes the stream it arrived on.
 
 use std::time::Duration;
 
 use bliti_core::{
 	channel::{
-		messages::{ClientMessage, DeviceMessage, parse_client_message},
+		envelope::{Reading, read},
+		messages::{ClientMessage, DeviceMessage},
 		stream::{Mode, Streams, accept_responder, multiplex, read_message, write_message},
 	},
 	key_schedule::StickerSecret,
@@ -23,6 +25,13 @@ use crate::facts;
 
 /// How often to look for a change in the device's addresses while a client is connected.
 const ADDRESS_POLL: Duration = Duration::from_secs(2);
+
+/// What the device calls itself to a client, and the version it is at.
+///
+/// Both are opaque to the client, which displays them and never acts on them (BLI-MSG). They are the
+/// package's own name and version, so a device reports what was actually built and installed.
+const DEVICE_NAME: &str = env!("CARGO_PKG_NAME");
+const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Run a session to completion over a transport, as the device.
 ///
@@ -50,14 +59,25 @@ where
 	result
 }
 
-/// The device's half of the conversation: report identity unsolicited, and serve whatever the client
-/// opens.
+/// The device's half of the conversation: name itself and report unsolicited, and serve whatever the
+/// client opens.
 async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
 	// The device speaks first, without being asked. This is the property the stream layer exists for.
 	let mut reporting = streams
 		.open()
 		.await
 		.map_err(|err| SessionError::Stream(err.to_string()))?;
+
+	// Naming itself comes first on the reporting stream, so a client knows what it is talking to
+	// before anything else arrives.
+	let hello = DeviceMessage::Hello {
+		name: DEVICE_NAME.to_owned(),
+		version: DEVICE_VERSION.to_owned(),
+	};
+	write_message(&mut reporting, &hello.to_json())
+		.await
+		.map_err(|err| SessionError::Stream(err.to_string()))?;
+
 	let mut last = facts::identity_message();
 	write_message(&mut reporting, &last.to_json())
 		.await
@@ -95,36 +115,53 @@ async fn converse(streams: &mut Streams) -> Result<(), SessionError> {
 	}
 }
 
-/// Serve one stream a client opened, until it closes. Closing it leaves the others and the connection
-/// alive.
+/// Serve one stream a client opened, until it ends. Whatever happens here leaves the other streams
+/// and the connection alive.
 async fn serve_stream<S>(stream: &mut S) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
 {
-	while let Some(raw) = read_message(stream)
-		.await
-		.map_err(|err| SessionError::Stream(err.to_string()))?
-	{
-		let reply = match parse_client_message(&raw) {
-			Ok(ClientMessage::Text { text }) => {
-				// The client-to-device direction, proved by the device printing what it was sent.
-				// Standard output reaches the journal once the daemon runs as a service.
-				println!("{text}");
-				None
+	loop {
+		let raw = match read_message(stream).await {
+			Ok(Some(raw)) => raw,
+			// The end of the stream. Where it was a subscription, this is the unsubscribe: there is
+			// nothing to stop yet because no topic is defined, but the shape is the one a feature
+			// hangs its topic on (BLI-MSG, "Subscribing").
+			Ok(None) => {
+				tracing::debug!("client closed a stream");
+				return Ok(());
 			}
-			// A message the device does not understand is reported, and the channel stays open.
-			Err(unknown) => Some(unknown),
+			// A length beyond what a message may be is a fault of the same kind as a malformed one.
+			Err(err) => return Err(SessionError::Fault(err.to_string())),
 		};
-		if let Some(DeviceMessage::Unknown { reason }) = &reply {
-			tracing::warn!(%reason, "message not understood");
-		}
-		if let Some(reply) = reply {
-			write_message(stream, &reply.to_json())
-				.await
-				.map_err(|err| SessionError::Stream(err.to_string()))?;
+
+		match read::<ClientMessage>(&raw) {
+			Ok(Reading::Message(ClientMessage::Hello { name, version })) => {
+				// Recorded so that what is in the field talking to these devices can be known. Nothing
+				// branches on it (BLI-MSG).
+				tracing::info!(client = %name, client_version = %version, "client named itself");
+			}
+			Ok(Reading::Message(ClientMessage::Subscribe { topic })) => {
+				// No topic is defined yet, so every topic is one this device does not recognise: it
+				// sends nothing and leaves the stream open until the client closes it. That is what a
+				// device older than its client looks like, and it fails nothing.
+				tracing::info!(%topic, "subscription to a topic this device does not serve");
+			}
+			Ok(Reading::Skipped(skip)) => {
+				tracing::debug!(%skip, "message passed over");
+			}
+			Ok(Reading::Refused(refusal)) => {
+				// A client newer than this device, saying something that must not be half read. Not a
+				// fault: the stream carries on.
+				tracing::warn!(%refusal, "message refused");
+			}
+			Err(fault) => {
+				// A client that is not speaking the protocol. Reported, and the stream goes.
+				tracing::warn!(%fault, "protocol fault; closing the stream");
+				return Err(SessionError::Fault(fault.to_string()));
+			}
 		}
 	}
-	Ok(())
 }
 
 /// A failure within one session. None of these stops the daemon.
@@ -138,6 +175,11 @@ pub enum SessionError {
 	/// A stream failed or the connection went away.
 	#[error("stream: {0}")]
 	Stream(String),
+
+	/// A client sent something that is not this protocol. The stream it arrived on is closed; the
+	/// connection and every other stream are left alone.
+	#[error("protocol fault: {0}")]
+	Fault(String),
 }
 
 #[cfg(test)]
@@ -151,49 +193,104 @@ mod tests {
 		StickerSecret::from_bytes([byte; 32])
 	}
 
-	/// Drive a device session against a client over an in-memory duplex, with no BLE involved.
-	#[tokio::test]
-	async fn a_client_reaches_the_device_and_is_told_who_it_is() {
-		let psk = secret(0x42);
+	/// Open a client against a device session over an in-memory duplex, with no BLE involved.
+	async fn paired(psk: &StickerSecret) -> Streams {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
-
 		let device_psk = psk.clone();
 		tokio::spawn(async move {
 			let _ = run(device_side.compat(), &device_psk).await;
 		});
 
-		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
-		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+		let encrypted = connect_initiator(client_side.compat(), psk).await.unwrap();
+		let (streams, driver) = multiplex(encrypted, Mode::Client);
 		tokio::spawn(async move {
 			let _ = driver.await;
 		});
+		streams
+	}
 
-		// The device opens a stream and reports its identity without being asked.
+	/// The device names itself first and reports second, both without being asked (BLI-MSG).
+	#[tokio::test]
+	async fn the_device_names_itself_then_reports_unsolicited() {
+		let mut streams = paired(&secret(0x42)).await;
+
 		let mut reporting = streams.accept().await.expect("device reports unsolicited");
+
 		let raw = read_message(&mut reporting).await.unwrap().unwrap();
-		let message: DeviceMessage = serde_json::from_slice(&raw).unwrap();
-		let DeviceMessage::Identity { hostname, .. } = message else {
-			panic!("expected an identity message");
+		let Reading::Message(DeviceMessage::Hello { name, version }) = read(&raw).unwrap() else {
+			panic!("the first message on the reporting stream is the device hello");
+		};
+		assert_eq!(name, DEVICE_NAME);
+		assert_eq!(version, DEVICE_VERSION);
+
+		let raw = read_message(&mut reporting).await.unwrap().unwrap();
+		let Reading::Message(DeviceMessage::Identity { hostname, .. }) = read(&raw).unwrap() else {
+			panic!("the device reports its identity after naming itself");
 		};
 		assert!(!hostname.is_empty());
+	}
 
-		// And the client-to-device direction: a message the device does not understand is answered
-		// rather than closing the channel, which also proves the channel is live in that direction.
+	/// A message the device does not recognise draws no reply at all, and costs nothing: the stream
+	/// stays open and the session carries on (BLI-MSG).
+	#[tokio::test]
+	async fn an_unrecognised_message_is_passed_over_in_silence() {
+		let mut streams = paired(&secret(0x42)).await;
+		let _reporting = streams.accept().await.unwrap();
+
 		let mut stream = streams.open().await.unwrap();
-		write_message(&mut stream, br#"{"type":"nonsense"}"#)
+		write_message(&mut stream, br#"{"type":"reboot","when":"now"}"#)
 			.await
 			.unwrap();
-		let raw = read_message(&mut stream).await.unwrap().unwrap();
-		let reply: DeviceMessage = serde_json::from_slice(&raw).unwrap();
-		assert!(matches!(reply, DeviceMessage::Unknown { .. }));
 
-		// The connection survives it: a further message is still served.
-		write_message(&mut stream, br#"{"type":"also nonsense"}"#)
-			.await
-			.unwrap();
-		let raw = read_message(&mut stream).await.unwrap().unwrap();
-		let reply: DeviceMessage = serde_json::from_slice(&raw).unwrap();
-		assert!(matches!(reply, DeviceMessage::Unknown { .. }));
+		let quiet =
+			tokio::time::timeout(Duration::from_millis(250), read_message(&mut stream)).await;
+		assert!(quiet.is_err(), "nothing is answered on the wire");
+
+		// And the stream is still usable, rather than having been torn down.
+		write_message(
+			&mut stream,
+			&ClientMessage::Hello {
+				name: "test-client".to_owned(),
+				version: "0.0.0".to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.unwrap();
+	}
+
+	/// A client that is not speaking the protocol loses the stream it did it on, and nothing else
+	/// (BLI-MSG, "What the base protocol guarantees").
+	#[tokio::test]
+	async fn a_protocol_fault_costs_the_stream_and_not_the_connection() {
+		let mut streams = paired(&secret(0x42)).await;
+		let mut reporting = streams.accept().await.unwrap();
+		let _hello = read_message(&mut reporting).await.unwrap().unwrap();
+
+		let mut bad = streams.open().await.unwrap();
+		write_message(&mut bad, b"this is not json").await.unwrap();
+
+		// The stream the fault arrived on ends.
+		let ended = matches!(read_message(&mut bad).await, Ok(None) | Err(_));
+		assert!(ended, "a fault closes the stream it arrived on");
+
+		// The connection is untouched: another stream is still served, and the reporting stream is
+		// still there.
+		let mut good = streams.open().await.unwrap();
+		write_message(
+			&mut good,
+			&ClientMessage::Subscribe {
+				topic: "system".to_owned(),
+			}
+			.to_json(),
+		)
+		.await
+		.unwrap();
+		let quiet = tokio::time::timeout(Duration::from_millis(250), read_message(&mut good)).await;
+		assert!(
+			quiet.is_err(),
+			"an unknown topic sends nothing and leaves the stream open"
+		);
 	}
 
 	#[tokio::test]

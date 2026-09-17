@@ -79,10 +79,6 @@ enum Command {
 		#[arg(long)]
 		address: Option<String>,
 
-		/// A line of text for the device to print.
-		#[arg(long, default_value = "hello from the command line")]
-		text: String,
-
 		/// Bluetooth adapter to use. Defaults to the system's first.
 		#[arg(long)]
 		adapter: Option<String>,
@@ -116,9 +112,8 @@ async fn run(cli: Cli) -> Result<()> {
 		Command::Connect {
 			sticker,
 			address,
-			text,
 			adapter,
-		} => connect(&sticker, address.as_deref(), &text, adapter.as_deref()).await,
+		} => connect(&sticker, address.as_deref(), adapter.as_deref()).await,
 	}
 }
 
@@ -184,19 +179,14 @@ async fn scan(sticker: &str, seconds: u64, adapter: Option<&str>) -> Result<()> 
 }
 
 #[cfg(target_os = "linux")]
-async fn connect(
-	sticker: &str,
-	address: Option<&str>,
-	text: &str,
-	adapter: Option<&str>,
-) -> Result<()> {
+async fn connect(sticker: &str, address: Option<&str>, adapter: Option<&str>) -> Result<()> {
 	let payload = read_sticker(sticker)?;
 	let address = address
 		.map(str::parse::<bluer::Address>)
 		.transpose()
 		.into_diagnostic()
 		.wrap_err("reading the device address")?;
-	client::connect(address, payload.secret(), text, adapter).await
+	client::connect(address, payload.secret(), adapter).await
 }
 
 #[cfg(not(target_os = "linux"))]
