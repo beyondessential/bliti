@@ -82,9 +82,6 @@ Both are opaque.
 The client SHOULD display the device's `name` and `version`.
 The device MUST log the client's.
 
-Their being opaque is what keeps this from becoming the version gate below.
-A value with no structure the other end reads is a value the other end cannot branch on.
-
 ## Version skew is ordinary
 
 A device runs software months behind the web application, because the application is served fresh each time and the device is not.
