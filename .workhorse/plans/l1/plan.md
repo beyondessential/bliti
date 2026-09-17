@@ -59,6 +59,34 @@ The division is coined versus imported.
 
 `overview.md`'s chain section keeps wayfinding and the reproducibility property, and no longer defines the terms.
 
+### BLI is the map, SEC is the threat model
+
+BLI becomes a terse entryway and a meta spec: what the project is, the requirement keywords, the external documents, the global glossary, and the map of how the specs relate. A casual reader can start and stop there.
+
+SEC owns the security properties and their limits. Each property names the mechanism that upholds it, and the mechanism specs carry the requirements. CHN keeps only what a re-implementer of the handshake needs.
+
+This resolves a status conflict the note convention created. The same security claims were body text in BLI and non-normative `[!NOTE]` commentary in CHN, so one claim was both binding and disclaimed depending on which file you read.
+
+It also fixed an omission rather than only moving text. That a recorded handshake serves the offline board-ID search as well as a recorded advertisement does existed only inside a CHN note, so anyone reading BLI's guarantees-stop section as the threat model got an incomplete answer.
+
+Still to fold into SEC when those specs are rewritten: `key-schedule.md`'s "What the cost achieves", which is a security-properties discussion sitting inside a derivation spec, and `discovery.md`'s "Address privacy".
+
+SEC takes the unprefixed id now, ahead of the re-ID sweep, so cross-references to it read `[SEC](security.md)` while the rest still read `[BLI-CHN](channel.md)`. The inconsistency resolves itself when the sweep lands.
+
+### VER and DEV take BLI's remaining requirements
+
+Making BLI non-normative left two sections with nowhere to sit, both carrying real requirements.
+
+**VER** takes the base protocol version, and absorbs `key-schedule.md`'s Versioning section so one marker has one description of its scope. KEY now defers to it in a line.
+
+That absorption resolved a contradiction. BLI said the marker covers every layer including the handshake and the message encoding; KEY said "Nothing else is a new version" beyond what changes the secret. A handshake change does not change the secret, so the two rules disagreed about whether it moves the marker. VER resolves toward the broad scope, because the marker is the only version signal that exists before a connection does: were it to cover only the secret, two peers running incompatible handshakes would derive matching handles, recognise each other, and fail with nothing to tell an operator. KEY's narrower claim was written from the key schedule's vantage and did not account for the layers above it.
+
+**DEV** takes reporting to standard error. It is thin at one requirement, and will grow: `key-schedule.md`'s memory-headroom check and dead-cache reporting, `discovery.md`'s bound on recording failed attempts, and `channel.md`'s Bluetooth stack prerequisite are all device-operation requirements currently embedded in mechanism specs. They fold in as those specs are rewritten, the same way SEC's remaining sources do.
+
+### The map had a hole
+
+`system-info.md` was linked from no other spec. The chain walked BID to KEY to STK to ADV to CHN to MSG to WEB and never mentioned BLI-SYS, so a reader following the overview never learned it existed. Now that BLI's stated job is to be the map, a spec missing from it is a defect rather than an oversight. Worth a reachability check alongside the link checker.
+
 ### presence secret, not sticker secret
 
 Named by role, not by the artefact carrying it. Holding it proves the holder read the code on the device.

@@ -72,16 +72,4 @@ Eight bytes makes a collision between two devices at one site implausible, and f
 
 ## Versioning
 
-Everything a sticker depends on is versioned together under a single marker, carried both in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md).
-
-The marker covers the derivation constants, the argon2id parameters, the source precedence and the encoding above, the pinned Endorsement Key template, and the handle length.
-Any of these changing is a new version, because any of them changing changes the secret.
-
-Nothing else is a new version.
-A change that leaves the secret identical does not move the marker, because moving it orphans every sticker already fixed to an enclosure.
-The URL the QR code is carried in, and the human-readable rendering printed beneath it, are carriers rather than payload, and changing either leaves the marker where it is.
-
-A client holds the sticker, reads its version, and derives once under that version.
-
-A device holds no sticker and cannot know which version was printed for it, so supporting more than one means deriving under each and advertising under each.
-A device advertises one version at a time.
+Everything specified above is covered by the base protocol version of [VER](version.md): a change to any of it is a new version.

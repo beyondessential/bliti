@@ -27,11 +27,10 @@ The pre-shared key MUST be the 32-byte [presence secret](overview.md#presence-se
 
 The handshake gives the session forward secrecy.
 
+The security properties this upholds, and their limits, are specified in [SEC](security.md).
+
 > [!NOTE]
-> Both ends bring only ephemeral keys, so completing the handshake proves in both directions that each end holds the presence secret, which is what "this is the device whose sticker I scanned" and "you scanned my sticker" both reduce to.
-> A replayed or spoofed advertisement yields no session, because an attacker cannot complete the handshake behind it.
-> Forward secrecy means that recovering a presence secret later does not decrypt a recorded session, though an eavesdropper who recorded a handshake can attempt the same offline search against the transcript as against an advertisement, at the derivation cost of [BLI-KEY](key-schedule.md).
-> The [board ID](overview.md#board-id) is not verified directly and cannot be, because it is absent from the QR payload and the derivation does not run backwards; possession of the presence secret is the proof, and is equivalent, because deriving the secret requires the board ID.
+> Both ends bring only ephemeral keys, so completing the handshake proves in both directions that each end holds the presence secret, which is what "this is the device whose QR code I scanned" and "you scanned my QR code" both reduce to.
 
 ## Send rate
 
