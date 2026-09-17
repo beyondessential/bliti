@@ -23,7 +23,7 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 ### Board ID
 
-The identifier a board's own firmware provides, from which every other value in the system descends.
+The identifier a board's own firmware provides.
 Defined in [BLI-BID](board-id.md).
 
 ### Presence secret
