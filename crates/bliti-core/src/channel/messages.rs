@@ -64,11 +64,22 @@ impl Message for ClientMessage {
 	fn knows(type_name: &str) -> bool {
 		matches!(type_name, "client-hello" | "subscribe")
 	}
+
+	/// Both of these are types BLI-MSG defines, and it forbids a critical member on them.
+	fn forbids_critical(type_name: &str) -> bool {
+		matches!(type_name, "client-hello" | "subscribe")
+	}
 }
 
 impl Message for DeviceMessage {
 	fn knows(type_name: &str) -> bool {
 		matches!(type_name, "device-hello" | "identity")
+	}
+
+	/// `device-hello` is a type BLI-MSG defines and forbids a critical member on. `identity` belongs to
+	/// the feature that reports it, which carries no such prohibition.
+	fn forbids_critical(type_name: &str) -> bool {
+		matches!(type_name, "device-hello")
 	}
 }
 
@@ -184,32 +195,6 @@ mod tests {
 		assert_eq!(read(&json).unwrap(), Reading::Message(message));
 	}
 
-	/// Names are matched without regard to case, so a member arriving upper case reaches the same
-	/// member and is handled identically (BLI-MSG, "Member names").
-	#[test]
-	fn a_recognised_member_is_read_whichever_case_it_arrives_in() {
-		let lower = client(r#"{"type":"subscribe","topic":"system"}"#).unwrap();
-		let upper = client(r#"{"TYPE":"subscribe","TOPIC":"system"}"#).unwrap();
-		assert_eq!(lower, upper);
-		assert_eq!(
-			lower,
-			Reading::Message(ClientMessage::Subscribe {
-				topic: "system".to_owned()
-			})
-		);
-	}
-
-	/// Casing marks names, never values.
-	#[test]
-	fn casing_does_not_reach_values() {
-		let Reading::Message(ClientMessage::Subscribe { topic }) =
-			client(r#"{"type":"subscribe","topic":"SYSTEM"}"#).unwrap()
-		else {
-			panic!("expected a subscribe")
-		};
-		assert_eq!(topic, "SYSTEM", "a topic is a value and keeps its case");
-	}
-
 	#[test]
 	fn a_mixed_case_name_is_a_fault() {
 		assert_eq!(
@@ -252,25 +237,36 @@ mod tests {
 		);
 	}
 
-	/// A critical member this build does not know means the message is not acted on. This is a peer
-	/// newer than us, not a broken one, so it is refused rather than faulted.
+	/// The three types this spec defines may not carry a critical member at all, so one arriving is a
+	/// peer breaking the protocol rather than a peer newer than this build (BLI-MSG).
 	#[test]
-	fn an_unknown_critical_member_is_refused() {
-		assert_eq!(
-			client(r#"{"type":"subscribe","topic":"system","REDACT":["cpu"]}"#).unwrap(),
-			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
-		);
+	fn a_critical_member_on_a_type_that_forbids_one_is_a_fault() {
+		for json in [
+			r#"{"type":"subscribe","topic":"system","REDACT":["cpu"]}"#,
+			r#"{"TOPIC":"system","type":"subscribe"}"#,
+			r#"{"TYPE":"subscribe","topic":"system"}"#,
+			r#"{"type":"client-hello","name":"a","version":"1","MODE":"strict"}"#,
+		] {
+			assert!(
+				matches!(client(json).unwrap_err(), Fault::CriticalNotAllowed { .. }),
+				"{json} should be a fault"
+			);
+		}
+
+		assert!(matches!(
+			device(r#"{"type":"device-hello","name":"a","version":"1","CAPABILITY":"x"}"#)
+				.unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
 	}
 
-	/// A critical member the build does know is acted on like any other: criticality bites only where
-	/// a member is not recognised.
+	/// The prohibition is per type, not per build: a type a feature owns still takes the general rule.
 	#[test]
-	fn a_known_member_marked_critical_is_not_refused() {
+	fn a_feature_type_still_refuses_rather_than_faults() {
+		let json = r#"{"type":"identity","hostname":"iti","addresses":[],"REDACT":["cpu"]}"#;
 		assert_eq!(
-			client(r#"{"TOPIC":"system","type":"subscribe"}"#).unwrap(),
-			Reading::Message(ClientMessage::Subscribe {
-				topic: "system".to_owned()
-			})
+			device(json).unwrap(),
+			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
 		);
 	}
 

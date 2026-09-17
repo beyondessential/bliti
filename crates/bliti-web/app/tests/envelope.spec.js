@@ -58,11 +58,15 @@ test.describe('a device newer than this build', () => {
 		await expect(page.getByText('bliti 0.4.2')).toBeVisible()
 	})
 
-	// A hello the client cannot process leaves it without the name and version, saying so, and the
-	// session carries on rather than being refused.
-	test('a refused device-hello leaves the session alive and says what is missing', async ({ page }) => {
+	// A refusal arriving before the device has named itself leaves the view without a name and
+	// version. It says so and the session carries on, rather than being refused: a client behind a
+	// device is ordinary. A refused `device-hello` is not how this happens, because BLI-MSG forbids a
+	// critical member on that type; it is a refusal of something else arriving first.
+	test('a refusal before the hello leaves the session alive and says what is missing', async ({
+		page,
+	}) => {
 		await openChannel(page)
-		await emit(page, { kind: 'refused', detail: 'critical members not known to this build: capability' })
+		await emit(page, { kind: 'refused', detail: 'critical members not known to this build: redact' })
 		await emit(page, identity)
 
 		await expect(page.getByText('not reported')).toBeVisible()

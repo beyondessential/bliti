@@ -34,6 +34,16 @@ pub trait Message: DeserializeOwned + Serialize {
 	/// Read before deserialising, so that a type this build has never heard of is told apart from one
 	/// it knows but cannot parse: the first is a newer peer, the second a broken one.
 	fn knows(type_name: &str) -> bool;
+
+	/// Whether the named type is one BLI-MSG forbids carrying a critical member.
+	///
+	/// The three types that spec defines are, so that the messages opening a conversation never put a
+	/// receiver in the position of weighing criticality. A critical member on one is therefore a fault
+	/// rather than a refusal: a conforming peer cannot produce one. A type a feature defines carries no
+	/// such prohibition unless its own spec says so.
+	fn forbids_critical(_type_name: &str) -> bool {
+		false
+	}
 }
 
 /// What reading one message yielded.
@@ -134,6 +144,15 @@ pub enum Fault {
 	#[error("`type` is not a string")]
 	TypeNotString,
 
+	/// A critical member on a message type that BLI-MSG forbids carrying one.
+	#[error("{type_name} may not carry a critical member, but carried {names}")]
+	CriticalNotAllowed {
+		/// The message type that carried it.
+		type_name: String,
+		/// The critical members it carried, by their path within the message.
+		names: String,
+	},
+
 	/// A known message type that does not carry what it requires.
 	#[error("{type_name} message is malformed: {detail}")]
 	Malformed {
@@ -176,6 +195,15 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 			Reading::Refused(Refusal::CriticalType(type_name))
 		} else {
 			Reading::Skipped(Skip::UnknownType(type_name))
+		});
+	}
+
+	// A type that may not carry a critical member, carrying one, is a peer breaking the protocol
+	// rather than a peer newer than this build.
+	if T::forbids_critical(&type_name) && !critical.is_empty() {
+		return Err(Fault::CriticalNotAllowed {
+			type_name,
+			names: critical.iter().cloned().collect::<Vec<_>>().join(", "),
 		});
 	}
 
@@ -380,5 +408,90 @@ impl<'de> Visitor<'de> for RawVisitor {
 
 	fn visit_none<E: de::Error>(self) -> Result<Raw, E> {
 		Ok(Raw::Other(Value::Null))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use serde::{Deserialize, Serialize};
+
+	use super::*;
+
+	/// A message type standing in for one a feature defines later.
+	///
+	/// It is needed because every type BLI-MSG itself defines forbids a critical member, so none of
+	/// them can carry one legally and none can serve as the vehicle for the general rules below.
+	#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+	#[serde(tag = "type")]
+	enum Sample {
+		#[serde(rename = "sample")]
+		Sample { topic: String },
+	}
+
+	impl Message for Sample {
+		fn knows(type_name: &str) -> bool {
+			type_name == "sample"
+		}
+	}
+
+	fn sample(json: &str) -> Result<Reading<Sample>, Fault> {
+		read(json.as_bytes())
+	}
+
+	/// Names are matched without regard to case, so a member arriving upper case reaches the same
+	/// member and is handled identically.
+	#[test]
+	fn a_recognised_member_is_read_whichever_case_it_arrives_in() {
+		let lower = sample(r#"{"type":"sample","topic":"system"}"#).unwrap();
+		let upper = sample(r#"{"TYPE":"sample","TOPIC":"system"}"#).unwrap();
+		assert_eq!(lower, upper);
+		assert_eq!(
+			lower,
+			Reading::Message(Sample::Sample {
+				topic: "system".to_owned()
+			})
+		);
+	}
+
+	/// Criticality bites only where a member is not recognised.
+	#[test]
+	fn a_known_member_marked_critical_is_not_refused() {
+		assert_eq!(
+			sample(r#"{"TOPIC":"system","type":"sample"}"#).unwrap(),
+			Reading::Message(Sample::Sample {
+				topic: "system".to_owned()
+			})
+		);
+	}
+
+	/// The case that separates a newer peer from a broken one.
+	#[test]
+	fn an_unknown_critical_member_is_refused() {
+		assert_eq!(
+			sample(r#"{"type":"sample","topic":"system","REDACT":["cpu"]}"#).unwrap(),
+			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
+		);
+	}
+
+	/// Casing marks names, never values.
+	#[test]
+	fn casing_does_not_reach_values() {
+		let Reading::Message(Sample::Sample { topic }) =
+			sample(r#"{"type":"sample","topic":"SYSTEM"}"#).unwrap()
+		else {
+			panic!("expected a sample")
+		};
+		assert_eq!(topic, "SYSTEM", "a topic is a value and keeps its case");
+	}
+
+	/// A digit or a hyphen carries no case, so a name of only those is not critical.
+	#[test]
+	fn a_caseless_name_is_not_critical() {
+		assert_eq!(
+			sample(r#"{"type":"sample","topic":"system","0-1":true}"#).unwrap(),
+			Reading::Message(Sample::Sample {
+				topic: "system".to_owned()
+			})
+		);
 	}
 }

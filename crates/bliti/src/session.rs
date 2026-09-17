@@ -262,18 +262,19 @@ mod tests {
 	/// A client newer than this device, saying something that must not be half read, is refused and
 	/// costs nothing: the stream stays open. This is the distinction most at risk of being collapsed
 	/// into the fault path (BLI-MSG).
+	///
+	/// The vehicle is a message type this device does not know, marked critical by an upper case
+	/// `TYPE`. It has to be: every type BLI-MSG defines forbids a critical member, so a refusal on one
+	/// of those is impossible and a critical member there would be a fault instead.
 	#[tokio::test]
 	async fn a_refused_message_leaves_the_stream_open() {
 		let mut streams = paired(&secret(0x42)).await;
 		let _reporting = streams.accept().await.unwrap();
 
 		let mut stream = streams.open().await.unwrap();
-		write_message(
-			&mut stream,
-			br#"{"type":"subscribe","topic":"system","REDACT":["cpu"]}"#,
-		)
-		.await
-		.unwrap();
+		write_message(&mut stream, br#"{"TYPE":"wipe","confirm":true}"#)
+			.await
+			.unwrap();
 
 		// Nothing is answered, and the stream is not torn down: a further message is still served.
 		let quiet =
