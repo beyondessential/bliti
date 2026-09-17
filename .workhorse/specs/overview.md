@@ -52,36 +52,9 @@ Its derivation is specified in [BLI-KEY](key-schedule.md), and its use in [BLI-A
 The machine-readable code carried on the outside of a device, encoding the presence secret and the base protocol version.
 What it encodes, and how one is produced, are specified in [BLI-STK](sticker.md).
 
-## The chain
+### Version marker
 
-Every value in the system descends from an identifier the board's own firmware provides, under constants that are public.
-The board ID is read from firmware as specified in [BLI-BID](board-id.md), and both derivations that follow from it are specified in [BLI-KEY](key-schedule.md).
-The QR code that carries the presence secret to an operator is specified in [BLI-STK](sticker.md).
-
-A client scans the QR code, recomputes the handle, and matches it against what it hears, as specified in [BLI-ADV](discovery.md).
-Client and device then authenticate to each other and open a channel, as specified in [BLI-CHN](channel.md), and exchange application messages within the envelope specified in [BLI-MSG](messages.md).
-The client that does this in a browser is specified in [BLI-WEB](web-app.md).
-What a device reports about itself within that envelope, and what an application does with it, is specified in [BLI-SYS](system-info.md).
-What the chain guarantees, and where those guarantees stop, are specified in [SEC](security.md).
-The version every value and every layer is fixed under is specified in [VER](version.md).
-How a device reports what it cannot send over the channel is specified in [DEV](device.md).
-
-There is no fleet key and no authoritative per-device record.
-The whole chain is reproducible from the board alone, at manufacture or at any time after, so a QR code can be reproduced from the device itself rather than from a record of what was issued.
-Anything a device stores about its own identity is a cache it can rebuild.
-
-## How the layers sit
-
-Each layer depends only on the one beneath it carrying bytes reliably and in order.
-
-| layer | what it provides |
-| --- | --- |
-| BLE GATT | reliable, ordered bytes |
-| framing | message boundaries across the negotiated attribute size |
-| Noise `NNpsk0` | mutual authentication, encryption, a session key |
-| yamux | either end opens streams without coordinating identifiers |
-| JSON | application messages |
-| message envelope | length-delimited JSON: naming, skipping unknowns, subscription streams |
-
-Replacing the bottom layer with another BLE transport changes nothing above it, and the choice can differ per client while the layers above stay identical.
+The number identifying the version of the protocol a device speaks, carried both in its QR code and in its advertisement.
+It is the only version any part of the system acts on.
+What it covers, and how each end acts on it, are specified in [VER](version.md).
 
