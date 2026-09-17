@@ -1,0 +1,307 @@
+<!-- spec: web-app.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device diagnostics</title>
+<style>
+/* Palette, type and section chrome carried through from crates/bliti-web/www/index.html unchanged. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #b45309;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 24px 16px;
+	background: #f0efec;
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+.frames { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+.frame { width: 21rem; }
+.frame > figcaption {
+	font-size: 0.8rem;
+	color: var(--muted);
+	margin: 0 0 8px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+.phone { background: var(--page); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.tile.attention { border-color: var(--warn); }
+.code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+dt { color: var(--muted); font-size: 0.9rem; }
+dd { margin: 0; font-size: 0.9rem; }
+
+.ident { margin-bottom: 4px; }
+.ident .name { font-size: 1.25rem; font-weight: 600; }
+.ident .line { color: var(--muted); font-size: 0.9rem; }
+
+/* A tile face carries a label and a number. Nothing else. Colour carries alarm, so a device in
+   trouble is legible at arm's length without any tile growing an extra element to say so. */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	width: 100%;
+	display: block;
+	cursor: pointer;
+}
+.tile.wide { grid-column: 1 / -1; }
+.tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tile .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.tile .value.small { font-size: 1.1rem; line-height: 1.6; }
+.tile .value .unit { font-size: 0.9rem; color: var(--muted); }
+
+/* Everything else lives behind the tap. */
+.expanded { border-color: var(--accent); }
+.detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+.bar { height: 4px; background: #eceae5; border-radius: 2px; margin: 10px 0 0; position: relative; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.bar.warn > span { background: var(--bad); }
+.bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
+.spark { display: block; margin-top: 8px; }
+.mirror { position: relative; margin-top: 10px; }
+.mirror svg { display: block; }
+.axis-label { position: absolute; left: 0; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.04em; }
+.axis-label.up { top: 0; }
+.axis-label.down { bottom: 0; }
+.legend { display: flex; gap: 12px; font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+.legend i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
+.swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="frames">
+
+<figure class="frame">
+	<figcaption>At a glance</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 5h 38m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<button class="tile"><div class="label">CPU</div><div class="value">12<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Memory</div><div class="value">6<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Disk</div><div class="value">1<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Battery</div><div class="value">100<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
+			<button class="tile wide">
+				<div class="label">Network</div>
+				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
+			</button>
+			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Battery tapped</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 5h 38m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<button class="tile"><div class="label">CPU</div><div class="value">12<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Memory</div><div class="value">6<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Disk</div><div class="value">1<span class="unit">%</span></div></button>
+			<button class="tile expanded wide">
+				<div class="label">Battery</div>
+				<div class="value">100<span class="unit">%</span></div>
+				<div class="detail">
+					<div class="bar"><span style="width:100%"></span></div>
+					<svg class="spark" width="100%" height="36" viewBox="0 0 240 36" preserveAspectRatio="none" aria-hidden="true">
+						<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5" points="0,29 40,25 80,20 120,14 160,9 200,6 240,5"/>
+					</svg>
+					<dl style="margin-top:10px">
+						<dt>Charge</dt><dd>100.3%</dd>
+						<dt>Voltage</dt><dd>4.19 V</dd>
+						<dt>Trend</dt><dd>Rising, about 6% per hour</dd>
+					</dl>
+					<p class="note">Direction is worked out from the charge over the last few minutes. The gauge fitted does not measure current.</p>
+				</div>
+			</button>
+			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Network tapped</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 5h 38m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<button class="tile"><div class="label">Temperature</div><div class="value">48<span class="unit">&deg;C</span></div></button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Mains</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
+			<button class="tile expanded wide">
+				<div class="label">Network</div>
+				<div class="value small">&darr; 1.2 <span class="unit">MB/s</span> &nbsp; &uarr; 84 <span class="unit">kB/s</span></div>
+				<div class="detail">
+					<!-- Up above the axis, down reflected below it. Each direction is scaled to its own
+					     peak, so the shape of the quieter one is still readable; the peaks are printed
+					     beside each side so the asymmetry is stated rather than left to the geometry. -->
+					<div class="mirror">
+						<span class="axis-label up">Up &middot; peak 210 kB/s</span>
+						<svg width="100%" height="96" viewBox="0 0 240 96" preserveAspectRatio="none" aria-hidden="true">
+							<polyline fill="rgba(21,128,61,0.14)" stroke="none"
+								points="0,48 0,34 20,30 40,38 60,26 80,33 100,21 120,36 140,29 160,40 180,25 200,32 220,37 240,31 240,48"/>
+							<polyline fill="none" stroke="#15803d" stroke-width="1.5"
+								points="0,34 20,30 40,38 60,26 80,33 100,21 120,36 140,29 160,40 180,25 200,32 220,37 240,31"/>
+							<line x1="0" y1="48" x2="240" y2="48" stroke="#e4e2dd" stroke-width="1"/>
+							<polyline fill="rgba(29,78,216,0.14)" stroke="none"
+								points="0,48 0,62 20,67 40,81 60,76 80,90 100,83 120,95 140,78 160,86 180,71 200,76 220,69 240,74 240,48"/>
+							<polyline fill="none" stroke="#1d4ed8" stroke-width="1.5"
+								points="0,62 20,67 40,81 60,76 80,90 100,83 120,95 140,78 160,86 180,71 200,76 220,69 240,74"/>
+						</svg>
+						<span class="axis-label down">Down &middot; peak 2.8 MB/s</span>
+					</div>
+					<div class="legend"><i>Last 5 min</i><i style="margin-left:auto">Each direction to its own scale</i></div>
+					<dl style="margin-top:10px">
+						<dt>end0</dt><dd>&darr; 1.2 MB/s &nbsp; &uarr; 80 kB/s</dd>
+						<dt>wld0</dt><dd class="muted">not associated</dd>
+						<dt>tailscale0</dt><dd>&darr; 4 kB/s &nbsp; &uarr; 4 kB/s</dd>
+					</dl>
+				</div>
+			</button>
+			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Backup supply bypassed</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 3h 11m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<!-- Everything here is healthy except one tile. That is the point: a bypassed backup
+			     has no outward sign, and the device looks entirely well right up until the power
+			     goes and it stops dead. -->
+			<button class="tile expanded attention wide">
+				<div class="label">Power</div>
+				<div class="value small warn">Backup bypassed</div>
+				<div class="detail">
+					<dl>
+						<dt>Supply</dt><dd>Into the Pi directly</dd>
+						<dt>UPS input</dt><dd>Nothing connected</dd>
+						<dt>Battery</dt><dd>97%, holding</dd>
+					</dl>
+					<p class="note">Power goes straight to the Pi, so the backup cannot take over. Move it to the UPS input.</p>
+				</div>
+			</button>
+			<button class="tile"><div class="label">CPU</div><div class="value">8<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Memory</div><div class="value">6<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Disk</div><div class="value">1<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Battery</div><div class="value">97<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Temperature</div><div class="value">46<span class="unit">&deg;C</span></div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small">None</div></button>
+			<button class="tile wide"><div class="label">Address</div><div class="value small code">10.42.0.18</div></button>
+		</div>
+	</div>
+</figure>
+
+<figure class="frame">
+	<figcaption>Something is wrong</figcaption>
+	<div class="phone">
+		<h1>bliti</h1>
+		<section>
+			<h2>Device</h2>
+			<div class="ident">
+				<div class="name">tamanu-iti-v4-prototype</div>
+				<div class="line">Raspberry Pi 5 Model B Rev 1.1</div>
+				<div class="line">Ubuntu 26.04 LTS &middot; up 2m</div>
+			</div>
+		</section>
+		<div class="tiles">
+			<button class="tile"><div class="label">CPU</div><div class="value">98<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Memory</div><div class="value">71<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Disk</div><div class="value bad">97<span class="unit">%</span></div></button>
+			<button class="tile"><div class="label">Battery</div><div class="value bad">14<span class="unit">%</span></div></button>
+			<button class="tile expanded wide">
+				<div class="label">Temperature</div>
+				<div class="value">82<span class="unit">&deg;C</span></div>
+				<div class="detail">
+					<!-- Not red. 82 is hot and entirely normal; the alarms in this frame are the disk,
+					     the battery and the supply. Colouring warmth as failure is what teaches people
+					     to panic at a working device. -->
+					<div class="bar"><span style="width:75%"></span><i class="trip" style="left:77%"></i></div>
+					<dl style="margin-top:10px">
+						<dt>CPU core</dt><dd>82 &deg;C</dd>
+						<dt>Disk</dt><dd>61 &deg;C</dd>
+						<dt>Slows down at</dt><dd>about 85 &deg;C</dd>
+						<dt>Fan</dt><dd class="bad">Stopped</dd>
+						<dt>Speed</dt><dd>1.5 GHz of 2.4 GHz</dd>
+					</dl>
+					<p class="note">This is the CPU core, not the case or the room. Above 70 &deg;C is normal under load, and the board slows itself down well before anything is at risk.</p>
+				</div>
+			</button>
+			<button class="tile"><div class="label">Power</div><div class="value small">Battery</div></button>
+			<button class="tile"><div class="label">Throttling</div><div class="value small bad">Undervolted</div></button>
+			<button class="tile wide"><div class="label">Network</div><div class="value small bad">Nothing is up</div></button>
+		</div>
+	</div>
+</figure>
+
+</div>
+</body>
+</html>

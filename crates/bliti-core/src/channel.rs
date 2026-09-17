@@ -16,9 +16,11 @@
 //! This module carries the transport-agnostic pieces. The daemon binds them to `bluer`'s GATT and
 //! the web application to Web Bluetooth; the pieces themselves neither know nor care which.
 
+pub mod envelope;
 pub mod framing;
 pub mod messages;
 pub mod noise;
+pub mod readings;
 pub mod stream;
 
 /// A failure in the channel below the application layer.

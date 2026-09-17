@@ -1,0 +1,185 @@
+/* The visual language of the client, carried over from the prototype page this application replaces
+   so that the screen an operator knows is the screen they still meet. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button:disabled { background: var(--muted); opacity: 0.5; cursor: default; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+input {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 1 1 auto; }
+.code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.good { color: var(--good); }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+dt { color: var(--muted); font-size: 0.9rem; }
+dd { margin: 0; }
+video { width: 100%; border-radius: 6px; background: #000; }
+.log { max-height: 9rem; overflow-y: auto; }
+.log p { margin: 0 0 4px; }
+
+/* A device newer than this build, or one not speaking the protocol. Neither blanks the view: what
+   the application did understand is still on screen beneath it (BLI-MSG). */
+.notice {
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 4px;
+	padding: 8px 12px;
+	margin: 0 0 12px;
+	font-size: 0.9rem;
+}
+.notice.fault { border-left-color: var(--bad); }
+
+/* Tiles. The face carries a label and the headline value and nothing else; the rest is revealed by
+   tapping, so one surface serves a non-technician at a glance and a technician who needs the
+   figures behind it (BLI-SYS). */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	min-height: 0;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	width: 100%;
+	display: block;
+	cursor: pointer;
+}
+.tile.wide { grid-column: 1 / -1; }
+.tile.expanded { border-color: var(--accent); }
+.tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tile .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.tile .value.small { font-size: 1rem; line-height: 1.5; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.tile .value .part { color: var(--muted); font-size: 0.8rem; }
+.tile .value .warn { color: var(--warn); }
+.tile .value .bad { color: var(--bad); }
+.tile .value.warn { color: var(--warn); }
+.tile .value.bad { color: var(--bad); }
+
+.detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.revealed + .revealed { margin-top: 12px; }
+.detail dl { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.detail dt { color: var(--muted); font-size: 0.85rem; }
+.detail dd { margin: 0; font-size: 0.85rem; }
+.detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+.bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; overflow: visible; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.bar.warn > span { background: var(--warn); }
+.bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
+.spark { display: block; width: 100%; height: 32px; margin-top: 8px; }
+
+.mirror { position: relative; margin-top: 10px; }
+.mirror .spark { height: 68px; }
+.axis-label { position: absolute; left: 0; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.04em; }
+.axis-label.up { top: 0; }
+.axis-label.down { bottom: 0; }
+
+.sr-only {
+	position: absolute;
+	width: 1px; height: 1px;
+	padding: 0; margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* An address or a board name has no spaces to break at, so it must be allowed to break anywhere
+   rather than running out past the edge of its tile. */
+.tile .value, .detail dd, .detail .note, .detail p { overflow-wrap: anywhere; }
+/* A tile with nothing behind its headline is not a tap target. */
+.tile.flat { cursor: default; }
+
+/* A section heading with an action beside it. */
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading h2 { margin: 0 0 12px; }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }
+
+/* The activity log doubles as a debug surface, so it reads as a record of the conversation: when,
+   which way, and what. Oldest first, because that is the order things happened in. */
+.log { max-height: 16rem; overflow-y: auto; font-size: 0.8rem; }
+.log .line {
+	display: grid;
+	grid-template-columns: auto auto 1fr;
+	gap: 8px;
+	margin: 0 0 2px;
+	align-items: baseline;
+}
+.log time { color: var(--muted); font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.log .arrow { color: var(--muted); }
+.log .said { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.log .in .arrow { color: var(--accent); }
+.log .out .arrow { color: var(--good); }
+.log .note { color: var(--muted); }
+
+/* The tiles are no longer inside a section, so they carry the spacing a section would have given
+   them and keep the rhythm with whatever follows. */
+.tiles { margin-bottom: 12px; }
+
+/* An opened tile takes the whole row: the detail is figures and graphs, and reading those through a
+   half-width column is what the tap was avoiding. */
+.tile.expanded { grid-column: 1 / -1; }
+
+/* A reading whose detail lists several things separates them, so a figure sits under the thing it
+   belongs to rather than against the one above. */
+.detail dl + dl { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.detail dt { white-space: pre; }
+
+/* Which line is which, on a graph with one above the axis and one below. */
+.axis-label .key {
+	display: inline-block;
+	width: 10px;
+	height: 2px;
+	vertical-align: middle;
+	margin-right: 4px;
+}
+.axis-label .key.out { background: var(--good); }
+.axis-label .key.in { background: var(--accent); }

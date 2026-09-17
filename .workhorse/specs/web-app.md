@@ -36,6 +36,18 @@ The application runs the handshake of [BLI-CHN](channel.md) with the sticker sec
 The application computes the handle, which is a fast hash, and does not run the memory-hard derivation of [BLI-KEY](key-schedule.md).
 The sticker secret is read from the payload rather than derived, so nothing in the client needs the argon2id parameters or the memory they ask for.
 
+Within the channel the application exchanges messages under the envelope of [BLI-MSG](messages.md): it names itself to the device and displays the version the device reports, subscribes to live data only while the operator is looking, and skips anything it does not recognise.
+
+## Installable and available offline
+
+The application is served from a hosted origin, which is the one the sticker encodes, as specified in [BLI-STK](sticker.md).
+It needs no installation to run, so a device can be provisioned by whoever is standing in front of it.
+
+The application can also be installed, and once it has been loaded it works offline, so a phone that has opened it before is useful at a site with no connectivity.
+The only transport to a device is the BLE channel of [BLI-CHN](channel.md); there is no device-side server and no second path, so a client reaches a device the same way whether it was installed or freshly loaded.
+
+A cached or installed application is itself a source of the version skew [BLI-MSG](messages.md) absorbs, an older client meeting a device that has since been updated.
+
 ## Secure context
 
 The application requires a secure context, because neither the camera nor Bluetooth is available without one.

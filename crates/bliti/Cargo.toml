@@ -28,14 +28,15 @@ tpm = ["bliti-core/tpm"]
 vendored-dbus = ["dbus/vendored"]
 
 [dependencies]
+anyhow = "1.0.104"
 bliti-core = { version = "0.0.0", path = "../bliti-core" }
 clap = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.3"
 if-addrs = "0.15.0"
-miette = { workspace = true, features = ["fancy"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 rand = { workspace = true }
+rustix = { version = "1.1.5", default-features = false, features = ["fs"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = { workspace = true }
@@ -48,3 +49,6 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
 # Not used directly; depended on so the vendored-dbus feature can reach bluer's copy.
 dbus = { version = "0.9.12", default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

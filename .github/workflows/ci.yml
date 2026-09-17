@@ -63,8 +63,8 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --all-targets --all-features
 
-  wasm:
-    name: Browser client / wasm
+  web:
+    name: Browser client
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
@@ -77,15 +77,55 @@ jobs:
         with:
           shared-key: wasm
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Must match the wasm-bindgen crate version the client builds against: the
+      # generated bindings and the runtime in the module are one pair.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.128
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: crates/bliti-web/app/package-lock.json
+
       # The browser client takes bliti-core without its default features, so it
       # carries neither the argon2 derivation nor any board-ID backend, and needs
       # no system libraries here.
-      - run: cargo build -p bliti-web --target wasm32-unknown-unknown --release
+      - name: Build the wasm module
+        run: ./crates/bliti-web/build.sh
+      - name: Install the application's dependencies
+        run: npm ci
+        working-directory: crates/bliti-web/app
+      - name: Build the static bundle
+        run: npm run build
+        working-directory: crates/bliti-web/app
+
+      # Kept so that hosting it at the sticker's origin is later wiring rather
+      # than work.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bliti-web
+          path: crates/bliti-web/app/dist
+          if-no-files-found: error
+
+      # The harness fakes at the message layer, with no wasm and no Bluetooth in
+      # the loop. Protocol and transport coverage stays in the Rust tests, and
+      # nothing here pretends to be a Bluetooth stack.
+      #
+      # It builds its own bundle, in test mode and to its own directory: the seam
+      # it supplies a client through is compiled into that build alone, and never
+      # into the one uploaded above.
+      - name: Install the browser the harness drives
+        run: npx playwright install --with-deps chromium
+        working-directory: crates/bliti-web/app
+      - name: Test the application
+        run: npx playwright test
+        working-directory: crates/bliti-web/app
 
   tests-pass:
     if: always()
     name: Tests pass
-    needs: [test, clippy, wasm]
+    needs: [test, clippy, web]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@release/v1

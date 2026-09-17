@@ -10,18 +10,20 @@ use std::{
 	task::{Context, Poll},
 };
 
+use anyhow::{Context as _, Result, anyhow};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
 	channel::{
+		envelope::{Reading, read},
 		messages::{ClientMessage, DeviceMessage},
+		readings::{Reading as SystemReading, Value as ReadingValue},
 		stream::{Mode, connect_initiator, multiplex, read_message, write_message},
 	},
 	key_schedule::StickerSecret,
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{AsyncRead, AsyncWrite, SinkExt, StreamExt, channel::mpsc};
-use miette::{IntoDiagnostic, Result, WrapErr, miette};
 
 /// How long to wait for the host to discover what the peer offers, after the link is up.
 const SERVICE_RESOLUTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
@@ -111,13 +113,13 @@ impl AsyncWrite for GattClientTransport {
 
 /// Find the bliti service's two characteristics on a connected device.
 async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Characteristic)> {
-	for service in device.services().await.into_diagnostic()? {
-		if service.uuid().await.into_diagnostic()? != SERVICE_UUID {
+	for service in device.services().await? {
+		if service.uuid().await? != SERVICE_UUID {
 			continue;
 		}
 		let (mut to_device, mut from_device) = (None, None);
-		for characteristic in service.characteristics().await.into_diagnostic()? {
-			match characteristic.uuid().await.into_diagnostic()? {
+		for characteristic in service.characteristics().await? {
+			match characteristic.uuid().await? {
 				u if u == CHARACTERISTIC_UUID_CLIENT_TX => to_device = Some(characteristic),
 				u if u == CHARACTERISTIC_UUID_DEVICE_TX => from_device = Some(characteristic),
 				_ => {}
@@ -127,7 +129,7 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 			return Ok((to_device, from_device));
 		}
 	}
-	Err(miette!("the device does not carry the bliti service"))
+	Err(anyhow!("the device does not carry the bliti service"))
 }
 
 /// Find the device a sticker belongs to, by the matching of BLI-ADV.
@@ -144,12 +146,12 @@ async fn find(
 	// on their own: a device the host already knows is announced once, carrying whatever name it was
 	// last seen with, which after a salt roll is a handle that no longer matches. So the names of
 	// every device known are re-read while the scan runs, rather than read once when it is announced.
-	let _discovery = adapter.discover_devices().await.into_diagnostic()?;
+	let _discovery = adapter.discover_devices().await?;
 	let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
 
 	while tokio::time::Instant::now() < deadline {
-		for address in adapter.device_addresses().await.into_diagnostic()? {
-			let device = adapter.device(address).into_diagnostic()?;
+		for address in adapter.device_addresses().await? {
+			let device = adapter.device(address)?;
 			let Some(name) = device.name().await.ok().flatten() else {
 				continue;
 			};
@@ -171,22 +173,21 @@ async fn find(
 		}
 		tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 	}
-	Err(miette!("no device matching that sticker was heard"))
+	Err(anyhow!("no device matching that sticker was heard"))
 }
 
 /// Connect to a device, run the handshake, and exchange the milestone's two messages.
 pub async fn connect(
 	address: Option<bluer::Address>,
 	secret: &StickerSecret,
-	text: &str,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
-	let session = bluer::Session::new().await.into_diagnostic()?;
+	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
-		Some(name) => session.adapter(name).into_diagnostic()?,
-		None => session.default_adapter().await.into_diagnostic()?,
+		Some(name) => session.adapter(name)?,
+		None => session.default_adapter().await?,
 	};
-	adapter.set_powered(true).await.into_diagnostic()?;
+	adapter.set_powered(true).await?;
 
 	// A host keeps what it learned about a peer, and what it kept can be stale: a device it has
 	// connected to before may never resolve its services again. Forgetting it first costs one
@@ -197,13 +198,12 @@ pub async fn connect(
 			Some(address) => address,
 			None => find(&adapter, secret, 20).await?,
 		};
-		let candidate = adapter.device(found).into_diagnostic()?;
-		if !candidate.is_connected().await.into_diagnostic()? {
+		let candidate = adapter.device(found)?;
+		if !candidate.is_connected().await? {
 			candidate
 				.connect()
 				.await
-				.into_diagnostic()
-				.wrap_err("connecting to the device")?;
+				.context("connecting to the device")?;
 		}
 		tracing::info!(address = %found, "connected");
 
@@ -212,7 +212,7 @@ pub async fn connect(
 		let deadline = tokio::time::Instant::now() + SERVICE_RESOLUTION_TIMEOUT;
 		let mut resolved = false;
 		while tokio::time::Instant::now() < deadline {
-			if candidate.is_services_resolved().await.into_diagnostic()? {
+			if candidate.is_services_resolved().await? {
 				resolved = true;
 				break;
 			}
@@ -230,10 +230,10 @@ pub async fn connect(
 			tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 		}
 	}
-	let device = device.ok_or_else(|| miette!("the device's services were never resolved"))?;
+	let device = device.ok_or_else(|| anyhow!("the device's services were never resolved"))?;
 
 	let (to_device, from_device) = characteristics(&device).await?;
-	let notifications = from_device.notify().await.into_diagnostic()?;
+	let notifications = from_device.notify().await?;
 
 	// Pump notifications in and writes out, so the transport sees an ordinary byte stream.
 	let (mut inbound_tx, inbound_rx) = mpsc::channel(64);
@@ -264,7 +264,7 @@ pub async fn connect(
 	// Everything from here is the same stack the browser will run.
 	let encrypted = connect_initiator(transport, secret)
 		.await
-		.map_err(|err| miette!("handshake failed: {err}"))?;
+		.map_err(|err| anyhow!("handshake failed: {err}"))?;
 	tracing::info!("handshake complete");
 
 	let (mut streams, driver) = multiplex(encrypted, Mode::Client);
@@ -272,41 +272,103 @@ pub async fn connect(
 		let _ = driver.await;
 	});
 
-	// The device speaks first, without being asked.
+	// The client names itself on a control stream of its own, without waiting to be asked and without
+	// waiting for the device's hello. The device logs it and never acts on it (BLI-MSG).
+	let mut control = streams.open().await?;
+	let hello = ClientMessage::Hello {
+		name: env!("CARGO_PKG_NAME").to_owned(),
+		version: env!("CARGO_PKG_VERSION").to_owned(),
+	};
+	write_message(&mut control, &hello.to_json()).await?;
+
+	// The device speaks first too, without being asked.
 	let reporting = tokio::time::timeout(std::time::Duration::from_secs(20), streams.accept())
 		.await
-		.map_err(|_| miette!("the device did not report its identity"))?;
-	let mut reporting = reporting.ok_or_else(|| miette!("the connection closed"))?;
-	let raw = read_message(&mut reporting)
-		.await
-		.into_diagnostic()?
-		.ok_or_else(|| miette!("no identity message"))?;
-	match serde_json::from_slice(&raw).into_diagnostic()? {
-		DeviceMessage::Identity {
-			hostname,
-			addresses,
-		} => {
-			println!("hostname: {hostname}");
-			for address in addresses {
-				println!("address:  {} on {}", address.address, address.interface);
+		.map_err(|_| anyhow!("the device did not open its reporting stream"))?;
+	let mut reporting = reporting.ok_or_else(|| anyhow!("the connection closed"))?;
+
+	// Read the reporting stream for as long as it lives, rather than once: the device sends again
+	// whenever what it reports changes.
+	let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+	while std::time::Instant::now() < deadline {
+		let next = tokio::time::timeout(
+			std::time::Duration::from_secs(1),
+			read_message(&mut reporting),
+		)
+		.await;
+		let Ok(raw) = next else { continue };
+		let Some(raw) = raw? else {
+			break;
+		};
+
+		match read::<DeviceMessage>(&raw) {
+			Ok(Reading::Message(DeviceMessage::Hello { name, version })) => {
+				println!("device:   {name} {version}");
+			}
+			// Rendered from what each reading says about itself, with no list of names to match
+			// against: a device that has gained a reading shows it here without this client
+			// changing (BLI-SYS).
+			Ok(Reading::Message(DeviceMessage::SystemIdentity { readings })) => {
+				for reading in &readings {
+					println!("{}", render(reading));
+				}
+			}
+			Ok(Reading::Message(DeviceMessage::SystemSample { at, readings })) => {
+				println!("sample at {at} ms since boot:");
+				for reading in &readings {
+					println!("  {}", render(reading));
+				}
+			}
+			Ok(Reading::Message(DeviceMessage::SystemHistory { series })) => {
+				let points: usize = series.iter().map(|each| each.points.len()).sum();
+				println!("history:  {} series, {points} points", series.len());
+			}
+			// A device newer than this build: passed over, or not acted on, but never fatal.
+			Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
+			Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),
+			// A device that is not speaking the protocol. The stream goes; the connection does not.
+			Err(fault) => {
+				println!("fault:    {fault}");
+				break;
 			}
 		}
-		other => println!("device said: {other:?}"),
 	}
 
-	// And the other direction: text the device prints.
-	let mut stream = streams.open().await.into_diagnostic()?;
-	let message = ClientMessage::Text {
-		text: text.to_owned(),
-	};
-	write_message(&mut stream, &message.to_json())
-		.await
-		.into_diagnostic()?;
-	println!("sent:     {text}");
-
-	// Let the writes drain and the device print before dropping the connection. Nothing acknowledges
-	// a line of text, so waiting is the only way to know it had the chance.
-	tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 	let _ = device.disconnect().await;
 	Ok(())
+}
+
+/// One reading, rendered from its own description.
+///
+/// Nothing here matches on a reading's name: a client that did could only show what it already knew
+/// about, which is the property BLI-SYS exists to avoid.
+fn render(reading: &SystemReading) -> String {
+	let mut line = format!("{}: ", reading.label);
+	match (&reading.value, &reading.error) {
+		(Some(value), _) => line.push_str(&show(value)),
+		(None, Some(why)) => line.push_str(&format!("unavailable ({why})")),
+		(None, None) => line.push_str("unreadable"),
+	}
+	if reading.state.is_trouble() {
+		line.push_str("  [!]");
+	}
+	for detail in &reading.detail {
+		line.push_str(&format!("\n    {}: {}", detail.label, show(&detail.value)));
+	}
+	line
+}
+
+/// A value, in the unit it names for itself.
+fn show(value: &ReadingValue) -> String {
+	match value {
+		ReadingValue::Fraction(number) => format!("{:.0}%", number * 100.0),
+		ReadingValue::Quantity { number, unit, .. } => format!("{number} {unit}"),
+		ReadingValue::Duration(seconds) => {
+			let seconds = *seconds as u64;
+			format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
+		}
+		ReadingValue::Text(text) => text.clone(),
+		// A kind this build does not know. The label already said what it is.
+		ReadingValue::Unknown(_) => "(not understood by this client)".to_owned(),
+	}
 }

@@ -20,6 +20,26 @@ Workhorse keeps this section, the skills, and the reference docs current automat
 - Use conventional commit messages. Add a Co-authored-by: line or similar.
 - Always run `cargo fmt` before committing changes, even if that touches "irrelevant" files.
 
+## Before the first release
+
+**Nothing has shipped. Break whatever needs breaking to get the design right.**
+
+The wire protocol, the message types, the spec, and every interface between the crates are all free to change. No compatibility shims, no migration paths, no members kept around because something older might still send them, and no version bumps for breaking any of it. If a shape is wrong, change it and change everything that reads it.
+
+This matters most where the protocol absorbs version skew. BLI-MSG is built so a device months behind a client keeps working, and that machinery is worth having for the field. It is not a reason to keep a badly shaped message now: a change that would be expensive after the first device ships is free today, and the window closes on its own.
+
+None of this licenses sloppiness. Getting the design right is the point; being free to break things is only what makes that cheap.
+
+### Write the member, do not imply it
+
+A member whose absence would mean something other than nothing is written out every time. A boolean that defaults to true, a state that defaults to ok: send them. Only leave a member out where its absence plainly means nothing at all, as an empty list or an absent option does.
+
+Omitting a defaulted member saves bytes that compression saves anyway, and buys a reader a rule they have to know before they can read the wire at all. Fifteen readings each carrying `"graph":true` cost almost nothing once deflate has seen the first one.
+
+This one reverses at release rather than simply lapsing. Once devices are in the field, a peer that has never heard of a member omits it, and a sensible default is what lets an older sender keep working. The defaults become load-bearing at exactly the moment they stop being a way of saving bytes.
+
+**Remove this section as part of the first release.** Every rule above stops being true the moment a device is in someone's hands.
+
 ## Changing code
 
 - When adding or changing features, or when fixing bugs, add tests whenever possible.

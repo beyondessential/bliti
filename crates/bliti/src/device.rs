@@ -4,6 +4,7 @@
 
 use std::{path::Path, sync::Arc};
 
+use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
@@ -18,7 +19,6 @@ use bluer::{
 	},
 };
 use futures::{FutureExt, StreamExt};
-use miette::{IntoDiagnostic, Result, WrapErr};
 
 use crate::{
 	SALT_ROTATION,
@@ -30,9 +30,7 @@ use crate::{
 pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// Establish identity before touching Bluetooth: a board whose sticker is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
-	let identity = identity::establish(cache)
-		.into_diagnostic()
-		.wrap_err("establishing this board's identity")?;
+	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
 		tracing::info!(source = %identity.kind, "derived this board's sticker secret");
 	} else {
@@ -40,13 +38,13 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	}
 	let secret = Arc::new(identity.secret);
 
-	let session = bluer::Session::new().await.into_diagnostic()?;
+	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
-		Some(name) => session.adapter(name).into_diagnostic()?,
-		None => session.default_adapter().await.into_diagnostic()?,
+		Some(name) => session.adapter(name)?,
+		None => session.default_adapter().await?,
 	};
-	adapter.set_powered(true).await.into_diagnostic()?;
-	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await.into_diagnostic()?, "adapter ready");
+	adapter.set_powered(true).await?;
+	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume when it
@@ -55,11 +53,19 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// and the loop re-registers the advertisement in response, which is what puts the device back on
 	// the air.
 	let readvertise = Arc::new(tokio::sync::Notify::new());
+
+	// Sampling starts with the daemon rather than with the first session, so a client that connects
+	// to a device that has been up a while finds a populated window (BLI-SYS).
+	let sampler = crate::sampler::Sampler::start();
 	let _application = adapter
-		.serve_gatt_application(application(&sink, secret.clone(), readvertise.clone()))
+		.serve_gatt_application(application(
+			&sink,
+			secret.clone(),
+			readvertise.clone(),
+			sampler.clone(),
+		))
 		.await
-		.into_diagnostic()
-		.wrap_err("registering the GATT application")?;
+		.context("registering the GATT application")?;
 
 	// A device advertises whenever it is running, re-registering the advertisement each time the salt
 	// rolls and each time a session ends. Anyone in range can connect and begin a handshake that will
@@ -70,23 +76,42 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// period rather than being replaced the instant it is advertised.
 	rotation.tick().await;
 	let mut shutdown = std::pin::pin!(shutdown());
+	let mut backoff = ADVERTISE_RETRY;
 	loop {
 		let salt = random_salt();
 		let advertised = Advertised::new(secret.handle(salt), salt);
-		let _advertisement = adapter
-			.advertise(advertisement(advertised))
-			.await
-			.into_diagnostic()
-			.wrap_err("registering the advertisement")?;
+		let registered = match adapter.advertise(advertisement(advertised)).await {
+			Ok(registered) => {
+				backoff = ADVERTISE_RETRY;
+				registered
+			}
+			// Registration failing is not worth exiting for. A device that has stopped advertising
+			// cannot be reached at all, and an operator standing in front of one cannot tell it from a
+			// dead one. Worse, exiting leaves the advertisement registered against a process that is
+			// gone, and BlueZ holds it until it restarts: each exit costs one of the controller's few
+			// advertising slots and makes the next registration likelier to fail the same way.
+			Err(err) => {
+				tracing::error!(%err, ?backoff, "could not register the advertisement; retrying");
+				tokio::select! {
+					_ = tokio::time::sleep(backoff) => {}
+					result = &mut shutdown => {
+						result?;
+						tracing::info!("stopping");
+						return Ok(());
+					}
+				}
+				backoff = (backoff * 2).min(ADVERTISE_RETRY_MAX);
+				continue;
+			}
+		};
 		tracing::info!(local_name = %advertised.to_local_name(), "advertising");
 
 		tokio::select! {
-			_ = rotation.tick() => continue,
+			_ = rotation.tick() => {}
 			// A session just ended, so the controller has stopped advertising: drop this advertisement
 			// and register a fresh one, which resumes it. A fresh salt comes with it, which is harmless.
 			_ = readvertise.notified() => {
 				tracing::info!("a session ended; resuming advertising");
-				continue;
 			}
 			result = &mut shutdown => {
 				result?;
@@ -97,6 +122,12 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 				return Ok(());
 			}
 		}
+
+		// Unregistering reaches BlueZ asynchronously, and the controller has only a few advertising
+		// slots. Registering the next advertisement while this one is still being withdrawn is what
+		// exhausts them, and the registration then times out on D-Bus.
+		drop(registered);
+		tokio::time::sleep(ADVERTISE_SETTLE).await;
 	}
 }
 
@@ -106,8 +137,8 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 /// stopping the daemon is the one way that skips unregistering from BlueZ.
 async fn shutdown() -> Result<()> {
 	use tokio::signal::unix::{SignalKind, signal};
-	let mut terminate = signal(SignalKind::terminate()).into_diagnostic()?;
-	let mut interrupt = signal(SignalKind::interrupt()).into_diagnostic()?;
+	let mut terminate = signal(SignalKind::terminate())?;
+	let mut interrupt = signal(SignalKind::interrupt())?;
 	tokio::select! {
 		_ = terminate.recv() => {}
 		_ = interrupt.recv() => {}
@@ -117,6 +148,23 @@ async fn shutdown() -> Result<()> {
 
 /// How often to check whether the client is still subscribed, while it is sending nothing.
 const UNSUBSCRIBE_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// How long to leave BlueZ to withdraw an advertisement before registering the next.
+const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// How long to wait before trying a failed advertisement registration again, and the ceiling that
+/// wait backs off to.
+const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What a device may put on the air in any one second (BLI-CHN, "How fast a device may send").
+///
+/// The link is shared with everything else the session is doing, including the client's own messages
+/// and the notifications carrying them. A device with a backlog takes longer to clear it rather than
+/// taking the connection down, which is the outcome worth having: a slow reading beats a dropped
+/// session.
+const NOTIFY_BYTES_A_SECOND: usize = 100 * 1024;
+const NOTIFY_PACKETS_A_SECOND: usize = 200;
 
 /// A handle rendered for a person to read in a log line.
 fn hex(handle: Handle) -> String {
@@ -165,6 +213,7 @@ fn application(
 	sink: &InboundSink,
 	secret: Arc<StickerSecret>,
 	readvertise: Arc<tokio::sync::Notify>,
+	sampler: crate::sampler::Sampler,
 ) -> Application {
 	let write_sink = sink.clone();
 	let notify_sink = sink.clone();
@@ -201,6 +250,7 @@ fn application(
 							let sink = notify_sink.clone();
 							let secret = secret.clone();
 							let readvertise = readvertise.clone();
+							let sampler = sampler.clone();
 							async move {
 								tracing::info!("client subscribed; opening a session");
 								let (transport, mut outbound) = GattTransport::open(&sink);
@@ -214,10 +264,32 @@ fn application(
 								// other and the device stays busy with a client that left.
 								let (left, gone) = tokio::sync::oneshot::channel();
 								let pump = tokio::spawn(async move {
+									let mut since = std::time::Instant::now();
+									let (mut bytes, mut packets) = (0usize, 0usize);
 									loop {
 										tokio::select! {
 											chunk = outbound.next() => {
 												let Some(chunk) = chunk else { break };
+
+												let second = std::time::Duration::from_secs(1);
+												let elapsed = since.elapsed();
+												if elapsed >= second {
+													since = std::time::Instant::now();
+													bytes = 0;
+													packets = 0;
+												} else if bytes + chunk.len() > NOTIFY_BYTES_A_SECOND
+													|| packets + 1 > NOTIFY_PACKETS_A_SECOND
+												{
+													// Out of allowance: wait out the rest of the second
+													// rather than pushing on and swamping the link.
+													tokio::time::sleep(second - elapsed).await;
+													since = std::time::Instant::now();
+													bytes = 0;
+													packets = 0;
+												}
+												bytes += chunk.len();
+												packets += 1;
+
 												if notifier.notify(chunk).await.is_err() {
 													break;
 												}
@@ -235,7 +307,7 @@ fn application(
 								// A failed handshake is an ordinary outcome: anyone in range can
 								// connect and try, and the device stays reachable afterwards.
 								tokio::select! {
-									result = session::run(transport, &secret) => match result {
+									result = session::run(transport, &secret, sampler) => match result {
 										Ok(()) => tracing::info!("session ended"),
 										Err(err) => tracing::info!(%err, "session ended"),
 									},
@@ -269,14 +341,14 @@ pub async fn scan(
 	seconds: u64,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
-	let session = bluer::Session::new().await.into_diagnostic()?;
+	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
-		Some(name) => session.adapter(name).into_diagnostic()?,
-		None => session.default_adapter().await.into_diagnostic()?,
+		Some(name) => session.adapter(name)?,
+		None => session.default_adapter().await?,
 	};
-	adapter.set_powered(true).await.into_diagnostic()?;
+	adapter.set_powered(true).await?;
 
-	let mut events = adapter.discover_devices().await.into_diagnostic()?;
+	let mut events = adapter.discover_devices().await?;
 	let deadline = tokio::time::sleep(std::time::Duration::from_secs(seconds));
 	let mut deadline = std::pin::pin!(deadline);
 	let mut matched = 0usize;
@@ -297,7 +369,7 @@ pub async fn scan(
 		if !seen.insert(address) {
 			continue;
 		}
-		let device = adapter.device(address).into_diagnostic()?;
+		let device = adapter.device(address)?;
 		let name = device.name().await.ok().flatten();
 		let carries_bliti = device
 			.uuids()

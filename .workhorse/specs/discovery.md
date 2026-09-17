@@ -36,6 +36,8 @@ Matching is by payload rather than by device address, so a client that is never 
 
 The cost to a client is one fast hash per advertisement heard per sticker held.
 
+The version marker is the base protocol version of [BLI](overview.md), which covers every layer from the derivations to the shape of application messages.
+
 A client reads the advertised version marker before recomputing.
 Where it differs from the version of the sticker the client holds, the client reports a device present at a version it does not support.
 No two versions produce a matching handle, so reading the marker is what separates that from a device the client cannot hear at all.
