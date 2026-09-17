@@ -83,9 +83,21 @@ That absorption resolved a contradiction. BLI said the marker covers every layer
 
 **DEV** takes reporting to standard error. It is thin at one requirement, and will grow: `key-schedule.md`'s memory-headroom check and dead-cache reporting, `discovery.md`'s bound on recording failed attempts, and `channel.md`'s Bluetooth stack prerequisite are all device-operation requirements currently embedded in mechanism specs. They fold in as those specs are rewritten, the same way SEC's remaining sources do.
 
-### The map had a hole
+### BLI does not index the specs
 
-`system-info.md` was linked from no other spec. The chain walked BID to KEY to STK to ADV to CHN to MSG to WEB and never mentioned BLI-SYS, so a reader following the overview never learned it existed. Now that BLI's stated job is to be the map, a spec missing from it is a defect rather than an oversight. Worth a reachability check alongside the link checker.
+The chain and the layer table were both emergent: properties a reader obtains by reading the specs, restated in BLI for no reason. The chain was a table of contents for the whole corpus, which is the cross-reference-reciting-its-target defect scaled up. The layer table carried normative language about layer independence that CHN already establishes by specifying the stack.
+
+Both deleted. BLI is the intro, the requirement keywords, the external documents, and the global glossary, and nothing else.
+
+This reverses an earlier finding of mine. `system-info.md` being linked from no other spec looked like a hole in the map, and a reachability check looked worth adding alongside the link checker. With no map there is nothing for a spec to be missing from: specs cross-reference each other where one requirement depends on another, and the directory is the list. A hand-maintained index rots; the filesystem does not.
+
+One line in the deleted chain was a real property rather than a restatement, and moved to SEC: there is no fleet key and no per-device record, so compromising one device yields nothing about any other.
+
+### A term is defined before it is used
+
+VER opened by restating a system property with no normative force, and used "marker" throughout without anything defining it. The version marker is a coined term appearing in STK, ADV, KEY, WEB and VER, so it joined the global glossary, and VER now opens with the requirement instead: a client and a device MUST NOT act on any version other than the marker.
+
+The general rule: a term the specs coin is defined in BLI's glossary before any spec leans on it, and a term they import is defined in the borrowing spec's own terms table.
 
 ### presence secret, not sticker secret
 

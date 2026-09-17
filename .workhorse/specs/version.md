@@ -4,11 +4,11 @@ id: VER
 
 # Base protocol version
 
-One version number spans the whole stack, and it is the only version anything in the system acts on.
+A client and a device MUST NOT act on any version other than the [version marker](overview.md#version-marker).
 
 ## Where the marker is carried
 
-The version marker MUST be carried in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md), and MUST be the same number in both.
+The marker MUST be carried in the QR payload of [BLI-STK](sticker.md) and in the advertisement of [BLI-ADV](discovery.md), and MUST be the same number in both.
 
 ## What the marker covers
 
@@ -37,11 +37,11 @@ Where the client does not implement the advertised version it MUST report a devi
 > No shared secret could be computed under a version the client does not implement, and nothing it said afterwards would be understood.
 > No two versions produce a matching handle, so reading the marker is what separates an unsupported device from one the client cannot hear at all.
 
-## Nothing above the marker is gated
+## Nothing else gates behaviour
 
-No message type, member or feature is withheld or refused on the grounds of what software the other end reported running.
+A client and a device MUST NOT withhold or refuse any message type, member or feature on the grounds of what software the other end reported running.
 
-The software each end runs carries its own version, which is exchanged and displayed and never acted on, as specified in [BLI-MSG](messages.md).
+The software each end runs carries its own version, exchanged and displayed under [BLI-MSG](messages.md).
 
 ## Supporting more than one version
 

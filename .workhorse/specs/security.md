@@ -48,6 +48,13 @@ An observer who has not scanned a device's QR code cannot tell which device an a
 
 Upheld by the handle derivation of [BLI-KEY](key-schedule.md) and the rotation of [BLI-ADV](discovery.md).
 
+### Compromising one device tells nothing about another
+
+There is no fleet key and no authoritative per-device record.
+Each device's presence secret derives from its own board ID alone, so recovering one device's secret, or its board ID, yields nothing about any other device.
+
+Upheld by the derivation of [BLI-KEY](key-schedule.md).
+
 ## Where the guarantees stop
 
 ### The QR code is the credential
