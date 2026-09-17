@@ -32,8 +32,8 @@ pub use yamux::{Mode, Stream};
 
 use super::{
 	ChannelError,
-	envelope::MAX_MESSAGE,
-	framing::{Reassembler, frame},
+	compress::CompressStream,
+	framing::{MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, frame},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 };
 use crate::key_schedule::PresenceToken;
@@ -67,7 +67,7 @@ impl<S> NoiseStream<S> {
 		Self {
 			inner,
 			transport,
-			reassembler: Reassembler::new(),
+			reassembler: Reassembler::new(TRANSPORT_PREFIX),
 			read_plain: Vec::new(),
 			read_consumed: 0,
 			read_chunk: vec![0u8; READ_CHUNK].into_boxed_slice(),
@@ -110,7 +110,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for NoiseStream<S> {
 		std::task::ready!(this.poll_drain(cx))?;
 		let chunk = &buf[..buf.len().min(MAX_PLAINTEXT)];
 		let ciphertext = this.transport.encrypt(chunk).map_err(to_io)?;
-		this.write_buf = frame(&ciphertext);
+		this.write_buf = frame(TRANSPORT_PREFIX, &ciphertext);
 		this.write_sent = 0;
 		// Best-effort flush; anything left is drained on the next call or on flush.
 		let _ = this.poll_drain(cx)?;
@@ -152,7 +152,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for NoiseStream<S> {
 			}
 
 			// Decrypt the next reassembled frame, if one is ready.
-			if let Some(message) = this.reassembler.take().map_err(to_io)? {
+			if let Some(message) = this.reassembler.take() {
 				this.read_plain = this.transport.decrypt(&message).map_err(to_io)?;
 				this.read_consumed = 0;
 				continue;
@@ -199,6 +199,11 @@ impl Streams {
 /// The driver must be spawned and polled for anything to progress: it services open requests, surfaces
 /// inbound streams, and drives the I/O of every open stream. The client is [`Mode::Client`] and the
 /// device [`Mode::Server`]; the two must differ.
+///
+/// Compression is wired in here rather than left to each caller, so no call site can assemble an
+/// uncompressed channel: the always-on property of CHN is structural, not a convention the daemon and
+/// the web client each have to remember. yamux runs on the compressed stream, which runs on the
+/// encrypted one.
 pub fn multiplex<S>(
 	socket: NoiseStream<S>,
 	mode: Mode,
@@ -211,7 +216,7 @@ where
 {
 	let (open_tx, open_rx) = mpsc::unbounded();
 	let (inbound_tx, inbound_rx) = mpsc::unbounded();
-	let connection = Connection::new(socket, yamux::Config::default(), mode);
+	let connection = Connection::new(CompressStream::new(socket), yamux::Config::default(), mode);
 	let streams = Streams {
 		open: open_tx,
 		inbound: inbound_rx,
@@ -220,7 +225,7 @@ where
 }
 
 async fn drive<S>(
-	mut connection: Connection<NoiseStream<S>>,
+	mut connection: Connection<CompressStream<NoiseStream<S>>>,
 	mut open_rx: mpsc::UnboundedReceiver<oneshot::Sender<io::Result<Stream>>>,
 	inbound_tx: mpsc::UnboundedSender<Stream>,
 ) -> Result<(), yamux::ConnectionError>
@@ -277,10 +282,10 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::initiator(psk)?;
 	let msg1 = handshake.write_message()?;
-	write_message(&mut inner, &msg1)
+	write_frame(&mut inner, &msg1)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?;
-	let msg2 = read_message(&mut inner)
+	let msg2 = read_frame(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
 		.ok_or_else(|| ChannelError::Handshake("peer closed during handshake".to_owned()))?;
@@ -295,48 +300,44 @@ pub async fn accept_responder<S: AsyncRead + AsyncWrite + Unpin>(
 	psk: &PresenceToken,
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::responder(psk)?;
-	let msg1 = read_message(&mut inner)
+	let msg1 = read_frame(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
 		.ok_or_else(|| ChannelError::Handshake("peer closed during handshake".to_owned()))?;
 	handshake.read_message(&msg1)?;
 	let msg2 = handshake.write_message()?;
-	write_message(&mut inner, &msg2)
+	write_frame(&mut inner, &msg2)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?;
 	Ok(NoiseStream::new(inner, handshake.into_transport()?))
 }
 
-/// Write a length-delimited message to a stream. Several messages ride on one stream, so each is
-/// delimited; this is the same four-byte length prefix the transport framing uses.
+/// Write a length-delimited application message to a stream. Several messages ride on one stream, so
+/// each is delimited by a three-byte length prefix (MSG). That is a different width from the two-byte
+/// prefix the transport framing gives a Noise message, so code reading one cannot read the other.
 pub async fn write_message<W: AsyncWrite + Unpin>(
 	stream: &mut W,
 	message: &[u8],
 ) -> io::Result<()> {
-	stream.write_all(&frame(message)).await?;
+	stream.write_all(&frame(MESSAGE_PREFIX, message)).await?;
 	stream.flush().await
 }
 
-/// Read the next length-delimited message from a stream, or `None` at end of stream.
+/// Read the next length-delimited application message from a stream, or `None` at end of stream.
 pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Option<Vec<u8>>> {
-	let mut len = [0u8; 4];
-	match stream.read_exact(&mut len).await {
+	let mut prefix = [0u8; MESSAGE_PREFIX];
+	match stream.read_exact(&mut prefix).await {
 		Ok(()) => {}
 		Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
 		Err(err) => return Err(err),
 	}
-	let len = u32::from_be_bytes(len) as usize;
-	// A peer claiming more than a message may be is refused rather than allowed to make this end
-	// allocate it (MSG). The stream is lost; the connection and every other stream are not.
-	if len > MAX_MESSAGE {
-		return Err(io::Error::new(
-			io::ErrorKind::InvalidData,
-			format!("message of {len} bytes exceeds the {MAX_MESSAGE}-byte maximum"),
-		));
-	}
-	// Grow with what has actually arrived rather than reserving the claimed length up front. A peer
-	// can open many streams and claim the maximum on each while sending almost nothing, and the device
-	// is the thing that has to stay reachable.
+	let mut len = [0u8; 8];
+	len[8 - MESSAGE_PREFIX..].copy_from_slice(&prefix);
+	let len = u64::from_be_bytes(len) as usize;
+	// The three-byte prefix cannot express more than a message may be, so there is no ceiling to check
+	// and nothing to refuse. Grow with what has actually arrived rather than reserving the claimed
+	// length up front: a peer can open many streams and claim the maximum on each while sending almost
+	// nothing, and the device is the thing that has to stay reachable.
 	let mut message = Vec::new();
 	let mut chunk = [0u8; READ_CHUNK];
 	let mut remaining = len;
@@ -346,6 +347,35 @@ pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Op
 		message.extend_from_slice(&chunk[..take]);
 		remaining -= take;
 	}
+	Ok(Some(message))
+}
+
+/// Write one Noise message to the raw link, framed by the transport's two-byte prefix (CHN).
+///
+/// Used for the handshake, before the encrypted stream exists. A Noise message is at most 65535 bytes,
+/// which the two-byte prefix expresses exactly, so a handshake message is bounded by the prefix rather
+/// than by any application ceiling.
+async fn write_frame<W: AsyncWrite + Unpin>(inner: &mut W, message: &[u8]) -> io::Result<()> {
+	inner.write_all(&frame(TRANSPORT_PREFIX, message)).await?;
+	inner.flush().await
+}
+
+/// Read one Noise message from the raw link, or `None` at end of stream.
+///
+/// The two-byte prefix bounds the claimed length to 65535, which is the largest allocation an
+/// unauthenticated peer in range can induce here, and is accepted as such.
+async fn read_frame<R: AsyncRead + Unpin>(inner: &mut R) -> io::Result<Option<Vec<u8>>> {
+	let mut prefix = [0u8; TRANSPORT_PREFIX];
+	match inner.read_exact(&mut prefix).await {
+		Ok(()) => {}
+		Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+		Err(err) => return Err(err),
+	}
+	let mut len = [0u8; 8];
+	len[8 - TRANSPORT_PREFIX..].copy_from_slice(&prefix);
+	let len = u64::from_be_bytes(len) as usize;
+	let mut message = vec![0u8; len];
+	inner.read_exact(&mut message).await?;
 	Ok(Some(message))
 }
 
@@ -452,9 +482,10 @@ mod tests {
 		assert!(over, "a dropped stream must reach the peer");
 	}
 
-	/// Application messages are delimited within a stream by the same four-byte big-endian prefix the
-	/// link uses for Noise messages, one layer down (MSG). A message is reassembled whatever sizes
-	/// the reads arrive in, and several in one read are separated.
+	/// Application messages are delimited within a stream by a three-byte big-endian prefix (MSG),
+	/// which is one byte wider than the two-byte prefix the link uses for Noise messages a layer down.
+	/// A message is reassembled whatever sizes the reads arrive in, and several in one read are
+	/// separated.
 	#[tokio::test]
 	async fn messages_are_delimited_within_a_stream() {
 		let (mut client, mut device) = paired().await;
@@ -474,6 +505,29 @@ mod tests {
 		let long = vec![b'x'; 40_000];
 		write_message(&mut cs, &long).await.unwrap();
 		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), long);
+	}
+
+	/// A message far past the former 128 KiB ceiling round-trips: the ceiling is gone (MSG), and the
+	/// compression layer and yamux flow control carry it. It is also past the 256 KiB receive window,
+	/// so it moves only because the receiver credits the window as it consumes, and it is not one
+	/// repeated byte, so compression does not shrink it to nothing on the way.
+	#[tokio::test]
+	async fn a_message_past_the_former_ceiling_round_trips() {
+		let (mut client, mut device) = paired().await;
+
+		let big: Vec<u8> = (0..600_000).map(|i| (i % 251) as u8).collect();
+		let sent = big.clone();
+		let mut cs = client.open().await.unwrap();
+		// Write from its own task: past the window, the write parks until the reader credits it, so the
+		// read below has to run alongside rather than after.
+		let writer = tokio::spawn(async move {
+			write_message(&mut cs, &sent).await.unwrap();
+			cs
+		});
+
+		let mut ds = device.accept().await.unwrap();
+		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), big);
+		let _cs = writer.await.unwrap();
 	}
 
 	#[tokio::test]

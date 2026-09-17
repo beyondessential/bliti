@@ -10,12 +10,14 @@
 //! | --- | --- |
 //! | framing | [`framing`] — message boundaries across the negotiated attribute size |
 //! | Noise `NNpsk0` | [`noise`] — mutual authentication, encryption, a session key |
+//! | compression | [`compress`] — one zlib stream per direction, spanning the connection |
 //! | stream multiplexing | (yamux, wired in with the daemon's async transport) |
 //! | JSON | [`messages`] — application messages |
 //!
 //! This module carries the transport-agnostic pieces. The daemon binds them to `bluer`'s GATT and
 //! the web application to Web Bluetooth; the pieces themselves neither know nor care which.
 
+pub mod compress;
 pub mod envelope;
 pub mod framing;
 pub mod messages;
@@ -31,14 +33,4 @@ pub enum ChannelError {
 	/// the `NNpsk0` handshake.
 	#[error("handshake failed: {0}")]
 	Handshake(String),
-
-	/// A framed message exceeded the maximum a peer will buffer, so it is refused rather than let a
-	/// peer in range exhaust memory by claiming a huge length.
-	#[error("framed message of {claimed} bytes exceeds the {max}-byte maximum")]
-	FrameTooLarge {
-		/// The length the frame header claimed.
-		claimed: usize,
-		/// The largest message that will be buffered.
-		max: usize,
-	},
 }

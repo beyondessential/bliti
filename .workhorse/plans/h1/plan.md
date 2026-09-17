@@ -29,7 +29,7 @@ A yamux `Stream`'s flush only pushes its frame to the connection driver. What re
 
 `write_message` already flushes after each message, so the message-boundary default needs no new call.
 
-The driver flushing every iteration would be a problem if a redundant sync flush emitted bytes, because an idle connection would dribble empty stored blocks and spend both the notification budget and the device's radio. zlib emits nothing for a sync flush with no pending input. That is a property of the implementation rather than the format, so pin it with a test rather than assume it of `miniz_oxide`.
+The driver flushing every iteration would be a problem if a redundant sync flush emitted bytes, because an idle connection would dribble empty stored blocks and spend both the notification budget and the device's radio. The assumption going in was that zlib emits nothing for a sync flush with no pending input; measured, `miniz_oxide` does the opposite and emits a five-byte empty stored block every time (pinned by `miniz_emits_on_a_redundant_sync_flush`). So the wrapper carries a `dirty` flag and runs a sync flush only when something has been written since the last one: idle silence is a property of the wrapper, not of the backend, and would hold even against a backend that behaved as first assumed.
 
 ## Two hazards to write carefully
 
@@ -53,11 +53,23 @@ What carries over: handshake messages are bounded by the application ceiling rat
 
 ## Steps
 
-- [ ] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
-- [ ] Drop `MAX_MESSAGE`, the ceiling check in `read_message`, and the `FrameTooLarge` variant and `with_max` apparatus left dead by structural bounds.
-- [ ] Add the compression layer in `bliti-core`, as an `AsyncRead + AsyncWrite` wrapper over `NoiseStream` with one context per direction.
-- [ ] Map the wrapper's `poll_flush` onto a zlib sync flush, and confirm a redundant flush emits nothing.
-- [ ] Wire the wrapper inside `multiplex()` so neither caller can compose an uncompressed channel.
-- [ ] Add `flate2` with `default-features = false` and the `rust_backend` feature to `bliti-core`.
-- [ ] Carry the closed-channel report and the offer to reconnect in the web application.
-- [ ] Re-measure the wasm bundle and record the delta against 1,081,989 raw and 293,340 gzipped.
+- [x] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
+- [x] Drop `MAX_MESSAGE`, the ceiling check in `read_message`, and the `FrameTooLarge` variant and `with_max` apparatus left dead by structural bounds.
+- [x] Add the compression layer in `bliti-core`, as an `AsyncRead + AsyncWrite` wrapper over `NoiseStream` with one context per direction (`channel/compress.rs`, `CompressStream`).
+- [x] Map the wrapper's `poll_flush` onto a zlib sync flush. A redundant flush does *not* emit nothing under `miniz_oxide`, so the `dirty` guard carries the property instead (see the flush section above).
+- [x] Wire the wrapper inside `multiplex()` so neither caller can compose an uncompressed channel.
+- [x] Add `flate2` with `default-features = false` and the `rust_backend` feature to `bliti-core`.
+- [x] Carry the closed-channel report and the offer to reconnect in the web application (driver-end surfaces through `Channel::connect`'s `on_channel_closed`, routed to `onDisconnected`).
+- [x] Re-measure the wasm bundle and record the delta.
+
+## Measurement
+
+The baseline of 1,081,989 raw and 293,340 gzipped is the pre-`wasm-bindgen` cargo output (`target/wasm32-unknown-unknown/release/bliti_web.wasm`). Measured the same way after this card:
+
+| stage | raw | gzipped |
+| --- | --- | --- |
+| pre-bindgen, before | 1,081,989 | 293,340 |
+| pre-bindgen, after | 1,127,893 | 311,721 |
+| delta | +45,904 | +18,381 (about 5.9%) |
+
+The delta matches the predicted +45,692 raw and +18,880 gzipped, so `flate2` on `miniz_oxide` costs what it was measured to. The shipped bundle, after `wasm-bindgen` strips unused exports, is 695,038 raw and 235,335 gzipped.

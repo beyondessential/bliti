@@ -179,11 +179,16 @@ export default function App() {
 				onEvent,
 				onActivity: note,
 				onClosed: (why) => note('note', why ? `reporting stream ended: ${why}` : 'reporting stream ended'),
-				onDisconnected: () => {
-					note('note', 'the device disconnected')
+				onDisconnected: (why) => {
+					// The channel closed: the link dropped, the device restarted, or a fault ended the
+					// connection. The operator is told, and the code screen returns with its button, which is
+					// the offer to open it again (CHN, "When the channel closes").
+					note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
 					setConnected(false)
 					setConnecting(false)
-					setConnectStatus('Disconnected.')
+					setConnectStatus(
+						why ? `The connection to the device failed: ${why}` : 'The device disconnected.',
+					)
 				},
 			})
 			setConnectStatus('')

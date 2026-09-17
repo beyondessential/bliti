@@ -104,7 +104,16 @@ export function createClient() {
 			deviceTx.addEventListener('characteristicvaluechanged', (event) => {
 				channel.receive(new Uint8Array(event.target.value.buffer))
 			})
-			device.addEventListener('gattserverdisconnected', () => onDisconnected?.())
+			// The channel closes once, whether the link drops or the connection ends on a fault; both
+			// reach the operator through onDisconnected, and the guard keeps a doubled signal (a fault
+			// that also drops the link) from reporting twice.
+			let closed = false
+			const closeOnce = (why) => {
+				if (closed) return
+				closed = true
+				onDisconnected?.(why)
+			}
+			device.addEventListener('gattserverdisconnected', () => closeOnce())
 
 			// Subscribing to notifications is what opens a session: it is the point at which the device
 			// can send. Not to be confused with a bliti subscription, which is a stream.
@@ -119,6 +128,7 @@ export function createClient() {
 				CLIENT_VERSION,
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
+				(why) => closeOnce(why),
 			)
 		},
 

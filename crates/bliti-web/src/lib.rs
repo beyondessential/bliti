@@ -199,13 +199,18 @@ impl Channel {
 	/// The client opens a control stream and sends its hello without waiting for the device's, and the
 	/// device opens its reporting stream without being asked; neither blocks on the other (MSG).
 	/// Every message the device sends is passed to `on_message` as one of the outcomes described in
-	/// [`describe`], and `on_closed` is called once the reporting stream ends.
+	/// [`describe`], and `on_closed` is called once the reporting stream ends. `on_channel_closed` is
+	/// called once the whole channel closes, which happens when the connection ends for any reason: the
+	/// device going out of range or restarting, or a fault such as a decompression failure that CHN
+	/// requires the receiver to report (CHN, "Compression" and "When the channel closes"). A client
+	/// tells the operator, and offers a way back to the view.
 	pub fn connect(
 		&self,
 		name: String,
 		version: String,
 		on_message: Function,
 		on_closed: Function,
+		on_channel_closed: Function,
 	) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
@@ -220,8 +225,17 @@ impl Channel {
 				.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
 
 			let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+			// The driver ends when the connection does, so it is where a channel-level close surfaces:
+			// a clean end, or a fault the connection could not survive. Either way the operator is told.
 			spawn_local(async move {
-				let _ = driver.await;
+				let why = driver.await.err().map(|err| err.to_string());
+				let _ = on_channel_closed.call1(
+					&JsValue::NULL,
+					&match why {
+						Some(why) => JsValue::from_str(&why),
+						None => JsValue::NULL,
+					},
+				);
 			});
 
 			// This client names itself, on a control stream of its own. The device logs it and never
