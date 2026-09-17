@@ -6,12 +6,9 @@ id: BLI-CHN
 
 Once a client has matched a device by the handle in [BLI-ADV](discovery.md), the two authenticate to each other and open a channel carrying application messages.
 
-Everything this spec states about the wire is contract.
-An independently written client that follows it interoperates with a device that follows it.
-
 ## Authentication
 
-Client and device MUST run a Noise `NNpsk0` handshake, with the client as initiator and the device as responder.
+Client and device MUST run a Noise `NNpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
 The Noise protocol name MUST be `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`.
 The pre-shared key MUST be the 32-byte sticker secret of [BLI-KEY](key-schedule.md), at PSK position zero, used exactly as [BLI-KEY](key-schedule.md) produces it with no further derivation.
 
@@ -24,8 +21,8 @@ The handshake gives the session forward secrecy.
 
 ## Send rate
 
-A device MUST NOT send more than 100 KiB, nor more than 200 notifications, in any one-second window.
-The two ceilings are independent, and a device MUST satisfy both.
+A device MUST NOT send more than 100 KiB in any one-second window.
+A device MUST NOT send more than 200 notifications in any one-second window.
 
 > **Note.** The link is shared with everything else the session is doing, including the client's own writes.
 > A device with a backlog clears it more slowly rather than taking the connection down: a slow reading beats a dropped session.
@@ -61,8 +58,7 @@ Where the host's Bluetooth stack would resolve the connecting client's attribute
 
 ## Streams
 
-Above the handshake, the encrypted byte stream MUST carry yamux, with the client as the yamux client and the device as the yamux server.
-Both ends MUST use yamux's default settings, including its 256 KiB initial receive window.
+Above the handshake, the encrypted byte stream MUST carry [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md), with the client as the yamux client and the device as the yamux server.
 Closing one stream MUST leave the other streams and the connection alive.
 
 > **Note.** Making the client the yamux client puts the two ends' stream identifiers in disjoint spaces, so they cannot collide.

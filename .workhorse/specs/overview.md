@@ -12,6 +12,10 @@ bliti is not an implementation of Improv Wi-Fi and does not interoperate with it
 
 bliti ships as its own daemon and its own sticker generator, separate from the other tools in this repository.
 
+## Requirements notation
+
+The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY and OPTIONAL in bliti's specifications are to be interpreted as described in BCP 14 ([RFC 2119](https://www.rfc-editor.org/rfc/rfc2119), [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)) when, and only when, they appear in all capitals, as here.
+
 ## The chain
 
 Every value in the system descends from an identifier the board's own firmware provides, under constants that are public.
