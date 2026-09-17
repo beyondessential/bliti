@@ -5,12 +5,6 @@ id: BLI
 # bliti device provisioning
 
 bliti provisions headless devices over Bluetooth Low Energy, anchored to a QR code carried on the outside of the device.
-A device advertises an opaque handle, and a client that has scanned that device's QR code, and only such a client, can recognise it among the advertisements it hears, authenticate to it, and open a two-way channel.
-
-The QR code stands in for the button press or on-screen code that other provisioning protocols use to establish that the operator is physically present, because the devices bliti targets have neither a button nor a screen.
-bliti is not an implementation of Improv Wi-Fi and does not interoperate with it.
-
-bliti ships as its own daemon and its own QR code generator, separate from the other tools in this repository.
 
 ## Requirements notation
 
