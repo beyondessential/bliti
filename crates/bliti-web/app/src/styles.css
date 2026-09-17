@@ -131,3 +131,14 @@ video { width: 100%; border-radius: 6px; background: #000; }
 	clip-path: inset(50%);
 	white-space: nowrap;
 }
+
+/* An address or a board name has no spaces to break at, so it must be allowed to break anywhere
+   rather than running out past the edge of its tile. */
+.tile .value, .detail dd, .detail .note, .detail p { overflow-wrap: anywhere; }
+/* A tile with nothing behind its headline is not a tap target. */
+.tile.flat { cursor: default; }
+
+/* A section heading with an action beside it. */
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading h2 { margin: 0 0 12px; }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }

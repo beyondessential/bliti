@@ -60,7 +60,16 @@ export default function App() {
 			switch (event.kind) {
 				case 'message':
 					if (event.message.type === 'device-hello') {
+						// Named for the record rather than shown above the readings: it is a fact about the
+						// software, and every member of the message goes in so a device that grows the type
+						// is not silently trimmed here.
 						setDevice({ name: event.message.name, version: event.message.version })
+						note(
+							Object.entries(event.message)
+								.filter(([member]) => member !== 'type')
+								.map(([member, value]) => `${member} ${value}`)
+								.join(', '),
+						)
 					} else if (event.message.type === 'system-identity') {
 						setStatics(event.message.readings)
 					} else if (event.message.type === 'system-sample') {
@@ -173,6 +182,16 @@ export default function App() {
 		}
 	}
 
+	function disconnect() {
+		client.disconnect()
+		setConnected(false)
+		setConnecting(false)
+		setConnectStatus('')
+		setStatics([])
+		setWindow([])
+		note('Disconnected.')
+	}
+
 	async function startScan() {
 		const controller = new AbortController()
 		scanning_.current = controller
@@ -261,22 +280,17 @@ export default function App() {
 
 			{connected && (
 				<section>
-					<h2>Device</h2>
+					<div className="heading">
+						<h2>Device</h2>
+						<button className="secondary small" onClick={disconnect}>
+							Disconnect
+						</button>
+					</div>
 					{notices.map((each) => (
 						<p key={each.id} className={`notice ${each.kind}`}>
 							{each.detail}
 						</p>
 					))}
-					<dl>
-						<dt>Running</dt>
-						{device ? (
-							<dd>
-								{device.name} {device.version}
-							</dd>
-						) : (
-							<dd className="muted">not reported</dd>
-						)}
-					</dl>
 					<Readings readings={latest(window_, statics)} window={window_} />
 				</section>
 			)}

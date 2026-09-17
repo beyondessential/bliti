@@ -188,10 +188,39 @@ test.describe('grouping and scales', () => {
 
 		await page.getByRole('button', { name: /CPU/ }).click()
 		await expect(page.locator('.tile .bar')).toHaveCount(1)
+	})
 
-		await page.getByRole('button', { name: /Fan/ }).click()
-		// Still one: the fan has no ceiling, so it gained no bar.
-		await expect(page.locator('.tile .bar')).toHaveCount(1)
+	/// A tile with nothing behind its headline is not a tap target. Offering one that does nothing
+	/// teaches an operator that tapping is not worth trying.
+	test('a tile with nothing to reveal is not tappable', async ({ page }) => {
+		await openChannel(page)
+		await emit(
+			page,
+			identity([
+				// A ceiling gives the CPU a bar to reveal; the fan has no ceiling, no detail and no
+				// history, so there is nothing behind it.
+				{ name: 'cpu', label: 'CPU', value: fraction(0.12) },
+				{ name: 'fan', label: 'Fan', value: { kind: 'quantity', number: 3113, unit: 'rpm' } },
+			]),
+		)
+		await expect(page.getByRole('button', { name: /CPU/ })).toBeVisible()
+		await expect(page.getByRole('button', { name: /Fan/ })).toHaveCount(0)
+		await expect(page.locator('.tile.flat')).toHaveCount(1)
+	})
+
+	/// Text runs long where a number does not, so a hostname or a board name takes the full row
+	/// rather than wrapping inside half of one.
+	test('a long headline takes the full width', async ({ page }) => {
+		await openChannel(page)
+		await emit(
+			page,
+			identity([
+				{ name: 'board', label: 'Board', value: { kind: 'text', text: 'Raspberry Pi 5 Model B Rev 1.1' } },
+				{ name: 'cpu', label: 'CPU', value: fraction(0.12) },
+			]),
+		)
+		await expect(page.locator('.tile.wide')).toHaveCount(1)
+		await expect(page.locator('.tile.wide')).toContainText('Raspberry Pi 5')
 	})
 })
 

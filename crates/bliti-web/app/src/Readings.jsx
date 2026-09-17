@@ -29,21 +29,41 @@ export default function Readings({ readings, window: history }) {
 	)
 }
 
+/// Whether a reading has anything behind its headline. A tile with nothing to reveal is not a tap
+/// target: offering one that does nothing teaches an operator that tapping is not worth trying.
+function hasMore(reading, history) {
+	return Boolean(
+		reading.error ||
+			reading.note ||
+			reading.detail?.length ||
+			reading.limits?.length ||
+			scaleOf(reading.value) !== null ||
+			seriesOf(history, reading.name).length > 1,
+	)
+}
+
+/// A headline long enough that half a row would wrap it. Text runs long where a number does not, so
+/// this keeps a hostname or a board name on one line without giving every tile the full width.
+const LONG_HEADLINE = 12
+
+function isWide(entry) {
+	if (entry.readings.length > 1) return true
+	const shown = headline(entry.readings[0])
+	return shown.length > LONG_HEADLINE
+}
+
 /// One tile. The face carries a label and the headline value and nothing else; everything else is
 /// revealed by tapping. Trouble colours the number rather than adding an element to the face.
 function Tile({ entry, history }) {
 	const [open, setOpen] = useState(false)
 	const pair = opposedPair(entry)
-	const wide = entry.readings.length > 1
+	const wide = isWide(entry)
 	const trouble = entry.readings.some(isTrouble)
+	const more = entry.readings.some((reading) => hasMore(reading, history))
 
-	return (
-		<button
-			type="button"
-			className={`tile${wide ? ' wide' : ''}${open ? ' expanded' : ''}`}
-			aria-expanded={open}
-			onClick={() => setOpen(!open)}
-		>
+	const className = `tile${wide ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
+	const body = (
+		<>
 			<div className="label">{entry.label}</div>
 			<Face entry={entry} />
 			{open && (
@@ -57,7 +77,20 @@ function Tile({ entry, history }) {
 					)}
 				</div>
 			)}
-			{!open && trouble && <span className="sr-only">needs attention</span>}
+			{trouble && <span className="sr-only">needs attention</span>}
+		</>
+	)
+
+	if (!more) return <div className={className}>{body}</div>
+
+	return (
+		<button
+			type="button"
+			className={className}
+			aria-expanded={open}
+			onClick={() => setOpen(!open)}
+		>
+			{body}
 		</button>
 	)
 }

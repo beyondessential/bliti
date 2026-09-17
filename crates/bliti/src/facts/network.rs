@@ -33,10 +33,58 @@ fn is_reportable_interface(name: &str) -> bool {
 	fs::metadata(format!("/sys/class/net/{name}/device")).is_ok()
 }
 
-/// One reading per interface holding an address, grouped so they show together.
-pub fn addresses() -> Vec<Reading> {
+/// The device's addresses: the ones worth reaching it on up front, and all of them behind the tap.
+///
+/// The headline is the address an operator is most likely to need, which is the one on the interface
+/// carrying the default route, together with the overlay address the fleet is reached over. IPv4 is
+/// preferred for both, being the one a person can read out and type; an interface with no IPv4 falls
+/// back to what it has.
+pub fn addresses() -> Option<Reading> {
+	let held = by_interface();
+	if held.is_empty() {
+		return None;
+	}
+
+	let route = default_route();
+	let primary = held
+		.iter()
+		.filter(|(name, _)| !name.starts_with(OVERLAY))
+		.min_by_key(|(name, _)| (Some(name.as_str()) != route.as_deref(), (*name).clone()))
+		.and_then(|(_, addresses)| preferred(addresses));
+	let overlay = held
+		.iter()
+		.find(|(name, _)| name.starts_with(OVERLAY))
+		.and_then(|(_, addresses)| preferred(addresses));
+
+	let headline: Vec<String> = [primary, overlay].into_iter().flatten().collect();
+	if headline.is_empty() {
+		return None;
+	}
+
+	let mut reading = Reading::new("address", "Address", Value::text(headline.join("  ·  ")));
+	// Every address with the interface it belongs to, which is what someone diagnosing needs and what
+	// the headline deliberately leaves out.
+	for (name, addresses) in &held {
+		for address in addresses {
+			reading = reading.with_detail(name, Value::text(address));
+		}
+	}
+	Some(reading)
+}
+
+/// IPv4 where the interface has one, because it is the address a person can read out and type.
+fn preferred(addresses: &[String]) -> Option<String> {
+	addresses
+		.iter()
+		.find(|address| !address.contains(':'))
+		.or_else(|| addresses.first())
+		.cloned()
+}
+
+/// Every address worth reporting, by the interface holding it.
+fn by_interface() -> BTreeMap<String, Vec<String>> {
 	let Ok(interfaces) = if_addrs::get_if_addrs() else {
-		return Vec::new();
+		return BTreeMap::new();
 	};
 
 	let mut held: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -47,25 +95,22 @@ pub fn addresses() -> Vec<Reading> {
 		}
 		held.entry(interface.name).or_default().push(ip.to_string());
 	}
+	// A stable order, so a client comparing two reports sees only real changes.
+	for addresses in held.values_mut() {
+		addresses.sort();
+	}
+	held
+}
 
-	held.into_iter()
-		.map(|(name, mut addresses)| {
-			// A stable order, so a client comparing two reports sees only real changes.
-			addresses.sort();
-			let mut reading = Reading::new(
-				format!("address-{name}"),
-				name,
-				Value::text(addresses.join(", ")),
-			)
-			.in_group("network");
-			if addresses.len() > 1 {
-				for address in &addresses {
-					reading = reading.with_detail("Address", Value::text(address));
-				}
-			}
-			reading
-		})
-		.collect()
+/// The interface carrying the default route, which is the one most likely to reach this device.
+fn default_route() -> Option<String> {
+	let raw = fs::read_to_string("/proc/net/route").ok()?;
+	raw.lines().skip(1).find_map(|line| {
+		let mut fields = line.split_whitespace();
+		let name = fields.next()?;
+		// A destination of all zeroes is the default route.
+		(fields.next()? == "00000000").then(|| name.to_owned())
+	})
 }
 
 /// Throughput per interface and direction, over the interval since the last sample.
@@ -169,6 +214,33 @@ fn counters() -> BTreeMap<String, Counters> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn the_headline_prefers_ipv4_and_falls_back_to_what_there_is() {
+		assert_eq!(
+			preferred(&["2001:db8::1".to_owned(), "192.0.2.10".to_owned()]).as_deref(),
+			Some("192.0.2.10")
+		);
+		assert_eq!(
+			preferred(&["2001:db8::1".to_owned()]).as_deref(),
+			Some("2001:db8::1")
+		);
+		assert_eq!(preferred(&[]), None);
+	}
+
+	/// The headline is deliberately shorter than the detail: an operator needs one address to reach
+	/// the device, and everything else once they are diagnosing.
+	#[test]
+	fn the_detail_carries_every_address_with_its_interface() {
+		let Some(reading) = addresses() else {
+			return; // A machine with nothing up is a legitimate answer.
+		};
+		assert!(reading.is_coherent());
+		assert!(!reading.detail.is_empty(), "the detail names every address");
+		for entry in &reading.detail {
+			assert!(!entry.label.is_empty(), "each address names its interface");
+		}
+	}
 
 	#[test]
 	fn loopback_is_never_reported() {
