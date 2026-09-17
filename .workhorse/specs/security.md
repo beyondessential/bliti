@@ -54,10 +54,12 @@ Upheld by the derivation of [BLI-KEY](key-schedule.md).
 
 ## Where the guarantees stop
 
-### The QR code is the credential
+### Holding the token is enough
 
-Anyone who has had access to a device, or who otherwise knows its board ID, can derive its presence token, and can then both impersonate the device and connect to it.
-The same is true of anyone holding a photograph of the QR code.
+Anyone holding a device's presence token can impersonate that device and connect to it.
+
+A photograph of the QR code is enough, because the code carries the token outright.
+So is the device's board ID, which yields the token by derivation, and which anyone who has had access to the device can read.
 
 ### A device's presence is not hidden
 
