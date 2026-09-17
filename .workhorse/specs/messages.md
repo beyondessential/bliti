@@ -143,7 +143,7 @@ This is not a fault in the peer and is not treated as one.
 The stream stays open and the connection is untouched, and the receiver goes on handling and displaying everything else it does understand.
 A client behind a device is the ordinary case, and an operator is better served by most of a view, plainly marked as partial, than by none of it.
 
-The `device-hello` and `client-hello` message types MUST NOT contain any critical members.
+The `device-hello`, `client-hello` message types MUST NOT contain any critical members.
 
 ## What is not recognised is skipped
 
