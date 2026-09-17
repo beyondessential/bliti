@@ -59,6 +59,65 @@ Sweep: the fuzzy cases cluster in `messages.md` (120, 162, and to a lesser degre
 
 That section was also retitled. "The QR code is the credential" predates the rename: the token is the credential, and the QR code is one of two ways to obtain it. Now "Holding the token is enough", which is what it says.
 
+## The device authentication redesign
+
+Settled on this card, because KEY, STK, CHN and SEC are all being rewritten and would otherwise be written twice.
+
+### The problem
+
+`NNpsk0` gives neither party a static key, so all authentication is the PSK, and a shared secret cannot distinguish which of the two parties holds it. Anyone holding a presence token can play responder as well as initiator. Since provisioning is the act of handing a device network credentials, someone who photographs a QR code can stand up a device that the operator cannot distinguish from the real one, and collect what they type in.
+
+This was documented from the start, as "the same is true of anyone holding a photograph of the sticker", and CHN's own justification stated the mechanism exactly: "This proves in both directions that each end holds the sticker secret." Symmetric proof framed as reassurance is the flaw written down as a feature.
+
+### The construction
+
+The device knows its board ID; a holder of the QR code does not, and SEC guarantees that. The redesign spends that asymmetry on authenticating the device.
+
+```
+board ID --argon2id, unchanged parameters--> root
+root --cheap, domain-separated--> presence token
+root --cheap, domain-separated--> device static private key
+```
+
+**The restructure is forced, not cosmetic.** Deriving the static key cheaply and directly from the board ID would let anyone holding the QR code search the board ID space against the public key in it, bypassing argon2id entirely and breaking SEC's "The QR code does not reveal the board ID". Routing both values through one memory-hard root keeps a single argon2id per candidate as the gate on any search. A photograph yields the token, and the token does not invert to the root, so it does not yield the static key.
+
+The advertised handle continues to derive from the presence token, so a client computes it from the QR code alone exactly as before.
+
+### The handshake
+
+`Noise_NKpsk0_25519_ChaChaPoly_BLAKE2s`, client as initiator, device as responder.
+
+```
+NKpsk0:
+  <- s
+  ...
+  -> psk, e, es
+  <- e, ee
+```
+
+The pre-message `<- s` is the device's static public key, which the client takes from the QR payload. The PSK at position zero remains the presence token. The two now authenticate different things: the static key proves the device holds something derived from its board ID, and the PSK proves the client read the code.
+
+Zero-RTT falls out: the client's first message is encrypted to the device's static key, so a party without the private key cannot read it at all, rather than merely failing to prove itself.
+
+### What it costs
+
+The QR payload becomes the token (32 bytes), the static public key (32), and the version marker (1): 65 bytes, 104 unpadded base32 characters, against 53 today. With the 26-character URL prefix the code carries 130 characters rather than 79.
+
+**This is the one real risk in the design** and it is empirical. BLI-STK requires a coarse code because that is what a phone camera reads off an enclosure, and doubling the payload works directly against it. If a printed code at the real size does not read reliably, the fallback is `NXpsk0` with a 16-byte pinned hash of the static key, at 79 characters, giving up zero-RTT and adding a verification step.
+
+### What changes in SEC
+
+- New guarantee: a photograph of a QR code does not permit impersonating the device.
+- Narrowed: holding the token lets a party connect to a device, not be one.
+- Reversed: "Authentication proves the secret, not the board" no longer holds in that direction. The handshake now does prove the device holds a key bound to its board ID. The client is still authenticated by the token alone.
+- Unchanged: anyone who learns a board ID still obtains everything.
+
+### Open in the construction
+
+- The cheap KDF for root to token and root to static key. KEY already uses a fast keyed hash for the handle, so the same primitive with distinct domain tags is the obvious candidate.
+- Clamping of the derived X25519 private key.
+- The version marker moves, which VER already requires: a change to KEY's derivations or CHN's handshake is a new version by definition.
+
 ## Conventions settled
 
 ### Requirements notation lives in BLI
