@@ -142,3 +142,20 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .heading h2 { margin: 0 0 12px; }
 button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }
+
+/* The activity log doubles as a debug surface, so it reads as a record of the conversation: when,
+   which way, and what. Oldest first, because that is the order things happened in. */
+.log { max-height: 16rem; overflow-y: auto; font-size: 0.8rem; }
+.log .line {
+	display: grid;
+	grid-template-columns: auto auto 1fr;
+	gap: 8px;
+	margin: 0 0 2px;
+	align-items: baseline;
+}
+.log time { color: var(--muted); font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.log .arrow { color: var(--muted); }
+.log .said { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.log .in .arrow { color: var(--accent); }
+.log .out .arrow { color: var(--good); }
+.log .note { color: var(--muted); }

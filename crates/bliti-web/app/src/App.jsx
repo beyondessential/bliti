@@ -10,8 +10,16 @@ import { cameraAvailable, scan } from './scanner.js'
 // so subscribing here is correct against both and carries no readings until a device offers them.
 const TOPIC = 'system'
 
-// How many notices and activity lines are kept. The far end decides how many arrive.
+// How many notices are kept. The far end decides how many arrive.
 const KEPT = 20
+
+// How many activity lines are kept. Longer than the notices, because the log doubles as a debug
+// surface and the interesting line is often several steps back.
+const LOGGED = 100
+
+// Message types that arrive continuously while subscribed. They are the point of the view and would
+// drown the log, so the log records that a subscription is running rather than every sample on it.
+const STREAMED = new Set(['system-sample'])
 
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
@@ -41,7 +49,13 @@ export default function App() {
 	// Both are fed by the far end, so both are bounded: a device repeating a fault or a refusal must
 	// cost a fixed amount of memory rather than growing the view until the phone the operator is
 	// trying to diagnose stops responding.
-	const note = useCallback((line) => setLog((lines) => [...lines, line].slice(-KEPT)), [])
+	// Every line carries when it happened and which way it went, so the log reads as a record of the
+	// conversation rather than as a place the view writes remarks.
+	const note = useCallback(
+		(direction, text) =>
+			setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
+		[],
+	)
 	const notice = useCallback(
 		(kind, detail) =>
 			setNotices((all) => {
@@ -60,16 +74,7 @@ export default function App() {
 			switch (event.kind) {
 				case 'message':
 					if (event.message.type === 'device-hello') {
-						// Named for the record rather than shown above the readings: it is a fact about the
-						// software, and every member of the message goes in so a device that grows the type
-						// is not silently trimmed here.
 						setDevice({ name: event.message.name, version: event.message.version })
-						note(
-							Object.entries(event.message)
-								.filter(([member]) => member !== 'type')
-								.map(([member, value]) => `${member} ${value}`)
-								.join(', '),
-						)
 					} else if (event.message.type === 'system-identity') {
 						setStatics(event.message.readings)
 					} else if (event.message.type === 'system-sample') {
@@ -79,15 +84,18 @@ export default function App() {
 					} else if (event.message.type === 'system-history') {
 						setWindow((held) => mergeHistory(held, event.message.samples))
 					}
+					if (!STREAMED.has(event.message.type)) note('in', describe(event.message))
 					break
 				case 'skipped':
 					// Safe to pass over, and silent on screen: it belongs in the record, not in the way.
-					note(event.detail)
+					note('in', `skipped  ${event.detail}`)
 					break
 				case 'refused':
+					note('in', `refused  ${event.detail}`)
 					notice('refused', `The device said something this version of the app is too old to act on: ${event.detail}`)
 					break
 				case 'fault':
+					note('in', `fault  ${event.detail}`)
 					notice('fault', `The device is not speaking the protocol: ${event.detail}`)
 					break
 			}
@@ -98,13 +106,17 @@ export default function App() {
 	const readFrom = useCallback(
 		async (text) => {
 			try {
-				setSticker(await client.readSticker(text))
+				const read = await client.readSticker(text)
+				setSticker(read)
 				setReadError('')
+				note('note', `sticker read  ${read.human}`)
 			} catch (error) {
-				setReadError(error.message ?? String(error))
+				const why = error.message ?? String(error)
+				setReadError(why)
+				note('note', `sticker not read: ${why}`)
 			}
 		},
-		[client],
+		[client, note],
 	)
 
 	// Following the link opens the application with the payload already in the fragment. It is read
@@ -127,14 +139,16 @@ export default function App() {
 
 		const open = () => {
 			if (opening || stopped || document.hidden) return
-			opening = client.subscribe(TOPIC, { onEvent, onClosed: () => {} }).then(async (handle) => {
-				// The page may have been hidden, or the effect torn down, while this was in flight.
-				if (stopped || document.hidden) {
-					await handle.close()
-					return null
-				}
-				return handle
-			})
+			opening = client
+				.subscribe(TOPIC, { onEvent, onClosed: () => {}, onActivity: note })
+				.then(async (handle) => {
+					// The page may have been hidden, or the effect torn down, while this was in flight.
+					if (stopped || document.hidden) {
+						await handle.close()
+						return null
+					}
+					return handle
+				})
 		}
 
 		const close = async () => {
@@ -154,7 +168,7 @@ export default function App() {
 			document.removeEventListener('visibilitychange', onVisibility)
 			close()
 		}
-	}, [connected, client, onEvent])
+	}, [connected, client, onEvent, note])
 
 	async function connect() {
 		setConnecting(true)
@@ -162,10 +176,10 @@ export default function App() {
 		try {
 			await client.connect(sticker.sticker, {
 				onEvent,
-				onClosed: (why) =>
-					note(why ? `The device stopped reporting: ${why}` : 'The device stopped reporting.'),
+				onActivity: note,
+				onClosed: (why) => note('note', why ? `reporting stream ended: ${why}` : 'reporting stream ended'),
 				onDisconnected: () => {
-					note('The device disconnected.')
+					note('note', 'the device disconnected')
 					setConnected(false)
 					setConnecting(false)
 					setConnectStatus('Disconnected.')
@@ -173,10 +187,13 @@ export default function App() {
 			})
 			setConnectStatus('')
 			setConnected(true)
-			note('Channel open.')
+			// Nothing is logged here: the handshake and the device's first messages happen inside the
+			// call above, so a line written now would sit behind them and read out of order.
 		} catch (error) {
 			// Picking nothing in the chooser is an ordinary thing to do, not a failure to report.
-			setConnectStatus(error.name === 'NotFoundError' ? '' : (error.message ?? String(error)))
+			const why = error.message ?? String(error)
+			note('note', error.name === 'NotFoundError' ? 'no device chosen' : `could not connect: ${why}`)
+			setConnectStatus(error.name === 'NotFoundError' ? '' : why)
 			setConnecting(false)
 			client.disconnect()
 		}
@@ -189,7 +206,7 @@ export default function App() {
 		setConnectStatus('')
 		setStatics([])
 		setWindow([])
-		note('Disconnected.')
+		note('note', 'disconnected')
 	}
 
 	async function startScan() {
@@ -206,6 +223,7 @@ export default function App() {
 			if (found) {
 				setSticker(found)
 				setReadError('')
+				note('note', `sticker read from the camera  ${found.human}`)
 			}
 		} catch (error) {
 			setReadError(`The camera is not available: ${error.message ?? error}`)
@@ -279,7 +297,7 @@ export default function App() {
 			)}
 
 			{connected && (
-				<section>
+				<>
 					<div className="heading">
 						<h2>Device</h2>
 						<button className="secondary small" onClick={disconnect}>
@@ -291,22 +309,50 @@ export default function App() {
 							{each.detail}
 						</p>
 					))}
-					<Readings readings={latest(window_, statics)} window={window_} />
-				</section>
+					<Readings readings={latest(statics, window_)} window={window_} />
+				</>
 			)}
 
 			{log.length > 0 && (
 				<section>
 					<h2>Activity</h2>
-					<div className="log muted">
+					<div className="log">
 						{log.map((line, index) => (
-							<p key={index}>{line}</p>
+							<p key={index} className={`line ${line.direction}`}>
+								<time>{clock(line.at)}</time>
+								<span className="arrow">{ARROWS[line.direction]}</span>
+								<span className="said">{line.text}</span>
+							</p>
 						))}
 					</div>
 				</section>
 			)}
 		</main>
 	)
+}
+
+const ARROWS = { in: '\u2190', out: '\u2192', note: '\u00b7' }
+
+function clock(at) {
+	return at.toLocaleTimeString(undefined, {
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	})
+}
+
+/// One message, summarised for the log. The type and enough of the message to tell one from another,
+/// without reprinting a hundred readings.
+function describe(message) {
+	const { type, ...rest } = message
+	const summary = Object.entries(rest)
+		.map(([member, value]) => {
+			if (Array.isArray(value)) return `${member} ${value.length}`
+			if (value && typeof value === 'object') return member
+			return `${member} ${value}`
+		})
+		.join(', ')
+	return summary ? `${type}  ${summary}` : type
 }
 
 function TypedSticker({ onRead }) {

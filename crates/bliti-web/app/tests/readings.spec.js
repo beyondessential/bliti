@@ -285,3 +285,49 @@ test.describe('history', () => {
 		await expect(page.getByText(/peak 0.08 MB\/s/)).toBeVisible()
 	})
 })
+
+test.describe('the activity log', () => {
+	/// The log doubles as a debug surface, so it records the conversation rather than remarks the view
+	/// chose to write. Streamed samples are the exception: at a sample a second they would drown it.
+	test('records messages but not the stream', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, identity([{ name: 'cpu', label: 'CPU', value: fraction(0.12) }]))
+		await emit(page, sample(1000, [{ name: 'cpu', label: 'CPU', value: fraction(0.5) }]))
+
+		const log = page.locator('.log')
+		await expect(log).toContainText('system-identity')
+		await expect(log).not.toContainText('system-sample')
+		// The sample still reached the view; it is only the log that passes over it.
+		await expect(page.getByText('50%')).toBeVisible()
+	})
+
+	test('each line carries a time and which way it went', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, identity([{ name: 'cpu', label: 'CPU', value: fraction(0.12) }]))
+
+		const line = page.locator('.log .line').last()
+		await expect(line.locator('time')).toHaveText(/\d{1,2}:\d{2}:\d{2}/)
+		await expect(line).toHaveClass(/\bin\b/)
+	})
+
+	/// Oldest first, because that is the order things happened in.
+	test('reads chronologically', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, identity([{ name: 'cpu', label: 'CPU', value: fraction(0.12) }]))
+		await emit(page, { kind: 'skipped', detail: 'message type "weather" is not known to this build' })
+
+		const said = await page.locator('.log .said').allTextContents()
+		const identityAt = said.findIndex((text) => text.includes('system-identity'))
+		const skippedAt = said.findIndex((text) => text.includes('skipped'))
+		expect(identityAt).toBeGreaterThanOrEqual(0)
+		expect(skippedAt).toBeGreaterThan(identityAt)
+	})
+
+	/// A refusal belongs in both places: the notice is what an operator reads, the log is the record.
+	test('a refusal is both noticed and recorded', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, { kind: 'refused', detail: 'critical members not known to this build: redact' })
+		await expect(page.locator('.notice')).toHaveCount(1)
+		await expect(page.locator('.log')).toContainText('refused')
+	})
+})

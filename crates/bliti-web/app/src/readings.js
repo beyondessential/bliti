@@ -156,13 +156,17 @@ export function seriesOf(window, name) {
 	return points
 }
 
-/// The most recent reading of each name, from the window and whatever arrived outside it.
-export function latest(window, extra = []) {
+/// The most recent reading of each name: the static ones, with anything sampled since on top.
+///
+/// A name carried by both is the live one, because a sample is fresher than the identity that
+/// preceded it. The other way round, a device reporting a name in both would show its static value
+/// forever and never move.
+export function latest(statics, window) {
 	const held = new Map()
+	for (const reading of statics) held.set(reading.name, reading)
 	for (const sample of window) {
 		for (const reading of sample.readings) held.set(reading.name, reading)
 	}
-	for (const reading of extra) held.set(reading.name, reading)
 	return [...held.values()]
 }
 

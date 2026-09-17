@@ -70,8 +70,10 @@ export function createClient() {
 		// filters on holds a salt that changes, so the chooser cannot be narrowed to one device ahead
 		// of time. It is filtered to devices carrying the bliti service, and the one the operator picks
 		// is checked against the sticker before anything is sent to it.
-		async connect(sticker, { onEvent, onClosed, onDisconnected }) {
+		async connect(sticker, { onEvent, onClosed, onDisconnected, onActivity }) {
+			const say = (direction, text) => onActivity?.(direction, text)
 			await protocol()
+			say('note', 'asking the browser to choose a device')
 			device = await navigator.bluetooth.requestDevice({
 				filters: [{ services: [service_uuid()] }],
 			})
@@ -89,6 +91,7 @@ export function createClient() {
 				throw new Error('That is a different bliti device. Pick the one whose sticker you read.')
 			}
 
+			say('note', `matched the sticker against ${device.name}`)
 			const server = await device.gatt.connect()
 			const service = await server.getPrimaryService(service_uuid())
 			const clientTx = await service.getCharacteristic(client_tx_uuid())
@@ -106,7 +109,11 @@ export function createClient() {
 			// Subscribing to notifications is what opens a session: it is the point at which the device
 			// can send. Not to be confused with a bliti subscription, which is a stream.
 			await deviceTx.startNotifications()
+			say('note', 'notifications on, opening the session')
 
+			// Said before the call rather than after: the handshake and the device's first messages all
+			// happen inside it, so anything logged afterwards would land out of order behind them.
+			say('out', `client-hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
 			await channel.connect(
 				CLIENT_NAME,
 				CLIENT_VERSION,
@@ -117,7 +124,8 @@ export function createClient() {
 
 		// A subscription is a stream: it begins here and ends when the handle is closed, which is the
 		// unsubscribe (BLI-MSG, "Subscribing").
-		async subscribe(topic, { onEvent, onClosed }) {
+		async subscribe(topic, { onEvent, onClosed, onActivity }) {
+			onActivity?.('out', `subscribe  ${topic}`)
 			const handle = await channel.subscribe(
 				topic,
 				(json) => onEvent(JSON.parse(json)),
@@ -131,6 +139,7 @@ export function createClient() {
 				close: async () => {
 					if (closed) return
 					closed = true
+					onActivity?.('out', `unsubscribe  ${topic}`)
 					handle.close()
 					handle.free()
 				},
