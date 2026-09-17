@@ -10,68 +10,68 @@ Two things carry the whole feature: a reading format generic enough that a clien
 
 The self-describing reading is wire contract, so it lives in `bliti-core` and both ends use the same types.
 
-- [ ] Add reading and value types to `crates/bliti-core/src/channel/messages.rs`, or a new `readings.rs` beside it if that file grows past comfort: `Reading` with `name`, `label`, `value`, `detail`, `note`, `state`, `limits`, `group`, `direction`, `error`; `Value` as a tagged enum over `fraction`, `quantity`, `duration`, `text`.
-- [ ] Skip absent optional members on the wire rather than sending nulls.
-- [ ] An unrecognised `kind` deserialises to an unreadable value rather than failing the message, so a newer device does not blank an older client's whole report.
-- [ ] Replace `DeviceMessage::Identity { hostname, addresses }` with `SystemIdentity { readings }`. Nothing has shipped to the field, so this is a replacement rather than a migration.
-- [ ] Add `SystemSample { at, readings }` and `SystemHistory { samples }`.
-- [ ] Round-trip tests for every value kind, and a test that an unknown kind survives a round trip through an older reader.
+- [x] Add reading and value types to `crates/bliti-core/src/channel/messages.rs`, or a new `readings.rs` beside it if that file grows past comfort: `Reading` with `name`, `label`, `value`, `detail`, `note`, `state`, `limits`, `group`, `direction`, `error`; `Value` as a tagged enum over `fraction`, `quantity`, `duration`, `text`.
+- [x] Skip absent optional members rather than sending nulls, except `state` and `graph`, which are always written: a member whose absence means something other than nothing is a rule a reader has to know.
+- [x] An unrecognised `kind` deserialises to an unreadable value rather than failing the message, so a newer device does not blank an older client's whole report.
+- [x] Replace `DeviceMessage::Identity { hostname, addresses }` with `SystemIdentity { readings }`. Nothing has shipped to the field, so this is a replacement rather than a migration.
+- [x] Add `SystemSample { at, readings }` and `SystemHistory { series }`. History carries numbers rather than whole samples: as samples a five-minute window measured 865 kB and took the connection down.
+- [x] Round-trip tests for every value kind, and a test that an unknown kind survives a round trip through an older reader.
 
 ## Gathering the readings
 
 `crates/bliti/src/facts.rs` currently gathers hostname and addresses for the prototype identity message. It grows into the reading source, and its module docs need rewriting away from the LCD framing.
 
-- [ ] Static readings: `hostname` from the kernel, `board` from `/proc/device-tree/model` plus the `Revision` line of `/proc/cpuinfo`, falling back to DMI vendor/product/version, and `os` from `/etc/os-release`.
-- [ ] `address` readings, one per interface holding an address, grouped as `network`. Keep the existing loopback and link-local filtering.
-- [ ] `cpu` from `/proc/stat` deltas between samples, not a point read.
-- [ ] `memory` from `/proc/meminfo`, using available rather than free.
-- [ ] `disk` one reading per block device. Deduplicate by device before building readings, so `/` and `/var/lib/postgresql` on one `/dev/mapper/root` are one reading.
-- [ ] `temperature` from `thermal_zone0`, with the NVMe hwmon under `detail`, and `limits` from the zone's declared trip points.
-- [ ] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
+- [x] Static readings: `hostname` from the kernel, `board` from `/proc/device-tree/model` plus the `Revision` line of `/proc/cpuinfo`, falling back to DMI vendor/product/version, and `os` from `/etc/os-release`.
+- [x] One `address` reading: the address on the interface holding the default route and the overlay address, IPv4 preferred, with every address and its interface behind the tap. Keeps the loopback and link-local filtering.
+- [x] `cpu` from `/proc/stat` deltas between samples, not a point read.
+- [x] `memory` from `/proc/meminfo`, using available rather than free. On the fast tier, so it sits beside processor use.
+- [x] One `disk` reading: how full the fullest filesystem is, with each behind it. Deduplicated by device, so `/` and `/var/lib/postgresql` on one `/dev/mapper/root` count once. Boot partitions do not set the headline.
+- [x] `temperature` from `thermal_zone0`, with the NVMe hwmon under `detail`, and `limits` from the zone's declared trip points.
+- [x] `throttling` from `hwmon/rpi_volt/in0_lcrit_alarm` for undervoltage and `scaling_cur_freq` against `cpuinfo_max_freq` for frequency capping. The Pi firmware throttle bitmask is not reachable: `vcgencmd` is absent and there is no sysfs node for it.
 - [x] `power-source` from the UPS board's power-loss line on GPIO 6 together with the charge trend, giving three states. Resolve the chip by line name rather than by number: the 40-pin header is `gpiochip0` on this kernel and `gpiochip4` on others, and hardcoding either breaks on the other.
   - GPIO 6 high: external power through the UPS.
   - GPIO 6 low, cell voltage drifting down: on battery.
   - GPIO 6 low, cell voltage static: fed through the Pi's own socket, UPS bypassed. Report `warn`.
 - [x] Key the drift detection on cell voltage from register `0x02`, not on state of charge. Measured below: voltage is unambiguous within twenty to thirty seconds where the charge takes about eighty to move at all.
 - [x] Until the voltage has been watched long enough to tell drifting from static, report on-battery rather than asserting the bypass. Asserting a bypass that is not there would send someone to move a plug that is already right.
-- [ ] `fan` from `hwmon/pwmfan/fan1_input`.
-- [ ] `uptime` from `/proc/uptime`.
-- [ ] `network-in` and `network-out` from `/proc/net/dev` counter deltas, one pair per reported interface, grouped as `network` with `direction` set. Handle counter wrap.
+- [x] `fan` from `hwmon/pwmfan/fan1_input`.
+- [x] `uptime` from `/proc/uptime`.
+- [x] `network-in` and `network-out` from `/proc/net/dev` counter deltas, summed across interfaces into one pair grouped as `network` with `direction` set, each interface behind the tap. Handles counter wrap. Summing is also what leaves exactly two readings in the group, which is what the mirrored graph needs.
 - [x] Battery from the fuel gauge on I2C bus 1 at `0x36`: state of charge from `0x04` as the headline, voltage from `0x02` under `detail`. There is no kernel driver bound and no `upower`, so this is a raw register read. The part is a MAX17040, so VCELL is the top twelve bits at 1.25 mV per step and SOC is the high byte as whole percent with the low byte as the fraction.
 - [x] Battery direction from `power-source`, falling back to the buffered history where no power-source line is present. The `note` says which it came from, and a derived direction is withheld until there is enough history for it to be steady.
 - [x] Battery set to `warn` when external power is reported present while the charge falls steadily. A poor pogo-pin contact between the UPS board and the Pi makes GPIO 6 read as AC-present with the plug out, and that is a documented failure on this board rather than a hypothetical.
-- [ ] A source that is absent omits its reading; a source that is present but fails produces a reading with `error`. These are different paths and both need covering.
+- [x] A source that is absent omits its reading; a source that is present but fails produces a reading with `error`. These are different paths and both need covering.
 
 Sources are Pi-specific where the Pi is what we ship, but every reading needs to degrade to something on a development laptop, because that is where most of the view gets built.
 
 ## Sampling and the buffer
 
-- [ ] A sampler task holding about five minutes at full resolution, oldest discarded first, no coarsening.
-- [ ] Split cadence by volatility: `cpu` and the network readings fast, the rest every few seconds. The device owns this policy and the wire carries no interval.
-- [ ] Start sampling at daemon start and on session open; stop after thirty minutes with no session open.
-- [ ] `at` is milliseconds since boot, monotonic. A field device may have no set clock, so nothing may depend on wall time.
-- [ ] Tests over time: the window bounds, eviction order, that the stop timer fires and that a session restarts it.
+- [x] A sampler task holding about five minutes at full resolution, oldest discarded first, no coarsening.
+- [x] Split cadence by volatility: `cpu`, `memory` and the network readings fast, the rest every few seconds. The device owns this policy and the wire carries no interval.
+- [x] Start sampling at daemon start and on session open; stop after thirty minutes with no session open.
+- [x] `at` is milliseconds since boot, monotonic. A field device may have no set clock, so nothing may depend on wall time.
+- [x] Tests over time: the window bounds, eviction order, that the stop timer fires and that a session restarts it.
 
 ## Serving the topic
 
-- [ ] Handle a `subscribe` for topic `system` in `crates/bliti/src/session.rs`, one task per subscription stream.
-- [ ] Send `system-history` first, then `system-sample` at cadence, until the stream ends.
-- [ ] `system-identity` on the reporting stream after `device-hello`, re-sent when it changes. This replaces the two-second address poll.
-- [ ] Unknown topics are already skipped by the envelope; confirm nothing here changes that.
+- [x] Handle a `subscribe` for topic `system` in `crates/bliti/src/session.rs`, one task per subscription stream.
+- [x] Send the newest value of every reading first, then `system-history`, then `system-sample` at cadence. The readings lead so every tile renders at once and the graphs fill in behind.
+- [x] `system-identity` on the reporting stream after `device-hello`, re-sent when it changes. This replaces the two-second address poll.
+- [x] Unknown topics are already skipped by the envelope; confirm nothing here changes that.
 
 ## Rendering
 
 The view is where the feature is, and it renders from the format rather than from a list of known readings.
 
-- [ ] Generic tile: `label` and headline value on the face, everything else behind the tap.
-- [ ] Value formatting per kind, including an unreadable kind falling back to the label alone.
-- [ ] `state` colours the face and adds no element to it.
-- [ ] Group readings sharing `group` into one tile. A client that ignored `group` would show several tiles and still be correct, so this is an improvement rather than a requirement.
-- [ ] Bars only where there is a scale: a `fraction`, or a `quantity` carrying `max`. Draw `limits` as marks.
-- [ ] Hold history from `system-history` and extend it with each sample. Spacing comes from `at`, not from sample count.
-- [ ] Mirrored graph for two grouped readings with opposed `direction`, each side scaled to its own peak with the peak stated.
-- [ ] Hand-rolled SVG. No charting dependency.
-- [ ] Readings carrying `error` shown as failing with the reason, distinct from a reading that never arrived.
+- [x] Generic tile: `label` and headline value on the face, everything else behind the tap.
+- [x] Value formatting per kind, including an unreadable kind falling back to the label alone.
+- [x] `state` colours the face and adds no element to it.
+- [x] Group readings sharing `group` into one tile. A client that ignored `group` would show several tiles and still be correct, so this is an improvement rather than a requirement.
+- [x] Bars only where there is a scale: a `fraction`, or a `quantity` carrying `max`. Draw `limits` as marks.
+- [x] Hold history from `system-history` and extend it with each sample. Spacing comes from `at`, not from sample count.
+- [x] Mirrored graph for two grouped readings with opposed `direction`, each side scaled to its own peak with the peak stated.
+- [x] Hand-rolled SVG. No charting dependency.
+- [x] Readings carrying `error` shown as failing with the reason, distinct from a reading that never arrived.
 
 ## Recognised readings
 
@@ -146,3 +146,9 @@ I2C and the GPIO line are read through the kernel's character devices directly, 
 This needed the workspace's `unsafe_code = "forbid"` lifted. It came from bestool, where nothing talks to hardware; a daemon that reads a fuel gauge and a GPIO line cannot hold it. Every unsafe block carries a SAFETY comment naming the opcode and the struct the kernel expects.
 
 The GPIO line is found by name rather than by number, and on this hardware that is not a nicety: line 6 of the pin header is `GPIO6`, while line 6 of the internal chip is `SD_FLG_N`. A hardcoded chip number reads a different pin on a kernel that numbers the chips differently.
+
+## What is still open
+
+- The no-UPS case above: the path exists and is how a development laptop behaves, but nothing asserts it.
+- The test cases at `.workhorse/test-cases/d1/overview.md` have not been reconciled against what the tests now cover. Much of it is covered; ticking it needs a pass that checks each case against a named test rather than a guess.
+- v3's power-loss line is unverified and is F1. On v3 the gauge answers but GPIO 6 is an assumption, so the bypass detection there is not to be trusted until someone reads the pin on real hardware.
