@@ -110,11 +110,29 @@ Resolved against the implementation:
 - The chunk ceiling is the negotiated ATT_MTU less the three-byte ATT header, not the ATT_MTU itself. `gatt.rs` uses a fixed 20 bytes, which is the minimum ATT_MTU of 23 less that header.
 - The client transmit characteristic accepts both a write and a write without response (`device.rs`), which the spec had never mentioned in either form.
 
+Resolved by decision:
+
+- Send rate is now a notification ceiling alone. The byte ceiling was redundant: 200 notifications at the 512-byte maximum payload works out to the same 100 KiB, and it is the notification count that overruns a controller. 200 is conservative and could be raised; measuring it against the test device is separate work.
+- The transport length prefix is two bytes rather than four. A Noise message maxes at 65535, which two bytes express exactly, so an over-length claim becomes unrepresentable and the rule refusing one disappears. This also dissolved the question of how to refuse one below yamux, where there is no stream to close.
+
+### The two framing layers are one implementation
+
+Making the prefix two bytes exposed that `write_message` and `read_message` in `stream.rs` serve both layers at once: the Noise handshake framing of BLI-CHN, and the application message framing of BLI-MSG inside yamux streams. `messages.md` warns in prose that these are different things and that conflating them reads nonsense; the code conflates them.
+
+Two consequences today, before any change:
+
+- Handshake messages are bounded by MAX_MESSAGE (128 KiB, BLI-MSG's ceiling) rather than by 65535. The bound that applies before a peer has authenticated is twice what BLI-CHN specifies.
+- `write_message` frames with the transport helper while `read_message` applies the application ceiling, so the write and read sides are governed by different specs.
+
+Separating them is the prerequisite for the two-byte prefix reaching the code. The transport layer takes the two-byte prefix and the 65535 bound; the application layer keeps a four-byte prefix and its 128 KiB bound. Differing widths also make the two structurally distinguishable, which removes the hazard `messages.md` had to warn about in prose.
+
+A check enforcing a deliberate product ceiling, as the 128 KiB one does, is legitimate. A check enforcing a limit the field could have expressed structurally, as the 65535 one did, is the smell.
+
+Spawned as **Q1**. Until it lands, `channel.md` specifies a two-byte prefix and `framing.rs` still writes four, which is a deliberate and recorded divergence. Measuring the notification ceiling is **R1**.
+
 Open:
 
-- Send rate: 100 KiB across 200 notifications implies about 512 bytes each, which only holds when the negotiated ATT_MTU is that large. On a smaller MTU the notification ceiling binds first. Restate against the negotiated size?
 - If write without response is the intended fast path, the spec should say so rather than permitting both equally.
-- Rejecting an over-length Noise length prefix happens below yamux, so there is no stream to close. Abort the connection?
 - The security properties in `channel.md`'s authentication note overlap BLI's "Where the guarantees stop". Decide one home.
 - BLI-ADV depends on the 31-byte legacy advertising budget. Whether that is a floor a device must fit, or a consequence of targeting legacy controllers, is not stated.
 

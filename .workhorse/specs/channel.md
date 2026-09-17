@@ -35,12 +35,11 @@ The handshake gives the session forward secrecy.
 
 ## Send rate
 
-A device MUST NOT send more than 100 KiB in any one-second window.
 A device MUST NOT send more than 200 notifications in any one-second window.
 
 > [!NOTE]
-> The link is shared with everything else the session is doing, including the client's own writes.
-> A device with a backlog clears it more slowly rather than taking the connection down: a slow reading beats a dropped session.
+> The ceiling counts notifications rather than bytes because it is the count that overruns a controller's buffers, and overrunning them takes the connection down rather than slowing it.
+> A device with a backlog therefore clears it more slowly, because a slow reading beats a dropped session.
 
 ## Transport
 
@@ -58,12 +57,12 @@ Each direction is a stream of bytes.
 The sender MUST chunk it into writes or notifications whose payload is at most the negotiated ATT_MTU less the three-byte ATT header.
 The receiver MUST concatenate what arrives in the order it arrives and read messages out of the result; a chunk boundary is not a message boundary.
 
-Within that byte stream, each Noise message, handshake or transport, MUST be prefixed with its length as four bytes, big-endian, giving the number of bytes that follow.
+Within that byte stream, each Noise message, handshake or transport, MUST be prefixed with its length as two bytes, big-endian, giving the number of bytes that follow.
 A Noise message is at most 65535 bytes, including its 16-byte authentication tag.
-A receiver MUST reject a length prefix claiming more than 65535 bytes rather than buffering against it.
 
 > [!NOTE]
-> The length prefix is what lets a message exceed the negotiated ATT_MTU.
+> A two-byte prefix expresses exactly the range a Noise message can occupy, so a receiver cannot be asked to buffer more than the maximum and needs no rule refusing one.
+> The prefix is also what lets a message exceed the negotiated ATT_MTU.
 
 ## The device is a peripheral only
 
