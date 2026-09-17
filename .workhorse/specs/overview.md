@@ -26,20 +26,15 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 The identifier a board's own firmware provides.
 Defined in [BLI-BID](board-id.md).
 
-### Presence secret
+### Presence token
 
-The secret derived from the board ID and encoded in the device's QR code.
+The credential carried in a device's QR code.
 Defined in [BLI-KEY](key-schedule.md).
 
 ### Advertised handle
 
-The value a device broadcasts so that a client holding its presence secret can recognise it.
+The value a device broadcasts.
 Defined in [BLI-KEY](key-schedule.md).
-
-### QR code
-
-The machine-readable code carried on the outside of a device, encoding the presence secret and the version marker.
-Defined in [BLI-STK](sticker.md).
 
 ### Version marker
 

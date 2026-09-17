@@ -4,12 +4,12 @@ id: BLI-STK
 
 # Sticker
 
-The sticker is printed and fixed to the outside of a device's enclosure, and carries the sticker secret of [BLI-KEY](key-schedule.md) in a QR code.
+The sticker is printed and fixed to the outside of a device's enclosure, and carries the presence token of [BLI-KEY](key-schedule.md) in a QR code.
 It is the credential: scanning it is what lets a client recognise and authenticate to that device.
 
 ## Payload
 
-The QR payload carries the sticker secret and the version marker, and nothing else.
+The QR payload carries the presence token and the version marker, and nothing else.
 
 The board ID is not carried alongside the secret.
 Putting it there would hand the board ID to anyone who photographs a sticker, which is the property the derivation exists to provide.

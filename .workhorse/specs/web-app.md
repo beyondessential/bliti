@@ -31,10 +31,10 @@ Where the browser offers a chooser rather than the advertisements themselves, th
 
 ## Opening the channel
 
-The application runs the handshake of [BLI-CHN](channel.md) with the sticker secret, and carries messages over the channel that handshake establishes.
+The application runs the handshake of [BLI-CHN](channel.md) with the presence token, and carries messages over the channel that handshake establishes.
 
 The application computes the handle, which is a fast hash, and does not run the memory-hard derivation of [BLI-KEY](key-schedule.md).
-The sticker secret is read from the payload rather than derived, so nothing in the client needs the argon2id parameters or the memory they ask for.
+The presence token is read from the payload rather than derived, so nothing in the client needs the argon2id parameters or the memory they ask for.
 
 Within the channel the application exchanges messages under the envelope of [BLI-MSG](messages.md): it names itself to the device and displays the version the device reports, subscribes to live data only while the operator is looking, and skips anything it does not recognise.
 

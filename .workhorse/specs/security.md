@@ -4,7 +4,7 @@ id: SEC
 
 # Security properties
 
-The [presence secret](overview.md#presence-secret) is the only credential in the system.
+The [presence token](overview.md#presence-token) is the only credential in the system.
 Reading the QR code on a device is what yields it, and holding it is what authenticates.
 
 Each property below names the mechanism that upholds it. The requirements are in those specs; what is stated here is what they add up to.
@@ -19,19 +19,19 @@ Upheld by the handle derivation of [BLI-KEY](key-schedule.md) and the matching o
 
 ### The link reveals neither the secret nor the session
 
-A listener on the BLE link learns neither the presence secret nor the contents of a session.
+A listener on the BLE link learns neither the presence token nor the contents of a session.
 
 Upheld by the handshake of [BLI-CHN](channel.md), which sends the secret in neither direction and encrypts everything after itself.
 
 ### A recorded advertisement is not a session
 
-An attacker who records or replays an advertisement obtains no session from it, because completing the handshake requires the presence secret.
+An attacker who records or replays an advertisement obtains no session from it, because completing the handshake requires the presence token.
 
 Upheld by [BLI-CHN](channel.md).
 
 ### A recovered secret does not open past sessions
 
-Recovering a presence secret does not decrypt a session recorded before it was recovered.
+Recovering a presence token does not decrypt a session recorded before it was recovered.
 
 Upheld by the forward secrecy of the handshake in [BLI-CHN](channel.md).
 
@@ -51,7 +51,7 @@ Upheld by the handle derivation of [BLI-KEY](key-schedule.md) and the rotation o
 ### Compromising one device tells nothing about another
 
 There is no fleet key and no authoritative per-device record.
-Each device's presence secret derives from its own board ID alone, so recovering one device's secret, or its board ID, yields nothing about any other device.
+Each device's presence token derives from its own board ID alone, so recovering one device's secret, or its board ID, yields nothing about any other device.
 
 Upheld by the derivation of [BLI-KEY](key-schedule.md).
 
@@ -59,7 +59,7 @@ Upheld by the derivation of [BLI-KEY](key-schedule.md).
 
 ### The QR code is the credential
 
-Anyone who has had access to a device, or who otherwise knows its board ID, can derive its presence secret, and can then both impersonate the device and connect to it.
+Anyone who has had access to a device, or who otherwise knows its board ID, can derive its presence token, and can then both impersonate the device and connect to it.
 The same is true of anyone holding a photograph of the QR code.
 
 ### A device's presence is not hidden
@@ -83,4 +83,4 @@ For boards whose only identifier is a short serial number that margin is narrow,
 
 A device's board ID is not verified directly and cannot be, because it is absent from the QR payload and the derivation does not run backwards.
 
-Possession of the presence secret is what a handshake proves, and it is equivalent for the purpose, because deriving the secret requires the board ID.
+Possession of the presence token is what a handshake proves, and it is equivalent for the purpose, because deriving the secret requires the board ID.

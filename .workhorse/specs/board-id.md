@@ -5,7 +5,7 @@ id: BLI-BID
 # Board ID
 
 The board ID is the firmware-provided identifier that every other value in [BLI](overview.md) descends from.
-Its job is to make the sticker secret reproducible: the same sticker can be regenerated from the board alone, with no per-device database to keep in sync.
+Its job is to make the presence token reproducible: the same sticker can be regenerated from the board alone, with no per-device database to keep in sync.
 
 The board ID is not a secret.
 Any software on the device can read it.

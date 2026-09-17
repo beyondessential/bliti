@@ -21,14 +21,14 @@ Once a client has matched a device by its [advertised handle](overview.md#advert
 
 Client and device MUST run a Noise `NNpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
 The Noise protocol name MUST be `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`.
-The pre-shared key MUST be the 32-byte [presence secret](overview.md#presence-secret), at PSK position zero, used exactly as [BLI-KEY](key-schedule.md) produces it with no further derivation.
+The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [BLI-KEY](key-schedule.md) produces it with no further derivation.
 
 The handshake gives the session forward secrecy.
 
 The security properties this upholds, and their limits, are specified in [SEC](security.md).
 
 > [!NOTE]
-> Both ends bring only ephemeral keys, so completing the handshake proves in both directions that each end holds the presence secret, which is what "this is the device whose QR code I scanned" and "you scanned my QR code" both reduce to.
+> Both ends bring only ephemeral keys, so completing the handshake proves in both directions that each end holds the presence token, which is what "this is the device whose QR code I scanned" and "you scanned my QR code" both reduce to.
 
 ## Send rate
 

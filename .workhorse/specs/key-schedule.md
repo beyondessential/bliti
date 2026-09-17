@@ -4,15 +4,15 @@ id: BLI-KEY
 
 # Key schedule
 
-Two derivations take the board ID of [BLI-BID](board-id.md) to the values [BLI](overview.md) depends on: the sticker secret printed in the QR code, and the advertised handle broadcast over BLE.
+Two derivations take the board ID of [BLI-BID](board-id.md) to the values [BLI](overview.md) depends on: the presence token printed in the QR code, and the advertised handle broadcast over BLE.
 
 Both derivation constants are public.
 They are compiled into the device, the sticker generator, and every client, and publishing them weakens nothing, because neither derivation runs backwards.
 What the constants provide is domain separation, so that a value from one step is not a valid value at another.
 
-## Sticker secret
+## Presence token
 
-The sticker secret is derived from the board ID with argon2id, under a fixed constant, producing a 32-byte value.
+The presence token is derived from the board ID with argon2id, under a fixed constant, producing a 32-byte value.
 
 The derivation uses 2 GiB of memory, a single pass, and two lanes.
 These parameters are part of the derivation rather than a tuning choice: changing any of them produces a different secret and orphans every sticker already printed under the old ones.
@@ -35,7 +35,7 @@ Lengths are fixed per kind of source, so the tag leaves the input unambiguous wi
 
 ### What the cost achieves
 
-The derivation cost is what stands between a public constant and an attacker enumerating the board ID space offline, computing every sticker secret and handle and matching them against advertisements.
+The derivation cost is what stands between a public constant and an attacker enumerating the board ID space offline, computing every presence token and handle and matching them against advertisements.
 
 For a board whose board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, the space is large enough that no derivation cost is load-bearing, and the cost is depth rather than the thing holding the scheme up.
 
@@ -46,7 +46,7 @@ Those boards carry the weaker guarantee described in [BLI](overview.md).
 
 ### Deriving on the device
 
-The device derives its own sticker secret, which is what makes the chain reproducible from the board everywhere rather than only on large machines.
+The device derives its own presence token, which is what makes the chain reproducible from the board everywhere rather than only on large machines.
 
 The derivation is paid once and cached, rather than repeated at each start.
 
@@ -63,7 +63,7 @@ The device therefore establishes that there is room before beginning, and report
 
 ## Advertised handle
 
-The advertised handle is derived from the sticker secret and the current rotation salt with a fast keyed hash, under a second fixed constant, and truncated to eight bytes for advertising.
+The advertised handle is derived from the presence token and the current rotation salt with a fast keyed hash, under a second fixed constant, and truncated to eight bytes for advertising.
 
 This derivation is deliberately cheap.
 A client recomputes it for every advertisement it hears, against every sticker it holds, so a memory-hard function here would be felt during scanning.
