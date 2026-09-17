@@ -6,15 +6,17 @@ status: draft
 
 The first real bliti-web feature: a diagnostics view surfacing device health and system data (board, OS, resource gauges, battery, uptime, network), which also settles bliti-web's architecture and RPC framing as the template for all future features.
 
-## This card is the feature; the framework is split off
+## This card is the feature; the framework has landed
 
-The client framework is a separate card, drafted in `.workhorse/breakdowns/d1/breakdown.md`. It lands first and this card rebases onto it.
+The client framework was split off as E1 and has merged. This card sits on top of it already.
 
-What goes with it: removing the prototype, the React and Vite rebuild, the installable offline application, local serving, CI, the Playwright harness, and the part of the wire contract every future feature inherits regardless of shape — version exchange, skipping unknowns, and the subscribe and unsubscribe lifecycle.
+What E1 left to build on: the envelope spec at `.workhorse/specs/messages.md` (BLI-MSG), the React and Vite client at `crates/bliti-web/app`, page visibility already driving subscribe and unsubscribe, and a message-layer Playwright harness at `crates/bliti-web/app/tests/fake-client.js` that this card's view tests extend rather than replace.
+
+What went with it: removing the prototype, the React and Vite rebuild, the installable offline application, local serving, CI, the Playwright harness, and the part of the wire contract every future feature inherits regardless of shape — version exchange, skipping unknowns, and the subscribe and unsubscribe lifecycle.
 
 What stays here: the self-describing reading format, every reading, and the view. The reading format stays with the feature because it is a display convention, and the features after this one pair display with an action rather than being displays, so they do not carry the same trade-offs and should not be pre-empted by a format designed for this one.
 
-The reasoning behind the framework decisions is kept below rather than moved out, because this is where it was worked out. The framework card executes it; this doc records why.
+The reasoning behind the framework decisions is kept below rather than moved out, because this is where it was worked out. E1 executed it; this doc records why.
 
 ## Audience and intent
 
@@ -159,7 +161,7 @@ Neither end changes its behaviour based on what the other reported. The exchange
 
 ## Implementation options
 
-Everything under this heading is executed by the framework card, not by this one. It is recorded here because this is the conversation that settled it.
+Everything under this heading was executed by E1, not by this card. It is recorded here because this is the conversation that settled it.
 
 ### The application is served remotely and installable
 
@@ -244,7 +246,7 @@ None outstanding. Every decision the interview opened has been closed; what rema
 ## Notes for the split
 
 - Behaviour folds into specs for this card. The self-describing reading format goes with it.
-- The envelope half of the wire contract — version skew, skipping unknowns, push and subscribe — is the framework card's to spec, and is the template every later feature is framed in. It sits alongside `.workhorse/specs/channel.md`, which already owns the layers beneath it, rather than inside a diagnostics spec.
+- The envelope half of the wire contract — version skew, skipping unknowns, push and subscribe — is already specified as BLI-MSG in `.workhorse/specs/messages.md`. This card's spec inherits it and adds only the reading format and the readings themselves.
 - The client half of the feature belongs under its own heading, per the rule at the end of `.workhorse/specs/web-app.md`.
-- This card's plan covers the readings, the ring buffer, and the view. The framework decisions above belong to the other card's plan.
-- Testing notes split across both cards: the harness itself is the framework card's, the scenarios below are this card's.
+- This card's plan covers the readings, the ring buffer, and the view.
+- The harness exists; the scenarios below are this card's to add to it.
