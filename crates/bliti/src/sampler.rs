@@ -357,7 +357,10 @@ mod tests {
 
 		let latest = sampler.latest().expect("something was sampled");
 		let names: Vec<&str> = latest.readings.iter().map(|r| r.name.as_str()).collect();
-		assert!(names.contains(&"cpu"), "{names:?}");
+		// Taken on the fast tier. Memory rather than processor use, because time is paused here: the
+		// ticks pass in virtual time, so the kernel's jiffy counters need not have advanced between
+		// two samples, and processor use correctly reports nothing when they have not.
+		assert!(names.contains(&"memory"), "{names:?}");
 		// Taken on the slow tier, so a newest-sample-only answer would usually miss it.
 		assert!(
 			names.iter().any(|name| name.starts_with("uptime")),
