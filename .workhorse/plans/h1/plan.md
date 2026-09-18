@@ -90,6 +90,20 @@ The first round asked for the prefix and body to go out as two writes rather tha
 
 19 bytes over 300 messages, 0.06 bytes each, against about 26 bytes per message on the wire. The repeated header is what the shared context back-references away, and notifications are chunked from the compressed byte stream rather than per yamux frame, so the notification budget does not notice either. No threshold: a size branch on the write path is not worth 0.2% of the link.
 
+## Third review round
+
+`poll_close` recorded itself as finished whether or not the deflate stream had actually ended, and `drive_compress`'s "all input taken with room to spare" exit fires on the first call of a `Finish`, whose input is empty. No path through `miniz_oxide` was found that returns `Ok` short of `StreamEnd` there, so this was latent rather than live, but the cost of it had risen: since the truncation change, a missing tail is read at the far end as a fault. `drive_compress` now reports whether the stream ended, a finish keeps going while it is making progress, and a close that cannot finish fails instead of sending a stream with no end and calling it done.
+
+`frame()` is gone. `NoiseStream` was its only caller, and it now puts the prefix and the ciphertext into the backlog directly, which drops a per-message allocation and a full copy of the ciphertext and reuses the buffer the drain just emptied. With the caller gone, `frame` had no non-test use and its const-generic width was pinning a path nothing reached.
+
+`Reassembler` is fixed at the transport width for the same reason: it exists because GATT delivers a Noise message in attribute-sized chunks, and above the handshake yamux delivers a stream's bytes in order for `read_delimited` to read straight off. The width pairing stays where two layers genuinely instantiate it, on `read_delimited`/`write_delimited`.
+
+`WriteBacklog` moved to `channel/write_backlog.rs`. It is a partial-write resume buffer with nothing to do with length prefixes, and having it in `framing` made `compress` depend on `framing` for something unrelated to framing. Its `replace` went with the move: it guarded "only when drained" with a debug assertion, which in a release build would have dropped a partially sent Noise frame and desynchronised the link. Nothing replaces now, so there is no precondition to guard.
+
+`encode_prefix` returns `io::Result` rather than `Option`, so the width error is constructed once rather than at each call site.
+
+`read_delimited` reads for the whole prefix instead of the first byte alone. The first-byte read told an absent prefix from an abandoned one, but at the cost of a second pass down the stack per message, and reading for all of it distinguishes the two just as well.
+
 ## Steps
 
 - [x] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
@@ -104,6 +118,8 @@ The first round asked for the prefix and body to go out as two writes rather tha
 - [x] Carry a `ChannelError` through both layers so a fault is classified by type rather than by error kind, and report a truncated stream rather than reading it as a clean end (see above).
 - [x] Record the end of an inflate stream from the status rather than from output running out, and pin the backend behaviour a late flag was relying on (see above).
 - [x] Pair each framing layer's width by type, read a message body in place, and tell an abandoned prefix from an absent one (see above).
+- [x] Finish the deflate stream before recording a close as finished, and fail the close rather than leaving the tail unwritten (see above).
+- [x] Drop `frame()`, fix `Reassembler` at the transport width, and move `WriteBacklog` to its own module (see above).
 
 ## Measurement
 

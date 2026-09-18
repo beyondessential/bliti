@@ -26,6 +26,9 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 - [x] A decompressor waiting for the rest of a block returns pending rather than zero, so a partial block is not read as end of stream.
 - [x] A peer that closes its side properly reads as a clean end of stream, and the same end however often it is asked for. The call that completes the zlib stream carries output with it, so the end is recorded from the status rather than from output running out. Verifies spec: CHN
 - [x] A message whose length prefix, or whose body, stops short of what the peer began reads as a truncation rather than a complete exchange. A stream that never began a message is an ordinary ending. Verifies spec: MSG
+- [x] A close that could not bring the deflate stream to its end fails rather than recording itself as finished, since the peer would read the missing tail as a truncation.
+- [x] A write after close is a closed pipe, distinct from the write path's unreachable-invariant error.
+- [x] A backlog drains in order across a transport that accepts a few bytes per call, and a transport that accepts nothing fails the write rather than spinning.
 
 ## Message framing
 

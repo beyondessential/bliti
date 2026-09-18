@@ -38,10 +38,11 @@ pub use yamux::{ConnectionError, Mode, Stream};
 /// range, or a device restarting, ends the connection just as surely and is nobody's fault.
 ///
 /// The two are told apart by the error a layer of this channel attached, not by its kind: both layers
-/// carry a [`ChannelError`] inside the `io::Error` they produce, so a fault is what the chain of
-/// causes holds one of. An ordinary ending carries none, and neither does an unrelated transport
-/// failure that happens to report the same kind. yamux wraps a read failure as a decode error rather
-/// than an I/O one, so the whole chain is walked rather than the outermost variant matched.
+/// carry a [`ChannelError`] inside the `io::Error` they produce when what the peer sent cannot be
+/// read, so a fault is what the chain of causes holds one of. An ordinary ending carries none, and
+/// neither does an unrelated transport failure that happens to report the same kind, nor this end's
+/// own compressor or cipher failing on the way out. yamux wraps a read failure as a decode error
+/// rather than an I/O one, so the whole chain is walked rather than the outermost variant matched.
 pub fn is_peer_fault(err: &ConnectionError) -> bool {
 	let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(err);
 	while let Some(err) = cause {
@@ -60,10 +61,11 @@ use super::{
 	ChannelError,
 	compress::CompressStream,
 	framing::{
-		MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, WriteBacklog, frame, read_delimited,
+		MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, encode_prefix, read_delimited,
 		write_delimited,
 	},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
+	write_backlog::WriteBacklog,
 };
 use crate::key_schedule::PresenceToken;
 
@@ -82,7 +84,7 @@ fn to_io(err: ChannelError) -> io::Error {
 pub struct NoiseStream<S> {
 	inner: S,
 	transport: Transport,
-	reassembler: Reassembler<TRANSPORT_PREFIX>,
+	reassembler: Reassembler,
 	read_plain: Vec<u8>,
 	read_consumed: usize,
 	read_chunk: Box<[u8]>,
@@ -118,7 +120,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for NoiseStream<S> {
 		std::task::ready!(this.write.poll_drain(&mut this.inner, cx))?;
 		let chunk = &buf[..buf.len().min(MAX_PLAINTEXT)];
 		let ciphertext = this.transport.encrypt(chunk).map_err(to_io)?;
-		this.write.replace(frame::<TRANSPORT_PREFIX>(&ciphertext)?);
+		// Prefix then ciphertext into the backlog the drain above just emptied, rather than a fresh
+		// buffer holding a copy of both: the backlog keeps its allocation, so a connection settles on
+		// one per direction instead of one per Noise message.
+		this.write
+			.extend(&encode_prefix::<TRANSPORT_PREFIX>(ciphertext.len())?);
+		this.write.extend(&ciphertext);
 		// Best-effort flush; anything left is drained on the next call or on flush.
 		let _ = this.write.poll_drain(&mut this.inner, cx)?;
 		Poll::Ready(Ok(chunk.len()))

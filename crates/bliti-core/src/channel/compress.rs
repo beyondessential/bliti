@@ -13,6 +13,10 @@
 //! fault from an ordinary ending. It tears the whole connection down rather than one stream, because
 //! the context is shared by every stream and is unrecoverable once it has diverged.
 //!
+//! Only the read direction carries that marker. A deflate context failing is this end's own compressor
+//! failing, which is neither the peer's doing nor an ending, so a write-path failure surfaces as a
+//! plain I/O error and is not classified as a fault in anybody.
+//!
 //! Three rules of the pipeline are load-bearing, and each is a way to deadlock or leak a connection:
 //!
 //! - A read drains the decompressor before it pulls from the transport. The decompressor holds output
@@ -41,7 +45,10 @@ use std::{
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use futures::{AsyncRead, AsyncWrite};
 
-use super::{ChannelError, framing::WriteBacklog};
+use super::{ChannelError, write_backlog::WriteBacklog};
+
+/// Whether a compressor call brought the deflate stream to its end.
+type StreamEnded = bool;
 
 /// The scratch buffer size for both directions: how much compressed output is produced per compressor
 /// call, and how much is pulled off the inner transport per read.
@@ -102,13 +109,18 @@ impl<T> CompressStream<T> {
 
 impl<T> CompressStream<T> {
 	/// Run `input` through the deflate context with `flush`, appending all produced bytes to the
-	/// backlog, and return how many bytes of `input` were consumed.
+	/// backlog. Returns how many bytes of `input` were consumed, and whether the stream ended.
 	///
 	/// Deflate writes into a scratch buffer that lasts as long as the stream, and only what it produced
 	/// is appended. Growing the backlog by a chunk and truncating instead would zero-fill the whole
 	/// chunk on every call, which is every write and every flush that has something to say: on a device
 	/// that is a chunk-sized memset to carry a yamux frame header.
-	fn drive_compress(&mut self, input: &[u8], flush: FlushCompress) -> io::Result<usize> {
+	fn drive_compress(
+		&mut self,
+		input: &[u8],
+		flush: FlushCompress,
+	) -> io::Result<(usize, StreamEnded)> {
+		let finishing = matches!(flush, FlushCompress::Finish);
 		let mut offset = 0;
 		loop {
 			let before_in = self.compress.total_in();
@@ -122,19 +134,23 @@ impl<T> CompressStream<T> {
 			self.out.extend(&self.out_chunk[..wrote]);
 			offset += read;
 
-			match status {
-				Status::StreamEnd => break,
-				_ => {
-					let filled = wrote == CHUNK;
-					// All input taken and the compressor had room to spare, so it has emitted everything it
-					// will for this call; or it made no progress at all, which a redundant flush does.
-					if (offset >= input.len() && !filled) || (read == 0 && wrote == 0) {
-						break;
-					}
-				}
+			if let Status::StreamEnd = status {
+				return Ok((offset, true));
+			}
+			// No progress at all, so nothing more is coming however long it is asked for: a redundant
+			// flush does this, and so would a compressor that could not complete what it was told to.
+			if read == 0 && wrote == 0 {
+				return Ok((offset, false));
+			}
+			// A finish is not done until the stream has ended, so it goes round again while there is
+			// progress to be had. Anything else is done once all the input has been taken and the
+			// compressor had output room to spare, which is what says it emitted everything it will for
+			// this call. Going round once more to hear that from a call with nothing to do would cost one
+			// compressor call per write, on the busiest path there is.
+			if !finishing && offset >= input.len() && wrote < CHUNK {
+				return Ok((offset, false));
 			}
 		}
-		Ok(offset)
 	}
 }
 
@@ -148,9 +164,14 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		if buf.is_empty() {
 			return Poll::Ready(Ok(0));
 		}
+		if this.finished {
+			// The deflate stream is terminated and cannot carry anything more. Said as the closed pipe
+			// it is, so the unreachable-invariant error below stays about the case it documents.
+			return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()));
+		}
 		// Clear any backlog first, so a burst cannot grow it without bound.
 		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
-		let consumed = this.drive_compress(buf, FlushCompress::None)?;
+		let (consumed, _) = this.drive_compress(buf, FlushCompress::None)?;
 		if consumed == 0 {
 			// Unreachable: deflate takes input whenever it has room, and it is given a fresh chunk of it
 			// every call. Said plainly rather than as `Ok(0)`, which callers read as a refusal to write.
@@ -180,9 +201,17 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 	fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
 		let this = self.get_mut();
 		if !this.finished {
+			// Only once the stream has actually ended: the peer reads a transport that ends before the
+			// stream does as a truncation, so a close that left the tail unwritten and recorded itself as
+			// finished would turn a graceful shutdown into a fault reported at the other end.
+			let (_, ended) = this.drive_compress(&[], FlushCompress::Finish)?;
+			if !ended {
+				return Poll::Ready(Err(io::Error::other(
+					"the compressor did not finish the stream",
+				)));
+			}
 			// Finishing emits everything outstanding, so there is nothing left for a later sync flush to
 			// make readable, and running one against a finished compressor would be an error at best.
-			this.drive_compress(&[], FlushCompress::Finish)?;
 			this.finished = true;
 			this.dirty = false;
 		}
@@ -435,6 +464,21 @@ mod tests {
 		// And the end is the same end however often it is asked for.
 		let mut buf = [0u8; 8];
 		assert_eq!(rx.read(&mut buf).await.unwrap(), 0);
+	}
+
+	/// A write after the stream has been closed is a closed pipe. The deflate context is terminated and
+	/// would take no input, which the write path must not report as the unreachable invariant it keeps
+	/// its other error for.
+	#[tokio::test]
+	async fn a_write_after_close_is_a_closed_pipe() {
+		let (mut tx, _rx) = pair();
+		tx.write_all(b"the last thing said").await.unwrap();
+		tx.close().await.unwrap();
+
+		let err = tx.write_all(b"and one more").await.unwrap_err();
+		assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+		// And a flush after close has nothing to make readable, so it is not an error.
+		tx.flush().await.unwrap();
 	}
 
 	/// A transport that ends before the zlib stream does is an error, not a clean end of stream. The

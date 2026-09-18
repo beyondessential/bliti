@@ -24,6 +24,7 @@ pub mod messages;
 pub mod noise;
 pub mod readings;
 pub mod stream;
+pub mod write_backlog;
 
 /// A failure in the channel below the application layer.
 #[derive(Debug, thiserror::Error)]
