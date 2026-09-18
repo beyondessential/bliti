@@ -29,6 +29,7 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 - [x] A close that could not bring the deflate stream to its end fails rather than recording itself as finished, since the peer would read the missing tail as a truncation.
 - [x] A write after close is a closed pipe, distinct from the write path's unreachable-invariant error.
 - [x] A backlog drains in order across a transport that accepts a few bytes per call, and a transport that accepts nothing fails the write rather than spinning.
+- [x] A deliberate teardown closes the connection rather than dropping it, so the far end reads the clean ending it is and the operator is not told of a fault that did not happen. Verifies spec: CHN
 
 ## Message framing
 

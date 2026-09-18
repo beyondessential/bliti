@@ -104,6 +104,34 @@ The first round asked for the prefix and body to go out as two writes rather tha
 
 `read_delimited` reads for the whole prefix instead of the first byte alone. The first-byte read told an absent prefix from an abandoned one, but at the cost of a second pass down the stack per message, and reading for all of it distinguishes the two just as well.
 
+## Fourth review round
+
+Making a truncated stream an error changed what the device's own teardown means, and the teardown was
+a `driving.abort()`. Aborting drops the yamux connection without polling its close, so the deflate
+stream was never finished and the client read the device's deliberate shutdown as a truncation, which
+its `on_channel_closed` reported as a failure string. The clean path was unreachable in production:
+only the unit test for it ever took it.
+
+The driver now closes the connection when its handle is dropped. Nothing can open or accept a stream
+without the handle, so the handle going is the signal that the connection has no further purpose, and
+taking it from the drop means no teardown path can forget to close. yamux's own close sends its term
+frame and then closes the socket, which reaches the compressor as the finish. `session::run` drops the
+handle and waits on the driver, bounded at 500 ms: the device asks to go back on the air only once
+`run` returns, so a client that has already vanished must not hold it off (ADV). Falling through the
+bound costs only the clean ending, which the client reports as an ending either way.
+
+`dropping_the_handle_closes_the_connection_cleanly` holds both ends' drivers and asserts neither ends
+with an error. Both streams stay open through the teardown on purpose: a stream dropped at the same
+moment queues a reset, and whether that reset makes it out before the transport goes is a race that
+says nothing about how a close is read. It surfaced as a `BrokenPipe` on the client's write while the
+test was being written, which is worth knowing is possible but is an ordinary ending, not a fault.
+
+`drive_compress` split into `compress_input` and `flush_compress`, each returning what one caller
+wants, over a `deflate` that makes one compressor call. The `type StreamEnded = bool` alias is gone: it
+gave no safety a bare bool did not. The finish special case went with the split rather than moving
+into it, because a flush with output room to spare has emitted everything it had whatever it was asked
+to do, and for a finish that means the stream could not be completed.
+
 ## Steps
 
 - [x] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
@@ -120,6 +148,7 @@ The first round asked for the prefix and body to go out as two writes rather tha
 - [x] Pair each framing layer's width by type, read a message body in place, and tell an abandoned prefix from an absent one (see above).
 - [x] Finish the deflate stream before recording a close as finished, and fail the close rather than leaving the tail unwritten (see above).
 - [x] Drop `frame()`, fix `Reassembler` at the transport width, and move `WriteBacklog` to its own module (see above).
+- [x] Close the connection on a deliberate teardown rather than aborting the driver, so the far end reads the clean ending it is (see above).
 
 ## Measurement
 

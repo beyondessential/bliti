@@ -47,9 +47,6 @@ use futures::{AsyncRead, AsyncWrite};
 
 use super::{ChannelError, write_backlog::WriteBacklog};
 
-/// Whether a compressor call brought the deflate stream to its end.
-type StreamEnded = bool;
-
 /// The scratch buffer size for both directions: how much compressed output is produced per compressor
 /// call, and how much is pulled off the inner transport per read.
 const CHUNK: usize = 8192;
@@ -108,47 +105,60 @@ impl<T> CompressStream<T> {
 }
 
 impl<T> CompressStream<T> {
-	/// Run `input` through the deflate context with `flush`, appending all produced bytes to the
-	/// backlog. Returns how many bytes of `input` were consumed, and whether the stream ended.
+	/// One call into the deflate context: appends everything produced to the backlog, and reports what
+	/// it took from `input`, how much it wrote, and where the stream stands.
 	///
 	/// Deflate writes into a scratch buffer that lasts as long as the stream, and only what it produced
 	/// is appended. Growing the backlog by a chunk and truncating instead would zero-fill the whole
 	/// chunk on every call, which is every write and every flush that has something to say: on a device
 	/// that is a chunk-sized memset to carry a yamux frame header.
-	fn drive_compress(
+	fn deflate(
 		&mut self,
 		input: &[u8],
 		flush: FlushCompress,
-	) -> io::Result<(usize, StreamEnded)> {
-		let finishing = matches!(flush, FlushCompress::Finish);
+	) -> io::Result<(usize, usize, Status)> {
+		let before_in = self.compress.total_in();
+		let before_out = self.compress.total_out();
+		let status = self
+			.compress
+			.compress(input, &mut self.out_chunk, flush)
+			.map_err(io::Error::other)?;
+		let read = (self.compress.total_in() - before_in) as usize;
+		let wrote = (self.compress.total_out() - before_out) as usize;
+		self.out.extend(&self.out_chunk[..wrote]);
+		Ok((read, wrote, status))
+	}
+
+	/// Run `input` through the deflate context and return how many bytes of it were taken.
+	fn compress_input(&mut self, input: &[u8]) -> io::Result<usize> {
 		let mut offset = 0;
 		loop {
-			let before_in = self.compress.total_in();
-			let before_out = self.compress.total_out();
-			let status = self
-				.compress
-				.compress(&input[offset..], &mut self.out_chunk, flush)
-				.map_err(io::Error::other)?;
-			let read = (self.compress.total_in() - before_in) as usize;
-			let wrote = (self.compress.total_out() - before_out) as usize;
-			self.out.extend(&self.out_chunk[..wrote]);
+			let (read, wrote, _) = self.deflate(&input[offset..], FlushCompress::None)?;
 			offset += read;
+			// All input taken and output room to spare, so the compressor emitted everything it will for
+			// this call. Going round once more to hear that from a call with nothing to do would cost an
+			// extra compressor call per write, on the busiest path there is. Or no progress at all, which
+			// nothing further would change.
+			if (offset >= input.len() && wrote < CHUNK) || (read == 0 && wrote == 0) {
+				return Ok(offset);
+			}
+		}
+	}
 
+	/// Flush the deflate context, and report whether that brought the stream to its end.
+	///
+	/// A sync flush never ends a stream; a finish is meant to, and a finish that returns `false` could
+	/// not, which is a close the caller must not report as clean.
+	fn flush_compress(&mut self, flush: FlushCompress) -> io::Result<bool> {
+		loop {
+			let (_, wrote, status) = self.deflate(&[], flush)?;
 			if let Status::StreamEnd = status {
-				return Ok((offset, true));
+				return Ok(true);
 			}
-			// No progress at all, so nothing more is coming however long it is asked for: a redundant
-			// flush does this, and so would a compressor that could not complete what it was told to.
-			if read == 0 && wrote == 0 {
-				return Ok((offset, false));
-			}
-			// A finish is not done until the stream has ended, so it goes round again while there is
-			// progress to be had. Anything else is done once all the input has been taken and the
-			// compressor had output room to spare, which is what says it emitted everything it will for
-			// this call. Going round once more to hear that from a call with nothing to do would cost one
-			// compressor call per write, on the busiest path there is.
-			if !finishing && offset >= input.len() && wrote < CHUNK {
-				return Ok((offset, false));
+			// Output room to spare with the stream still going: the compressor emitted everything it had,
+			// so nothing a further call could add is waiting.
+			if wrote < CHUNK {
+				return Ok(false);
 			}
 		}
 	}
@@ -171,7 +181,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		}
 		// Clear any backlog first, so a burst cannot grow it without bound.
 		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
-		let (consumed, _) = this.drive_compress(buf, FlushCompress::None)?;
+		let consumed = this.compress_input(buf)?;
 		if consumed == 0 {
 			// Unreachable: deflate takes input whenever it has room, and it is given a fresh chunk of it
 			// every call. Said plainly rather than as `Ok(0)`, which callers read as a refusal to write.
@@ -191,7 +201,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		// has actually been written since the last flush: a redundant one would emit an empty stored
 		// block, and the driver flushes every poll-loop iteration.
 		if this.dirty && !this.finished {
-			this.drive_compress(&[], FlushCompress::Sync)?;
+			this.flush_compress(FlushCompress::Sync)?;
 			this.dirty = false;
 		}
 		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
@@ -204,8 +214,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 			// Only once the stream has actually ended: the peer reads a transport that ends before the
 			// stream does as a truncation, so a close that left the tail unwritten and recorded itself as
 			// finished would turn a graceful shutdown into a fault reported at the other end.
-			let (_, ended) = this.drive_compress(&[], FlushCompress::Finish)?;
-			if !ended {
+			if !this.flush_compress(FlushCompress::Finish)? {
 				return Poll::Ready(Err(io::Error::other(
 					"the compressor did not finish the stream",
 				)));

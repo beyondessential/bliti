@@ -249,11 +249,28 @@ where
 	// single place and never borrow the connection twice.
 	let mut pending: std::collections::VecDeque<oneshot::Sender<io::Result<Stream>>> =
 		std::collections::VecDeque::new();
+	let mut closing = false;
 
 	poll_fn(move |cx| {
 		// Collect any new open requests.
-		while let Poll::Ready(Some(reply)) = open_rx.poll_next_unpin(cx) {
-			pending.push_back(reply);
+		while !closing {
+			match open_rx.poll_next_unpin(cx) {
+				Poll::Ready(Some(reply)) => pending.push_back(reply),
+				// The handle is gone, so nothing can open or accept another stream and the connection has
+				// no further purpose. Close it rather than leave it to be dropped: a drop never finishes
+				// the compression stream, and a transport that ends before its stream does reads as a
+				// truncation at the far end rather than the clean ending it is (CHN).
+				Poll::Ready(None) => closing = true,
+				Poll::Pending => break,
+			}
+		}
+
+		if closing {
+			// Anything still waiting for a stream will not be getting one.
+			for reply in pending.drain(..) {
+				let _ = reply.send(Err(io::ErrorKind::NotConnected.into()));
+			}
+			return connection.poll_close(cx);
 		}
 
 		// Service pending open requests.
@@ -538,6 +555,49 @@ mod tests {
 				"a transport that went away is nobody's fault, got {err:?}"
 			);
 		}
+	}
+
+	/// Dropping the handle closes the connection, and the far end reads that as the clean ending it is.
+	/// Closing finishes the compression stream; a driver that was simply dropped would leave it
+	/// unterminated, and the peer reads a transport that ends before its stream does as a truncation, so
+	/// a deliberate teardown would be reported as a fault (CHN).
+	#[tokio::test]
+	async fn dropping_the_handle_closes_the_connection_cleanly() {
+		let psk = PresenceToken::from_bytes([0x5a; 32]);
+		let (a, b) = tokio::io::duplex(1 << 16);
+		let (client_ns, device_ns) = tokio::join!(
+			connect_initiator(a.compat(), &psk),
+			accept_responder(b.compat(), &psk)
+		);
+		let (mut client, client_driver) = multiplex(client_ns.unwrap(), Mode::Client);
+		let (mut device, device_driver) = multiplex(device_ns.unwrap(), Mode::Server);
+		let client_driving = tokio::spawn(client_driver);
+		let device_driving = tokio::spawn(device_driver);
+
+		// A real exchange first, so each direction's context has something in it to finish.
+		let mut cs = client.open().await.unwrap();
+		write_message(&mut cs, b"a subscription").await.unwrap();
+		let mut ds = device.accept().await.unwrap();
+		assert_eq!(
+			read_message(&mut ds).await.unwrap().unwrap(),
+			b"a subscription"
+		);
+		write_message(&mut ds, b"a sample").await.unwrap();
+		assert_eq!(read_message(&mut cs).await.unwrap().unwrap(), b"a sample");
+		// Both streams stay open, so the teardown is the only thing in flight: a stream dropped at the
+		// same moment queues a reset, and whether that reset makes it out before the transport goes is a
+		// race that says nothing about how a close is read.
+		drop(device);
+		device_driving
+			.await
+			.unwrap()
+			.expect("closing the connection is not a failure");
+
+		// And the client's driver ends without a fault to report, which is what reaches the operator.
+		client_driving
+			.await
+			.unwrap()
+			.expect("a closed connection reaches the peer as an ending, not a fault");
 	}
 
 	#[tokio::test]
