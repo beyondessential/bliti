@@ -15,7 +15,9 @@ use bliti_core::{
 	channel::{
 		envelope::{Reading, read},
 		messages::{ClientMessage, DeviceMessage},
-		stream::{Mode, Streams, accept_responder, multiplex, read_message, write_message},
+		stream::{
+			Mode, Streams, accept_responder, is_peer_fault, multiplex, read_message, write_message,
+		},
 	},
 	key_schedule::PresenceToken,
 };
@@ -57,7 +59,14 @@ where
 	let (mut streams, driver) = multiplex(encrypted, Mode::Server);
 	let driving = tokio::spawn(async move {
 		if let Err(err) = driver.await {
-			tracing::debug!(%err, "connection closed");
+			// A peer that cannot be decompressed or decrypted is a fault the device reports (CHN), and
+			// it costs the whole connection because the compression context is shared by every stream and
+			// is unrecoverable once it has diverged. An ordinary ending is not worth a warning.
+			if is_peer_fault(&err) {
+				tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
+			} else {
+				tracing::debug!(%err, "connection closed");
+			}
 		}
 	});
 

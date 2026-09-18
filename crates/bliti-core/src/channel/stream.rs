@@ -28,7 +28,19 @@ use futures::{
 };
 use yamux::Connection;
 
-pub use yamux::{Mode, Stream};
+pub use yamux::{ConnectionError, Mode, Stream};
+
+/// Whether a connection ended because the peer is not speaking the protocol, rather than because it
+/// went away.
+///
+/// A decompression failure (CHN, "Compression") and a Noise message that fails authentication both
+/// cost the whole connection and are faults in the peer worth reporting. A client walking out of
+/// range, or a device restarting, ends the connection just as surely and is nobody's fault. The two
+/// are told apart by kind: a fault surfaces as invalid data, where an ordinary ending breaks the pipe,
+/// resets it, or reaches end of file.
+pub fn is_peer_fault(err: &ConnectionError) -> bool {
+	matches!(err, ConnectionError::Io(io) if io.kind() == io::ErrorKind::InvalidData)
+}
 
 use super::{
 	ChannelError,

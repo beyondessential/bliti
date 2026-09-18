@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { emit, openChannel } from './fake-client.js'
+import { closeChannel, emit, openChannel } from './fake-client.js'
 
 const hello = { kind: 'message', message: { type: 'device-hello', name: 'bliti', version: '0.4.2' } }
 const identity = {
@@ -188,5 +188,40 @@ test.describe('the subscription lifecycle', () => {
 
 		await expect(page.locator('.notice')).toHaveCount(0)
 		await expect(page.locator('.log')).toContainText('name bliti')
+	})
+})
+
+// A channel closes with nothing having gone wrong, when the operator walks out of range or the device
+// restarts, as readily as it closes on a fault such as the decompression failure BLI-CHN ends the
+// connection on. Either way the operator is told the view has stopped, and is given a way back to it
+// short of reading the code again (BLI-CHN, "When the channel closes").
+test.describe('when the channel closes', () => {
+	test('the operator is told, and is offered the channel again', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, hello)
+		await emit(page, identity)
+		await expect(page.getByText('tamanu-iti')).toBeVisible()
+
+		await closeChannel(page)
+
+		await expect(page.getByText('The device disconnected.')).toBeVisible()
+		// The way back: the button that opens the channel again, without rereading the code.
+		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
+	})
+
+	// A fault that ends the connection says what happened rather than reporting a bare disconnection:
+	// a decompression failure is unrecoverable and costs the whole connection, not one stream.
+	test('a fault that ends the connection is reported with its reason', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, hello)
+
+		await closeChannel(page, 'decompression failed: corrupt deflate stream')
+
+		// Said where the operator is looking, and recorded in the log: both carry the reason.
+		await expect(page.locator('p.muted').filter({ hasText: /decompression failed/ })).toBeVisible()
+		await expect(page.locator('.log')).toContainText(
+			'the connection to the device closed: decompression failed',
+		)
+		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
 	})
 })

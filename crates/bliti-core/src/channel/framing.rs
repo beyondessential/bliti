@@ -188,4 +188,24 @@ mod tests {
 		// layers prevent; the debug assertion catches it in tests rather than truncating the length.
 		let _ = frame(TRANSPORT_PREFIX, &vec![0u8; 65536]);
 	}
+
+	#[test]
+	fn round_trips_a_message_at_the_three_byte_maximum() {
+		// The largest message the prefix can express, framed and reassembled byte for byte. This is the
+		// bound itself rather than a value near it: one byte more is unrepresentable, which is what lets
+		// the ceiling be a property of the format instead of a rule a receiver has to enforce.
+		let max = (1 << 24) - 1;
+		let message = vec![0xa5u8; max];
+		let mut r = Reassembler::new(MESSAGE_PREFIX);
+		let out = r.push_and_drain(&frame(MESSAGE_PREFIX, &message));
+		assert_eq!(out.len(), 1);
+		assert_eq!(out[0].len(), max);
+		assert_eq!(out[0], message);
+	}
+
+	#[test]
+	#[should_panic(expected = "does not fit")]
+	fn a_message_past_the_three_byte_maximum_cannot_be_framed() {
+		let _ = frame(MESSAGE_PREFIX, &vec![0u8; 1 << 24]);
+	}
 }

@@ -31,7 +31,7 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 
 ## Client
 
-- [ ] The application reports a channel that has closed and offers to open it again. Verifies spec: CHN
+- [x] The application reports a channel that has closed and offers to open it again. Verifies spec: CHN
 - [ ] The round trip holds in the wasm build, not only in native tests.
 
 ## Measurements

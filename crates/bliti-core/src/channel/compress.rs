@@ -12,13 +12,19 @@
 //! in the peer and surfaces as an I/O error, which tears the whole connection down rather than one
 //! stream, because the context is shared by every stream and is unrecoverable once it has diverged.
 //!
-//! Two rules of the pipeline are load-bearing and easy to get wrong:
+//! Three rules of the pipeline are load-bearing, and each is a way to deadlock or leak a connection:
 //!
+//! - A read drains the decompressor before it pulls from the transport. The decompressor holds output
+//!   of its own: a caller asking for twelve bytes of yamux header leaves the frame body sitting inside
+//!   it with the transport's buffer already empty. Pulling from the transport first strands those bytes
+//!   and reads a busy connection as idle, which deadlocks the moment a frame body arrives with its
+//!   header in one chunk.
 //! - A flush must leave everything written so far readable by the peer. That is a zlib sync flush, and
 //!   it is what the message-boundary guarantee of CHN rests on. The yamux driver flushes the socket on
-//!   every iteration of its poll loop, so a redundant sync flush with nothing pending must emit no
-//!   bytes, or an idle connection would dribble empty stored blocks forever. A `dirty` flag makes that
-//!   structural here rather than a property assumed of the backend.
+//!   every iteration of its poll loop, so a flush with nothing written since the last one must emit no
+//!   bytes, or an idle connection would dribble empty stored blocks and spend the notification budget
+//!   and the radio on them. `miniz_oxide` does emit on a redundant sync flush, so the `dirty` flag here
+//!   carries that property rather than the backend.
 //! - An inflating read that has consumed input without producing output yet returns `Pending`, never
 //!   `Ok(0)`. `Ok(0)` is end of stream to every `AsyncRead` caller, so returning it while merely
 //!   waiting for the rest of a deflate block would tear the connection down at random.
@@ -153,9 +159,16 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		// Clear any backlog first, so a burst cannot grow `out_buf` without bound.
 		std::task::ready!(this.poll_drain(cx))?;
 		let consumed = this.drive_compress(buf, FlushCompress::None)?;
-		if consumed > 0 {
-			this.dirty = true;
+		if consumed == 0 {
+			// Deflate always takes input when it has room to write, and it is given a fresh chunk of room
+			// every call, so this does not happen. Said plainly rather than returned as `Ok(0)`, which
+			// every `AsyncWrite` caller reads as a refusal to write and would tear the connection down
+			// without saying why.
+			return Poll::Ready(Err(io::Error::other(
+				"the compressor took no input; refusing to report a zero-length write",
+			)));
 		}
+		this.dirty = true;
 		// Best effort; anything left is drained on the next call or on flush.
 		let _ = this.poll_drain(cx)?;
 		Poll::Ready(Ok(consumed))

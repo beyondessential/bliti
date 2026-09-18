@@ -31,9 +31,11 @@ A yamux `Stream`'s flush only pushes its frame to the connection driver. What re
 
 The driver flushing every iteration would be a problem if a redundant sync flush emitted bytes, because an idle connection would dribble empty stored blocks and spend both the notification budget and the device's radio. The assumption going in was that zlib emits nothing for a sync flush with no pending input; measured, `miniz_oxide` does the opposite and emits a five-byte empty stored block every time (pinned by `miniz_emits_on_a_redundant_sync_flush`). So the wrapper carries a `dirty` flag and runs a sync flush only when something has been written since the last one: idle silence is a property of the wrapper, not of the backend, and would hold even against a backend that behaved as first assumed.
 
-## Two hazards to write carefully
+## Hazards to write carefully
 
-An inflating `poll_read` that has consumed input without producing output yet returns `Pending`, never `Ok(0)`. `Ok(0)` means end of stream to every `AsyncRead` caller, so returning it while waiting for the rest of a deflate block would tear the connection down at random.
+The one that actually bit, and was not anticipated: a read must drain the decompressor before it pulls from the transport. The decompressor holds output of its own, so a caller asking for twelve bytes of yamux header leaves the frame body inside it with the transport's buffer already empty. Pulling from the transport first strands those bytes and reads a busy connection as idle. It deadlocks on the first frame whose header and body arrive in one chunk, which is every frame, so the whole stream layer hung until the read drained the decompressor first.
+
+An inflating `poll_read` that has consumed input without producing output yet returns `Pending`, never `Ok(0)`. `Ok(0)` means end of stream to every `AsyncRead` caller, so returning it while waiting for the rest of a deflate block would tear the connection down at random. The same reasoning applies to `poll_write` returning `Ok(0)`, which callers read as a refusal to write.
 
 `frame()` is currently shared between the two framing layers, and says so in its own comment. Once the Noise prefix is two bytes and the message prefix three, that sharing ends and framing has to carry the width rather than hardcode one. The `Reassembler` maximum follows the same width.
 
