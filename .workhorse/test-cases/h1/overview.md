@@ -15,6 +15,7 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 - [x] A message written with nothing following it is readable by the receiver without further input. This is the flush guarantee, and the most important regression test for the design. Verifies spec: CHN
 - [x] A burst written back to back arrives whole, whether the sender flushes per message or defers while it has more to write. Verifies spec: CHN
 - [x] A flush with nothing written since the last flush emits no bytes, so an idle connection stays silent under the driver's per-iteration flush. `miniz_oxide` in fact emits on a redundant sync flush, so this is carried by the wrapper's `dirty` guard, and both are pinned.
+- [x] `miniz_oxide` reports the end of a stream with output attached and keeps reporting it afterwards. Pinned, because the wrapper deliberately does not lean on the second half of that.
 
 ## Faults
 
@@ -23,6 +24,8 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 - [x] A transport that ends before the compressed stream does closes the connection rather than reading as a complete exchange, and is not laid at the peer's door: a client walking out of range ends a connection the same way. A transport that ends before a byte ever arrives is an ordinary end of stream. Verifies spec: CHN
 - [x] A malformed message closes only the stream it arrived on, leaving the connection and other streams alive. The two faults are distinguishable from one another. Verifies spec: CHN, MSG
 - [x] A decompressor waiting for the rest of a block returns pending rather than zero, so a partial block is not read as end of stream.
+- [x] A peer that closes its side properly reads as a clean end of stream, and the same end however often it is asked for. The call that completes the zlib stream carries output with it, so the end is recorded from the status rather than from output running out. Verifies spec: CHN
+- [x] A message whose length prefix, or whose body, stops short of what the peer began reads as a truncation rather than a complete exchange. A stream that never began a message is an ordinary ending. Verifies spec: MSG
 
 ## Message framing
 

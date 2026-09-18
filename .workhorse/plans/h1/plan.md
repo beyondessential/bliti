@@ -69,6 +69,27 @@ Both layers now attach a `ChannelError` to the `io::Error` they produce, and the
 
 A transport that ends before the compressed stream does is now an error rather than a clean end of stream, since the partially consumed block can never be finished. It is not laid at the peer's door: a client walking out of range ends a connection the same way, so it carries no `ChannelError` and reads as an ordinary ending.
 
+## Second review round
+
+The end of an inflate stream was recorded when output ran out rather than when the status reported it, and `miniz_oxide` reports `StreamEnd` on the call that emits the tail of the final block, with bytes attached. The flag was therefore set one read late. It did not break anything, because `miniz_oxide` goes on reporting the end on every later call, so the late set always landed before the end-of-transport check and a graceful close was never reported as a truncation (`a_closed_stream_reads_as_a_clean_end_of_stream`). But the correctness of a clean shutdown rested on an unpinned codec behaviour, which is the same dependency the `dirty` guard exists to avoid. The flag now comes off the status, and the backend behaviour is pinned the way the flush one is.
+
+The two framing layers pair their widths by type now: `Reassembler<PREFIX>` cannot be built against the other layer's `frame`, and a width the decoder could not handle fails the build rather than panicking on a slice underflow in release.
+
+`read_delimited` distinguishes a prefix that never began from one begun and abandoned. `read_exact` reports `UnexpectedEof` for both, so both used to read as a complete exchange; the first byte is read on its own and only a genuinely empty stream is an ending. The body is read into the tail of the message rather than through an intermediate chunk, which drops a copy of every byte and takes an 8 KiB array out of the future the wasm client holds per stream.
+
+`WriteBacklog` in `framing.rs` holds the partial-write loop both wrappers had a copy of.
+
+### On splitting the write
+
+The first round asked for the prefix and body to go out as two writes rather than one buffer; the second asked for a size threshold, on the grounds that a yamux `Stream` frames per write call and the extra 12-byte header taxes every sample. The framing claim is right: `Stream::poll_write` builds one `Frame::data` per call. The cost is not. Measured over the same 300-sample run as the ratio test, feeding one deflate context the byte sequences yamux produces in each case:
+
+| | emitted | ratio |
+| --- | --- | --- |
+| prefix and body in one frame | 7,818 | 6.56x |
+| prefix and body in two frames | 7,837 | 6.55x |
+
+19 bytes over 300 messages, 0.06 bytes each, against about 26 bytes per message on the wire. The repeated header is what the shared context back-references away, and notifications are chunked from the compressed byte stream rather than per yamux frame, so the notification budget does not notice either. No threshold: a size branch on the write path is not worth 0.2% of the link.
+
 ## Steps
 
 - [x] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
@@ -81,6 +102,8 @@ A transport that ends before the compressed stream does is now an error rather t
 - [x] Re-measure the wasm bundle and record the delta.
 - [x] Consolidate the two framing layers onto one width-parameterised read/write pair, and refuse an over-wide message rather than narrowing its length (see above).
 - [x] Carry a `ChannelError` through both layers so a fault is classified by type rather than by error kind, and report a truncated stream rather than reading it as a clean end (see above).
+- [x] Record the end of an inflate stream from the status rather than from output running out, and pin the backend behaviour a late flag was relying on (see above).
+- [x] Pair each framing layer's width by type, read a message body in place, and tell an abandoned prefix from an absent one (see above).
 
 ## Measurement
 

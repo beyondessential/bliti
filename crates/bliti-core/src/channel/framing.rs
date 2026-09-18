@@ -19,7 +19,11 @@
 //! than the negotiated attribute size, and a message may span several. [`Reassembler`] buffers those
 //! chunks and yields whole messages, so a message is not limited by the attribute size.
 
-use std::io;
+use std::{
+	io,
+	pin::Pin,
+	task::{Context, Poll},
+};
 
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -32,18 +36,29 @@ pub const MESSAGE_PREFIX: usize = 3;
 /// How much of a message body is pulled off a stream per read while reading it.
 const READ_CHUNK: usize = 8192;
 
-/// Decode a big-endian length from a prefix of `bytes.len()` bytes, which is at most eight.
-pub fn decode_prefix(bytes: &[u8]) -> usize {
-	debug_assert!(bytes.len() <= 8, "a length prefix is at most eight bytes");
+/// A width a length prefix can be: at least one byte, and narrow enough that the length it expresses
+/// fits a `usize` on every target this runs on. Checked where a width is used, so a width that could
+/// not be decoded fails the build rather than the connection.
+const fn usable_width<const PREFIX: usize>() {
+	assert!(
+		PREFIX >= 1 && PREFIX <= 4,
+		"a length prefix is one to four bytes wide"
+	);
+}
+
+/// Decode a big-endian length from a `PREFIX`-byte prefix.
+pub fn decode_prefix<const PREFIX: usize>(bytes: &[u8; PREFIX]) -> usize {
+	const { usable_width::<PREFIX>() };
 	let mut len = [0u8; 8];
-	len[8 - bytes.len()..].copy_from_slice(bytes);
+	len[8 - PREFIX..].copy_from_slice(bytes);
 	u64::from_be_bytes(len) as usize
 }
 
 /// Encode `len` as a `PREFIX`-byte big-endian length, or `None` when the width cannot express it.
 pub fn encode_prefix<const PREFIX: usize>(len: usize) -> Option<[u8; PREFIX]> {
+	const { usable_width::<PREFIX>() };
 	let be = (len as u64).to_be_bytes();
-	if PREFIX > 8 || be[..8 - PREFIX].iter().any(|byte| *byte != 0) {
+	if be[..8 - PREFIX].iter().any(|byte| *byte != 0) {
 		return None;
 	}
 	Some(be[8 - PREFIX..].try_into().expect("the width is checked"))
@@ -94,41 +109,97 @@ pub async fn read_delimited<const PREFIX: usize, R: AsyncRead + Unpin>(
 	stream: &mut R,
 ) -> io::Result<Option<Vec<u8>>> {
 	let mut prefix = [0u8; PREFIX];
-	match stream.read_exact(&mut prefix).await {
-		Ok(()) => {}
-		Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-		Err(err) => return Err(err),
+	// A prefix that never began is the end of the stream; one that began and stopped is a message the
+	// peer did not finish writing, and reads as the truncation it is rather than as a clean ending.
+	if stream.read(&mut prefix[..1]).await? == 0 {
+		return Ok(None);
 	}
+	stream.read_exact(&mut prefix[1..]).await?;
+
 	let mut message = Vec::new();
-	let mut chunk = [0u8; READ_CHUNK];
 	let mut remaining = decode_prefix(&prefix);
 	while remaining > 0 {
-		let take = remaining.min(chunk.len());
-		stream.read_exact(&mut chunk[..take]).await?;
-		message.extend_from_slice(&chunk[..take]);
+		// Read into the tail of the message itself: an intermediate buffer would copy every byte twice
+		// and, at the width's maximum, put a chunk-sized array in this future for the whole read.
+		let take = remaining.min(READ_CHUNK);
+		let at = message.len();
+		message.resize(at + take, 0);
+		stream.read_exact(&mut message[at..]).await?;
 		remaining -= take;
 	}
 	Ok(Some(message))
 }
 
+/// Bytes waiting to go out to a transport that may take them a few at a time.
+///
+/// An `AsyncWrite` is free to accept part of what it is given, so anything layered over one has to
+/// remember how far through its own buffer it got and resume there. Both wrappers of this stack do,
+/// and both do it the same way, so the loop lives here rather than once per layer.
+#[derive(Debug, Default)]
+pub struct WriteBacklog {
+	buf: Vec<u8>,
+	sent: usize,
+}
+
+impl WriteBacklog {
+	/// Whether anything is still waiting to go out.
+	pub fn is_empty(&self) -> bool {
+		self.sent >= self.buf.len()
+	}
+
+	/// Add bytes to the back of the backlog.
+	pub fn extend(&mut self, bytes: &[u8]) {
+		self.buf.extend_from_slice(bytes);
+	}
+
+	/// Replace the backlog, which only a layer that holds one message at a time may do.
+	pub fn replace(&mut self, bytes: Vec<u8>) {
+		debug_assert!(self.is_empty(), "the backlog is replaced only once drained");
+		self.buf = bytes;
+		self.sent = 0;
+	}
+
+	/// Write what is waiting to `inner`. `Ready(Ok(()))` only once the backlog is fully drained.
+	pub fn poll_drain<W: AsyncWrite + Unpin>(
+		&mut self,
+		inner: &mut W,
+		cx: &mut Context<'_>,
+	) -> Poll<io::Result<()>> {
+		while self.sent < self.buf.len() {
+			let n =
+				std::task::ready!(Pin::new(&mut *inner).poll_write(cx, &self.buf[self.sent..]))?;
+			if n == 0 {
+				return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
+			}
+			self.sent += n;
+		}
+		self.buf.clear();
+		self.sent = 0;
+		Poll::Ready(Ok(()))
+	}
+}
+
 /// Reassembles framed messages from the chunks a transport delivers.
 ///
 /// Chunks are pushed in as they arrive, in any sizes, and complete messages are taken out as they
-/// become available. The prefix width is fixed at construction and is the same width [`frame`] was
-/// called with on the sending side.
+/// become available. The width is part of the type, so a reassembler cannot be paired with a [`frame`]
+/// of the other layer's width: the two widths being unreadable to each other is what the type carries,
+/// not something a call site has to get right.
 #[derive(Debug)]
-pub struct Reassembler {
+pub struct Reassembler<const PREFIX: usize> {
 	buf: Vec<u8>,
-	prefix: usize,
 }
 
-impl Reassembler {
-	/// A reassembler reading a `prefix`-byte big-endian length before each message.
-	pub fn new(prefix: usize) -> Self {
-		Self {
-			buf: Vec::new(),
-			prefix,
-		}
+impl<const PREFIX: usize> Default for Reassembler<PREFIX> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl<const PREFIX: usize> Reassembler<PREFIX> {
+	/// A reassembler reading a `PREFIX`-byte big-endian length before each message.
+	pub fn new() -> Self {
+		Self { buf: Vec::new() }
 	}
 
 	/// Add a chunk as delivered by the transport.
@@ -138,15 +209,14 @@ impl Reassembler {
 
 	/// Take the next complete message, if one is available, or `None` when more bytes are needed.
 	pub fn take(&mut self) -> Option<Vec<u8>> {
-		if self.buf.len() < self.prefix {
+		let prefix: &[u8; PREFIX] = self.buf.get(..PREFIX)?.try_into().expect("PREFIX bytes");
+		let claimed = decode_prefix(prefix);
+		let end = PREFIX + claimed;
+		if self.buf.len() < end {
 			return None;
 		}
-		let claimed = decode_prefix(&self.buf[..self.prefix]);
-		if self.buf.len() < self.prefix + claimed {
-			return None;
-		}
-		let message = self.buf[self.prefix..self.prefix + claimed].to_vec();
-		self.buf.drain(..self.prefix + claimed);
+		let message = self.buf[PREFIX..end].to_vec();
+		self.buf.drain(..end);
 		Some(message)
 	}
 
@@ -163,6 +233,8 @@ impl Reassembler {
 
 #[cfg(test)]
 mod tests {
+	use futures::{executor::block_on, io::Cursor};
+
 	use super::*;
 
 	#[test]
@@ -185,14 +257,14 @@ mod tests {
 
 	#[test]
 	fn reassembles_a_message_delivered_in_one_chunk() {
-		let mut r = Reassembler::new(TRANSPORT_PREFIX);
+		let mut r = Reassembler::<TRANSPORT_PREFIX>::new();
 		let messages = r.push_and_drain(&frame::<TRANSPORT_PREFIX>(b"hello").unwrap());
 		assert_eq!(messages, vec![b"hello".to_vec()]);
 	}
 
 	#[test]
 	fn reassembles_a_message_split_across_chunks() {
-		let mut r = Reassembler::new(TRANSPORT_PREFIX);
+		let mut r = Reassembler::<TRANSPORT_PREFIX>::new();
 		let framed = frame::<TRANSPORT_PREFIX>(b"a longer message than one chunk").unwrap();
 		// Deliver a byte at a time; only the final byte completes the message.
 		for (i, byte) in framed.iter().enumerate() {
@@ -207,7 +279,7 @@ mod tests {
 
 	#[test]
 	fn separates_several_messages_in_one_chunk() {
-		let mut r = Reassembler::new(TRANSPORT_PREFIX);
+		let mut r = Reassembler::<TRANSPORT_PREFIX>::new();
 		let mut chunk = frame::<TRANSPORT_PREFIX>(b"one").unwrap();
 		chunk.extend(frame::<TRANSPORT_PREFIX>(b"two").unwrap());
 		chunk.extend(frame::<TRANSPORT_PREFIX>(b"three").unwrap());
@@ -220,7 +292,7 @@ mod tests {
 
 	#[test]
 	fn holds_a_partial_trailing_message() {
-		let mut r = Reassembler::new(TRANSPORT_PREFIX);
+		let mut r = Reassembler::<TRANSPORT_PREFIX>::new();
 		let mut chunk = frame::<TRANSPORT_PREFIX>(b"complete").unwrap();
 		chunk.extend_from_slice(&[0, 10, b'p', b'a', b'r', b't']); // header + 4 of 10 bytes
 		let messages = r.push_and_drain(&chunk);
@@ -259,7 +331,7 @@ mod tests {
 	fn reassembles_a_message_wider_than_a_two_byte_prefix_allows() {
 		// A message past what a two-byte prefix could express round-trips under the three-byte one, which
 		// is the point of the message layer carrying its own wider prefix.
-		let mut r = Reassembler::new(MESSAGE_PREFIX);
+		let mut r = Reassembler::<MESSAGE_PREFIX>::new();
 		let big = vec![b'x'; 70_000];
 		let out = r.push_and_drain(&frame::<MESSAGE_PREFIX>(&big).unwrap());
 		assert_eq!(out, vec![big]);
@@ -276,6 +348,45 @@ mod tests {
 	}
 
 	#[test]
+	fn a_delimited_message_round_trips_through_a_stream() {
+		let mut buf = Vec::new();
+		block_on(write_delimited::<MESSAGE_PREFIX, _>(&mut buf, b"a reading")).unwrap();
+		block_on(write_delimited::<MESSAGE_PREFIX, _>(
+			&mut buf,
+			b"and another",
+		))
+		.unwrap();
+
+		let mut stream = Cursor::new(buf);
+		let mut read = || block_on(read_delimited::<MESSAGE_PREFIX, _>(&mut stream)).unwrap();
+		assert_eq!(read(), Some(b"a reading".to_vec()));
+		assert_eq!(read(), Some(b"and another".to_vec()));
+		assert_eq!(read(), None);
+	}
+
+	#[test]
+	fn a_stream_that_never_began_a_message_reads_as_the_end_of_it() {
+		let mut stream = Cursor::new(Vec::new());
+		assert_eq!(
+			block_on(read_delimited::<MESSAGE_PREFIX, _>(&mut stream)).unwrap(),
+			None
+		);
+	}
+
+	#[test]
+	fn a_message_the_peer_did_not_finish_writing_is_not_a_clean_ending() {
+		// A prefix begun and then abandoned: two of the three bytes, and nothing after.
+		let mut stream = Cursor::new(vec![0u8, 0]);
+		let err = block_on(read_delimited::<MESSAGE_PREFIX, _>(&mut stream)).unwrap_err();
+		assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+
+		// And a body that stops short of what its own prefix claimed.
+		let mut stream = Cursor::new(vec![0u8, 0, 10, b'p', b'a', b'r', b't']);
+		let err = block_on(read_delimited::<MESSAGE_PREFIX, _>(&mut stream)).unwrap_err();
+		assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+	}
+
+	#[test]
 	fn round_trips_a_message_at_the_three_byte_maximum() {
 		// The largest message the prefix can express, framed and reassembled. This is the bound itself
 		// rather than a value near it: one byte more is unrepresentable, which is what lets the ceiling
@@ -285,7 +396,7 @@ mod tests {
 		let framed = frame::<MESSAGE_PREFIX>(&vec![0xa5u8; max]).unwrap();
 		assert_eq!(&framed[..MESSAGE_PREFIX], &[0xff, 0xff, 0xff]);
 
-		let mut r = Reassembler::new(MESSAGE_PREFIX);
+		let mut r = Reassembler::<MESSAGE_PREFIX>::new();
 		r.push(&framed);
 		drop(framed);
 		let out = r.take().unwrap();

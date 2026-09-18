@@ -41,7 +41,7 @@ use std::{
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use futures::{AsyncRead, AsyncWrite};
 
-use super::ChannelError;
+use super::{ChannelError, framing::WriteBacklog};
 
 /// The scratch buffer size for both directions: how much compressed output is produced per compressor
 /// call, and how much is pulled off the inner transport per read.
@@ -59,8 +59,7 @@ pub struct CompressStream<T> {
 	decompress: Decompress,
 
 	/// Compressed bytes produced but not yet written to the inner transport.
-	out_buf: Vec<u8>,
-	out_sent: usize,
+	out: WriteBacklog,
 	out_chunk: Box<[u8]>,
 	/// Whether anything has been compressed since the last flush, so an idle flush emits nothing.
 	dirty: bool,
@@ -88,8 +87,7 @@ impl<T> CompressStream<T> {
 			inner,
 			compress: Compress::new(Compression::default(), true),
 			decompress: Decompress::new(true),
-			out_buf: Vec::new(),
-			out_sent: 0,
+			out: WriteBacklog::default(),
 			out_chunk: vec![0u8; CHUNK].into_boxed_slice(),
 			dirty: false,
 			finished: false,
@@ -103,13 +101,13 @@ impl<T> CompressStream<T> {
 }
 
 impl<T> CompressStream<T> {
-	/// Run `input` through the deflate context with `flush`, appending all produced bytes to `out_buf`,
-	/// and return how many bytes of `input` were consumed.
+	/// Run `input` through the deflate context with `flush`, appending all produced bytes to the
+	/// backlog, and return how many bytes of `input` were consumed.
 	///
 	/// Deflate writes into a scratch buffer that lasts as long as the stream, and only what it produced
-	/// is appended to `out_buf`. Growing `out_buf` by a chunk and truncating instead would zero-fill the
-	/// whole chunk on every call, which is every write and every flush that has something to say: on a
-	/// device that is a chunk-sized memset to carry a yamux frame header.
+	/// is appended. Growing the backlog by a chunk and truncating instead would zero-fill the whole
+	/// chunk on every call, which is every write and every flush that has something to say: on a device
+	/// that is a chunk-sized memset to carry a yamux frame header.
 	fn drive_compress(&mut self, input: &[u8], flush: FlushCompress) -> io::Result<usize> {
 		let mut offset = 0;
 		loop {
@@ -121,7 +119,7 @@ impl<T> CompressStream<T> {
 				.map_err(io::Error::other)?;
 			let read = (self.compress.total_in() - before_in) as usize;
 			let wrote = (self.compress.total_out() - before_out) as usize;
-			self.out_buf.extend_from_slice(&self.out_chunk[..wrote]);
+			self.out.extend(&self.out_chunk[..wrote]);
 			offset += read;
 
 			match status {
@@ -140,25 +138,6 @@ impl<T> CompressStream<T> {
 	}
 }
 
-impl<T: AsyncWrite + Unpin> CompressStream<T> {
-	/// Write whatever is buffered in `out_buf` to the inner transport. `Ready(Ok(()))` only once the
-	/// buffer is fully drained.
-	fn poll_drain(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-		while self.out_sent < self.out_buf.len() {
-			let n = std::task::ready!(
-				Pin::new(&mut self.inner).poll_write(cx, &self.out_buf[self.out_sent..])
-			)?;
-			if n == 0 {
-				return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
-			}
-			self.out_sent += n;
-		}
-		self.out_buf.clear();
-		self.out_sent = 0;
-		Poll::Ready(Ok(()))
-	}
-}
-
 impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 	fn poll_write(
 		self: Pin<&mut Self>,
@@ -169,8 +148,8 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		if buf.is_empty() {
 			return Poll::Ready(Ok(0));
 		}
-		// Clear any backlog first, so a burst cannot grow `out_buf` without bound.
-		std::task::ready!(this.poll_drain(cx))?;
+		// Clear any backlog first, so a burst cannot grow it without bound.
+		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
 		let consumed = this.drive_compress(buf, FlushCompress::None)?;
 		if consumed == 0 {
 			// Unreachable: deflate takes input whenever it has room, and it is given a fresh chunk of it
@@ -181,7 +160,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		}
 		this.dirty = true;
 		// Best effort; anything left is drained on the next call or on flush.
-		let _ = this.poll_drain(cx)?;
+		let _ = this.out.poll_drain(&mut this.inner, cx)?;
 		Poll::Ready(Ok(consumed))
 	}
 
@@ -194,7 +173,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 			this.drive_compress(&[], FlushCompress::Sync)?;
 			this.dirty = false;
 		}
-		std::task::ready!(this.poll_drain(cx))?;
+		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
 		Pin::new(&mut this.inner).poll_flush(cx)
 	}
 
@@ -207,7 +186,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 			this.finished = true;
 			this.dirty = false;
 		}
-		std::task::ready!(this.poll_drain(cx))?;
+		std::task::ready!(this.out.poll_drain(&mut this.inner, cx))?;
 		Pin::new(&mut this.inner).poll_close(cx)
 	}
 }
@@ -223,6 +202,11 @@ impl<T: AsyncRead + Unpin> AsyncRead for CompressStream<T> {
 			return Poll::Ready(Ok(0));
 		}
 		loop {
+			// Once the zlib stream has ended, every later read is that same end: the answer does not
+			// depend on the backend still saying so, and no transport that may still be open is pulled on.
+			if this.stream_end {
+				return Poll::Ready(Ok(0));
+			}
 			// Inflate into the caller's buffer. This runs even when no compressed input is buffered,
 			// because the decompressor holds its own output: a small read can leave decoded bytes inside
 			// it that a later read must drain before pulling anything more off the transport. Pulling
@@ -245,11 +229,17 @@ impl<T: AsyncRead + Unpin> AsyncRead for CompressStream<T> {
 				this.in_buf.clear();
 				this.in_start = 0;
 			}
+			// Recorded from the status rather than from output having run out: the call that completes the
+			// stream both emits the tail of the final block and reports the end, so a graceful close
+			// arrives with bytes attached. `miniz_oxide` goes on reporting the end on later calls, which
+			// would cover a flag set late, but the end of a stream is not the codec's to remember.
+			if let Status::StreamEnd = status {
+				this.stream_end = true;
+			}
 			if wrote > 0 {
 				return Poll::Ready(Ok(wrote));
 			}
-			if let Status::StreamEnd = status {
-				this.stream_end = true;
+			if this.stream_end {
 				return Poll::Ready(Ok(0));
 			}
 			// Consumed input without producing output: mid-block, so try again against whatever input is
@@ -429,6 +419,24 @@ mod tests {
 		));
 	}
 
+	/// A peer that closes properly reads as a clean end of stream, not as a truncation. The call that
+	/// completes the zlib stream both emits the tail of the final block and reports the end, so the end
+	/// has to be recorded when the status says so rather than when output happens to run out.
+	#[tokio::test]
+	async fn a_closed_stream_reads_as_a_clean_end_of_stream() {
+		let (mut tx, mut rx) = pair();
+		tx.write_all(b"the last thing said").await.unwrap();
+		tx.close().await.unwrap();
+
+		let mut out = Vec::new();
+		rx.read_to_end(&mut out).await.unwrap();
+		assert_eq!(out, b"the last thing said");
+
+		// And the end is the same end however often it is asked for.
+		let mut buf = [0u8; 8];
+		assert_eq!(rx.read(&mut buf).await.unwrap(), 0);
+	}
+
 	/// A transport that ends before the zlib stream does is an error, not a clean end of stream. The
 	/// peer stopped partway through what it was saying, and whatever was consumed of the unfinished
 	/// block cannot be decoded; `Ok(0)` would have every caller above take a truncated exchange for a
@@ -533,6 +541,38 @@ mod tests {
 			compress.total_out() > before,
 			"miniz_oxide emits on a redundant sync flush"
 		);
+	}
+
+	/// The backend behaviour the end-of-stream flag no longer depends on, pinned alongside the flush one:
+	/// `miniz_oxide` reports the end of a stream on the call that emits the tail of the final block, with
+	/// output attached, and goes on reporting it afterwards. A wrapper that recorded the end only when
+	/// output ran out would be correct by that second half alone, and would report a graceful close as a
+	/// truncated stream against a backend that stopped saying so.
+	#[test]
+	fn miniz_reports_the_end_of_a_stream_with_output_and_keeps_reporting_it() {
+		let mut compress = Compress::new(Compression::default(), true);
+		let mut full = vec![0u8; 256];
+		compress
+			.compress(b"the last thing said", &mut full, FlushCompress::None)
+			.unwrap();
+		let at = compress.total_out() as usize;
+		compress
+			.compress(&[], &mut full[at..], FlushCompress::Finish)
+			.unwrap();
+		full.truncate(compress.total_out() as usize);
+
+		let mut decompress = Decompress::new(true);
+		let mut out = vec![0u8; 256];
+		let status = decompress
+			.decompress(&full, &mut out, FlushDecompress::None)
+			.unwrap();
+		assert_eq!(status, Status::StreamEnd);
+		assert_eq!(decompress.total_out(), 19, "the end arrives with output");
+
+		let status = decompress
+			.decompress(&[], &mut out, FlushDecompress::None)
+			.unwrap();
+		assert_eq!(status, Status::StreamEnd, "and is reported again after");
 	}
 
 	/// An `AsyncWrite` that keeps every byte written to it, so a test can weigh the compressed output.

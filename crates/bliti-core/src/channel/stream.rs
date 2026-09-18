@@ -60,7 +60,8 @@ use super::{
 	ChannelError,
 	compress::CompressStream,
 	framing::{
-		MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, frame, read_delimited, write_delimited,
+		MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, WriteBacklog, frame, read_delimited,
+		write_delimited,
 	},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 };
@@ -81,12 +82,11 @@ fn to_io(err: ChannelError) -> io::Error {
 pub struct NoiseStream<S> {
 	inner: S,
 	transport: Transport,
-	reassembler: Reassembler,
+	reassembler: Reassembler<TRANSPORT_PREFIX>,
 	read_plain: Vec<u8>,
 	read_consumed: usize,
 	read_chunk: Box<[u8]>,
-	write_buf: Vec<u8>,
-	write_sent: usize,
+	write: WriteBacklog,
 }
 
 impl<S> NoiseStream<S> {
@@ -95,32 +95,12 @@ impl<S> NoiseStream<S> {
 		Self {
 			inner,
 			transport,
-			reassembler: Reassembler::new(TRANSPORT_PREFIX),
+			reassembler: Reassembler::new(),
 			read_plain: Vec::new(),
 			read_consumed: 0,
 			read_chunk: vec![0u8; READ_CHUNK].into_boxed_slice(),
-			write_buf: Vec::new(),
-			write_sent: 0,
+			write: WriteBacklog::default(),
 		}
-	}
-}
-
-impl<S: AsyncWrite + Unpin> NoiseStream<S> {
-	/// Write whatever is buffered in `write_buf` to the inner transport. Returns `Ready(Ok(()))` only
-	/// once the buffer is fully drained.
-	fn poll_drain(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-		while self.write_sent < self.write_buf.len() {
-			let n = std::task::ready!(
-				Pin::new(&mut self.inner).poll_write(cx, &self.write_buf[self.write_sent..])
-			)?;
-			if n == 0 {
-				return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
-			}
-			self.write_sent += n;
-		}
-		self.write_buf.clear();
-		self.write_sent = 0;
-		Poll::Ready(Ok(()))
 	}
 }
 
@@ -135,25 +115,24 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for NoiseStream<S> {
 			return Poll::Ready(Ok(0));
 		}
 		// One Noise message is in flight at a time: finish sending it before encrypting the next.
-		std::task::ready!(this.poll_drain(cx))?;
+		std::task::ready!(this.write.poll_drain(&mut this.inner, cx))?;
 		let chunk = &buf[..buf.len().min(MAX_PLAINTEXT)];
 		let ciphertext = this.transport.encrypt(chunk).map_err(to_io)?;
-		this.write_buf = frame::<TRANSPORT_PREFIX>(&ciphertext)?;
-		this.write_sent = 0;
+		this.write.replace(frame::<TRANSPORT_PREFIX>(&ciphertext)?);
 		// Best-effort flush; anything left is drained on the next call or on flush.
-		let _ = this.poll_drain(cx)?;
+		let _ = this.write.poll_drain(&mut this.inner, cx)?;
 		Poll::Ready(Ok(chunk.len()))
 	}
 
 	fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
 		let this = self.get_mut();
-		std::task::ready!(this.poll_drain(cx))?;
+		std::task::ready!(this.write.poll_drain(&mut this.inner, cx))?;
 		Pin::new(&mut this.inner).poll_flush(cx)
 	}
 
 	fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
 		let this = self.get_mut();
-		std::task::ready!(this.poll_drain(cx))?;
+		std::task::ready!(this.write.poll_drain(&mut this.inner, cx))?;
 		Pin::new(&mut this.inner).poll_close(cx)
 	}
 }
