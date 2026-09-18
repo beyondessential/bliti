@@ -24,14 +24,6 @@ use serde::{
 };
 use serde_json::{Map, Value};
 
-/// The largest application message, as a count of JSON bytes.
-///
-/// Sized for the link rather than for JSON. A mebibyte is nothing to a socket and far too much for
-/// BLE: a message that size is thousands of notifications, and one was enough to drown a connection
-/// before anything else could be said. This leaves room for anything a feature has reason to send in
-/// one piece while keeping the worst case to a second or two on the air.
-pub const MAX_MESSAGE: usize = 128 * 1024;
-
 /// A set of message types that can be read from the wire.
 pub trait Message: DeserializeOwned + Serialize {
 	/// Whether this build knows the named message type.
@@ -156,15 +148,6 @@ impl fmt::Display for Refusal {
 /// reported and closes the stream it arrived on, leaving the connection and every other stream alive.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Fault {
-	/// Beyond the size ceiling, refused rather than buffered.
-	#[error("message of {size} bytes exceeds the {max}-byte maximum")]
-	TooLarge {
-		/// The size the message claimed.
-		size: usize,
-		/// The largest message that will be read.
-		max: usize,
-	},
-
 	/// Not valid UTF-8.
 	#[error("message is not valid UTF-8")]
 	NotUtf8,
@@ -226,13 +209,6 @@ pub enum Fault {
 ///
 /// `bytes` is one length-delimited message off a stream, without its length prefix.
 pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
-	if bytes.len() > MAX_MESSAGE {
-		return Err(Fault::TooLarge {
-			size: bytes.len(),
-			max: MAX_MESSAGE,
-		});
-	}
-
 	let text = std::str::from_utf8(bytes).map_err(|_| Fault::NotUtf8)?;
 	let raw: Raw = serde_json::from_str(text).map_err(|err| Fault::NotJson(err.to_string()))?;
 

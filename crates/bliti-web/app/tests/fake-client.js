@@ -47,3 +47,9 @@ export async function openChannel(page) {
 export async function emit(page, event) {
 	await page.evaluate((event) => window.__blitiEmit(event), event)
 }
+
+/// Close the channel the way the connection ending does, optionally with a reason. This is what the
+/// real client reports on the link dropping, the device restarting, or a fault ending the connection.
+export async function closeChannel(page, why) {
+	await page.evaluate((why) => window.__blitiDisconnect(why ?? undefined), why ?? null)
+}

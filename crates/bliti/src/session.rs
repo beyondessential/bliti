@@ -15,7 +15,9 @@ use bliti_core::{
 	channel::{
 		envelope::{Reading, read},
 		messages::{ClientMessage, DeviceMessage},
-		stream::{Mode, Streams, accept_responder, multiplex, read_message, write_message},
+		stream::{
+			Mode, Streams, accept_responder, is_peer_fault, multiplex, read_message, write_message,
+		},
 	},
 	key_schedule::PresenceToken,
 };
@@ -36,6 +38,15 @@ const SYSTEM_TOPIC: &str = "system";
 const DEVICE_NAME: &str = env!("CARGO_PKG_NAME");
 const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// How long a deliberate teardown waits for the connection to close before dropping it.
+///
+/// Closing is a term frame and the tail of the compression stream, a few hundred bytes, which a client
+/// still in range takes within a connection interval or two. A client that has gone never takes them,
+/// and the device asks to go back on the air only once this returns, so the bound is what keeps a
+/// vanished client from holding the device off the air (ADV, "Advertising continuously"). Falling
+/// through it costs only the clean ending, which the client reports as an ending either way.
+const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
+
 /// Run a session to completion over a transport, as the device.
 ///
 /// Returns once the client goes away or the channel fails. A failed handshake is an ordinary outcome
@@ -55,9 +66,16 @@ where
 	tracing::info!("handshake complete");
 
 	let (mut streams, driver) = multiplex(encrypted, Mode::Server);
-	let driving = tokio::spawn(async move {
+	let mut driving = tokio::spawn(async move {
 		if let Err(err) = driver.await {
-			tracing::debug!(%err, "connection closed");
+			// A peer that cannot be decompressed or decrypted is a fault the device reports (CHN), and
+			// it costs the whole connection because the compression context is shared by every stream and
+			// is unrecoverable once it has diverged. An ordinary ending is not worth a warning.
+			if is_peer_fault(&err) {
+				tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
+			} else {
+				tracing::debug!(%err, "connection closed");
+			}
 		}
 	});
 
@@ -66,7 +84,19 @@ where
 	let _session = sampler.session();
 
 	let result = converse(&mut streams, &sampler).await;
-	driving.abort();
+
+	// Hand the connection to the driver to close rather than abort it: closing finishes the compression
+	// stream, which the client reads as the clean ending this is, where an aborted driver leaves the
+	// stream unterminated and the client reports a fault (CHN). Bounded, because a client that has
+	// already walked out of range will never take the closing frames.
+	drop(streams);
+	if tokio::time::timeout(CLOSE_TIMEOUT, &mut driving)
+		.await
+		.is_err()
+	{
+		tracing::debug!("the connection did not close in time; dropping it");
+		driving.abort();
+	}
 	result
 }
 

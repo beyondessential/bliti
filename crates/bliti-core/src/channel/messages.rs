@@ -482,13 +482,4 @@ mod tests {
 			Fault::NotUtf8
 		);
 	}
-
-	#[test]
-	fn a_message_beyond_the_ceiling_is_a_fault() {
-		let huge = vec![b'a'; super::super::envelope::MAX_MESSAGE + 1];
-		assert!(matches!(
-			read::<ClientMessage>(&huge).unwrap_err(),
-			Fault::TooLarge { .. }
-		));
-	}
 }
