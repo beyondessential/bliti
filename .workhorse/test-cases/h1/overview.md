@@ -18,14 +18,16 @@ Scenarios verifying H1. Behaviour is in [CHN](../../specs/channel.md) under "Com
 
 ## Faults
 
-- [x] A corrupt or truncated compressed stream closes the connection, and the failure is reported: logged on a device, surfaced to the operator on a client. Verifies spec: CHN
+- [x] A corrupt compressed stream closes the connection, and the failure is reported: logged on a device, surfaced to the operator on a client. Verifies spec: CHN
+- [x] A corrupt compressed stream reaches the host classified as a fault in the peer, through yamux, which wraps a socket read failure as a decode error rather than an I/O one. Verifies spec: CHN
+- [x] A transport that ends before the compressed stream does closes the connection rather than reading as a complete exchange, and is not laid at the peer's door: a client walking out of range ends a connection the same way. A transport that ends before a byte ever arrives is an ordinary end of stream. Verifies spec: CHN
 - [x] A malformed message closes only the stream it arrived on, leaving the connection and other streams alive. The two faults are distinguishable from one another. Verifies spec: CHN, MSG
 - [x] A decompressor waiting for the rest of a block returns pending rather than zero, so a partial block is not read as end of stream.
 
 ## Message framing
 
 - [x] A message larger than the former 128 KiB ceiling round-trips. Verifies spec: MSG
-- [x] A message at the three-byte prefix's maximum round-trips, and a sender cannot express one larger. Verifies spec: MSG
+- [x] A message at the three-byte prefix's maximum round-trips, and a message larger than a prefix can express is refused to the sender rather than narrowed to fit. Verifies spec: MSG
 - [x] A message length prefix is three bytes and a Noise message length prefix is two, so neither layer reads the other's framing. Verifies spec: MSG, CHN
 - [x] A handshake message is bounded by what its own two-byte prefix expresses, not by an application ceiling. Verifies spec: CHN
 

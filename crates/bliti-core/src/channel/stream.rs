@@ -23,7 +23,7 @@ use std::{
 };
 
 use futures::{
-	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt,
+	AsyncRead, AsyncWrite, StreamExt,
 	channel::{mpsc, oneshot},
 };
 use yamux::Connection;
@@ -35,17 +35,33 @@ pub use yamux::{ConnectionError, Mode, Stream};
 ///
 /// A decompression failure (CHN, "Compression") and a Noise message that fails authentication both
 /// cost the whole connection and are faults in the peer worth reporting. A client walking out of
-/// range, or a device restarting, ends the connection just as surely and is nobody's fault. The two
-/// are told apart by kind: a fault surfaces as invalid data, where an ordinary ending breaks the pipe,
-/// resets it, or reaches end of file.
+/// range, or a device restarting, ends the connection just as surely and is nobody's fault.
+///
+/// The two are told apart by the error a layer of this channel attached, not by its kind: both layers
+/// carry a [`ChannelError`] inside the `io::Error` they produce, so a fault is what the chain of
+/// causes holds one of. An ordinary ending carries none, and neither does an unrelated transport
+/// failure that happens to report the same kind. yamux wraps a read failure as a decode error rather
+/// than an I/O one, so the whole chain is walked rather than the outermost variant matched.
 pub fn is_peer_fault(err: &ConnectionError) -> bool {
-	matches!(err, ConnectionError::Io(io) if io.kind() == io::ErrorKind::InvalidData)
+	let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(err);
+	while let Some(err) = cause {
+		// `io::Error`'s own `source` skips past the error it was built from, so read it off directly.
+		if let Some(inner) = err.downcast_ref::<io::Error>().and_then(io::Error::get_ref)
+			&& inner.downcast_ref::<ChannelError>().is_some()
+		{
+			return true;
+		}
+		cause = err.source();
+	}
+	false
 }
 
 use super::{
 	ChannelError,
 	compress::CompressStream,
-	framing::{MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, frame},
+	framing::{
+		MESSAGE_PREFIX, Reassembler, TRANSPORT_PREFIX, frame, read_delimited, write_delimited,
+	},
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 };
 use crate::key_schedule::PresenceToken;
@@ -122,7 +138,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for NoiseStream<S> {
 		std::task::ready!(this.poll_drain(cx))?;
 		let chunk = &buf[..buf.len().min(MAX_PLAINTEXT)];
 		let ciphertext = this.transport.encrypt(chunk).map_err(to_io)?;
-		this.write_buf = frame(TRANSPORT_PREFIX, &ciphertext);
+		this.write_buf = frame::<TRANSPORT_PREFIX>(&ciphertext)?;
 		this.write_sent = 0;
 		// Best-effort flush; anything left is drained on the next call or on flush.
 		let _ = this.poll_drain(cx)?;
@@ -176,8 +192,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for NoiseStream<S> {
 			if n == 0 {
 				return Poll::Ready(Ok(0));
 			}
-			let chunk = this.read_chunk[..n].to_vec();
-			this.reassembler.push(&chunk);
+			this.reassembler.push(&this.read_chunk[..n]);
 		}
 	}
 }
@@ -294,10 +309,10 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::initiator(psk)?;
 	let msg1 = handshake.write_message()?;
-	write_frame(&mut inner, &msg1)
+	write_delimited::<TRANSPORT_PREFIX, _>(&mut inner, &msg1)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?;
-	let msg2 = read_frame(&mut inner)
+	let msg2 = read_delimited::<TRANSPORT_PREFIX, _>(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
 		.ok_or_else(|| ChannelError::Handshake("peer closed during handshake".to_owned()))?;
@@ -312,13 +327,13 @@ pub async fn accept_responder<S: AsyncRead + AsyncWrite + Unpin>(
 	psk: &PresenceToken,
 ) -> Result<NoiseStream<S>, ChannelError> {
 	let mut handshake = Handshake::responder(psk)?;
-	let msg1 = read_frame(&mut inner)
+	let msg1 = read_delimited::<TRANSPORT_PREFIX, _>(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
 		.ok_or_else(|| ChannelError::Handshake("peer closed during handshake".to_owned()))?;
 	handshake.read_message(&msg1)?;
 	let msg2 = handshake.write_message()?;
-	write_frame(&mut inner, &msg2)
+	write_delimited::<TRANSPORT_PREFIX, _>(&mut inner, &msg2)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?;
 	Ok(NoiseStream::new(inner, handshake.into_transport()?))
@@ -331,64 +346,15 @@ pub async fn write_message<W: AsyncWrite + Unpin>(
 	stream: &mut W,
 	message: &[u8],
 ) -> io::Result<()> {
-	stream.write_all(&frame(MESSAGE_PREFIX, message)).await?;
-	stream.flush().await
+	write_delimited::<MESSAGE_PREFIX, _>(stream, message).await
 }
 
 /// Read the next length-delimited application message from a stream, or `None` at end of stream.
+///
+/// The three-byte prefix cannot express more than a message may be, so there is no ceiling to check
+/// and nothing to refuse.
 pub async fn read_message<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Option<Vec<u8>>> {
-	let mut prefix = [0u8; MESSAGE_PREFIX];
-	match stream.read_exact(&mut prefix).await {
-		Ok(()) => {}
-		Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-		Err(err) => return Err(err),
-	}
-	let mut len = [0u8; 8];
-	len[8 - MESSAGE_PREFIX..].copy_from_slice(&prefix);
-	let len = u64::from_be_bytes(len) as usize;
-	// The three-byte prefix cannot express more than a message may be, so there is no ceiling to check
-	// and nothing to refuse. Grow with what has actually arrived rather than reserving the claimed
-	// length up front: a peer can open many streams and claim the maximum on each while sending almost
-	// nothing, and the device is the thing that has to stay reachable.
-	let mut message = Vec::new();
-	let mut chunk = [0u8; READ_CHUNK];
-	let mut remaining = len;
-	while remaining > 0 {
-		let take = remaining.min(chunk.len());
-		stream.read_exact(&mut chunk[..take]).await?;
-		message.extend_from_slice(&chunk[..take]);
-		remaining -= take;
-	}
-	Ok(Some(message))
-}
-
-/// Write one Noise message to the raw link, framed by the transport's two-byte prefix (CHN).
-///
-/// Used for the handshake, before the encrypted stream exists. A Noise message is at most 65535 bytes,
-/// which the two-byte prefix expresses exactly, so a handshake message is bounded by the prefix rather
-/// than by any application ceiling.
-async fn write_frame<W: AsyncWrite + Unpin>(inner: &mut W, message: &[u8]) -> io::Result<()> {
-	inner.write_all(&frame(TRANSPORT_PREFIX, message)).await?;
-	inner.flush().await
-}
-
-/// Read one Noise message from the raw link, or `None` at end of stream.
-///
-/// The two-byte prefix bounds the claimed length to 65535, which is the largest allocation an
-/// unauthenticated peer in range can induce here, and is accepted as such.
-async fn read_frame<R: AsyncRead + Unpin>(inner: &mut R) -> io::Result<Option<Vec<u8>>> {
-	let mut prefix = [0u8; TRANSPORT_PREFIX];
-	match inner.read_exact(&mut prefix).await {
-		Ok(()) => {}
-		Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-		Err(err) => return Err(err),
-	}
-	let mut len = [0u8; 8];
-	len[8 - TRANSPORT_PREFIX..].copy_from_slice(&prefix);
-	let len = u64::from_be_bytes(len) as usize;
-	let mut message = vec![0u8; len];
-	inner.read_exact(&mut message).await?;
-	Ok(Some(message))
+	read_delimited::<MESSAGE_PREFIX, _>(stream).await
 }
 
 #[cfg(test)]
@@ -540,6 +506,52 @@ mod tests {
 		let mut ds = device.accept().await.unwrap();
 		assert_eq!(read_message(&mut ds).await.unwrap().unwrap(), big);
 		let _cs = writer.await.unwrap();
+	}
+
+	/// A decompression failure is a fault in the peer, and reaches the host as one. yamux wraps a
+	/// failure reading the socket as a decode error rather than an I/O one, so the classification has to
+	/// look at what the compression layer attached rather than at the outermost variant or its kind.
+	#[tokio::test]
+	async fn a_decompression_failure_is_classified_as_a_peer_fault() {
+		let (a, b) = tokio::io::duplex(1 << 16);
+		// Bytes that are not a zlib stream, put where the compression layer will read them.
+		let mut peer = b.compat();
+		peer.write_all(&[0xff; 64]).await.unwrap();
+		peer.flush().await.unwrap();
+
+		let mut connection = Connection::new(
+			CompressStream::new(a.compat()),
+			yamux::Config::default(),
+			Mode::Client,
+		);
+		let err = poll_fn(|cx| connection.poll_next_inbound(cx))
+			.await
+			.expect("the connection fails rather than ending")
+			.expect_err("a stream cannot be decoded from bytes that are not a zlib stream");
+		assert!(
+			is_peer_fault(&err),
+			"a decompression failure is a fault in the peer, got {err:?}"
+		);
+	}
+
+	/// A connection whose transport simply went away is nobody's fault, and is not reported as one.
+	#[tokio::test]
+	async fn a_transport_that_goes_away_is_not_a_peer_fault() {
+		let (a, b) = tokio::io::duplex(1 << 16);
+		drop(b);
+
+		let mut connection = Connection::new(
+			CompressStream::new(a.compat()),
+			yamux::Config::default(),
+			Mode::Client,
+		);
+		// Either a clean end or an I/O failure, but never the peer's fault.
+		if let Some(Err(err)) = poll_fn(|cx| connection.poll_next_inbound(cx)).await {
+			assert!(
+				!is_peer_fault(&err),
+				"a transport that went away is nobody's fault, got {err:?}"
+			);
+		}
 	}
 
 	#[tokio::test]

@@ -53,6 +53,22 @@ Q1, separating the transport and application framing layers, is cancelled and it
 
 What carries over: handshake messages are bounded by the application ceiling rather than by 65535, which is the allocation an unauthenticated peer in range can induce; `framing.rs` uses a four-byte prefix where CHN specifies two; and `FrameTooLarge` with the `with_max` apparatus go dead once each bound is structural.
 
+## Framing, after review
+
+The two layers' widths turned out to be the only difference between their read/write pairs, so `framing.rs` carries one length-delimited pair parameterised by width (`write_delimited`, `read_delimited`) and the four functions in `stream.rs` became call sites of it. `decode_prefix` and `encode_prefix` replace the three hand-rolled copies of the "copy N bytes into a `[u8; 8]` at `8 - N`" idiom.
+
+`frame()` refuses a message wider than its prefix instead of asserting in debug and truncating in release. A narrowed length is not a dropped message: the receiver reads the body as framing and every message after it is off by the difference, which is a desync a peer could steer wherever any part of a payload is influenced by what it sent. The structural bounds mean no conforming caller reaches it, but the check belongs in the shipped binary.
+
+`write_delimited` writes the prefix and the body separately rather than copying both into one buffer, so a message at the new maximum does not double its own peak memory on the way out.
+
+## Classification, after review
+
+`is_peer_fault` matched `ConnectionError::Io` with an `InvalidData` kind, and no decompression failure is ever shaped that way: yamux reads the socket inside its frame decoder, so a read failure arrives as `ConnectionError::Decode(FrameDecodeError::Io(..))`. Every fault the layer exists to report was being logged as an ordinary ending, so CHN's "the receiver MUST report it" was not being met.
+
+Both layers now attach a `ChannelError` to the `io::Error` they produce, and the classification walks the chain of causes for one. That is a typed contract rather than a convention about error kinds, so an unrelated transport failure reporting the same kind is not mistaken for a peer that cannot speak the protocol. Note that `io::Error`'s own `source` skips past the error it was built from, so the walk reads `get_ref` at each link rather than following `source` alone.
+
+A transport that ends before the compressed stream does is now an error rather than a clean end of stream, since the partially consumed block can never be finished. It is not laid at the peer's door: a client walking out of range ends a connection the same way, so it carries no `ChannelError` and reads as an ordinary ending.
+
 ## Steps
 
 - [x] Split `frame()` and `Reassembler` so each layer carries its own prefix width, with the transport at two bytes and the message layer at three.
@@ -63,6 +79,8 @@ What carries over: handshake messages are bounded by the application ceiling rat
 - [x] Add `flate2` with `default-features = false` and the `rust_backend` feature to `bliti-core`.
 - [x] Carry the closed-channel report and the offer to reconnect in the web application (driver-end surfaces through `Channel::connect`'s `on_channel_closed`, routed to `onDisconnected`).
 - [x] Re-measure the wasm bundle and record the delta.
+- [x] Consolidate the two framing layers onto one width-parameterised read/write pair, and refuse an over-wide message rather than narrowing its length (see above).
+- [x] Carry a `ChannelError` through both layers so a fault is classified by type rather than by error kind, and report a truncated stream rather than reading it as a clean end (see above).
 
 ## Measurement
 

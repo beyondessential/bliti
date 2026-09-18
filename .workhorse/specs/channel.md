@@ -92,11 +92,14 @@ A receiver that cannot decompress what arrives MUST treat it as a fault in the p
 
 The receiver MUST report it: a device by logging it, a client by telling the operator that the connection to the device has failed.
 
+A receiver whose transport ends before the compressed stream it carries does MUST close the connection, and MUST NOT treat the exchange as complete.
+
 > [!NOTE]
 > Compression is unconditional, so there is nothing to negotiate, nothing to carry in a hello, and no uncompressed path. The marker of [VER](version.md) covers this section, and both ends are at the same marker before a channel exists.
 > One context per direction, rather than one per stream or one per message, is what sees the redundancy that lives across messages rather than within one: every sample a device sends repeats the labels, units and state strings of the one before it. What it costs is that a receiver cannot skip an unknown message without decompressing it, since the context must stay fed, and it has to decompress to learn the type in any case.
 > Flushing at each message boundary satisfies the rule above, and deferring is what lets a burst compress as one run.
 > The context is shared by every stream and is unrecoverable once it has diverged, which is why a decompression failure ends the connection rather than the one stream, unlike the message faults of [MSG](messages.md). A conforming peer cannot produce one: the compressed bytes sit inside the Noise transport, so neither corruption on the link nor an observer can reach them.
+> A transport that ends mid-stream is a different thing from one whose bytes will not decompress, and is nobody's fault: a client that walks out of range ends a connection exactly that way. What it must not do is read as a complete exchange, since a receiver holds part of a block it can never finish.
 
 ## Streams
 

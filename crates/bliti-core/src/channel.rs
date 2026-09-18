@@ -33,4 +33,9 @@ pub enum ChannelError {
 	/// the `NNpsk0` handshake.
 	#[error("handshake failed: {0}")]
 	Handshake(String),
+
+	/// The peer's compressed stream could not be decompressed (CHN, "Compression"). The context is
+	/// shared by every stream and is unrecoverable once it has diverged, so this costs the connection.
+	#[error("decompression failed: {0}")]
+	Decompress(String),
 }

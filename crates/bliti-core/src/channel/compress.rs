@@ -9,8 +9,9 @@
 //!
 //! It sits above Noise and below yamux, so it compresses plaintext before it is encrypted: encrypted
 //! bytes do not compress, so the order is the only one that works. A decompression failure is a fault
-//! in the peer and surfaces as an I/O error, which tears the whole connection down rather than one
-//! stream, because the context is shared by every stream and is unrecoverable once it has diverged.
+//! in the peer and surfaces as an I/O error carrying a [`ChannelError`], which is what tells the host a
+//! fault from an ordinary ending. It tears the whole connection down rather than one stream, because
+//! the context is shared by every stream and is unrecoverable once it has diverged.
 //!
 //! Three rules of the pipeline are load-bearing, and each is a way to deadlock or leak a connection:
 //!
@@ -27,7 +28,9 @@
 //!   carries that property rather than the backend.
 //! - An inflating read that has consumed input without producing output yet returns `Pending`, never
 //!   `Ok(0)`. `Ok(0)` is end of stream to every `AsyncRead` caller, so returning it while merely
-//!   waiting for the rest of a deflate block would tear the connection down at random.
+//!   waiting for the rest of a deflate block would tear the connection down at random. A transport that
+//!   ended mid-block gets an error rather than `Ok(0)` for the mirror of that reason: the block can
+//!   never be finished, and a clean end of stream would read a truncated conversation as a whole one.
 
 use std::{
 	io,
@@ -37,6 +40,8 @@ use std::{
 
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use futures::{AsyncRead, AsyncWrite};
+
+use super::ChannelError;
 
 /// The scratch buffer size for both directions: how much compressed output is produced per compressor
 /// call, and how much is pulled off the inner transport per read.
@@ -56,6 +61,7 @@ pub struct CompressStream<T> {
 	/// Compressed bytes produced but not yet written to the inner transport.
 	out_buf: Vec<u8>,
 	out_sent: usize,
+	out_chunk: Box<[u8]>,
 	/// Whether anything has been compressed since the last flush, so an idle flush emits nothing.
 	dirty: bool,
 	/// Whether the deflate stream has been finished, so `poll_close` finishes it only once.
@@ -67,6 +73,8 @@ pub struct CompressStream<T> {
 	in_chunk: Box<[u8]>,
 	/// Whether the inner transport has reached end of stream.
 	read_eof: bool,
+	/// Whether the inflate stream reached its end, which tells a clean close from a truncated one.
+	stream_end: bool,
 }
 
 impl<T> CompressStream<T> {
@@ -82,12 +90,14 @@ impl<T> CompressStream<T> {
 			decompress: Decompress::new(true),
 			out_buf: Vec::new(),
 			out_sent: 0,
+			out_chunk: vec![0u8; CHUNK].into_boxed_slice(),
 			dirty: false,
 			finished: false,
 			in_buf: Vec::new(),
 			in_start: 0,
 			in_chunk: vec![0u8; CHUNK].into_boxed_slice(),
 			read_eof: false,
+			stream_end: false,
 		}
 	}
 }
@@ -95,20 +105,23 @@ impl<T> CompressStream<T> {
 impl<T> CompressStream<T> {
 	/// Run `input` through the deflate context with `flush`, appending all produced bytes to `out_buf`,
 	/// and return how many bytes of `input` were consumed.
+	///
+	/// Deflate writes into a scratch buffer that lasts as long as the stream, and only what it produced
+	/// is appended to `out_buf`. Growing `out_buf` by a chunk and truncating instead would zero-fill the
+	/// whole chunk on every call, which is every write and every flush that has something to say: on a
+	/// device that is a chunk-sized memset to carry a yamux frame header.
 	fn drive_compress(&mut self, input: &[u8], flush: FlushCompress) -> io::Result<usize> {
 		let mut offset = 0;
 		loop {
-			let at = self.out_buf.len();
-			self.out_buf.resize(at + CHUNK, 0);
 			let before_in = self.compress.total_in();
 			let before_out = self.compress.total_out();
 			let status = self
 				.compress
-				.compress(&input[offset..], &mut self.out_buf[at..], flush)
+				.compress(&input[offset..], &mut self.out_chunk, flush)
 				.map_err(io::Error::other)?;
 			let read = (self.compress.total_in() - before_in) as usize;
 			let wrote = (self.compress.total_out() - before_out) as usize;
-			self.out_buf.truncate(at + wrote);
+			self.out_buf.extend_from_slice(&self.out_chunk[..wrote]);
 			offset += read;
 
 			match status {
@@ -160,10 +173,8 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		std::task::ready!(this.poll_drain(cx))?;
 		let consumed = this.drive_compress(buf, FlushCompress::None)?;
 		if consumed == 0 {
-			// Deflate always takes input when it has room to write, and it is given a fresh chunk of room
-			// every call, so this does not happen. Said plainly rather than returned as `Ok(0)`, which
-			// every `AsyncWrite` caller reads as a refusal to write and would tear the connection down
-			// without saying why.
+			// Unreachable: deflate takes input whenever it has room, and it is given a fresh chunk of it
+			// every call. Said plainly rather than as `Ok(0)`, which callers read as a refusal to write.
 			return Poll::Ready(Err(io::Error::other(
 				"the compressor took no input; refusing to report a zero-length write",
 			)));
@@ -179,7 +190,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 		// A sync flush makes everything written so far readable by the peer (CHN). Only when something
 		// has actually been written since the last flush: a redundant one would emit an empty stored
 		// block, and the driver flushes every poll-loop iteration.
-		if this.dirty {
+		if this.dirty && !this.finished {
 			this.drive_compress(&[], FlushCompress::Sync)?;
 			this.dirty = false;
 		}
@@ -190,8 +201,11 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for CompressStream<T> {
 	fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
 		let this = self.get_mut();
 		if !this.finished {
+			// Finishing emits everything outstanding, so there is nothing left for a later sync flush to
+			// make readable, and running one against a finished compressor would be an error at best.
 			this.drive_compress(&[], FlushCompress::Finish)?;
 			this.finished = true;
+			this.dirty = false;
 		}
 		std::task::ready!(this.poll_drain(cx))?;
 		Pin::new(&mut this.inner).poll_close(cx)
@@ -218,7 +232,12 @@ impl<T: AsyncRead + Unpin> AsyncRead for CompressStream<T> {
 			let status = this
 				.decompress
 				.decompress(&this.in_buf[this.in_start..], buf, FlushDecompress::None)
-				.map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+				.map_err(|err| {
+					io::Error::new(
+						io::ErrorKind::InvalidData,
+						ChannelError::Decompress(err.to_string()),
+					)
+				})?;
 			let read = (this.decompress.total_in() - before_in) as usize;
 			let wrote = (this.decompress.total_out() - before_out) as usize;
 			this.in_start += read;
@@ -230,6 +249,7 @@ impl<T: AsyncRead + Unpin> AsyncRead for CompressStream<T> {
 				return Poll::Ready(Ok(wrote));
 			}
 			if let Status::StreamEnd = status {
+				this.stream_end = true;
 				return Poll::Ready(Ok(0));
 			}
 			// Consumed input without producing output: mid-block, so try again against whatever input is
@@ -239,15 +259,21 @@ impl<T: AsyncRead + Unpin> AsyncRead for CompressStream<T> {
 			}
 
 			if this.read_eof {
-				return Poll::Ready(Ok(0));
+				// The transport ended. `Ok(0)` only when the zlib stream ended with it, or when nothing
+				// ever arrived: otherwise the peer stopped mid-block and whatever was consumed of it
+				// cannot be decoded. Reporting that as a clean end of stream would have every caller
+				// treat a truncated conversation as a complete one.
+				if this.stream_end || this.decompress.total_in() == 0 {
+					return Poll::Ready(Ok(0));
+				}
+				return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into()));
 			}
 
 			let n = std::task::ready!(Pin::new(&mut this.inner).poll_read(cx, &mut this.in_chunk))?;
 			if n == 0 {
 				this.read_eof = true;
 			} else {
-				let chunk = this.in_chunk[..n].to_vec();
-				this.in_buf.extend_from_slice(&chunk);
+				this.in_buf.extend_from_slice(&this.in_chunk[..n]);
 			}
 		}
 	}
@@ -321,9 +347,8 @@ mod tests {
 		assert_eq!(&buf, b"device to client");
 	}
 
-	/// One context spans messages and is never reset, so a repeat of a message costs far less than the
-	/// first time it was sent: the second carries almost nothing but back-references into the window the
-	/// first filled. Measured on the compressed bytes the stream actually emits.
+	/// A repeat of a message costs far less than the first time it was sent: the second carries almost
+	/// nothing but back-references into the window the first filled. Measured on the bytes emitted.
 	#[tokio::test]
 	async fn one_context_spans_messages_so_a_repeat_costs_less() {
 		let sample =
@@ -354,11 +379,10 @@ mod tests {
 		assert_eq!(out, [sample.as_slice(), sample.as_slice()].concat());
 	}
 
-	/// A run of samples through one context reaches a ratio in the region the card measured. This guards
-	/// the whole point of the design: a regression that reset the context, compressed each message alone,
-	/// or broke the shared context would collapse the ratio toward the per-message figure. Flushing after
-	/// every message, as the message-boundary default does, is the realistic case, and the ratio holds
-	/// well above it because the context spans the run.
+	/// A run of samples reaches a ratio in the region the card measured, flushing after every message as
+	/// the message-boundary default does. A regression that reset the context or compressed each message
+	/// alone would collapse the ratio toward the per-message figure, so this guards the point of the
+	/// design rather than any one rule of it.
 	#[tokio::test]
 	async fn a_run_of_samples_reaches_a_healthy_ratio() {
 		let tap = Tap::default();
@@ -383,9 +407,7 @@ mod tests {
 		);
 	}
 
-	/// A decompressor that has consumed input without yet producing output returns `Pending`, never
-	/// `Ok(0)`: a partial deflate block is not the end of the stream, and reading it as one would tear
-	/// the connection down at random.
+	/// The third rule of the module doc: a partial deflate block reads as `Pending`, not as `Ok(0)`.
 	#[test]
 	fn a_partial_block_reads_as_pending_not_end_of_stream() {
 		// The zlib header and one byte of a block: enough to consume, not enough to emit.
@@ -397,7 +419,7 @@ mod tests {
 		full.truncate(compress.total_out() as usize);
 		let partial = full[..3].to_vec();
 
-		let mut cs = CompressStream::new(Scripted::new([partial]));
+		let mut cs = CompressStream::new(Scripted::quiet([partial]));
 		let mut buf = [0u8; 64];
 		let waker = futures::task::noop_waker();
 		let mut cx = Context::from_waker(&waker);
@@ -407,10 +429,64 @@ mod tests {
 		));
 	}
 
+	/// A transport that ends before the zlib stream does is an error, not a clean end of stream. The
+	/// peer stopped partway through what it was saying, and whatever was consumed of the unfinished
+	/// block cannot be decoded; `Ok(0)` would have every caller above take a truncated exchange for a
+	/// complete one. Unlike a corrupt stream it is not laid at the peer's door, because a client that
+	/// walks out of range ends a connection the same way.
+	#[test]
+	fn a_truncated_stream_is_not_a_clean_end_of_stream() {
+		let mut compress = Compress::new(Compression::default(), true);
+		let mut full = vec![0u8; 256];
+		compress
+			.compress(
+				b"a reading that got cut off",
+				&mut full,
+				FlushCompress::Sync,
+			)
+			.unwrap();
+		full.truncate(compress.total_out() as usize);
+		// Everything but the tail of the sync marker, and then the transport ends.
+		let truncated = full[..full.len() - 3].to_vec();
+
+		let mut cs = CompressStream::new(Scripted::ending([truncated]));
+		let mut buf = [0u8; 64];
+		let waker = futures::task::noop_waker();
+		let mut cx = Context::from_waker(&waker);
+		// Whatever does decode is served first; the end of the transport is what must not read as clean.
+		loop {
+			match Pin::new(&mut cs).poll_read(&mut cx, &mut buf) {
+				Poll::Ready(Ok(0)) => {
+					panic!("a truncated stream must not read as a clean end of stream")
+				}
+				Poll::Ready(Ok(_)) => continue,
+				Poll::Ready(Err(err)) => {
+					assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+					break;
+				}
+				Poll::Pending => panic!("the transport has ended, so a read cannot be pending"),
+			}
+		}
+	}
+
+	/// A transport that ends without a byte ever having arrived is an ordinary end of stream: there was
+	/// no zlib stream to truncate.
+	#[test]
+	fn a_transport_that_ends_before_anything_arrives_is_a_clean_end_of_stream() {
+		let mut cs = CompressStream::new(Scripted::ending([]));
+		let mut buf = [0u8; 64];
+		let waker = futures::task::noop_waker();
+		let mut cx = Context::from_waker(&waker);
+		assert!(matches!(
+			Pin::new(&mut cs).poll_read(&mut cx, &mut buf),
+			Poll::Ready(Ok(0))
+		));
+	}
+
 	/// A corrupt compressed stream is an error, which above yamux tears the whole connection down.
 	#[test]
 	fn a_corrupt_stream_is_an_error() {
-		let mut cs = CompressStream::new(Scripted::new([vec![0xff; 32]]));
+		let mut cs = CompressStream::new(Scripted::quiet([vec![0xff; 32]]));
 		let mut buf = [0u8; 64];
 		let waker = futures::task::noop_waker();
 		let mut cx = Context::from_waker(&waker);
@@ -420,11 +496,8 @@ mod tests {
 		));
 	}
 
-	/// An idle flush emits nothing, so an idle connection stays silent under the driver's per-iteration
-	/// flush. The driver flushes the socket on every poll-loop iteration, and a dribble of empty stored
-	/// blocks would spend the notification budget and the device's radio for nothing. This is a property
-	/// of the wrapper's `dirty` guard rather than of the backend: `miniz_oxide` does emit on a redundant
-	/// sync flush (pinned below), which is exactly why the guard is here.
+	/// The second rule of the module doc: an idle flush emits nothing, so an idle connection stays silent
+	/// under the driver's per-iteration flush. Carried by the `dirty` guard, not by the backend.
 	#[tokio::test]
 	async fn an_idle_flush_emits_nothing() {
 		let tap = Tap::default();
@@ -443,9 +516,8 @@ mod tests {
 		assert_eq!(tap.len(), after_first, "an idle flush must emit no bytes");
 	}
 
-	/// The backend behaviour the guard defends against: `miniz_oxide` emits an empty stored block on a
-	/// redundant sync flush, so an idle connection's silence cannot be left to the codec. Pinned so that
-	/// if a future version stops emitting, the note on [`an_idle_flush_emits_nothing`] can be revisited.
+	/// The backend behaviour the `dirty` guard defends against, pinned: if a future `miniz_oxide` stops
+	/// emitting on a redundant sync flush, the guard can be reconsidered.
 	#[test]
 	fn miniz_emits_on_a_redundant_sync_flush() {
 		let mut compress = Compress::new(Compression::default(), true);
@@ -496,16 +568,27 @@ mod tests {
 		}
 	}
 
-	/// An `AsyncRead` that yields a scripted sequence of chunks, then `Pending` forever. A chunk is
-	/// assumed to fit the caller's buffer, which the tests here guarantee.
+	/// An `AsyncRead` that yields a scripted sequence of chunks, then either stays pending or ends. A
+	/// chunk is assumed to fit the caller's buffer, which the tests here guarantee.
 	struct Scripted {
 		chunks: VecDeque<Vec<u8>>,
+		then_eof: bool,
 	}
 
 	impl Scripted {
-		fn new(chunks: impl IntoIterator<Item = Vec<u8>>) -> Self {
+		/// Chunks, then pending forever: a peer that has gone quiet without going away.
+		fn quiet(chunks: impl IntoIterator<Item = Vec<u8>>) -> Self {
 			Self {
 				chunks: chunks.into_iter().collect(),
+				then_eof: false,
+			}
+		}
+
+		/// Chunks, then end of transport: a peer that went away mid-sentence.
+		fn ending(chunks: impl IntoIterator<Item = Vec<u8>>) -> Self {
+			Self {
+				chunks: chunks.into_iter().collect(),
+				then_eof: true,
 			}
 		}
 	}
@@ -522,6 +605,7 @@ mod tests {
 					buf[..n].copy_from_slice(&chunk[..n]);
 					Poll::Ready(Ok(n))
 				}
+				None if self.then_eof => Poll::Ready(Ok(0)),
 				None => Poll::Pending,
 			}
 		}
