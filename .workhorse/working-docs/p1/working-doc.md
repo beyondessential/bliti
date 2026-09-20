@@ -108,11 +108,24 @@ A reveal shows each reading's own `detail`, `note`, `limits` and error reason, i
 
 ### Nesting shape (open)
 
-Three options, mocked up at `.workhorse/design/mockups/p1/nesting-options.html` against the same device at the same moment.
+Mocked up at `.workhorse/design/mockups/p1/nesting-options.html`.
+The client's screen is fixed and does not vary with the option; the question is only which option carries enough for the client to draw the screen it has already decided on.
 
-1. **`detail` becomes readings.** One mechanism; every sub-value is a reading with a name, state, graph and children. Disk's filesystems, memory's totals and each address all gain a scale, a colour and a history.
+1. **`detail` becomes readings.** One mechanism; every sub-value is a reading with a name, state, graph and children.
 2. **`readings` alongside `detail`.** A sub-fact that stands on its own is a child reading; a figure that only qualifies its parent stays in `detail`.
 3. **Nesting only where it is a fact.** Same two mechanisms, bar set high: only an interface's in and out nest.
+
+What writing the messages out showed:
+
+- Option 3 cannot carry a state per filesystem, so a device that knows which filesystem is in trouble has no way to say so, and the client is left inferring a judgement the device already made.
+- Options 2 and 3 cannot carry a history for memory's used figure, which is the same structural inertness the card already names for per-interface throughput.
+- A `detail` entry has no `name`, so nothing can key a history to it under any option that leaves values there.
+
+### A parent reading has no value of its own
+
+An interface reading holds two children and measures nothing itself, but a reading currently MUST carry either `value` or `error`.
+Either that rule relaxes so children can stand in for a value, or a parent carries the aggregate of its children.
+The mockup shows the aggregate, which is also what the network tile's face needs.
 
 ### Rounding
 
@@ -141,6 +154,8 @@ The device's sampling buffer is not removed with it, because battery direction i
 ## Open questions
 
 - [ ] Which nesting option, of the three mocked up
+- [ ] Whether a parent reading may carry children instead of a `value`, or must carry an aggregate
+- [ ] What the one readings message type is called, now that it is neither identity nor sample nor history
 - [ ] What the client's preferred order actually is, and whether state reorders it
 - [ ] Whether `hostname`, `board` and `os` render as a header rather than as tiles
 

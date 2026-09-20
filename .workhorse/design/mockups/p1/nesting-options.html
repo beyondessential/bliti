@@ -30,19 +30,31 @@ body {
 .warn { color: var(--warn); }
 
 /* Mockup chrome, not part of the app. */
-.intro { max-width: 60rem; margin: 0 auto 24px; }
-.intro h1 { font-size: 1.25rem; margin: 0 0 8px; }
-.intro p { margin: 0 0 8px; font-size: 0.9rem; color: var(--muted); max-width: 46rem; }
-.options { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
-.option { flex: 1 1 22rem; max-width: 26rem; }
-.option > h2 {
-	font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
-	color: var(--text); margin: 0 0 4px;
-}
-.option > .lede { font-size: 0.85rem; color: var(--muted); margin: 0 0 12px; min-height: 4.2em; }
-.wire { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--muted);
+.sheet { max-width: 64rem; margin: 0 auto; }
+.sheet h1 { font-size: 1.25rem; margin: 0 0 8px; }
+.sheet > p { margin: 0 0 10px; font-size: 0.9rem; color: var(--muted); max-width: 48rem; }
+.rule { border: 0; border-top: 1px solid var(--line); margin: 28px 0 20px; }
+.sheet h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); margin: 0 0 6px; }
+.split { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+.screen { flex: 0 0 22rem; max-width: 24rem; position: sticky; top: 24px; }
+.wires { flex: 1 1 28rem; min-width: 24rem; }
+
+pre.json {
+	font-family: ui-monospace, monospace; font-size: 0.72rem; line-height: 1.55;
 	background: #f4f3f0; border: 1px solid var(--line); border-radius: 6px;
-	padding: 8px 10px; margin: 0 0 12px; white-space: pre; overflow-x: auto; }
+	padding: 10px 12px; margin: 0; overflow-x: auto; color: var(--muted);
+}
+pre.json b { color: var(--text); font-weight: 600; }
+pre.json u { text-decoration: none; background: #e7edfb; color: var(--accent); border-radius: 2px; padding: 0 2px; }
+pre.json s { text-decoration: none; background: #fbeaea; color: var(--bad); border-radius: 2px; padding: 0 2px; }
+
+.opt { margin: 0 0 20px; }
+.opt h3 { font-size: 0.9rem; margin: 0 0 2px; }
+.opt .lede { font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; }
+.verdict { font-size: 0.85rem; margin: 8px 0 0; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--line); border-left-width: 3px; }
+.verdict.yes { border-left-color: var(--good); }
+.verdict.no { border-left-color: var(--bad); }
+.verdict b { font-weight: 600; }
 
 /* The app, as shipped. */
 .device { margin: 0 0 12px; }
@@ -51,15 +63,8 @@ body {
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 .tile {
-	background: var(--surface);
-	border: 1px solid var(--line);
-	border-radius: 8px;
-	padding: 12px;
-	text-align: left;
-	font: inherit;
-	color: inherit;
-	width: 100%;
-	display: block;
+	background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+	padding: 12px; text-align: left; font: inherit; color: inherit; width: 100%; display: block;
 }
 .tile.wide, .tile.expanded { grid-column: 1 / -1; }
 .tile.expanded { border-color: var(--accent); }
@@ -71,16 +76,11 @@ body {
 .tile .value.bad { color: var(--bad); }
 
 .detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
-.detail dl { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
-.detail dt { color: var(--muted); font-size: 0.85rem; white-space: pre; }
-.detail dd { margin: 0; font-size: 0.85rem; overflow-wrap: anywhere; }
 .detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
-.detail dl + dl { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 
 .bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; margin-top: 8px; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
 .bar.warn > span { background: var(--warn); }
-.bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
 .spark { display: block; width: 100%; height: 32px; margin-top: 8px; }
 
 .mirror { position: relative; margin-top: 10px; }
@@ -92,7 +92,6 @@ body {
 .axis-label .key.out { background: var(--good); }
 .axis-label .key.in { background: var(--accent); }
 
-/* A child reading rendered inside a reveal: the same anatomy as a tile, at reveal scale. */
 .child { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .child:first-child { border-top: 0; padding-top: 0; margin-top: 10px; }
 .child-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -103,22 +102,18 @@ body {
 </style>
 </head>
 <body>
+<div class="sheet">
 
-<div class="intro">
-	<h1>Where the nesting goes</h1>
-	<p>The same device, the same moment, rendered three ways. What differs is only how much of a reading's insides are readings in their own right. In every column the client picks the order and the labels, renders what it knows bespoke, and appends what it does not as a plain card.</p>
-	<p>Network is expanded in all three because it is where nesting is settled. Disk and Memory are expanded because they are where the three options actually part company.</p>
-</div>
+<h1>One screen, three wires</h1>
+<p>The screen on the left is the client's, and it does not move. The client decides what it shows, in what order, under what labels, and it shows the same thing whichever shape the device sends. The only variable here is what the wire carries.</p>
+<p>So the question is not which option looks better. It is which option carries enough for the client to draw the screen it has already decided on. Where an option cannot, the shortfall is marked in red in the message.</p>
 
-<div class="options">
+<div class="split">
 
-<!-- ============ OPTION 1 ============ -->
-<div class="option">
-	<h2>1 · detail becomes readings</h2>
-	<p class="lede">One mechanism. Every sub-value is a reading with a name, a state and a history. Disk's filesystems, memory's totals and each address all gain their own scale, colour and graph.</p>
-	<div class="wire">reading
-  name, label, value, state, graph
-  readings[]   ← children, recursive</div>
+<!-- ================= THE SCREEN ================= -->
+<div class="screen">
+	<h2>The client's screen</h2>
+	<p class="muted" style="margin:0 0 12px">Fixed. Network, Storage and Memory are shown open.</p>
 
 	<div class="device">
 		<div class="name">tamanu-iti</div>
@@ -135,6 +130,7 @@ body {
 		</div>
 
 		<div class="tile"><div class="label">Processor</div><div class="value">12%</div></div>
+		<div class="tile"><div class="label">Temperature</div><div class="value">48.5 C</div></div>
 
 		<div class="tile expanded">
 			<div class="label">Memory</div>
@@ -174,7 +170,7 @@ body {
 
 		<div class="tile expanded">
 			<div class="label">Network</div>
-			<div class="value small"><span><span class="part">in</span> 1.3 MB/s</span><span><span class="part">out</span> 554 kB/s</span></div>
+			<div class="value">1.9 MB/s</div>
 			<div class="detail">
 				<div class="child">
 					<div class="child-head"><span class="child-label">eth0</span><span class="child-value">1.2 MB/s · 340 kB/s</span></div>
@@ -190,7 +186,7 @@ body {
 				</div>
 				<div class="child">
 					<div class="child-head"><span class="child-label">wlan0</span><span class="child-value bad">unavailable</span></div>
-					<p class="bad" style="margin:8px 0 0;font-size:0.85rem">Out could not be read: the interface reports no counters while it is associating.</p>
+					<p class="bad" style="margin:8px 0 0;font-size:0.85rem">Out could not be read: no counters while the interface is associating.</p>
 				</div>
 				<div class="child">
 					<div class="child-head"><span class="child-label">tailscale0</span><span class="child-value">88 kB/s · 210 kB/s</span></div>
@@ -207,204 +203,131 @@ body {
 			</div>
 		</div>
 
-		<div class="tile"><div class="label">Temperature</div><div class="value">48.5 C</div></div>
 		<div class="tile"><div class="label">Battery</div><div class="value">94%</div></div>
+		<div class="tile"><div class="label">Uptime</div><div class="value">5d 14h</div></div>
 		<div class="tile wide"><div class="label">Modem signal</div><div class="value">-71 dBm</div></div>
 	</div>
+	<p class="muted">Modem signal is a reading this client has never heard of. It renders from its own label and value and is appended after everything recognised.</p>
 </div>
 
-<!-- ============ OPTION 2 ============ -->
-<div class="option">
-	<h2>2 · readings alongside detail</h2>
-	<p class="lede">Two mechanisms. A sub-fact that stands on its own is a child reading; a figure that only qualifies its parent stays in detail. A filesystem is its own fact, memory's totals are not.</p>
-	<div class="wire">reading
-  name, label, value, state, graph
-  readings[]   ← children, recursive
-  detail[]     ← label + value, inert</div>
+<!-- ================= THE WIRE ================= -->
+<div class="wires">
 
-	<div class="device">
-		<div class="name">tamanu-iti</div>
-		<div class="sub">Raspberry Pi 5 Model B Rev 1.0 · Debian 12</div>
-	</div>
+<h2>What all three agree on</h2>
+<p class="muted" style="margin:0 0 8px">One message type carrying a timestamp and readings. No <code>group</code>, no meaningful order, values rounded to four places. Network nests in every option, because an interface's in and out are two facts about one interface.</p>
+<pre class="json">{
+  <b>"type"</b>: "sample",
+  <b>"at"</b>: 20308140,
+  <b>"readings"</b>: [
+    { <b>"name"</b>: "hostname", <b>"label"</b>: "Hostname", <b>"state"</b>: "ok", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "text", "text": "tamanu-iti" } },
 
-	<div class="tiles">
-		<div class="tile wide">
-			<div class="label">Address</div>
-			<div class="value small">
-				<span><span class="part">eth0</span> 192.168.1.42</span>
-				<span><span class="part">overlay</span> 100.101.102.103</span>
-			</div>
-		</div>
+    { <b>"name"</b>: "network", <b>"label"</b>: "Network", <b>"state"</b>: "ok", <b>"graph"</b>: true,
+      <b>"value"</b>: { "kind": "quantity", "number": 1854000, "unit": "B/s" },
+      <u>"readings"</u>: [
+        { <b>"name"</b>: "eth0", <b>"label"</b>: "eth0", <b>"state"</b>: "ok", <b>"graph"</b>: false,
+          <b>"value"</b>: { "kind": "quantity", "number": 1540000, "unit": "B/s" },
+          <u>"readings"</u>: [
+            { <b>"name"</b>: "in",  <b>"label"</b>: "In",  <b>"direction"</b>: "in",  <b>"state"</b>: "ok", <b>"graph"</b>: true,
+              <b>"value"</b>: { "kind": "quantity", "number": 1200000, "unit": "B/s" } },
+            { <b>"name"</b>: "out", <b>"label"</b>: "Out", <b>"direction"</b>: "out", <b>"state"</b>: "ok", <b>"graph"</b>: true,
+              <b>"value"</b>: { "kind": "quantity", "number": 340000, "unit": "B/s" } }
+          ] },
+        { <b>"name"</b>: "wlan0", <b>"label"</b>: "wlan0", <b>"state"</b>: "fault", <b>"graph"</b>: false,
+          <b>"error"</b>: "no counters while the interface is associating",
+          <u>"readings"</u>: [
+            { <b>"name"</b>: "out", <b>"label"</b>: "Out", <b>"direction"</b>: "out", <b>"state"</b>: "fault", <b>"graph"</b>: true,
+              <b>"error"</b>: "no counters while the interface is associating" }
+          ] }
+      ] }
+  ]
+}</pre>
+<p class="muted" style="margin:8px 0 0"><b>Exposed by writing it out:</b> <code>eth0</code> has no measurement of its own, only children. Today a reading must carry a value or an error. Either that rule relaxes to let children stand in, or a parent carries the aggregate of its children, as shown here. Worth settling either way.</p>
 
-		<div class="tile"><div class="label">Processor</div><div class="value">12%</div></div>
+<hr class="rule">
+<h2>Where they part company: Storage</h2>
+<p class="muted" style="margin:0 0 12px">The screen colours <code>/boot/firmware</code> amber and draws a bar per filesystem. That needs a state and a scale per filesystem.</p>
 
-		<div class="tile expanded">
-			<div class="label">Memory</div>
-			<div class="value">61%</div>
-			<div class="detail">
-				<div class="bar"><span style="width:61%"></span></div>
-				<svg class="spark" viewBox="0 0 240 32" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,18 24,16 48,17 72,13 96,15 120,12 144,14 168,11 192,13 216,12 240,12"/></svg>
-				<dl>
-					<dt>Used</dt><dd>4.8 GB</dd>
-					<dt>Total</dt><dd>7.8 GB</dd>
-				</dl>
-			</div>
-		</div>
-
-		<div class="tile expanded">
-			<div class="label">Storage</div>
-			<div class="value warn">94%</div>
-			<div class="detail">
-				<div class="child">
-					<div class="child-head"><span class="child-label">/boot/firmware</span><span class="child-value warn">94%</span></div>
-					<div class="bar warn"><span style="width:94%"></span></div>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">/</span><span class="child-value">78%</span></div>
-					<div class="bar"><span style="width:78%"></span></div>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">/mnt/data</span><span class="child-value">31%</span></div>
-					<div class="bar"><span style="width:31%"></span></div>
-				</div>
-				<p class="note">Filesystem use does not move fast enough for a graph to say anything.</p>
-			</div>
-		</div>
-
-		<div class="tile expanded">
-			<div class="label">Network</div>
-			<div class="value small"><span><span class="part">in</span> 1.3 MB/s</span><span><span class="part">out</span> 554 kB/s</span></div>
-			<div class="detail">
-				<div class="child">
-					<div class="child-head"><span class="child-label">eth0</span><span class="child-value">1.2 MB/s · 340 kB/s</span></div>
-					<div class="mirror">
-						<span class="axis-label up"><i class="key out"></i> out · peak 402 kB/s</span>
-						<svg class="spark" viewBox="0 0 240 68" preserveAspectRatio="none" aria-hidden="true">
-							<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="0,28 20,22 40,26 60,14 80,18 100,8 120,16 140,10 160,20 180,12 200,6 220,14 240,9"/>
-							<line x1="0" y1="34" x2="240" y2="34" stroke="var(--line)" stroke-width="1"/>
-							<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,40 20,48 40,43 60,52 80,45 100,54 120,47 140,58 160,49 180,43 200,51 220,45 240,53"/>
-						</svg>
-						<span class="axis-label down"><i class="key in"></i> in · peak 1.6 MB/s</span>
-					</div>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">wlan0</span><span class="child-value bad">unavailable</span></div>
-					<p class="bad" style="margin:8px 0 0;font-size:0.85rem">Out could not be read: the interface reports no counters while it is associating.</p>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">tailscale0</span><span class="child-value">88 kB/s · 210 kB/s</span></div>
-					<div class="mirror">
-						<span class="axis-label up"><i class="key out"></i> out · peak 240 kB/s</span>
-						<svg class="spark" viewBox="0 0 240 68" preserveAspectRatio="none" aria-hidden="true">
-							<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="0,30 20,26 40,18 60,24 80,12 100,20 120,10 140,22 160,16 180,8 200,18 220,12 240,20"/>
-							<line x1="0" y1="34" x2="240" y2="34" stroke="var(--line)" stroke-width="1"/>
-							<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,42 20,50 40,44 60,47 80,55 100,46 120,52 140,44 160,50 180,42 200,48 220,54 240,46"/>
-						</svg>
-						<span class="axis-label down"><i class="key in"></i> in · peak 104 kB/s</span>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<div class="tile"><div class="label">Temperature</div><div class="value">48.5 C</div></div>
-		<div class="tile"><div class="label">Battery</div><div class="value">94%</div></div>
-		<div class="tile wide"><div class="label">Modem signal</div><div class="value">-71 dBm</div></div>
-	</div>
+<div class="opt">
+	<h3>1 · detail becomes readings</h3>
+	<p class="lede">Every sub-value is a reading. One mechanism, nothing inert.</p>
+<pre class="json">{ <b>"name"</b>: "disk", <b>"label"</b>: "Disk", <b>"state"</b>: "warn", <b>"graph"</b>: false,
+  <b>"value"</b>: { "kind": "fraction", "number": 0.9412 },
+  <u>"readings"</u>: [
+    { <b>"name"</b>: "boot-firmware", <b>"label"</b>: "/boot/firmware",
+      <u>"state"</u>: "warn", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.9412 } },
+    { <b>"name"</b>: "root", <b>"label"</b>: "/", <u>"state"</u>: "ok", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.7803 } },
+    { <b>"name"</b>: "mnt-data", <b>"label"</b>: "/mnt/data", <u>"state"</u>: "ok", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.3129 } }
+  ] }</pre>
+	<p class="verdict yes"><b>Draws the screen.</b> Each filesystem has its own state and its own fraction, so the amber and the three bars come straight off the wire.</p>
 </div>
 
-<!-- ============ OPTION 3 ============ -->
-<div class="option">
-	<h2>3 · nesting only where it is a fact</h2>
-	<p class="lede">Same two mechanisms, bar set high. Only an interface's in and out nest, because that is where the card says the data genuinely does. Everything else stays in detail, as it is today.</p>
-	<div class="wire">reading
-  name, label, value, state, graph
-  readings[]   ← rare, recursive
-  detail[]     ← the default</div>
-
-	<div class="device">
-		<div class="name">tamanu-iti</div>
-		<div class="sub">Raspberry Pi 5 Model B Rev 1.0 · Debian 12</div>
-	</div>
-
-	<div class="tiles">
-		<div class="tile wide">
-			<div class="label">Address</div>
-			<div class="value small">
-				<span><span class="part">eth0</span> 192.168.1.42</span>
-				<span><span class="part">overlay</span> 100.101.102.103</span>
-			</div>
-		</div>
-
-		<div class="tile"><div class="label">Processor</div><div class="value">12%</div></div>
-
-		<div class="tile expanded">
-			<div class="label">Memory</div>
-			<div class="value">61%</div>
-			<div class="detail">
-				<div class="bar"><span style="width:61%"></span></div>
-				<svg class="spark" viewBox="0 0 240 32" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,18 24,16 48,17 72,13 96,15 120,12 144,14 168,11 192,13 216,12 240,12"/></svg>
-				<dl>
-					<dt>Used</dt><dd>4.8 GB</dd>
-					<dt>Total</dt><dd>7.8 GB</dd>
-				</dl>
-			</div>
-		</div>
-
-		<div class="tile expanded">
-			<div class="label">Storage</div>
-			<div class="value warn">94%</div>
-			<div class="detail">
-				<div class="bar warn"><span style="width:94%"></span></div>
-				<dl>
-					<dt>/boot/firmware</dt><dd>94%</dd>
-					<dt>/</dt><dd>78%</dd>
-					<dt>/mnt/data</dt><dd>31%</dd>
-				</dl>
-				<p class="note">Filesystem use does not move fast enough for a graph to say anything.</p>
-			</div>
-		</div>
-
-		<div class="tile expanded">
-			<div class="label">Network</div>
-			<div class="value small"><span><span class="part">in</span> 1.3 MB/s</span><span><span class="part">out</span> 554 kB/s</span></div>
-			<div class="detail">
-				<div class="child">
-					<div class="child-head"><span class="child-label">eth0</span><span class="child-value">1.2 MB/s · 340 kB/s</span></div>
-					<div class="mirror">
-						<span class="axis-label up"><i class="key out"></i> out · peak 402 kB/s</span>
-						<svg class="spark" viewBox="0 0 240 68" preserveAspectRatio="none" aria-hidden="true">
-							<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="0,28 20,22 40,26 60,14 80,18 100,8 120,16 140,10 160,20 180,12 200,6 220,14 240,9"/>
-							<line x1="0" y1="34" x2="240" y2="34" stroke="var(--line)" stroke-width="1"/>
-							<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,40 20,48 40,43 60,52 80,45 100,54 120,47 140,58 160,49 180,43 200,51 220,45 240,53"/>
-						</svg>
-						<span class="axis-label down"><i class="key in"></i> in · peak 1.6 MB/s</span>
-					</div>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">wlan0</span><span class="child-value bad">unavailable</span></div>
-					<p class="bad" style="margin:8px 0 0;font-size:0.85rem">Out could not be read: the interface reports no counters while it is associating.</p>
-				</div>
-				<div class="child">
-					<div class="child-head"><span class="child-label">tailscale0</span><span class="child-value">88 kB/s · 210 kB/s</span></div>
-					<div class="mirror">
-						<span class="axis-label up"><i class="key out"></i> out · peak 240 kB/s</span>
-						<svg class="spark" viewBox="0 0 240 68" preserveAspectRatio="none" aria-hidden="true">
-							<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="0,30 20,26 40,18 60,24 80,12 100,20 120,10 140,22 160,16 180,8 200,18 220,12 240,20"/>
-							<line x1="0" y1="34" x2="240" y2="34" stroke="var(--line)" stroke-width="1"/>
-							<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="0,42 20,50 40,44 60,47 80,55 100,46 120,52 140,44 160,50 180,42 200,48 220,54 240,46"/>
-						</svg>
-						<span class="axis-label down"><i class="key in"></i> in · peak 104 kB/s</span>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<div class="tile"><div class="label">Temperature</div><div class="value">48.5 C</div></div>
-		<div class="tile"><div class="label">Battery</div><div class="value">94%</div></div>
-		<div class="tile wide"><div class="label">Modem signal</div><div class="value">-71 dBm</div></div>
-	</div>
+<div class="opt">
+	<h3>2 · readings alongside detail</h3>
+	<p class="lede">A sub-fact that stands on its own nests; a figure that only qualifies its parent stays in <code>detail</code>. A filesystem stands on its own.</p>
+<pre class="json">{ <b>"name"</b>: "disk", <b>"label"</b>: "Disk", <b>"state"</b>: "warn", <b>"graph"</b>: false,
+  <b>"value"</b>: { "kind": "fraction", "number": 0.9412 },
+  <u>"readings"</u>: [
+    { <b>"name"</b>: "boot-firmware", <b>"label"</b>: "/boot/firmware",
+      <u>"state"</u>: "warn", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.9412 } },
+    { <b>"name"</b>: "root", <b>"label"</b>: "/", <u>"state"</u>: "ok", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.7803 } },
+    { <b>"name"</b>: "mnt-data", <b>"label"</b>: "/mnt/data", <u>"state"</u>: "ok", <b>"graph"</b>: false,
+      <b>"value"</b>: { "kind": "fraction", "number": 0.3129 } }
+  ] }</pre>
+	<p class="verdict yes"><b>Draws the screen</b>, identically to option 1 here. The two options only diverge on Memory, below.</p>
 </div>
 
+<div class="opt">
+	<h3>3 · nesting only where it is a fact</h3>
+	<p class="lede">Only an interface's in and out nest. Everything else stays in <code>detail</code>, as today.</p>
+<pre class="json">{ <b>"name"</b>: "disk", <b>"label"</b>: "Disk", <b>"state"</b>: "warn", <b>"graph"</b>: false,
+  <b>"value"</b>: { "kind": "fraction", "number": 0.9412 },
+  <b>"detail"</b>: [
+    { <b>"label"</b>: "/boot/firmware", <b>"value"</b>: { "kind": "fraction", "number": 0.9412 } },
+    { <b>"label"</b>: "/",             <b>"value"</b>: { "kind": "fraction", "number": 0.7803 } },
+    { <b>"label"</b>: "/mnt/data",     <b>"value"</b>: { "kind": "fraction", "number": 0.3129 } }
+  ] }
+<s>no state per filesystem — the amber cannot be drawn</s>
+<s>no name per filesystem — nothing to key a history to</s></pre>
+	<p class="verdict no"><b>Cannot draw the screen.</b> The device knows <code>/boot/firmware</code> is the one in trouble and has no way to say so. The client can infer it by comparing fractions, which is the client guessing at a judgement the device already made.</p>
+</div>
+
+<hr class="rule">
+<h2>Where 1 and 2 part company: Memory</h2>
+<p class="muted" style="margin:0 0 12px">The screen draws a sparkline under <code>Used</code> and none under <code>Total</code>.</p>
+
+<div class="opt">
+	<h3>1 · detail becomes readings</h3>
+<pre class="json">{ <b>"name"</b>: "memory", <b>"label"</b>: "Memory", <b>"state"</b>: "ok", <b>"graph"</b>: true,
+  <b>"value"</b>: { "kind": "fraction", "number": 0.6154 },
+  <u>"readings"</u>: [
+    { <b>"name"</b>: "used", <b>"label"</b>: "Used", <b>"state"</b>: "ok", <u>"graph"</u>: true,
+      <b>"value"</b>: { "kind": "quantity", "number": 4.8, "unit": "GB" } },
+    { <b>"name"</b>: "total", <b>"label"</b>: "Total", <b>"state"</b>: "ok", <u>"graph"</u>: false,
+      <b>"value"</b>: { "kind": "quantity", "number": 7.8, "unit": "GB" } }
+  ] }</pre>
+	<p class="verdict yes"><b>Draws the screen.</b> <code>used</code> says its history is worth drawing and <code>total</code> says it is not, so the device makes the call rather than the client assuming.</p>
+</div>
+
+<div class="opt">
+	<h3>2 and 3 · memory stays in detail</h3>
+<pre class="json">{ <b>"name"</b>: "memory", <b>"label"</b>: "Memory", <b>"state"</b>: "ok", <b>"graph"</b>: true,
+  <b>"value"</b>: { "kind": "fraction", "number": 0.6154 },
+  <b>"detail"</b>: [
+    { <b>"label"</b>: "Used",  <b>"value"</b>: { "kind": "quantity", "number": 4.8, "unit": "GB" } },
+    { <b>"label"</b>: "Total", <b>"value"</b>: { "kind": "quantity", "number": 7.8, "unit": "GB" } }
+  ] }
+<s>no name, no graph flag — neither figure can carry a history</s></pre>
+	<p class="verdict no"><b>Cannot draw the sparkline under Used.</b> The figure is on the wire every second and is structurally inert, which is the same defect the card already names for per-interface throughput.</p>
+</div>
+
+</div>
+</div>
 </div>
 </body>
 </html>
