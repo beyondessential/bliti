@@ -18,7 +18,7 @@ This spec is the catalogue: which entries a device reports, what each is about, 
 
 ## The topic
 
-A device MUST serve its facts and readings on the topic `default`, and MUST open a feed for that topic without being asked.
+A device MUST send its facts and readings on the topic `default`.
 
 ## Facts and readings
 

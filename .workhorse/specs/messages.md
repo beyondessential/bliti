@@ -160,12 +160,15 @@ A sender that needs a whole message not to be passed over in silence MUST name i
 
 An end MUST serve a topic on at most one stream.
 
-An end MAY open a feed for a topic its peer has not asked for, and MUST serve exactly the topic `default` on such a feed.
+`default` is the only topic an end may serve without being asked.
+
+An end that has anything to send on `default` MUST open a feed for it as soon as the handshake completes, and MUST begin sending without waiting to be asked.
 
 A feed MUST NOT announce the topic it serves.
 
 > [!NOTE]
 > There is one topic an end may push, so a pushed stream has only one thing it can be, and a peer resuming it already knows the name to ask for.
+> What a feature puts on `default` is the feature's own; that the feed opens unasked is not.
 
 A peer declines a feed by closing the stream, and MUST NOT be required to send anything to decline it.
 
