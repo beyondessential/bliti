@@ -58,9 +58,12 @@ The same test applied to the readings a device already reports moves two things:
 
 This is the `detail`-versus-reading question one level down, and it takes the same answer: a thing that stands on its own is its own member, and a thing that only qualifies another belongs inside it.
 
-**A trait names, it does not flag.**
+**Where the device holds a piece of information, it sends it rather than leaving it implied.**
 The overlay trait carries `"tailscale"`, not `true`.
-A boolean says only that some unnamed property holds, which a client cannot render and cannot tell apart from another device's different reason for setting it; a name is a fact worth carrying and reads in the generic qualifier without translation.
+The device knows which overlay it is; `true` throws that away and encodes only that there is one.
+
+This says nothing about what shape a trait value takes.
+A trait carries whatever the data is.
 
 `detail` dissolves.
 What sat inside it becomes readings in its own right, distinguished by a trait: each filesystem carries a `filesystem` trait, memory's used and total carry theirs, each address its interface.
@@ -160,7 +163,7 @@ What the device *is*, then what it is *doing*:
 | position | from |
 | --- | --- |
 | header | the `hostname`, `board` and `os` facts |
-| tiles | `network-address`, then `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `throttling`, `fan-speed`, `power-source`, `battery-charge`, `uptime` |
+| tiles | `network-address`, then `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `throttling`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
 | appended | everything unrecognised, generically, in the order received |
 
 The measurement and fact names here are drafted, not settled; naming the catalogue is NFO's job.
@@ -198,8 +201,8 @@ Today an unrecognised kind makes the value unreadable and the client renders the
 That was written for a closed set where the risk was drawing a number whose scale the client did not know.
 With an open vocabulary it is too harsh: a client that has never heard of `ipv4` would show nothing, where showing the string verbatim would have been correct.
 
-Proposed, to be corrected: a client that does not recognise a kind renders a string value as text, and treats a numeric value as unreadable.
-A string carries its own meaning; a number without its scale does not.
+A client that does not recognise a kind renders a string value as text.
+A string carries its own meaning; a number without its scale does not, so an unrecognised kind with a numeric value stays unreadable.
 
 ### Units are spelled out; abbreviating them is the client's
 
@@ -211,6 +214,21 @@ Spelling the unit out removes the ambiguity from the wire rather than relying on
 Choosing a readable magnitude is the client's too: the wire carries `1200000 bytes/second` and the screen says `1.2 MB/s`.
 
 A client that does not recognise a unit writes it out as it was sent, which is correct if ungainly.
+
+### A trait distinguishes instances, not quantities
+
+A trait separates instances of one measurement: `eth0` and `wlan0` are the same thing measured on different subjects.
+A total and an available figure are not that — they are different quantities — so they take different names rather than one name and a dimension.
+
+Drafting the catalogue showed what happens otherwise: the same trait read as `used` against memory and `free` against filesystems, one name for opposite quantities.
+
+### Uptime becomes the instant of boot
+
+`last-boot` carries a datetime; the client subtracts to show an uptime.
+The boot instant does not change, where an uptime changes every second and is a subtraction away from it.
+
+This needs a clock, which `at` being boot-relative exists precisely because a device may not have.
+A device that cannot answer for its boot instant omits `last-boot`, under the same rule as any other reading its hardware and operating system cannot answer for — which makes a missing clock visible where an uptime quietly hid it.
 
 ### The generic fallback
 
@@ -280,8 +298,8 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] Whether a trait may ever be a value that is not a name
-- [ ] The measurement and fact catalogue: the names themselves
+- [ ] Whether the `-usage` fraction survives alongside `-available` and `-total`, given it is derivable from them
+- [ ] The measurement and fact catalogue, drafted at `.workhorse/design/mockups/p1/catalogue.html`
 
 ## Testing notes
 

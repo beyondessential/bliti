@@ -44,7 +44,7 @@ pre.json i { font-style:normal; color:#8a8580; }
 
 <h1>Measurement and fact catalogue</h1>
 <p>Every reading the device reports today, restated as a measurement or a fact with its traits. Green is a fact (no state, no history); the rest are readings. The last column says what it was before, so nothing is silently dropped.</p>
-<p>Trait values are always names, never numbers or flags. Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open.</p>
+<p>Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open. Where the device holds a piece of information, it sends it rather than leaving it implied.</p>
 
 <h2>Identity</h2>
 <table>
@@ -54,9 +54,10 @@ pre.json i { font-style:normal; color:#8a8580; }
 <tr class="fact"><td class="t">fact</td><td class="n"><code>board-revision</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>board</code> detail "Revision"</td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>os</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>os</code> headline</td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>kernel</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>os</code> detail "Kernel"</td></tr>
-<tr class="fact"><td class="t">fact</td><td class="n"><code>uptime</code></td><td><code>duration</code></td><td class="tr">—</td><td class="was"><code>uptime</code></td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>last-boot</code></td><td><code>datetime</code></td><td class="tr">—</td><td class="was"><code>uptime</code></td></tr>
 </table>
-<p class="note"><b>Uptime is a fact.</b> It changes constantly but has no state and its history says nothing — it only ever climbs, which is why it carried <code>ungraphed</code>. A fact is not a thing that never changes; it is a thing with no state and no history worth keeping. An address is the same.</p>
+<p class="note"><b>Uptime becomes the instant it booted.</b> An uptime changes every second and is a subtraction away from a boot time that does not change at all. The wire carries the instant; the client says "5d 14h".</p>
+<div class="callout"><b>This one needs a clock.</b> <code>at</code> is boot-relative precisely because a device in the field may have no set clock and no way to reach one. A device that cannot answer for its boot instant omits <code>last-boot</code>, as it omits any reading its hardware and OS cannot answer for — which also makes the missing clock visible, where an uptime quietly hid it.</div>
 
 <h2>Network</h2>
 <table>
@@ -74,8 +75,8 @@ pre.json i { font-style:normal; color:#8a8580; }
 <tr class="fact"><td class="t">fact</td><td class="n"><code>cpu-frequency-max</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Full speed"</td></tr>
 <tr><td class="t">reading</td><td class="n"><code>throttling</code></td><td><code>boolean</code></td><td class="tr"><code>condition</code></td><td class="was"><code>throttling</code> text summary</td></tr>
 <tr><td class="t">reading</td><td class="n"><code>memory-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>memory</code></td></tr>
-<tr><td class="t">reading</td><td class="n"><code>memory-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>part: used</code></td><td class="was"><code>memory</code> detail "Used"</td></tr>
-<tr class="fact"><td class="t">fact</td><td class="n"><code>memory-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>part: total</code></td><td class="was"><code>memory</code> detail "Total"</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>memory-available</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr">—</td><td class="was"><code>memory</code> detail "Used"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>memory-total</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr">—</td><td class="was"><code>memory</code> detail "Total"</td></tr>
 </table>
 <div class="callout"><b>Throttling becomes one reading per condition, not a sentence.</b> The device currently composes "Undervolted and slowed" as text, which a client cannot act on. Two conditions, each with its own state, is the same information as data. This is the one place a new <code>boolean</code> kind is wanted.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "throttling",
@@ -90,8 +91,8 @@ pre.json i { font-style:normal; color:#8a8580; }
 <table>
 <tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
 <tr><td class="t">reading</td><td class="n"><code>filesystem-usage</code></td><td><code>fraction</code></td><td class="tr"><code>filesystem{mount, device, role?}</code></td><td class="was"><code>disk</code> headline + detail</td></tr>
-<tr><td class="t">reading</td><td class="n"><code>filesystem-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code>, <code>part: free</code></td><td class="was"><code>disk</code> detail "  free"</td></tr>
-<tr class="fact"><td class="t">fact</td><td class="n"><code>filesystem-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code>, <code>part: total</code></td><td class="was"><code>disk</code> detail "  of"</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>filesystem-available</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code></td><td class="was"><code>disk</code> detail "  free"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>filesystem-total</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code></td><td class="was"><code>disk</code> detail "  of"</td></tr>
 </table>
 <div class="callout"><b>The boot-partition rule moves to the client, and needs a trait to move on.</b> The device currently excludes boot partitions from the headline itself. It now states the role and the client applies the policy — which is the same shape as the address headline moving client-side.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "filesystem-usage",
@@ -119,7 +120,9 @@ pre.json i { font-style:normal; color:#8a8580; }
 
 <h2>What this catalogue decides</h2>
 <div class="callout"><b>Three device-side judgements become client rules.</b> Which address to headline, which filesystem sets the storage headline, and which temperature sensor leads. In each case the device gains a trait stating the fact — <code>route</code>, <code>role</code>, <code>sensor</code> — and stops choosing.</div>
-<div class="callout"><b>Three details were the same number twice</b> and collapse: battery charge, and the disk fraction that appeared both as the headline and per mount.</div>
+<div class="callout"><b><code>part</code> is gone, and was never a trait.</b> It read as <code>used</code> against memory and <code>free</code> against filesystems — the same name for opposite quantities. A trait distinguishes instances of one measurement, as <code>eth0</code> and <code>wlan0</code> do; a total and an available figure are two measurements, so they take two names.</div>
+<div class="callout"><b>Both now report what the platform actually holds.</b> <code>statvfs</code> gives total and available blocks, and <code>/proc/meminfo</code> gives MemTotal and MemAvailable. Used was the derived figure in both cases all along, and the client derives it.</div>
+<div class="callout"><b>Details that were the same number twice</b> collapse: battery charge appeared as both the fraction headline and a percentage in its detail.</div>
 <div class="callout"><b>One new kind, <code>boolean</code>,</b> so throttling conditions are data rather than an English sentence. Everything else uses <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>ipv4</code> and <code>ipv6</code>.</div>
 
 </div>
