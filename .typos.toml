@@ -1,3 +1,12 @@
+# Recorded wire messages, not prose. Member names in them are machine-generated from a six-letter
+# alphabet, so short dictionary-adjacent strings (`ba`, `iz`, `ehr`) turn up by chance and mean
+# nothing. The corpus README beside them is prose and stays checked.
+[files]
+extend-exclude = [
+	"crates/bliti-wire-compat/baseline-snapshot.jsonl",
+	"crates/bliti-wire-compat/corpus/*.json",
+]
+
 [default]
 
 [default.extend-words]
