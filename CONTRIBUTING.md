@@ -19,6 +19,26 @@ type: <description>
 type(scope): <description>
 ```
 
+## The wire protocol
+
+`bliti-wire-compat` checks the wire protocol against a baseline build, in the same spirit as
+`cargo-semver-checks` for a Rust API: the baseline and the current build are linked together and
+each reads what the other writes, so nothing describes the wire shape and there is no schema to
+drift. It runs as part of `cargo test`.
+
+Two things it may ask of you.
+
+**A member older peers will refuse.** A member named in upper case is critical, and adding one is
+permitted without moving the version marker, but every peer older than the change stops acting on
+that message type. Record it in `wire-breaks.toml` with a reason. The check fails until you do.
+
+**Moving the baseline.** The baseline is the `rev` of `bliti-core-baseline` in the workspace
+`Cargo.toml`. Before the first release, breaking the protocol is free, so a deliberate break moves
+it. Afterwards, moving it means moving the version marker of VER too.
+
+Repurposing a member, keeping its name and type while changing its meaning, is not machine
+checkable and remains a matter for review.
+
 ## License
 
 Any contributions you make will be licensed under [the General Public License version 3.0](./COPYING).

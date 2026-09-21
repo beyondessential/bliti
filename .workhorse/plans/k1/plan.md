@@ -235,6 +235,35 @@ marker makes the check vacuous and it would otherwise stay skipped for good. Bef
 release, where breaking the protocol is free and moving the marker is not wanted, a deliberate
 break moves the baseline instead. After the release, moving it requires the marker to move too.
 
-## Open
+## Build
 
-Nothing outstanding. Ready to build.
+- [x] `MessageSet::known_types`, with `knows` derived from it, so a type cannot join the set
+      without appearing where criticality is enumerated
+- [x] `bliti-core`'s message generator, behind a `generate` feature, with its own tests for
+      conformance, optional-member coverage and every known type being reached
+- [x] `bliti-core-baseline` pinned in the workspace manifest, and `bliti-wire-compat` added as a
+      member so the check runs under the existing `cargo test` CI job rather than a new one
+- [x] The oracle: both read directions, the case-folding containment walk, and the version-marker
+      gate that reports itself skipped rather than passing
+- [x] `wire-breaks.toml` and its three checks: unrecorded, stale, and reasonless entries
+- [x] The recorded corpus, 240 messages as the baseline writes them
+- [x] Contributor note in `CONTRIBUTING.md` covering the two things the check asks of an author
+
+### Verified by staging each break and reverting it
+
+- [x] A member no longer written fails, naming the corpus entry that carried it
+- [x] A member whose JSON type changed fails, showing both values
+- [x] An added ignorable member passes, in both directions
+- [x] A new critical member fails the ledger, naming the type and member
+
+## Follow-up after this merges
+
+Move `bliti-core-baseline` to the merge commit and add `"generate"` to its features. The revision
+pinned now precedes the generator, so the baseline cannot be asked to produce messages live and
+the baseline-to-current direction runs from the recorded corpus alone. Moving it upgrades that
+direction to live generation, and the corpus stays as the regression record it was always meant
+to be.
+
+Until that is done, a member removal is caught only where the corpus carries an example of it.
+The corpus is broad enough that this is a real check rather than a token one, but it is a
+snapshot and not a search.

@@ -31,6 +31,11 @@ tpm = ["backends", "dep:tss-esapi"]
 # a secret derived with this on is identical to one derived with it off (pinned by a known-answer
 # test). Worth having on the device and the generator, both of which sit on a provisioning path.
 parallel = ["argon2?/parallel"]
+# Strategies generating conforming application messages, for the wire compatibility oracle of
+# `bliti-wire-compat`. An optional dependency rather than a dev-dependency: the oracle links two
+# builds of this crate and needs the generator from each, and a dev-dependency is invisible to
+# anything depending on the crate.
+generate = ["dep:proptest"]
 
 [dependencies]
 argon2 = { version = "0.6.0", optional = true }
@@ -41,6 +46,7 @@ data-encoding = "2.11.1"
 # `zlib-rs` buys does not matter to messages of a few hundred bytes on a device with time to spare.
 flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
 futures.workspace = true
+proptest = { version = "1.11.0", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 # default-features off to keep snow's `std` feature from pulling in `ring`, which is unused (the

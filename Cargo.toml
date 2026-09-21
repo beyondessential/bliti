@@ -3,6 +3,7 @@ resolver = "2"
 members = [
 	"crates/bliti",
 	"crates/bliti-core",
+	"crates/bliti-wire-compat",
 	"crates/bliti-web",
 ]
 
@@ -13,6 +14,17 @@ members = [
 rust_2018_idioms = { level = "deny", priority = -1 }
 
 [workspace.dependencies]
+# The wire protocol baseline the oracle of `bliti-wire-compat` compares the current build against.
+# Pinned by revision, and moving it is the deliberate act: before the first release, where breaking
+# the protocol is free, a break moves this; afterwards it moves only alongside the version marker of
+# VER. It cannot precede the commit that added `bliti-core`'s message generator, because the oracle
+# calls the baseline build's own.
+#
+# It does not yet carry one: this revision precedes the generator, so the oracle drives the
+# baseline-to-current direction from the recorded corpus instead. Moving this to a revision built
+# with `generate` upgrades that direction to live generation, and the `features` key below gains
+# `"generate"` at the same time.
+bliti-core-baseline = { package = "bliti-core", git = "https://github.com/beyondessential/bliti.git", rev = "638c4db7ec55bebd85cf0be10821fd2d8123ff3e", default-features = false }
 clap = { version = "4.6.1", features = ["cargo", "derive", "wrap_help"] }
 futures = "0.3.30"
 rand = "0.10.1"
