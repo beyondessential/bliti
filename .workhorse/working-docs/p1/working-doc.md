@@ -52,7 +52,7 @@ A modem's radio technology is not — it describes the modem, so it belongs insi
 The same test applied to the readings a device already reports moves two things: the default route and the overlay describe the interface, and the block device describes the filesystem.
 
 ```json
-"traits": { "interface": { "name": "eth0", "route": "default" }, "family": "ipv4" }
+"traits": { "interface": { "name": "eth0", "route": "default" } }
 "traits": { "filesystem": { "mount": "/boot/firmware", "device": "mmcblk0p1" } }
 ```
 
@@ -185,6 +185,21 @@ Per-interface throughput becomes structural rather than inert `detail`, so it ca
 A reveal shows each reading's own `detail`, `note`, `limits` and error reason, including for the members of a mirrored pair.
 
 ## Implementation options
+
+### `kind` names the value's type, and the vocabulary is open
+
+`kind` is not a four-way choice between `text`, `quantity`, `fraction` and `duration`.
+It names what the value is, and an address is `ipv4`.
+
+Nothing carries an address family, because the kind already says it.
+
+**The fallback for an unrecognised kind has to change.**
+Today an unrecognised kind makes the value unreadable and the client renders the label alone.
+That was written for a closed set where the risk was drawing a number whose scale the client did not know.
+With an open vocabulary it is too harsh: a client that has never heard of `ipv4` would show nothing, where showing the string verbatim would have been correct.
+
+Proposed, to be corrected: a client that does not recognise a kind renders a string value as text, and treats a numeric value as unreadable.
+A string carries its own meaning; a number without its scale does not.
 
 ### The generic fallback
 

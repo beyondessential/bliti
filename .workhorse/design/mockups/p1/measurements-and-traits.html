@@ -216,15 +216,14 @@ pre.json i { font-style: normal; color: #8a8580; }
 	<h2>Address</h2>
 	<div class="rule-box"><b>Rule.</b> Select <code>fact = network-address</code>. Headline the one whose interface carries <code>route: default</code>, plus the one whose interface carries an <code>overlay</code>. All of them behind the tap.</div>
 <pre class="json">{ <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
-  <u>"traits"</u>: { <i>"interface"</i>: { "name": "eth0", "route": "default" },
-             <i>"family"</i>: "ipv4" },
-  <b>"kind"</b>: "text", <b>"value"</b>: "192.168.1.42" }
+  <u>"traits"</u>: { <i>"interface"</i>: { "name": "eth0", "route": "default" } },
+  <u>"kind"</u>: "ipv4", <b>"value"</b>: "192.168.1.42" }
 
 { <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
-  <u>"traits"</u>: { <i>"interface"</i>: { "name": "tailscale0", "overlay": "tailscale" },
-             <i>"family"</i>: "ipv4" },
-  <b>"kind"</b>: "text", <b>"value"</b>: "100.101.102.103" }</pre>
+  <u>"traits"</u>: { <i>"interface"</i>: { "name": "tailscale0", "overlay": "tailscale" } },
+  <u>"kind"</u>: "ipv4", <b>"value"</b>: "100.101.102.103" }</pre>
 	<p class="muted">Which address to headline was a device-side judgement under the old shape. Here the device states the facts that make it decidable and the client decides.</p>
+	<p class="muted">The address family needs no trait: <code>kind</code> already says what the value is. A client that has never heard of <code>ipv4</code> shows the string verbatim, which is correct without recognising it.</p>
 </div>
 
 <div class="block">
