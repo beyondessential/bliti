@@ -49,9 +49,37 @@ The application MUST be served from the origin the QR code encodes, as [QR](qr-c
 
 The application MUST run without being installed first, and MUST remain usable offline once it has been loaded.
 
+The application MUST also be installable, such that a browser offers to add it to the device's home screen.
+
 > [!NOTE]
 > Running uninstalled is what lets whoever is standing in front of a device provision it.
 > Working offline is what makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).
+
+### Install criteria
+
+A browser decides whether to offer the install itself, against criteria it does not publish as a contract, so the following are what the application declares in order to meet them.
+
+The application MUST link a manifest declaring a name, a start URL within the served origin, a display mode of `fullscreen`, `standalone` or `minimal-ui`, and icons.
+
+The declared icons MUST include a square PNG of at least 192 pixels and a square PNG of at least 512 pixels.
+
+The application MUST register a service worker that serves the application's own assets.
+
+The application MUST NOT declare a preference for a related native application.
+
+> [!NOTE]
+> The two icon sizes are the criterion most easily left unmet, because a manifest without them is still valid and still links, and the application still runs: the only symptom is that the browser never offers the install.
+
+### Icons
+
+Every asset the manifest references MUST remain available offline once the application has been loaded.
+
+The application MUST declare a maskable icon, whose mark stays clear of the region a platform crops when it masks an icon to a shape of its own.
+
+The application MUST declare a home-screen icon in its markup, for platforms that take one from there rather than from the manifest.
+
+> [!NOTE]
+> A platform that masks an icon crops whatever it is given, so a mark drawn to the edge of the tile loses its edges; a platform that ignores the manifest composites a transparent icon onto black.
 
 ## Delivery
 

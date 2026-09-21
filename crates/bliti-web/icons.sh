@@ -1,5 +1,5 @@
 #!/bin/sh
-# Rasterise the application's icons from icon.svg, the one master beside them. The PNGs are
+# Rasterise the application's icons from icon.svg, the one master beside them. The PNG files are
 # committed, because a build must not need a rasteriser; run this only when the master changes.
 #
 # Chromium will not offer to install the application unless the manifest carries a 192px and a 512px
@@ -14,7 +14,8 @@ BACKGROUND='#cc3467'
 # tile; 256 is what leaves it clear of the crop with room to spare.
 maskable() {
 	rsvg-convert -w "$((${1} * 256 / 300))" icon.svg |
-		magick - -background "$BACKGROUND" -gravity center -extent "${1}x${1}" -alpha remove -alpha off "PNG24:$2"
+		magick - -background "$BACKGROUND" -gravity center -extent "${1}x${1}" \
+			-alpha remove -alpha off "PNG24:$2"
 }
 
 rsvg-convert -w 192 -h 192 icon.svg -o icon-192.png
