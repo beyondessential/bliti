@@ -29,7 +29,8 @@ Both are ordinary feature message types: either end may send them, and an end wi
 A `fact` is something true about the device.
 A `reading` is a measurement, which may be in difficulty and whose history is worth keeping.
 
-Both MUST carry:
+The two are one shape.
+What separates them is which catalogue names them, and that only a `reading` may be in difficulty.
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
@@ -40,14 +41,13 @@ Both MUST carry:
 | `unit` | string | no | the unit the value is in |
 | `value` | any | no | the value |
 | `error` | string | no | why there is none |
-
-A `reading` MUST also carry:
-
-| member | type | required | meaning |
-| --- | --- | --- | --- |
-| `state` | string | yes | `ok`, `warn` or `fault` |
+| `state` | string | readings | `ok`, `warn` or `fault` |
 | `state-reason` | string | no | what the trouble is, named |
 | `limits` | array | no | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
+
+A `reading` MUST carry `state`.
+
+A `fact` MUST NOT carry `state`, `state-reason` or `limits`.
 
 Either MUST carry `value` or `error`, and MUST NOT carry both.
 
@@ -80,12 +80,16 @@ Where the sender holds a piece of information a trait could carry, it MUST send 
 
 ### What identifies a series
 
-A fact or reading's identity MUST be its catalogue name together with its `traits` object entire.
+A fact or reading's identity MUST be its catalogue name together with its traits.
 
-A receiver MUST include traits it does not recognise in that identity.
+A receiver MUST treat every trait as part of that identity, except one it knows to be descriptive.
+
+A receiver MUST treat a trait it does not recognise as part of that identity.
+
+A trait is descriptive where it says something about what is being measured without distinguishing it from anything else the same measurement is taken on.
 
 > [!NOTE]
-> A sender newer than its receiver may add a trait that splits one series into several. A receiver that left unrecognised traits out of identity would merge them and draw one series that is wrong, where including them leaves it two series it cannot fully tell apart, which is degraded and true.
+> Identity is the receiver's to compute, and two receivers at different versions may reach different answers about the same data. That is deliberate: a sender newer than its receiver may add a trait that splits one series into several, and a receiver that left unrecognised traits out of identity would merge them and draw one series that is wrong. Treating an unknown trait as distinguishing leaves it two series it cannot fully tell apart, which is degraded and true, and it stops splitting them when it learns better.
 
 ### Values
 
@@ -166,6 +170,11 @@ Where the hardware is fitted and the measurement cannot be taken, a device MUST 
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
 | `fan` | — | which fan |
+
+An application MUST treat `route` and `overlay` as descriptive.
+
+> [!NOTE]
+> The default route moves between interfaces. An application that let it distinguish would start a new series for an interface each time the route left it, which is the one place this catalogue would otherwise fork a graph for a reason that has nothing to do with what it measures.
 
 ## Storage
 
@@ -328,4 +337,4 @@ An application MUST space readings by their `at` values rather than evenly.
 
 An application MUST let the device's feed run while the operator is looking at the device.
 
-An application MUST close the feed when they are not, and MUST subscribe to `default` to resume.
+An application SHOULD close the feed when they are not, and MUST subscribe to `default` to resume.
