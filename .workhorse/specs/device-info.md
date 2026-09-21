@@ -4,9 +4,10 @@ id: NFO
 
 # Device information
 
-A device reports what board it is, what it is running, and how it is doing, as the facts and readings of [MSG](messages.md).
+A device reports what board it is, what it is running, and how it is doing, as the facts and readings below.
 
-This spec is the catalogue: which entries a device reports, what each is about, and which of them an application renders specially.
+This spec is the catalogue: which entries a device reports and what each is about.
+What a reader does with them is its own; [VIEW](device-view.md) specifies what ours does.
 
 ## Borrowed terms
 
@@ -27,28 +28,18 @@ A device reports what it knows about itself as `fact` and `reading` messages, wi
 Both are ordinary feature message types: either end may send them, and an end with nothing to do about one received treats it as the no-op [MSG](messages.md) requires.
 
 A `fact` is something true about the device.
-A `reading` is a measurement, which may be in difficulty and whose history is worth keeping.
+A `reading` is a measurement, whose history is worth keeping.
 
-The two are one shape.
-What separates them is which catalogue names them, and that only a `reading` may be in difficulty.
+The two are one shape, and what separates them is which catalogue names them.
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `at` | number | yes | milliseconds since the sender booted, when it was taken |
 | `fact` or `measurement` | string | yes | what it is, named against the catalogue below; `fact` on a `fact`, `measurement` on a `reading` |
-| `traits` | object | no | what it is about, as below |
+| `traits` | object | yes | what it is about, as below |
 | `kind` | string | yes | what the value is |
 | `unit` | string | no | the unit the value is in |
 | `value` | any | no | the value |
-| `error` | string | no | why there is none |
-
-Either MUST carry `value` or `error`, and MUST NOT carry both.
-
-Whether something is in difficulty, and the scale it is drawn against, are traits.
-
-A `fact` MUST NOT carry the `state` trait.
-
-A message carrying `error` MUST carry the `state` trait, with `is` of `fault`.
 
 A receiver MUST treat `at` as meaningful only relative to other `at` values from the same sender.
 
@@ -77,16 +68,43 @@ Where the sender holds a piece of information a trait could carry, it MUST send 
 > [!NOTE]
 > Two measurements that merely resemble each other are two catalogue entries rather than one entry and a trait, because re-combining their instances would mean nothing.
 
-### What identifies a series
+### Telling entries apart
 
-A fact or reading's identity MUST be its catalogue name together with its traits.
+A device MUST emit entries a reader can tell apart: two entries that are about different things MUST differ somewhere in what is sent.
 
-A receiver MUST treat every trait as part of that identity, except one it knows to be descriptive.
-
-A receiver MUST treat a trait it does not recognise as part of that identity.
+A device MUST NOT rely on the order entries arrive in to distinguish them.
 
 > [!NOTE]
-> Identity is the receiver's to compute, and two receivers at different versions may reach different answers about the same data. That is deliberate: a sender newer than its receiver may add a trait that splits one series into several, and a receiver that left unrecognised traits out of identity would merge them and draw one series that is wrong. Treating an unknown trait as distinguishing leaves it two series it cannot fully tell apart, which is degraded and true, and it stops splitting them when it learns better.
+> How a reader groups entries, and what it treats as one thing measured over time, is the reader's own business. The device's obligation is only that what it sends is distinguished well enough for a reader to do that unambiguously.
+> Two addresses on one interface meet this through their `kind`, which tells an `ipv4` from an `ipv6` without a trait to separate them.
+
+### Status
+
+The `status` trait says how the datum stands: whether there is a value, and where the measurement has a notion of being in difficulty, what it says about the thing measured.
+
+| `is` | meaning | `value` |
+| --- | --- | --- |
+| `passed` | the measurement was taken and what it measures is well | present |
+| `warning` | what it measures is degraded, but not gravely | present |
+| `failed` | what it measures is unwell | present |
+| `skipped` | a precondition was not met, so nothing was measured | absent |
+| `broken` | the measurement was attempted and errored | absent |
+
+Every fact and reading MUST carry the `status` trait.
+
+An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped` or `broken`.
+
+`status` MUST carry `reason` where `is` is anything but `passed`, and MUST NOT carry it where `is` is `passed`.
+
+`reason` is free text, in the sender's own words, saying what happened.
+
+A device MUST report `warning` or `failed` only where the measurement has a notion of being in difficulty.
+
+> [!NOTE]
+> The status is the datum's and not the device's: `passed` against a throughput reading says the figure is sound, not that the link is quiet. That is what lets every entry carry a status while a busy link stays no kind of warning.
+> `skipped` and `broken` both leave the value absent and both say nothing about the device, but they are different things to whoever is looking: one is a measurement this platform cannot make, the other is one that should have worked and did not.
+> The vocabulary is the one BES software already reports checks in, so an operator meets the same five words here as elsewhere.
+> `reason` is free text because the useful part of a failure is the part nobody anticipated: a path, a permission, an errno. A code would carry the half that was foreseen and drop the half worth reading.
 
 ### Values
 
@@ -103,20 +121,16 @@ This catalogue uses:
 | `datetime` | an instant, as [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) | none |
 | `ipv4`, `ipv6` | an internet address | none |
 
-An application MAY draw a `fraction` against its scale.
+A `fraction` carries its own scale.
 
-An application MUST NOT draw a `quantity` against a scale unless its `limits` trait gives it one.
-
-A receiver that does not recognise a `kind` MUST render the stringification of `value`, followed by `unit` where there is one.
+A `quantity` carries none, and a reader has one for it only where its `limits` trait gives it one or another entry in the catalogue is its total.
 
 A `unit` MUST be named in full, and MUST NOT be abbreviated.
-
-A receiver MUST choose for itself how to write a unit and at what magnitude to show a value.
 
 A sender MUST round a numeric `value` to at most four decimal places.
 
 > [!NOTE]
-> An abbreviated unit is presentation, and an ambiguous one is worse than none: `B/s` and `bps` differ by a factor of eight and are routinely written for each other.
+> An abbreviated unit is presentation, and an ambiguous one is worse than none: `B/s` and `bps` differ by a factor of eight and are routinely written for each other. How a reader writes the unit, and at what magnitude it shows the value, is the reader's.
 > Rounding nearly halves what the values cost compressed, and no reading this protocol carries is meaningful past four places.
 
 ## What a device reports
@@ -125,7 +139,12 @@ A device MUST report every entry below that its hardware and operating system ca
 
 Where the hardware an entry measures is not fitted, a device MUST omit the entry entirely rather than report it absent.
 
-Where the hardware is fitted and the measurement cannot be taken, a device MUST send the entry carrying `error`.
+Where the hardware is fitted and the measurement errored, a device MUST report the entry as `broken`.
+
+Where the hardware is fitted and a precondition for measuring it was not met, a device MUST report the entry as `skipped`.
+
+> [!NOTE]
+> A platform that cannot answer for something, or a privilege the device does not hold, is a measurement never attempted rather than one that failed, and an operator chasing a blank tile is served by knowing which.
 
 ### Facts
 
@@ -167,16 +186,14 @@ Where the hardware is fitted and the measurement cannot be taken, a device MUST 
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
 | `fan` | — | which fan |
-| `state` | `is`, `reason` | that the reading is in difficulty: `is` is `warn` or `fault`, and `reason` names what the trouble is |
+| `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-A device MUST carry the `state` trait only where the measurement has a notion of being in difficulty, and MUST NOT carry it to say that nothing is wrong.
-
-An application MUST treat `route`, `overlay`, `state` and `limits` as descriptive.
+`route`, `overlay`, `status` and `limits` are descriptive.
+Every other trait distinguishes.
 
 > [!NOTE]
-> The default route moves between interfaces, and a reading goes in and out of difficulty constantly. An application that let either distinguish would start a new series each time, forking a graph for a reason that has nothing to do with what it measures.
-> Throughput has no notion of being in difficulty: a link is not doing badly by being busy. Sending `ok` against it would be answering a question the measurement does not ask.
+> The default route moves between interfaces, and a reading goes in and out of difficulty constantly. Neither says anything about which thing is being measured, so neither separates one instance of a measurement from another.
 
 ## Storage
 
@@ -187,8 +204,7 @@ A device MUST report one filesystem per block device, choosing the shortest moun
 A device MUST mark a boot partition with the `boot` role.
 
 > [!NOTE]
-> Boot partitions are small, written once when the device is imaged, and sit near full for the device's whole life. Marking them is what lets an application leave them out of a headline without knowing the mount paths a distribution happens to use.
-> Filesystem use does not move fast enough over a five-minute window for a graph to say anything, which is why an application does not draw one.
+> Boot partitions are small, written once when the device is imaged, and sit near full for the device's whole life. Marking them is what lets a reader leave them out of a headline without knowing the mount paths a distribution happens to use.
 
 ## Network
 
@@ -199,31 +215,41 @@ A device MUST NOT report loopback or other virtual interfaces.
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
 
 > [!NOTE]
-> An aggregate is a sum an application can take, and one taken on the device is a figure it cannot break down.
+> An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.
 
 ## Power source and battery
 
-`power-source` MUST report one of three states:
+`power-source` MUST report one of three values:
 
-| state | meaning |
+| value | meaning |
 | --- | --- |
-| external power through the backup supply | the ordinary state, and the only one in which a power cut is survived |
-| the battery | external power is absent and the backup supply is carrying the device |
-| external power bypassing the backup supply | the device is fed directly and the backup supply is idle |
+| `via-backup` | external power reaches the device through the backup supply: the ordinary state, and the only one in which a power cut is survived |
+| `battery` | external power is absent and the backup supply is carrying the device |
+| `bypassing-backup` | external power reaches the device directly, and the backup supply is idle |
 
 A device MUST distinguish the three by a hardware signal reporting whether external power reaches the backup supply, together with the movement of the cell voltage: present is the first, absent with the voltage drifting down is the second, and absent with the voltage entirely static is the third.
 
 A device whose board exposes no such hardware signal MUST omit `power-source` rather than guess at it.
 
-A device MUST report the third state with a `state` trait of `warn` and a reason of `backup-bypassed`.
+A device MUST report `bypassing-backup` as `warning`, with a reason saying the backup supply is being bypassed.
 
-A device MUST NOT assert the third state until the voltage has been watched long enough to tell drifting from static, and MUST report the second until then.
+A device MUST NOT assert `bypassing-backup` until the voltage has been watched long enough to tell drifting from static, and MUST report `battery` until then.
 
-A device MUST take `battery-direction` from `power-source` where that reading exists, and MUST derive it from the movement of the cell voltage otherwise.
+`battery-direction` MUST report one of three values:
 
-A device that derives the direction MUST say so with a `state` trait reason of `derived`, and MUST NOT report a derived direction it does not yet have enough history to establish.
+| value | meaning |
+| --- | --- |
+| `charging` | the cell is taking charge |
+| `discharging` | the cell is carrying the device |
+| `idle` | the cell is doing neither |
 
-Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST give `battery-charge` a `state` trait of `warn` with a reason of `against-source`.
+A device MUST take `battery-direction` from `power-source` where that reading exists: `battery` gives `discharging`, `bypassing-backup` gives `idle`, and `via-backup` gives `charging` or `idle` as the cell is taking charge or is full.
+
+A device MUST derive `battery-direction` from the movement of the cell voltage where `power-source` does not exist.
+
+A device that derives the direction MUST report it as `warning`, with a reason saying the direction is derived from the cell voltage rather than read, and MUST NOT report a derived direction it does not yet have enough history to establish.
+
+Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST report `battery-charge` as `warning`, with a reason saying the cell's direction of travel disagrees with the power source.
 
 > [!NOTE]
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
@@ -234,9 +260,9 @@ Where a device has both signals and they disagree, it MUST report `power-source`
 
 `temperature` on the `cpu` sensor MUST carry the board's own declared thresholds as its `limits` trait.
 
-`temperature` MUST be `warn` or `fault` only where the board is in difficulty, not merely warm.
+`temperature` MUST be `warning` or `failed` only where the board is in difficulty, not merely warm.
 
-A device MUST give `cpu-frequency` a `state` trait of `warn` with a reason of `throttled` where the platform reports that it is limiting the processor.
+A device MUST report `cpu-frequency` as `warning`, with a reason saying the platform is limiting the processor, where the platform reports that it is.
 
 A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequency-max`.
 
@@ -246,97 +272,14 @@ A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequen
 
 ## Sampling
 
-A device MUST sample into a buffer holding about five minutes at full resolution, discarding oldest first and never coarsening.
-
 A device MUST begin sampling when it starts and again when a session opens, and MUST stop after thirty minutes during which no session has been open.
 
-A device MUST choose each reading's update rate to suit what it measures, and an application MUST NOT assume a fixed interval between readings.
+A device MUST hold enough recent history of a reading it derives another from to make that derivation.
 
-## What an application does with it
+A device MUST NOT hold readings to send later.
 
-An application MUST render every fact and reading it receives, whether or not it recognises the catalogue name.
-
-An application MUST NOT report a fact or reading as missing.
-
-An application MUST show one carrying `error` as failing, with the reason.
+A device MUST choose each reading's update rate to suit what it measures, and a reader MUST NOT assume a fixed interval between readings.
 
 > [!NOTE]
-> An application has no list of expected entries to compare against, so one a device never sent is not an absence it can observe.
-
-### What it recognises
-
-An application MUST hold its own order, and MUST NOT take one from the order data arrives in.
-
-An application MUST render in this order:
-
-| position | from |
-| --- | --- |
-| a header naming the device | `hostname`, `board` with `board-revision`, `os` |
-| tiles | `network-address`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
-| appended | everything it does not recognise |
-
-An application MUST NOT reorder by the `state` trait.
-
-An application MUST supply its own wording for every catalogue name, trait, trait value and unit it recognises.
-
-An application MUST render `last-boot` as an elapsed time.
-
-> [!NOTE]
-> A layout that rearranged while an operator was looking at it would cost the screen its familiarity, and a device with several marginal readings would reshuffle as they crossed back and forth. Trouble is found by colour instead.
-
-### What it does not
-
-An application MUST render a catalogue name it does not recognise from the name itself, with the values of its traits as a qualifier, its value drawn by its `kind`, and `unit` where there is one.
-
-An application MUST render the traits of an entry it does not recognise, and MUST NOT drop them.
-
-An application MUST render an unrecognised fact as a tile rather than in the header.
-
-> [!NOTE]
-> Two entries sharing a catalogue name and differing only in traits would otherwise appear as two tiles under one label with different values and nothing to tell them apart.
-
-### The face and the reveal
-
-An application MUST show each tile's face carrying a label and a headline value, and nothing else.
-
-An application MUST reveal what is behind the headline, any scale drawn as a bar, and any history drawn as a graph, when the operator opens the tile.
-
-An application MUST colour the face of an entry carrying a `state` trait, and MUST NOT add a further element to the face to carry that.
-
-An application MUST show every reading in a reveal with its own limits, state reason and error reason.
-
-> [!NOTE]
-> An open tile wants the full width, because figures and graphs are not read through half a column.
-
-### Aggregates
-
-An application MUST headline `filesystem-usage` with the fullest filesystem whose `filesystem` trait does not carry the `boot` role, and MUST show each filesystem in the reveal.
-
-An application MUST headline `network-throughput` with the sum of every direction and interface, and MUST show each interface in the reveal.
-
-An application MUST headline `temperature` with the `cpu` sensor, and MUST show every sensor in the reveal.
-
-An application MUST headline `network-address` with the address whose `interface` carries the `default` route, together with the one whose `interface` names an overlay, and MUST show every address in the reveal.
-
-### Graphs
-
-An application MUST hold a history for each `reading` it receives, keyed by identity as [MSG](messages.md) defines it, and MUST NOT hold one for a `fact`.
-
-An application MUST show that history as a graph in the reveal.
-
-An application MUST NOT draw a history for `filesystem-usage`.
-
-An application MUST draw the two directions of one interface's `network-throughput` as a single graph mirrored about a shared time axis, one direction above it and the other below.
-
-An application MUST scale each direction to its own peak, and MUST state each peak beside its line together with which line it belongs to.
-
-An application MUST space readings by their `at` values rather than evenly.
-
-> [!NOTE]
-> Two directions of throughput routinely differ by an order of magnitude, and a shared scale flattens the quieter one to a line.
-
-### Subscribing
-
-An application MUST let the device's feed run while the operator is looking at the device.
-
-An application SHOULD close the feed when they are not, and MUST subscribe to `default` to resume.
+> Sampling before a session opens is what gives the device something current to send the moment one does, and what gives the cell voltage the history its direction of travel is derived from.
+> Nothing is kept for replay: a reader that comes back is sent what is current rather than what accumulated while it was away, as [MSG](messages.md) requires.
