@@ -4,3 +4,8 @@ dist/
 dist-test/
 test-results/
 playwright-report/
+
+# proptest persists a failing case as a seed, which replays only through the generator that found
+# it. The wire oracle's generator lives in bliti-core and changes, so a case worth keeping is
+# written to its corpus as JSON instead (see crates/bliti-wire-compat/corpus).
+*.proptest-regressions

@@ -185,10 +185,31 @@ pub fn markers_agree() -> bool {
 	bliti_core::key_schedule::VERSION == bliti_core_baseline::key_schedule::VERSION
 }
 
-/// The recorded corpus: messages the baseline emits, as it wrote them.
+/// The broad snapshot of what the baseline emits, one message per line.
 ///
-/// Raw JSON rather than a generator seed, so that a case replays verbatim through any build and
-/// outlives both the generator that found it and the baseline that produced it.
+/// Scaffolding, with an end in sight. It exists because the pinned baseline predates
+/// `bliti-core`'s generator and so cannot be asked to produce messages live; moving the baseline to
+/// a revision built with `generate` replaces it, and it is then deleted whole. Anonymous and
+/// machine-generated, which is why it is one file rather than a directory of them.
+pub fn baseline_snapshot() -> Vec<(String, Vec<u8>)> {
+	include_str!("../baseline-snapshot.jsonl")
+		.lines()
+		.enumerate()
+		.filter(|(_, line)| !line.trim().is_empty())
+		.map(|(index, line)| {
+			(
+				format!("baseline-snapshot.jsonl:{}", index + 1),
+				line.as_bytes().to_vec(),
+			)
+		})
+		.collect()
+}
+
+/// The regression corpus: messages worth keeping past the change that produced them.
+///
+/// Curated, each file named for what it pins, and permanent. Raw JSON rather than a generator
+/// seed, so that a case replays verbatim through any build and outlives both the generator that
+/// found it and the baseline that produced it.
 pub fn corpus() -> Vec<(String, Vec<u8>)> {
 	let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/corpus");
 	let mut entries: Vec<(String, Vec<u8>)> = std::fs::read_dir(dir)

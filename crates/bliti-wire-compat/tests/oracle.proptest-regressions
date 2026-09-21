@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 41a32d0d45444c2aa536a4c25fd0bd5364cc2b6c08ce055a5d403647090d45ad # shrinks to message = Fact(Entry { at: 0, name: "a", traits: {}, kind: "text", unit: None, value: None })

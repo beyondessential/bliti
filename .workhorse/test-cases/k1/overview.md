@@ -9,10 +9,10 @@ change reverted.
 - [x] A member the baseline writes that the current build no longer writes fails, naming the member
 - [x] A member whose JSON type changed fails, showing the old and new values
 - [x] A required member the current build stops writing faults the baseline
-- [x] The failure names the corpus entry or generated message that carried it
+- [x] The failure names the snapshot line, corpus entry, or generated message that carried it
 - [ ] A message type the current build stops knowing fails rather than being skipped
-- [ ] A member removed from a type the baseline does not carry an example of is caught once the
-      baseline generates live (verifies the corpus is not the only reach)
+- [ ] A member removed from a type the snapshot carries no example of is caught once the baseline
+      generates live (verifies the snapshot is not the only reach)
 
 ## The oracle does not fire on what is permitted
 
@@ -33,7 +33,8 @@ change reverted.
 
 - [ ] Where the baseline and current version markers differ, the oracle reports itself skipped
       rather than passing (VER)
-- [ ] An empty or deleted corpus fails rather than passing quietly
+- [x] An emptied baseline snapshot fails rather than passing quietly
+- [ ] A regression recorded in the corpus is checked on every run
 
 ## The generator
 

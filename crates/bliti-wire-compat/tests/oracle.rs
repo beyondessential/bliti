@@ -1,7 +1,9 @@
 //! The baseline build and the current one, each reading what the other writes.
 
 use bliti_core::channel::generate::message;
-use bliti_wire_compat::{Verdict, baseline_reads, corpus, current_reads, markers_agree};
+use bliti_wire_compat::{
+	Verdict, baseline_reads, baseline_snapshot, corpus, current_reads, markers_agree,
+};
 use proptest::prelude::*;
 
 /// Where the two builds sit at different version markers, no client would derive a handle for the
@@ -42,25 +44,42 @@ fn nothing_the_current_build_says_faults_the_baseline() {
 /// Everything the baseline says, the current build must understand losslessly.
 ///
 /// The current build is never the older peer, so a skip, a refusal or a lost member is a break.
-/// Driven by the recorded corpus: the pinned baseline predates `bliti-core`'s generator, so it
+/// Driven by the recorded snapshot: the pinned baseline predates `bliti-core`'s generator, so it
 /// cannot be asked to produce messages live. Moving the baseline to a revision built with
-/// `generate` replaces this with generation, and the corpus stays as the regression record.
+/// `generate` replaces this with generation.
 #[test]
 fn the_current_build_understands_everything_the_baseline_says() {
 	if vacuous() {
 		return;
 	}
-	let corpus = corpus();
+	let snapshot = baseline_snapshot();
 	assert!(
-		corpus.len() > 100,
-		"the corpus is the only record of what the baseline emits, and it is nearly empty: {} entries",
-		corpus.len()
+		snapshot.len() > 100,
+		"the snapshot is the only record of what the baseline emits, and it is nearly empty: {} messages",
+		snapshot.len()
 	);
-	for (name, sent) in corpus {
+	for (name, sent) in snapshot {
 		assert_eq!(
 			current_reads(&sent),
 			Verdict::Understood,
 			"this build does not fully understand the baseline's {name}"
+		);
+	}
+}
+
+/// Every regression the corpus records still reads losslessly.
+///
+/// Empty until a failure is worth keeping, and it stays checked so that adding one is enough.
+#[test]
+fn the_current_build_understands_the_regression_corpus() {
+	if vacuous() {
+		return;
+	}
+	for (name, sent) in corpus() {
+		assert_eq!(
+			current_reads(&sent),
+			Verdict::Understood,
+			"this build does not fully understand the recorded {name}"
 		);
 	}
 }

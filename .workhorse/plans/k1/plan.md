@@ -246,12 +246,14 @@ break moves the baseline instead. After the release, moving it requires the mark
 - [x] The oracle: both read directions, the case-folding containment walk, and the version-marker
       gate that reports itself skipped rather than passing
 - [x] `wire-breaks.toml` and its three checks: unrecorded, stale, and reasonless entries
-- [x] The recorded corpus, 240 messages as the baseline writes them
+- [x] The baseline snapshot, 240 messages as the baseline writes them, one per line in
+      `baseline-snapshot.jsonl`, and the regression corpus beside it as an empty directory with
+      the note saying what belongs there
 - [x] Contributor note in `CONTRIBUTING.md` covering the two things the check asks of an author
 
 ### Verified by staging each break and reverting it
 
-- [x] A member no longer written fails, naming the corpus entry that carried it
+- [x] A member no longer written fails, naming the snapshot line that carried it
 - [x] A member whose JSON type changed fails, showing both values
 - [x] An added ignorable member passes, in both directions
 - [x] A new critical member fails the ledger, naming the type and member
@@ -260,10 +262,22 @@ break moves the baseline instead. After the release, moving it requires the mark
 
 Move `bliti-core-baseline` to the merge commit and add `"generate"` to its features. The revision
 pinned now precedes the generator, so the baseline cannot be asked to produce messages live and
-the baseline-to-current direction runs from the recorded corpus alone. Moving it upgrades that
-direction to live generation, and the corpus stays as the regression record it was always meant
-to be.
+the baseline-to-current direction runs from the recorded snapshot alone. Moving it upgrades that
+direction to live generation, at which point `baseline-snapshot.jsonl` has no further purpose and
+is deleted whole.
 
-Until that is done, a member removal is caught only where the corpus carries an example of it.
-The corpus is broad enough that this is a real check rather than a token one, but it is a
-snapshot and not a search.
+Until that is done, a member removal is caught only where the snapshot carries an example of it.
+It is broad enough to be a real check rather than a token one, but it is a snapshot and not a
+search.
+
+### Two artefacts, not one
+
+The snapshot and the regression corpus were briefly the same directory of 240 anonymous files,
+which conflated things with different lifecycles: the snapshot is scaffolding with a demolition
+date, while a recorded regression is curated, named for what it pins, and permanent. Separated so
+that the snapshot can be deleted in one action without taking anything curated with it, and so a
+real regression is not lost among machine-generated neighbours.
+
+proptest's own `*.proptest-regressions` files are ignored rather than committed, against its usual
+advice. A seed replays only through the generator that found it, and that generator lives in
+`bliti-core` and changes; the durable form is the message, written to the corpus as JSON.
