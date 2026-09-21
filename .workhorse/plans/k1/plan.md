@@ -198,9 +198,43 @@ Constraint: `envelope::write` uppercases only top-level members, so this build c
 nested critical member. The ledger covers everything reachable today. Nested criticality on write
 would require member paths rather than names.
 
+## The walk stays in the oracle crate
+
+Not upstreamed into `envelope`, deliberately, for two reasons.
+
+They are not the same function. `collect_unknown` ignores scalar differences outright, its match
+ending in a `_ => {}`, because it answers only which members this build failed to understand, for
+the criticality refusal. The oracle needs fidelity, presence and value both, which is how a `at`
+changing from `1` to `"1"` is caught. Sharing would mean widening a shipped function for a
+test-only need.
+
+The stronger reason is that the adjudicator must not be one of the things under test. Were the
+walk in `bliti-core`, the oracle would have to pick the baseline's copy or the current one, and a
+change to the walk would alter the comparison semantics along with the thing being compared. The
+Rust oracle's adjudicator is the compiler, which belongs to neither crate version.
+
+The copy carries a comment saying so, so that it is not later deduplicated as an oversight.
+
+## Where things live
+
+`wire-breaks.toml` at the repository root is the ledger: the acknowledged critical members, each
+with a reason.
+
+The baseline is a `[workspace.dependencies]` entry in the root `Cargo.toml`, the package renamed
+and pinned by `rev`, taken by the oracle crate with `.workspace = true`. Cargo requires the rev in
+a manifest, so this is the only home that avoids duplicating it or reading it from a build script,
+and it puts the pointer in the most-read manifest in the repository. Verified to work, including
+the rename alongside `git` and `rev`.
+
+Its initial value is the commit introducing the ledger and the generator. The oracle calls the
+baseline build's own generator, so the baseline cannot precede the commit that adds one. Because
+this repository does not squash, the rev stays reachable and the pointer cannot dangle.
+
+It is a pointer, not a constant. It moves when `VERSION` bumps, since a baseline at a different
+marker makes the check vacuous and it would otherwise stay skipped for good. Before the first
+release, where breaking the protocol is free and moving the marker is not wanted, a deliberate
+break moves the baseline instead. After the release, moving it requires the marker to move too.
+
 ## Open
 
-- [ ] Upstream the containment walk: `envelope` has it privately as `collect_unknown` and exposes
-      only the single-build `round_trip_omissions`
-- [ ] How the baseline commit is recorded, and how it is moved
-- [ ] Whether the ledger lives beside the corpus or in `.workhorse/`, and its exact file name
+Nothing outstanding. Ready to build.
