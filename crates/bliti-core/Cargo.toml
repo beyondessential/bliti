@@ -44,10 +44,18 @@ futures.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 # default-features off to keep snow's `std` feature from pulling in `ring`, which is unused (the
-# pure-Rust resolver is selected below) and does not belong in a wasm build.
+# pure-Rust resolver is selected below) and does not belong in a wasm build. The crypto is named one
+# primitive at a time rather than through the `default-resolver-crypto` umbrella, which would also
+# carry AES-GCM and SHA-2: the protocol fixes a single pattern (see `channel::noise::NOISE_PARAMS`),
+# and the resolver dispatches over whatever is compiled in at runtime, so nothing unused can be
+# dropped later. Naming the four the pattern uses takes about 11 kB, compressed, off the browser
+# bundle. Adding a pattern means adding its primitives here.
 snow = { version = "0.10.0", default-features = false, features = [
 	"default-resolver",
-	"default-resolver-crypto",
+	"use-blake2",
+	"use-chacha20poly1305",
+	"use-curve25519",
+	"use-getrandom",
 ] }
 thiserror.workspace = true
 tss-esapi = { version = "7.7.0", optional = true }
