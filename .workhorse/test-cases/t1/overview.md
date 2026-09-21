@@ -19,6 +19,14 @@ the protocol still behaves and that the smaller artefact is what a plain build p
 - [ ] CI's browser-client job installs `just`, reads the wasm-bindgen version from the lockfile, and
       builds the same artefact a laptop does.
 
+## The bundle ships ready to serve compressed
+
+- [x] A build writes a gzip, brotli and zstd variant beside each file worth compressing, and each
+      decodes back to the file it came from.
+- [x] The variants stay out of the service worker's precache manifest, which caches responses.
+- [ ] An origin configured for precompressed files serves the variant a browser accepts, and the
+      plain file to a browser accepting none.
+
 ## The artefact carries nothing it should not
 
 - [x] The built module contains no absolute path from the building machine.

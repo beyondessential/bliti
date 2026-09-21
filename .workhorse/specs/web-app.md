@@ -53,6 +53,17 @@ The application MUST run without being installed first, and MUST remain usable o
 > Running uninstalled is what lets whoever is standing in front of a device provision it.
 > Working offline is what makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).
 
+## Delivery
+
+The bundle MUST be built with a gzip, a brotli, and a zstd encoding beside each file those encodings make meaningfully smaller.
+
+The origin MUST serve whichever of those encodings the browser accepts, and MUST serve the file itself where the browser accepts none.
+
+> [!NOTE]
+> The bundle is built once and downloaded by every phone that provisions a device, often on the connection a site has rather than one it would choose. Encoding at build time affords settings far too slow to run per request, and leaves the origin nothing to do but choose between them.
+> All three are written because the choice belongs to the browser asking: brotli is the smallest of them on this bundle, zstd decodes fastest, and gzip is understood by everything.
+> The wasm module is the bulk of what is downloaded, so it is the file this matters most for.
+
 ## Secure context
 
 The application MUST be served from an origin that constitutes a secure context.

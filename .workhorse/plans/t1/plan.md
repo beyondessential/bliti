@@ -134,11 +134,9 @@ workspace `strip = "symbols"` removes the name section the profiler reads):
       builds cannot drift. AGENTS.md points at `just setup` rather than listing prerequisites.
 - [x] Add `--remap-path-prefix` for the registry, toolchain and workspace roots, so the artefact
       stops embedding the building developer's home directory and builds are reproducible.
-- [ ] Consider pre-compressing the static bundle to brotli (and gzip as fallback) and serving with
-      Caddy's precompressed support. Not done: the repository has no serving configuration at all
-      (CI uploads `dist` so that hosting it is later wiring), so pre-compressed files would have
-      nothing reading them and the server they assume does not exist yet. It belongs with whatever
-      card stands the origin up.
+- [x] Pre-compress the bundle to gzip, brotli and zstd at build time, so an origin can serve the
+      encoding a browser accepts without compressing per request. The serving side is recorded as a
+      criterion in the web application spec, which outlives this plan.
 - [x] Record the before/after on the card.
 
 ## Delivered
