@@ -1,0 +1,127 @@
+<!-- spec: system-info.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measurement and fact catalogue</title>
+<style>
+:root { --page:#fbfbfa; --surface:#fff; --line:#e4e2dd; --text:#1c1917; --muted:#57534e;
+	--accent:#1d4ed8; --bad:#b91c1c; --warn:#a16207; --good:#15803d; }
+* { box-sizing: border-box; }
+body { margin:0; padding:24px; background:var(--page); color:var(--text); font:16px/1.5 system-ui,sans-serif; }
+.sheet { max-width: 68rem; margin: 0 auto; }
+h1 { font-size:1.25rem; margin:0 0 8px; }
+.sheet > p { margin:0 0 10px; font-size:0.9rem; color:var(--muted); max-width:50rem; }
+h2 { font-size:0.85rem; text-transform:uppercase; letter-spacing:0.06em; margin:28px 0 8px; }
+h2:first-of-type { margin-top: 20px; }
+table { width:100%; border-collapse:collapse; margin:0 0 4px; font-size:0.82rem; background:var(--surface);
+	border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+th { text-align:left; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted);
+	font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); background:#f7f6f3; }
+td { padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+tr:last-child td { border-bottom:0; }
+code { font-family:ui-monospace,monospace; font-size:0.78rem; }
+td.n code { color:var(--text); font-weight:600; }
+td.t { color:var(--muted); white-space:nowrap; }
+td.tr code { color:var(--accent); }
+td.was { color:var(--muted); font-size:0.78rem; }
+.fact td.t { color:var(--good); }
+.note { font-size:0.85rem; color:var(--muted); margin:0 0 16px; max-width:50rem; }
+.callout { border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:4px;
+	padding:8px 10px; margin:0 0 16px; font-size:0.85rem; background:var(--surface); max-width:50rem; }
+.callout b { font-weight:600; }
+pre.json { font-family:ui-monospace,monospace; font-size:0.72rem; line-height:1.55; background:#f4f3f0;
+	border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin:0 0 16px; overflow-x:auto;
+	color:var(--muted); max-width:50rem; }
+pre.json b { color:var(--text); font-weight:600; }
+pre.json u { text-decoration:none; background:#e7edfb; color:var(--accent); border-radius:2px; padding:0 2px; }
+pre.json i { font-style:normal; color:#8a8580; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<h1>Measurement and fact catalogue</h1>
+<p>Every reading the device reports today, restated as a measurement or a fact with its traits. Green is a fact (no state, no history); the rest are readings. The last column says what it was before, so nothing is silently dropped.</p>
+<p>Trait values are always names, never numbers or flags. Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open.</p>
+
+<h2>Identity</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind</th><th>traits</th><th>was</th></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>hostname</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>hostname</code></td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>board</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>board</code> headline</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>board-revision</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>board</code> detail "Revision"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>os</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>os</code> headline</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>kernel</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>os</code> detail "Kernel"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>uptime</code></td><td><code>duration</code></td><td class="tr">—</td><td class="was"><code>uptime</code></td></tr>
+</table>
+<p class="note"><b>Uptime is a fact.</b> It changes constantly but has no state and its history says nothing — it only ever climbs, which is why it carried <code>ungraphed</code>. A fact is not a thing that never changes; it is a thing with no state and no history worth keeping. An address is the same.</p>
+
+<h2>Network</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>network-address</code></td><td><code>ipv4</code> / <code>ipv6</code></td><td class="tr"><code>interface{name, route?, overlay?}</code></td><td class="was"><code>address</code> headline + detail</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>network-throughput</code></td><td><code>quantity</code> · <code>bytes/second</code></td><td class="tr"><code>interface{name}</code>, <code>direction</code></td><td class="was"><code>network-in</code>/<code>network-out</code> + detail</td></tr>
+</table>
+<div class="callout"><b>The <code>network</code> group collision dissolves.</b> Addresses and throughput were both grouped as <code>network</code>, which is what forced the per-interface readings to be summed away. They are now separate names, and per-interface throughput is a first-class reading with its own state, error and history.</div>
+
+<h2>Compute</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
+<tr><td class="t">reading</td><td class="n"><code>cpu-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>cpu</code></td></tr>
+<tr><td class="t">reading</td><td class="n"><code>cpu-frequency</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Speed"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>cpu-frequency-max</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Full speed"</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>throttling</code></td><td><code>boolean</code></td><td class="tr"><code>condition</code></td><td class="was"><code>throttling</code> text summary</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>memory-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>memory</code></td></tr>
+<tr><td class="t">reading</td><td class="n"><code>memory-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>part: used</code></td><td class="was"><code>memory</code> detail "Used"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>memory-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>part: total</code></td><td class="was"><code>memory</code> detail "Total"</td></tr>
+</table>
+<div class="callout"><b>Throttling becomes one reading per condition, not a sentence.</b> The device currently composes "Undervolted and slowed" as text, which a client cannot act on. Two conditions, each with its own state, is the same information as data. This is the one place a new <code>boolean</code> kind is wanted.</div>
+<pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "throttling",
+  <u>"traits"</u>: { <i>"condition"</i>: "undervoltage" },
+  <b>"state"</b>: "warn", <b>"kind"</b>: "boolean", <b>"value"</b>: true }
+
+{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "throttling",
+  <u>"traits"</u>: { <i>"condition"</i>: "speed-capped" },
+  <b>"state"</b>: "ok", <b>"kind"</b>: "boolean", <b>"value"</b>: false }</pre>
+
+<h2>Storage</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
+<tr><td class="t">reading</td><td class="n"><code>filesystem-usage</code></td><td><code>fraction</code></td><td class="tr"><code>filesystem{mount, device, role?}</code></td><td class="was"><code>disk</code> headline + detail</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>filesystem-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code>, <code>part: free</code></td><td class="was"><code>disk</code> detail "  free"</td></tr>
+<tr class="fact"><td class="t">fact</td><td class="n"><code>filesystem-bytes</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr"><code>filesystem{…}</code>, <code>part: total</code></td><td class="was"><code>disk</code> detail "  of"</td></tr>
+</table>
+<div class="callout"><b>The boot-partition rule moves to the client, and needs a trait to move on.</b> The device currently excludes boot partitions from the headline itself. It now states the role and the client applies the policy — which is the same shape as the address headline moving client-side.</div>
+<pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "filesystem-usage",
+  <u>"traits"</u>: { <i>"filesystem"</i>: { "mount": "/boot/firmware", "device": "mmcblk0p1", "role": "boot" } },
+  <b>"state"</b>: "ok", <b>"kind"</b>: "fraction", <b>"value"</b>: 0.9412 }</pre>
+<p class="note">The device's "one mount per block device, shortest path wins" rule stays on the device: it is deduplication of what to report, not a judgement about what matters.</p>
+
+<h2>Thermal and fan</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
+<tr><td class="t">reading</td><td class="n"><code>temperature</code></td><td><code>quantity</code> · <code>celsius</code></td><td class="tr"><code>sensor</code></td><td class="was"><code>temperature</code> headline + detail</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>fan-speed</code></td><td><code>quantity</code> · <code>revolutions/minute</code></td><td class="tr"><code>fan</code></td><td class="was"><code>fan</code></td></tr>
+</table>
+<p class="note">The board's declared thresholds stay as <code>limits</code> on the sensor that has them, which is the processor core. The note about the figure being the core rather than the case is catalogue knowledge and moves to the client.</p>
+
+<h2>Power</h2>
+<table>
+<tr><th>type</th><th>name</th><th>kind · unit</th><th>traits</th><th>was</th></tr>
+<tr><td class="t">reading</td><td class="n"><code>power-source</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>power-source</code></td></tr>
+<tr><td class="t">reading</td><td class="n"><code>battery-charge</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>battery</code> headline + detail "Charge"</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>battery-voltage</code></td><td><code>quantity</code> · <code>volts</code></td><td class="tr">—</td><td class="was"><code>battery</code> detail "Voltage"</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>battery-direction</code></td><td><code>text</code></td><td class="tr">—</td><td class="was"><code>battery</code> detail "Direction"</td></tr>
+</table>
+<p class="note"><code>battery-charge</code> carried both a fraction headline and a "Charge" percentage in its detail, which were the same number twice. One reading now. The caveat about a derived direction is a note about <em>this</em> reading rather than about the measurement type, so it stays on the wire.</p>
+
+<h2>What this catalogue decides</h2>
+<div class="callout"><b>Three device-side judgements become client rules.</b> Which address to headline, which filesystem sets the storage headline, and which temperature sensor leads. In each case the device gains a trait stating the fact — <code>route</code>, <code>role</code>, <code>sensor</code> — and stops choosing.</div>
+<div class="callout"><b>Three details were the same number twice</b> and collapse: battery charge, and the disk fraction that appeared both as the headline and per mount.</div>
+<div class="callout"><b>One new kind, <code>boolean</code>,</b> so throttling conditions are data rather than an English sentence. Everything else uses <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>ipv4</code> and <code>ipv6</code>.</div>
+
+</div>
+</body>
+</html>
