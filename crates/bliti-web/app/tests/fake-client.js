@@ -1,10 +1,13 @@
 // A client fed decoded messages directly, standing in for the real one at the message layer.
 //
 // This is not a fake Bluetooth stack and does not try to be one: it begins where the protocol half
-// leaves off, at the outcomes of BLI-MSG, which is exactly the boundary the view is written against.
+// leaves off, at the outcomes of MSG, which is exactly the boundary the view is written against.
+//
+// The device pushes the `default` feed unprompted, so after connect a feed is already running. It is
+// declined with pauseFeed (the client closing the stream) and resumed with resumeFeed (a subscribe
+// for `default`). Both are recorded in window.__blitiFeeds so the lifecycle can be asserted.
 export const installFakeClient = `
-window.__blitiEvents = []
-window.__blitiSubscriptions = []
+window.__blitiFeeds = []
 window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
@@ -12,25 +15,38 @@ window.__blitiClient = {
 		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', version: 1 }
 	},
 	async connect(qr, { onEvent, onClosed, onDisconnected }) {
+		this._onEvent = onEvent
 		window.__blitiEmit = onEvent
 		window.__blitiDisconnect = onDisconnected
+		// The device's pushed feed, already running.
+		const feed = { source: 'push', open: true, deliver: (event) => feed.open && onEvent(event) }
+		window.__blitiFeeds.push(feed)
+		this._feed = feed
 	},
-	async subscribe(topic, { onEvent }) {
-		// A subscription does not resolve instantly in the real client, and the window while it is in
-		// flight is where a close can be missed. The harness can widen that window on purpose.
-		if (window.__blitiSubscribeDelay) {
-			await new Promise((r) => setTimeout(r, window.__blitiSubscribeDelay))
-		}
-		const record = { topic, open: true, events: onEvent }
-		window.__blitiSubscriptions.push(record)
-		window.__blitiEmitSub = onEvent
-		return {
-			close: async () => {
-				record.open = false
-			},
+	pauseFeed() {
+		if (this._resuming) this._resuming.cancelled = true
+		if (this._feed) {
+			this._feed.open = false
+			this._feed = null
 		}
 	},
-	disconnect() {},
+	async resumeFeed({ onEvent }) {
+		if (this._feed || this._resuming) return
+		const resuming = { cancelled: false }
+		this._resuming = resuming
+		if (window.__blitiResumeDelay) {
+			await new Promise((r) => setTimeout(r, window.__blitiResumeDelay))
+		}
+		this._resuming = null
+		window.__blitiEmit = onEvent
+		const feed = { source: 'subscribe', topic: 'default', open: true, deliver: (event) => feed.open && onEvent(event) }
+		window.__blitiFeeds.push(feed)
+		if (resuming.cancelled) feed.open = false
+		else this._feed = feed
+	},
+	disconnect() {
+		this._feed = null
+	},
 }
 `
 
@@ -43,13 +59,12 @@ export async function openChannel(page) {
 	await page.getByRole('button', { name: 'Find the device' }).click()
 }
 
-/// Feed one reading, as the protocol half would have described it.
+/// Feed one message or outcome, as the protocol half would have described it.
 export async function emit(page, event) {
 	await page.evaluate((event) => window.__blitiEmit(event), event)
 }
 
-/// Close the channel the way the connection ending does, optionally with a reason. This is what the
-/// real client reports on the link dropping, the device restarting, or a fault ending the connection.
+/// Close the channel the way the connection ending does, optionally with a reason.
 export async function closeChannel(page, why) {
 	await page.evaluate((why) => window.__blitiDisconnect(why ?? undefined), why ?? null)
 }

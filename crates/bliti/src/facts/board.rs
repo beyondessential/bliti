@@ -1,45 +1,48 @@
-//! What the machine is: its name, its board, and what it runs.
+//! What the machine is: its name, its board, what it runs, and when it booted.
 //!
 //! The board sources are specific to the Raspberry Pi we ship. Every one falls back to what any
 //! machine can answer for, because most of this view is built on a development laptop and a field
 //! that only exists on the target hardware is a field nobody sees while building it.
 
-use bliti_core::channel::readings::{Reading, Value};
+use bliti_core::channel::readings::Entry;
+use jiff::Timestamp;
 
-use super::read_trimmed;
+use super::{read_trimmed, uptime};
 
 /// The name the system answers to, from the kernel rather than from a configuration file.
 pub fn hostname() -> String {
 	read_trimmed("/proc/sys/kernel/hostname").unwrap_or_else(|| "unknown".to_owned())
 }
 
-/// The board's model and revision, falling back to whatever identity the machine exposes.
+/// The board's model, and its revision as a second fact where the board carries one.
 ///
 /// A Pi answers from the device tree and carries a revision code; anything else answers from the
 /// firmware's own description of the machine.
-pub fn identity() -> Reading {
-	let reading = |text: String| Reading::new("board", "Board", Value::text(text));
-
+pub fn identity(at: u64) -> Vec<Entry> {
 	if let Some(model) = read_trimmed("/proc/device-tree/model") {
-		let reading = reading(model);
-		return match revision() {
-			Some(revision) => reading.with_detail("Revision", Value::text(revision)),
-			None => reading,
-		};
+		let mut entries = vec![Entry::text(at, "board", model)];
+		if let Some(revision) = revision() {
+			entries.push(Entry::text(at, "board-revision", revision));
+		}
+		return entries;
 	}
 
 	let vendor = read_trimmed("/sys/class/dmi/id/sys_vendor");
 	let product = read_trimmed("/sys/class/dmi/id/product_name");
 	match (vendor, product) {
 		(Some(vendor), Some(product)) => {
-			let reading = reading(format!("{vendor} {product}"));
-			match read_trimmed("/sys/class/dmi/id/product_version") {
-				Some(version) => reading.with_detail("Version", Value::text(version)),
-				None => reading,
+			let mut entries = vec![Entry::text(at, "board", format!("{vendor} {product}"))];
+			if let Some(version) = read_trimmed("/sys/class/dmi/id/product_version") {
+				entries.push(Entry::text(at, "board-revision", version));
 			}
+			entries
 		}
-		(Some(one), None) | (None, Some(one)) => reading(one),
-		(None, None) => reading(machine().unwrap_or_else(|| "Unknown".to_owned())),
+		(Some(one), None) | (None, Some(one)) => vec![Entry::text(at, "board", one)],
+		(None, None) => vec![Entry::text(
+			at,
+			"board",
+			machine().unwrap_or_else(|| "Unknown".to_owned()),
+		)],
 	}
 }
 
@@ -59,18 +62,45 @@ fn machine() -> Option<String> {
 		.or_else(|| read_trimmed("/sys/firmware/devicetree/base/compatible"))
 }
 
-/// The operating system and its version, from the release file every distribution carries.
-pub fn os() -> Option<Reading> {
-	let raw = std::fs::read_to_string("/etc/os-release").ok()?;
-	let pretty = field(&raw, "PRETTY_NAME")
-		.or_else(|| field(&raw, "NAME"))
-		.unwrap_or_else(|| "Unknown".to_owned());
+/// The operating system and the kernel, as two facts.
+pub fn os(at: u64) -> Vec<Entry> {
+	let mut entries = Vec::new();
+	if let Ok(raw) = std::fs::read_to_string("/etc/os-release") {
+		let pretty = field(&raw, "PRETTY_NAME")
+			.or_else(|| field(&raw, "NAME"))
+			.unwrap_or_else(|| "Unknown".to_owned());
+		entries.push(Entry::text(at, "os", pretty));
+	}
+	if let Some(kernel) = read_trimmed("/proc/sys/kernel/osrelease") {
+		entries.push(Entry::text(at, "kernel", kernel));
+	}
+	entries
+}
 
-	let reading = Reading::new("os", "Operating system", Value::text(pretty));
-	Some(match read_trimmed("/proc/sys/kernel/osrelease") {
-		Some(kernel) => reading.with_detail("Kernel", Value::text(kernel)),
-		None => reading,
-	})
+/// The instant the device booted, as RFC 3339 in UTC.
+///
+/// Worked out from the wall clock less uptime, so it needs a clock that is set. A device in the field
+/// may have none, in which case it cannot answer for the instant and the fact is omitted (NFO).
+pub fn last_boot(at: u64) -> Option<Entry> {
+	let booted = boot_instant(Timestamp::now().as_second(), uptime()?.as_secs())?;
+	Some(Entry::datetime(at, "last-boot", booted))
+}
+
+/// Wall times below this are a clock that was never set (2021-01-01 UTC).
+const CLOCK_SET_THRESHOLD: i64 = 1_609_459_200;
+
+/// The boot instant from a wall clock and an uptime, or nothing where the clock is not set.
+///
+/// A clock that has not been set sits near the epoch, and there is no honest boot instant to report
+/// from it. Taken to whole seconds: the device cannot know the instant finer than that, and a
+/// fractional rendering would claim a precision the two sources do not have.
+fn boot_instant(now: i64, uptime: u64) -> Option<String> {
+	if now < CLOCK_SET_THRESHOLD {
+		return None;
+	}
+	Timestamp::from_second(now - uptime as i64)
+		.ok()
+		.map(|booted| booted.to_string())
 }
 
 /// One field of a release file, unquoted.
@@ -92,13 +122,13 @@ mod tests {
 		assert!(!name.contains('\n'));
 	}
 
-	/// Every machine answers for its board somehow, so the reading is never empty and never missing.
-	/// A field that only existed on the target hardware would be invisible while the view is built.
+	/// Every machine answers for its board somehow, so the board fact is never empty and never missing.
 	#[test]
 	fn the_board_is_named_on_any_machine() {
-		let reading = identity();
-		assert!(reading.is_coherent());
-		assert!(matches!(&reading.value, Some(Value::Text(text)) if !text.is_empty()));
+		let entries = identity(1);
+		let board = entries.iter().find(|e| e.name == "board").expect("a board");
+		assert_eq!(board.status(), Some("passed"));
+		assert!(board.value.is_some());
 	}
 
 	#[test]
@@ -117,5 +147,30 @@ mod tests {
 	fn a_field_name_matches_whole_and_not_as_a_prefix() {
 		let raw = "VERSION_ID=\"26.04\"\n";
 		assert_eq!(field(raw, "VERSION"), None);
+	}
+
+	/// The boot instant renders as whole-second RFC 3339 in UTC, including across a leap day.
+	#[test]
+	fn the_boot_instant_renders_as_rfc_3339_in_utc() {
+		// 2023-11-14T22:13:20Z, an hour after booting.
+		assert_eq!(
+			boot_instant(1_700_000_000, 3600).as_deref(),
+			Some("2023-11-14T21:13:20Z")
+		);
+		// A leap day, to catch a calendar that does not have one.
+		assert_eq!(
+			boot_instant(1_709_164_800, 0).as_deref(),
+			Some("2024-02-29T00:00:00Z")
+		);
+	}
+
+	/// A device in the field may have no set clock, and cannot answer for the instant it booted. The
+	/// fact is omitted rather than reported as some time in 1970 (NFO).
+	#[test]
+	fn a_device_whose_clock_is_unset_reports_no_boot_instant() {
+		assert_eq!(boot_instant(0, 60), None);
+		assert_eq!(boot_instant(CLOCK_SET_THRESHOLD - 1, 60), None);
+		// And a clock that is set answers.
+		assert!(boot_instant(CLOCK_SET_THRESHOLD, 60).is_some());
 	}
 }

@@ -3,95 +3,153 @@
 //! Behaviour is specified in MSG. The envelope they ride in, and the three outcomes of reading
 //! one, live in [`super::envelope`]; this module carries the message types themselves.
 //!
-//! This card's set is the part every later feature inherits: each end names itself, and a client
-//! subscribes to what a device sends continuously. A feature adds its own types and its own topics.
+//! There is one message set and both ends send and receive from it: a message's direction comes from
+//! which end opened the stream it arrived on, never from the type. An end that receives a type it
+//! knows but has nothing to do about treats it as a no-op (MSG).
 //!
 //! No message type skips serialising a member it holds. Unknown members are found by round-tripping
 //! through these types, so a member that serialises away would be read as one this build has never
 //! heard of.
 
-use serde::{Deserialize, Serialize};
+use serde::{
+	Deserialize, Deserializer, Serialize, Serializer,
+	de::{self, MapAccess, Visitor},
+};
+use serde_json::{Map, Value as Json};
+use std::fmt;
 
 use super::{
-	envelope::{Criticality, Message},
-	readings,
+	envelope::{Criticality, MessageSet},
+	readings::Entry,
 };
 
-/// A message from the client to the device.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum ClientMessage {
-	/// The client naming itself, first on the control stream it opens.
-	#[serde(rename = "client-hello")]
+/// One application message. Both ends speak this set.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Message {
+	/// An end naming itself, first on its hello stream. Direction is established by which end sent it,
+	/// so there is one `hello` rather than a client one and a device one.
 	Hello {
-		/// What the client software calls itself. Opaque to the device, which logs it.
+		/// What the software calls itself. Opaque to the peer, which displays or logs it.
 		name: String,
-		/// The version the client is at. Opaque to the device, which logs it.
+		/// The version it is at. Opaque to the peer.
 		version: String,
 	},
 
-	/// Subscribe to what a device sends continuously, first on a stream opened for the purpose.
-	/// Closing that stream is the unsubscribe.
-	#[serde(rename = "subscribe")]
+	/// A request for a topic, first on a stream opened for the purpose. Closing that stream is the
+	/// unsubscribe. Its selector is critical, so a peer cannot act on a request to be sent something
+	/// it has not read (MSG).
 	Subscribe {
-		/// What is being subscribed to. Topics are defined by the feature that owns them.
+		/// The topic being subscribed to. Topics are defined by the feature that owns them.
 		topic: String,
 	},
+
+	/// Something true about the device, named against the fact catalogue (NFO).
+	Fact(Entry),
+
+	/// A measurement whose history is worth keeping, named against the reading catalogue (NFO).
+	Reading(Entry),
 }
 
-/// A message from the device to the client.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum DeviceMessage {
-	/// The device naming itself, first on the reporting stream it opens.
-	#[serde(rename = "device-hello")]
-	Hello {
-		/// What the device software calls itself. Opaque to the client, which displays it.
-		name: String,
-		/// The version the device is at. Opaque to the client, which displays it.
-		version: String,
-	},
-
-	/// What the device is: readings that do not change while it runs, or change rarely. Sent on the
-	/// reporting stream and again whenever they change (SYS).
-	#[serde(rename = "system-identity")]
-	SystemIdentity {
-		/// The static readings.
-		readings: Vec<readings::Reading>,
-	},
-
-	/// One sample of the device's live readings, sent on a `system` subscription (SYS).
-	#[serde(rename = "system-sample")]
-	SystemSample {
-		/// Milliseconds since the device booted, when the sample was taken.
-		at: u64,
-		/// The readings taken. Need not carry every reading.
-		readings: Vec<readings::Reading>,
-	},
-
-	/// The buffered window, sent first on a `system` subscription so a graph is populated the moment
-	/// it appears rather than filling from empty (SYS).
-	///
-	/// Numbers only, one series per reading. Sending whole samples would repeat every reading's
-	/// description against every past point, which is far more bytes than the numbers and more than a
-	/// BLE link will carry.
-	#[serde(rename = "system-history")]
-	SystemHistory {
-		/// The past values, one entry per reading that has any.
-		series: Vec<readings::Series>,
-	},
-}
-
-impl Message for ClientMessage {
-	fn knows(type_name: &str) -> bool {
-		matches!(type_name, "client-hello" | "subscribe")
+impl Message {
+	/// Serialise to JSON bytes, applying the member casing the envelope owns.
+	pub fn to_json(&self) -> Vec<u8> {
+		super::envelope::write(self)
 	}
 
-	/// `client-hello` carries no critical member; `subscribe` carries exactly one, its selector, so
-	/// that a device cannot act on a request to be sent something it has not read (MSG).
+	/// This message as a JSON map, with its `type` member. The casing of a critical member is applied
+	/// by the envelope on write, not here.
+	fn to_map(&self) -> Map<String, Json> {
+		let mut map = Map::new();
+		match self {
+			Self::Hello { name, version } => {
+				map.insert("type".to_owned(), "hello".into());
+				map.insert("name".to_owned(), name.clone().into());
+				map.insert("version".to_owned(), version.clone().into());
+			}
+			Self::Subscribe { topic } => {
+				map.insert("type".to_owned(), "subscribe".into());
+				map.insert("topic".to_owned(), topic.clone().into());
+			}
+			Self::Fact(entry) => {
+				map.insert("type".to_owned(), "fact".into());
+				entry.write_into("fact", &mut map);
+			}
+			Self::Reading(entry) => {
+				map.insert("type".to_owned(), "reading".into());
+				entry.write_into("measurement", &mut map);
+			}
+		}
+		map
+	}
+}
+
+impl Serialize for Message {
+	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+		self.to_map().serialize(serializer)
+	}
+}
+
+impl<'de> Deserialize<'de> for Message {
+	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+		deserializer.deserialize_map(MessageVisitor)
+	}
+}
+
+struct MessageVisitor;
+
+impl<'de> Visitor<'de> for MessageVisitor {
+	type Value = Message;
+
+	fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("a bliti application message")
+	}
+
+	fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Message, A::Error> {
+		let mut map = Map::new();
+		while let Some((name, value)) = access.next_entry::<String, Json>()? {
+			map.insert(name, value);
+		}
+		let type_name = map
+			.get("type")
+			.and_then(Json::as_str)
+			.ok_or_else(|| de::Error::custom("a message carries a string `type`"))?;
+
+		match type_name {
+			"hello" => Ok(Message::Hello {
+				name: string(&map, "name")?,
+				version: string(&map, "version")?,
+			}),
+			"subscribe" => Ok(Message::Subscribe {
+				topic: string(&map, "topic")?,
+			}),
+			"fact" => Entry::read_from("fact", &map)
+				.map(Message::Fact)
+				.map_err(de::Error::custom),
+			"reading" => Entry::read_from("measurement", &map)
+				.map(Message::Reading)
+				.map_err(de::Error::custom),
+			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
+		}
+	}
+}
+
+fn string<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<String, E> {
+	map.get(member)
+		.and_then(Json::as_str)
+		.map(ToOwned::to_owned)
+		.ok_or_else(|| de::Error::custom(format!("this message carries a string `{member}`")))
+}
+
+impl MessageSet for Message {
+	fn knows(type_name: &str) -> bool {
+		matches!(type_name, "hello" | "subscribe" | "fact" | "reading")
+	}
+
+	/// `hello` carries no critical member; `subscribe` carries exactly one, its selector. The feature
+	/// types NFO owns are unconstrained.
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {
-			"client-hello" => Criticality::Exactly(&[]),
+			"hello" => Criticality::Exactly(&[]),
 			"subscribe" => Criticality::Exactly(&["topic"]),
 			_ => Criticality::Unconstrained,
 		}
@@ -105,64 +163,26 @@ impl Message for ClientMessage {
 	}
 }
 
-impl Message for DeviceMessage {
-	fn knows(type_name: &str) -> bool {
-		matches!(
-			type_name,
-			"device-hello" | "system-identity" | "system-sample" | "system-history"
-		)
-	}
-
-	/// `device-hello` carries no critical member. The system types belong to SYS, which pins
-	/// nothing.
-	fn criticality(type_name: &str) -> Criticality {
-		match type_name {
-			"device-hello" => Criticality::Exactly(&[]),
-			_ => Criticality::Unconstrained,
-		}
-	}
-}
-
-impl ClientMessage {
-	/// Serialise to JSON bytes.
-	pub fn to_json(&self) -> Vec<u8> {
-		super::envelope::write(self)
-	}
-}
-
-impl DeviceMessage {
-	/// Serialise to JSON bytes.
-	pub fn to_json(&self) -> Vec<u8> {
-		super::envelope::write(self)
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::{
-		super::{
-			envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
-			readings::{Series, Value},
-		},
+		super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
 		*,
 	};
 
+	fn parse(json: &str) -> Result<Reading<Message>, Fault> {
+		read(json.as_bytes())
+	}
+
 	/// A reading standing in for whatever a device reports, for exercising the envelope around it.
-	fn cpu() -> readings::Reading {
-		readings::Reading::new("cpu", "CPU", Value::Fraction(0.12))
+	fn cpu() -> Entry {
+		Entry::fraction(20_308_140, "cpu-usage", 0.12)
 	}
 
-	fn client(json: &str) -> Result<Reading<ClientMessage>, Fault> {
-		read(json.as_bytes())
-	}
-
-	fn device(json: &str) -> Result<Reading<DeviceMessage>, Fault> {
-		read(json.as_bytes())
-	}
-
+	/// One `hello`, and each end reads its peer's without the type being distinguished by name (MSG).
 	#[test]
-	fn client_hello_round_trips() {
-		let message = ClientMessage::Hello {
+	fn one_hello_round_trips() {
+		let message = Message::Hello {
 			name: "bliti-web".to_owned(),
 			version: "0.1.0".to_owned(),
 		};
@@ -170,90 +190,65 @@ mod tests {
 		assert_eq!(read(&json).unwrap(), Reading::Message(message));
 	}
 
-	/// Member order is not significant in JSON and nothing reads it. These pin the names and values a
-	/// peer will see; the order is whatever the writer's map yields, which is sorted.
 	#[test]
-	fn client_hello_json_shape_is_stable() {
-		let json = ClientMessage::Hello {
-			name: "bliti-web".to_owned(),
-			version: "0.1.0".to_owned(),
-		}
-		.to_json();
-		assert_eq!(
-			String::from_utf8(json).unwrap(),
-			r#"{"name":"bliti-web","type":"client-hello","version":"0.1.0"}"#
-		);
-	}
-
-	#[test]
-	fn subscribe_json_shape_is_stable() {
-		let json = ClientMessage::Subscribe {
-			topic: "system".to_owned(),
-		}
-		.to_json();
-		assert_eq!(
-			String::from_utf8(json).unwrap(),
-			r#"{"TOPIC":"system","type":"subscribe"}"#
-		);
-	}
-
-	#[test]
-	fn device_hello_json_shape_is_stable() {
-		let json = DeviceMessage::Hello {
+	fn the_hello_json_shape_is_stable() {
+		let json = Message::Hello {
 			name: "bliti".to_owned(),
 			version: "0.1.0".to_owned(),
 		}
 		.to_json();
 		assert_eq!(
 			String::from_utf8(json).unwrap(),
-			r#"{"name":"bliti","type":"device-hello","version":"0.1.0"}"#
+			r#"{"name":"bliti","type":"hello","version":"0.1.0"}"#
 		);
 	}
 
 	#[test]
-	fn the_system_types_round_trip() {
+	fn subscribe_marks_its_selector_critical_on_the_wire() {
+		let json = Message::Subscribe {
+			topic: "default".to_owned(),
+		}
+		.to_json();
+		assert_eq!(
+			String::from_utf8(json).unwrap(),
+			r#"{"TOPIC":"default","type":"subscribe"}"#
+		);
+	}
+
+	#[test]
+	fn a_fact_and_a_reading_round_trip() {
 		for message in [
-			DeviceMessage::SystemIdentity {
-				readings: vec![readings::Reading::new(
-					"hostname",
-					"Hostname",
-					Value::text("tamanu-iti"),
-				)],
-			},
-			DeviceMessage::SystemSample {
-				at: 20_308_140,
-				readings: vec![cpu()],
-			},
-			DeviceMessage::SystemHistory {
-				series: vec![Series {
-					name: "cpu".to_owned(),
-					points: vec![(20_306_140, 0.12)],
-				}],
-			},
+			Message::Fact(Entry::text(20_308_140, "hostname", "tamanu-iti")),
+			Message::Reading(cpu()),
 		] {
 			let json = message.to_json();
 			assert_eq!(read(&json).unwrap(), Reading::Message(message));
 		}
 	}
 
+	/// A `fact` and a `reading` of the same catalogue name are different entries: the message type
+	/// keeps them apart (NFO).
+	#[test]
+	fn a_fact_and_a_reading_of_one_name_do_not_collide() {
+		let fact = Message::Fact(Entry::quantity(1, "memory-bytes", "bytes", 8_000_000.0));
+		let reading = Message::Reading(Entry::quantity(1, "memory-bytes", "bytes", 5_000_000.0));
+		assert_ne!(fact, reading);
+		assert_eq!(read(&fact.to_json()).unwrap(), Reading::Message(fact));
+		assert_eq!(read(&reading.to_json()).unwrap(), Reading::Message(reading));
+	}
+
 	#[test]
 	fn a_mixed_case_name_is_a_fault() {
 		assert_eq!(
-			client(r#"{"type":"subscribe","Topic":"system"}"#).unwrap_err(),
+			parse(r#"{"type":"subscribe","Topic":"default"}"#).unwrap_err(),
 			Fault::MalformedName("Topic".to_owned())
 		);
 	}
 
 	#[test]
 	fn the_same_name_twice_is_a_fault() {
-		// Differing only in case.
 		assert_eq!(
-			client(r#"{"type":"subscribe","topic":"a","TOPIC":"b"}"#).unwrap_err(),
-			Fault::DuplicateName("topic".to_owned())
-		);
-		// Exactly repeated, which a JSON parser would otherwise collapse to the last.
-		assert_eq!(
-			client(r#"{"type":"subscribe","topic":"a","topic":"b"}"#).unwrap_err(),
+			parse(r#"{"type":"subscribe","topic":"a","TOPIC":"b"}"#).unwrap_err(),
 			Fault::DuplicateName("topic".to_owned())
 		);
 	}
@@ -262,18 +257,18 @@ mod tests {
 	#[test]
 	fn an_unknown_ignorable_member_is_skipped() {
 		assert_eq!(
-			client(r#"{"type":"subscribe","TOPIC":"system","cadence":"fast"}"#).unwrap(),
-			Reading::Message(ClientMessage::Subscribe {
-				topic: "system".to_owned()
+			parse(r#"{"type":"subscribe","TOPIC":"default","cadence":"fast"}"#).unwrap(),
+			Reading::Message(Message::Subscribe {
+				topic: "default".to_owned()
 			})
 		);
 	}
 
-	/// A type this build does not know is passed over whole.
+	/// A type this build does not know is passed over whole (MSG).
 	#[test]
 	fn an_unknown_type_is_skipped() {
 		assert_eq!(
-			client(r#"{"type":"reboot","when":"now"}"#).unwrap(),
+			parse(r#"{"type":"reboot","when":"now"}"#).unwrap(),
 			Reading::Skipped(Skip::UnknownType("reboot".to_owned()))
 		);
 	}
@@ -282,58 +277,28 @@ mod tests {
 	/// away would be read as one this build has never heard of. Checked rather than remembered.
 	#[test]
 	fn every_message_type_survives_the_round_trip() {
-		let clients = [
-			ClientMessage::Hello {
+		let entry = Entry::quantity(20_308_140, "temperature", "celsius", 48.5)
+			.with_trait("sensor", Json::String("cpu".to_owned()))
+			.with_limit(75.0, "Cooling")
+			.warning("a sensor is warm");
+		let messages = [
+			Message::Hello {
 				name: "a".to_owned(),
 				version: "1".to_owned(),
 			},
-			ClientMessage::Subscribe {
-				topic: "system".to_owned(),
+			Message::Subscribe {
+				topic: "default".to_owned(),
 			},
+			Message::Fact(Entry::text(1, "hostname", "iti")),
+			Message::Reading(entry),
+			Message::Reading(Entry::broken(
+				1,
+				"battery-charge",
+				"fraction",
+				"no answer from the gauge",
+			)),
 		];
-		for message in &clients {
-			assert_eq!(
-				round_trip_omissions(message),
-				Vec::<String>::new(),
-				"{message:?}"
-			);
-		}
-
-		let devices = [
-			DeviceMessage::Hello {
-				name: "a".to_owned(),
-				version: "1".to_owned(),
-			},
-			DeviceMessage::SystemIdentity {
-				readings: vec![
-					readings::Reading::new("hostname", "Hostname", Value::text("iti")),
-					// Every optional member set, so one skipping its serialisation would show up.
-					readings::Reading::new(
-						"temperature",
-						"Temperature",
-						Value::scaled(48.5, "C", 110.0),
-					)
-					.with_detail("Disk", Value::quantity(37.8, "C"))
-					.with_note("The processor core, not the case.")
-					.with_state(readings::State::Warn)
-					.with_limit(75.0, "Cooling")
-					.in_group("thermal")
-					.flowing(readings::Direction::Out),
-					readings::Reading::failed("battery", "Battery", "no answer from the gauge"),
-				],
-			},
-			DeviceMessage::SystemSample {
-				at: 1,
-				readings: vec![cpu()],
-			},
-			DeviceMessage::SystemHistory {
-				series: vec![Series {
-					name: "cpu".to_owned(),
-					points: vec![(1, 0.12)],
-				}],
-			},
-		];
-		for message in &devices {
+		for message in &messages {
 			assert_eq!(
 				round_trip_omissions(message),
 				Vec::<String>::new(),
@@ -342,67 +307,43 @@ mod tests {
 		}
 	}
 
-	/// A pinned type's members are pinned at every depth, not only at the top: MSG says those
-	/// types carry no critical member beyond what it names, and says nothing about depth. A nested one
-	/// is therefore a peer breaking the pin rather than a peer newer than this build.
-	#[test]
-	fn a_nested_critical_member_on_a_pinned_type_is_a_fault() {
-		let json = r#"{"type":"client-hello","name":"a","version":"1","extra":{"NESTED":true}}"#;
-		assert!(matches!(
-			client(json).unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-	}
-
-	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol rather
-	/// than a peer newer than this build (MSG).
-	#[test]
-	fn a_critical_member_on_a_hello_is_a_fault() {
-		assert!(matches!(
-			client(r#"{"type":"client-hello","name":"a","version":"1","MODE":"strict"}"#)
-				.unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-		assert!(matches!(
-			device(r#"{"type":"device-hello","name":"a","version":"1","CAPABILITY":"x"}"#)
-				.unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-	}
-
-	/// `subscribe` pins its selector critical: a device must not act on a request to be sent something
-	/// it has not read. Arriving plain is a fault, as is any other critical member alongside it.
+	/// `subscribe` pins its selector critical: arriving plain is a fault, as is any other critical
+	/// member alongside it (MSG).
 	#[test]
 	fn subscribe_pins_its_selector_critical() {
 		assert!(matches!(
-			client(r#"{"type":"subscribe","topic":"system"}"#).unwrap_err(),
+			parse(r#"{"type":"subscribe","topic":"default"}"#).unwrap_err(),
 			Fault::CriticalRequired { .. }
 		));
 		assert!(matches!(
-			client(r#"{"type":"subscribe","TOPIC":"system","REDACT":["cpu"]}"#).unwrap_err(),
+			parse(r#"{"type":"subscribe","TOPIC":"default","REDACT":["cpu"]}"#).unwrap_err(),
 			Fault::CriticalNotAllowed { .. }
 		));
-		assert!(matches!(
-			client(r#"{"TYPE":"subscribe","TOPIC":"system"}"#).unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-
-		// And the shape a conforming client sends is read.
 		assert_eq!(
-			client(r#"{"type":"subscribe","TOPIC":"system"}"#).unwrap(),
-			Reading::Message(ClientMessage::Subscribe {
-				topic: "system".to_owned()
+			parse(r#"{"type":"subscribe","TOPIC":"default"}"#).unwrap(),
+			Reading::Message(Message::Subscribe {
+				topic: "default".to_owned()
 			})
 		);
 	}
 
-	/// The prohibition is per type, not per build: a type a feature owns still takes the general rule.
+	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol (MSG).
 	#[test]
-	fn a_feature_type_still_refuses_rather_than_faults() {
-		let json = r#"{"type":"system-identity","readings":[],"REDACT":["cpu"]}"#;
+	fn a_critical_member_on_a_hello_is_a_fault() {
+		assert!(matches!(
+			parse(r#"{"type":"hello","name":"a","version":"1","MODE":"strict"}"#).unwrap_err(),
+			Fault::CriticalNotAllowed { .. }
+		));
+	}
+
+	/// A feature type still refuses rather than faults on an unknown critical member, and a nested one
+	/// costs only the object that carried it, not the rest of the message (MSG).
+	#[test]
+	fn an_unknown_critical_member_nested_in_a_reading_is_refused() {
+		let json = r#"{"type":"reading","at":1,"measurement":"cpu-usage","traits":{"status":{"is":"passed"}},"kind":"fraction","value":0.1,"SCOPE":"site"}"#;
 		assert_eq!(
-			device(json).unwrap(),
-			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
+			parse(json).unwrap(),
+			Reading::Refused(Refusal::CriticalMembers(vec!["scope".to_owned()]))
 		);
 	}
 
@@ -410,76 +351,48 @@ mod tests {
 	#[test]
 	fn an_unknown_critical_type_is_refused() {
 		assert_eq!(
-			client(r#"{"TYPE":"wipe","confirm":true}"#).unwrap(),
+			parse(r#"{"TYPE":"wipe","confirm":true}"#).unwrap(),
 			Reading::Refused(Refusal::CriticalType("wipe".to_owned()))
-		);
-	}
-
-	/// Criticality holds at any depth, and refusing one nested object does not cost the rest of the
-	/// message: only the path that carried it is named.
-	#[test]
-	fn a_nested_critical_member_is_found() {
-		let json = r#"{"type":"system-identity","readings":[
-			{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1}},
-			{"name":"disk","label":"Disk","state":"ok","graph":true,"value":{"kind":"fraction","number":0.5},"SCOPE":"site"}
-		]}"#;
-		assert_eq!(
-			device(json).unwrap(),
-			Reading::Refused(Refusal::CriticalMembers(vec![
-				"readings.1.scope".to_owned()
-			]))
 		);
 	}
 
 	/// A nested ignorable member is passed over, and the message is read.
 	#[test]
 	fn a_nested_ignorable_member_is_skipped() {
-		let json = r#"{"type":"system-identity","readings":[
-			{"name":"cpu","label":"CPU","state":"ok","graph":true,"value":{"kind":"fraction","number":0.1},"cores":4}
-		]}"#;
-		let Reading::Message(DeviceMessage::SystemIdentity { readings }) = device(json).unwrap()
-		else {
-			panic!("expected a system identity")
+		let json = r#"{"type":"reading","at":1,"measurement":"cpu-usage","traits":{"status":{"is":"passed"}},"kind":"fraction","value":0.1,"cores":4}"#;
+		let Reading::Message(Message::Reading(entry)) = parse(json).unwrap() else {
+			panic!("expected a reading")
 		};
-		assert_eq!(readings.len(), 1);
+		assert_eq!(entry.name, "cpu-usage");
 	}
 
 	#[test]
 	fn a_known_type_missing_what_it_requires_is_a_fault() {
-		let err = client(r#"{"type":"subscribe"}"#).unwrap_err();
-		assert!(matches!(err, Fault::Malformed { .. }), "got {err:?}");
-	}
-
-	#[test]
-	fn a_member_of_the_wrong_json_type_is_a_fault() {
-		let err = client(r#"{"type":"subscribe","TOPIC":42}"#).unwrap_err();
-		assert!(matches!(err, Fault::Malformed { .. }), "got {err:?}");
+		assert!(matches!(
+			parse(r#"{"type":"subscribe"}"#).unwrap_err(),
+			Fault::Malformed { .. }
+		));
+		assert!(matches!(
+			parse(r#"{"type":"reading","measurement":"cpu-usage"}"#).unwrap_err(),
+			Fault::Malformed { .. }
+		));
 	}
 
 	#[test]
 	fn malformed_json_is_a_fault() {
 		assert!(matches!(
-			client("this is not json").unwrap_err(),
+			parse("this is not json").unwrap_err(),
 			Fault::NotJson(_)
 		));
-		assert_eq!(client("[]").unwrap_err(), Fault::NotObject);
-		assert_eq!(client(r#""a string""#).unwrap_err(), Fault::NotObject);
+		assert_eq!(parse("[]").unwrap_err(), Fault::NotObject);
 	}
 
 	#[test]
 	fn a_message_without_a_string_type_is_a_fault() {
-		assert_eq!(client(r#"{"topic":"system"}"#).unwrap_err(), Fault::NoType);
+		assert_eq!(parse(r#"{"topic":"default"}"#).unwrap_err(), Fault::NoType);
 		assert_eq!(
-			client(r#"{"type":42,"topic":"system"}"#).unwrap_err(),
+			parse(r#"{"type":42,"topic":"default"}"#).unwrap_err(),
 			Fault::TypeNotString
-		);
-	}
-
-	#[test]
-	fn bytes_that_are_not_utf8_are_a_fault() {
-		assert_eq!(
-			read::<ClientMessage>(&[0xff, 0xfe]).unwrap_err(),
-			Fault::NotUtf8
 		);
 	}
 }

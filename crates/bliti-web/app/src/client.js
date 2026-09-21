@@ -42,6 +42,13 @@ async function protocol() {
 export function createClient() {
 	let device = null
 	let channel = null
+	// Whatever is currently delivering the feed: the streams the device pushed after connect, or a
+	// subscription opened to resume. Null while the feed is declined (the page is hidden).
+	let feed = null
+	// A resume in flight, tracked so a decline arriving before it resolves still closes the stream it
+	// produces. Tracking the resolved handle instead would leave that stream open forever, and the
+	// device would go on pushing to a page nobody is looking at (BLI-MSG).
+	let resuming = null
 
 	return {
 		// Why this browser cannot run the client, or null where it can. The real client owns this
@@ -122,7 +129,7 @@ export function createClient() {
 
 			// Said before the call rather than after: the handshake and the device's first messages all
 			// happen inside it, so anything logged afterwards would land out of order behind them.
-			say('out', `client-hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
+			say('out', `hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
 			await channel.connect(
 				CLIENT_NAME,
 				CLIENT_VERSION,
@@ -130,36 +137,58 @@ export function createClient() {
 				(why) => onClosed?.(why),
 				(why) => closeOnce(why),
 			)
+			// The device pushes the default feed unprompted, so it is already the current feed. It is
+			// declined by closing it (BLI-MSG); the device keeps sampling across a decline.
+			feed = { close: () => channel.close_feed() }
 		},
 
-		// A subscription is a stream: it begins here and ends when the handle is closed, which is the
+		// Decline the feed while the operator is not looking, by closing it. Idempotent, and closes a
+		// resume still in flight when it resolves.
+		pauseFeed() {
+			if (resuming) resuming.cancel()
+			if (feed) {
+				feed.close()
+				feed = null
+			}
+		},
+
+		// Resume the feed by subscribing to `default`, unless it is already running or being resumed. A
+		// subscription is a stream: it begins here and ends when its handle is closed, which is the
 		// unsubscribe (BLI-MSG, "Subscribing").
-		async subscribe(topic, { onEvent, onClosed, onActivity }) {
-			onActivity?.('out', `subscribe  ${topic}`)
-			const handle = await channel.subscribe(
-				topic,
+		async resumeFeed({ onEvent, onClosed, onActivity }) {
+			if (feed || resuming || !channel) return
+			let cancelled = false
+			const pending = channel.subscribe(
+				'default',
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
+			resuming = { cancel: () => (cancelled = true) }
+			onActivity?.('out', 'subscribe  default')
+			const handle = await pending
+			resuming = null
+
 			// The handle is a wasm-bindgen object, so its Rust allocation lives until JS frees it.
-			// Closing and freeing are paired here so the caller cannot leak one per visibility toggle,
-			// and the guard makes closing twice harmless rather than a use-after-free.
 			let closed = false
-			return {
-				close: async () => {
+			const wrapped = {
+				close: () => {
 					if (closed) return
 					closed = true
-					onActivity?.('out', `unsubscribe  ${topic}`)
+					onActivity?.('out', 'unsubscribe  default')
 					handle.close()
 					handle.free()
 				},
 			}
+			// The page may have been hidden while the subscribe was in flight; close it if so.
+			if (cancelled) wrapped.close()
+			else feed = wrapped
 		},
 
 		disconnect() {
 			if (device?.gatt?.connected) device.gatt.disconnect()
 			device = null
 			channel = null
+			feed = null
 		},
 	}
 }

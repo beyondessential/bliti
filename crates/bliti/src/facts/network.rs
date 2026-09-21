@@ -2,13 +2,14 @@
 //!
 //! Physical interfaces are reported, wired and wireless, along with the overlay the fleet is reached
 //! over. Loopback and other virtual interfaces are left out: they say nothing about whether the
-//! device an operator is standing at can be reached.
+//! device an operator is standing at can be reached (NFO).
 
-use std::{collections::BTreeMap, fs, time::Duration};
+use std::{collections::BTreeMap, fs, net::IpAddr, time::Duration};
 
-use bliti_core::channel::readings::{Direction, Reading, Value};
+use bliti_core::channel::readings::{Entry, kind};
+use serde_json::Value as Json;
 
-use super::{compute::bytes, is_reportable};
+use super::is_reportable;
 
 /// The cumulative byte counts one read of `/proc/net/dev` yields for an interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,69 +34,52 @@ fn is_reportable_interface(name: &str) -> bool {
 	fs::metadata(format!("/sys/class/net/{name}/device")).is_ok()
 }
 
-/// The device's addresses: the ones worth reaching it on up front, and all of them behind the tap.
-///
-/// The headline is the address an operator is most likely to need, which is the one on the interface
-/// carrying the default route, together with the overlay address the fleet is reached over. IPv4 is
-/// preferred for both, being the one a person can read out and type; an interface with no IPv4 falls
-/// back to what it has.
-pub fn addresses() -> Option<Reading> {
-	let held = by_interface();
-	if held.is_empty() {
-		return None;
+/// The `interface` trait: its name, and the route and overlay that describe it. `route` is `default`
+/// on the interface carrying the default route; `overlay` names the overlay where it is one. Both are
+/// descriptive: they move without changing which interface is being measured (NFO).
+fn interface_trait(name: &str, route: Option<&str>) -> Json {
+	let mut object = serde_json::Map::new();
+	object.insert("name".to_owned(), Json::String(name.to_owned()));
+	if Some(name) == route {
+		object.insert("route".to_owned(), Json::String("default".to_owned()));
 	}
+	if name.starts_with(OVERLAY) {
+		object.insert("overlay".to_owned(), Json::String(OVERLAY.to_owned()));
+	}
+	Json::Object(object)
+}
 
+/// One `network-address` fact per address held, its kind naming the family.
+pub fn addresses(at: u64) -> Vec<Entry> {
 	let route = default_route();
-	let primary = held
-		.iter()
-		.filter(|(name, _)| !name.starts_with(OVERLAY))
-		.min_by_key(|(name, _)| (Some(name.as_str()) != route.as_deref(), (*name).clone()))
-		.and_then(|(_, addresses)| preferred(addresses));
-	let overlay = held
-		.iter()
-		.find(|(name, _)| name.starts_with(OVERLAY))
-		.and_then(|(_, addresses)| preferred(addresses));
-
-	let headline: Vec<String> = [primary, overlay].into_iter().flatten().collect();
-	if headline.is_empty() {
-		return None;
-	}
-
-	let mut reading = Reading::new("address", "Address", Value::text(headline.join("  ·  ")));
-	// Every address with the interface it belongs to, which is what someone diagnosing needs and what
-	// the headline deliberately leaves out.
+	let held = by_interface();
+	let mut entries = Vec::new();
 	for (name, addresses) in &held {
-		for address in addresses {
-			reading = reading.with_detail(name, Value::text(address));
+		for ip in addresses {
+			let kind = if ip.is_ipv4() { kind::IPV4 } else { kind::IPV6 };
+			entries.push(
+				Entry::address(at, "network-address", kind, ip.to_string())
+					.with_trait("interface", interface_trait(name, route.as_deref())),
+			);
 		}
 	}
-	Some(reading)
+	entries
 }
 
-/// IPv4 where the interface has one, because it is the address a person can read out and type.
-fn preferred(addresses: &[String]) -> Option<String> {
-	addresses
-		.iter()
-		.find(|address| !address.contains(':'))
-		.or_else(|| addresses.first())
-		.cloned()
-}
-
-/// Every address worth reporting, by the interface holding it.
-fn by_interface() -> BTreeMap<String, Vec<String>> {
+/// Every address worth reporting, by the interface holding it, in a stable order.
+fn by_interface() -> BTreeMap<String, Vec<IpAddr>> {
 	let Ok(interfaces) = if_addrs::get_if_addrs() else {
 		return BTreeMap::new();
 	};
 
-	let mut held: BTreeMap<String, Vec<String>> = BTreeMap::new();
+	let mut held: BTreeMap<String, Vec<IpAddr>> = BTreeMap::new();
 	for interface in interfaces {
 		let ip = interface.addr.ip();
 		if !is_reportable(ip) || !is_reportable_interface(&interface.name) {
 			continue;
 		}
-		held.entry(interface.name).or_default().push(ip.to_string());
+		held.entry(interface.name).or_default().push(ip);
 	}
-	// A stable order, so a client comparing two reports sees only real changes.
 	for addresses in held.values_mut() {
 		addresses.sort();
 	}
@@ -113,18 +97,25 @@ fn default_route() -> Option<String> {
 	})
 }
 
-/// Throughput per interface and direction, over the interval since the last sample.
+/// Throughput as one reading per interface and direction, never aggregated (NFO).
 ///
-/// Yields nothing on the first sample, which has no interval behind it.
+/// Yields nothing on the first sample, which has no interval behind it. An aggregate is a sum a reader
+/// can take, and one taken on the device is a figure it cannot break down.
 pub fn throughput(
+	at: u64,
 	previous: &mut BTreeMap<String, Counters>,
 	elapsed: Option<Duration>,
-) -> Vec<Reading> {
+) -> Vec<Entry> {
 	let current = counters();
+	let route = default_route();
 	let readings = match elapsed {
-		Some(elapsed) if elapsed.as_secs_f64() > 0.0 => {
-			rates(previous, &current, elapsed.as_secs_f64())
-		}
+		Some(elapsed) if elapsed.as_secs_f64() > 0.0 => rates(
+			at,
+			previous,
+			&current,
+			elapsed.as_secs_f64(),
+			route.as_deref(),
+		),
 		_ => Vec::new(),
 	};
 	*previous = current;
@@ -132,16 +123,13 @@ pub fn throughput(
 }
 
 fn rates(
+	at: u64,
 	previous: &BTreeMap<String, Counters>,
 	current: &BTreeMap<String, Counters>,
 	seconds: f64,
-) -> Vec<Reading> {
-	// Summed across interfaces for the headline, with each interface behind it. A device with several
-	// links is answering one question at a glance, which is whether anything is moving at all.
-	let mut total_in = 0u64;
-	let mut total_out = 0u64;
-	let mut per_interface: Vec<(String, u64, u64)> = Vec::new();
-
+	route: Option<&str>,
+) -> Vec<Entry> {
+	let mut entries = Vec::new();
 	for (name, now) in current {
 		let Some(then) = previous.get(name) else {
 			// An interface that appeared since the last sample has no interval behind it either.
@@ -154,39 +142,25 @@ fn rates(
 		) else {
 			continue;
 		};
-		let per_second = |count: u64| (count as f64 / seconds) as u64;
-		let (inbound, outbound) = (per_second(received), per_second(sent));
-		total_in += inbound;
-		total_out += outbound;
-		per_interface.push((name.clone(), inbound, outbound));
+		let per_second = |count: u64| (count as f64 / seconds).round();
+		let interface = interface_trait(name, route);
+		entries.push(
+			Entry::quantity(
+				at,
+				"network-throughput",
+				"bytes/second",
+				per_second(received),
+			)
+			.with_trait("interface", interface.clone())
+			.with_trait("direction", Json::String("in".to_owned())),
+		);
+		entries.push(
+			Entry::quantity(at, "network-throughput", "bytes/second", per_second(sent))
+				.with_trait("interface", interface)
+				.with_trait("direction", Json::String("out".to_owned())),
+		);
 	}
-
-	if per_interface.is_empty() {
-		return Vec::new();
-	}
-
-	let mut inbound = Reading::new("network-in", "In", rate(total_in))
-		.in_group("network")
-		.flowing(Direction::In);
-	let mut outbound = Reading::new("network-out", "Out", rate(total_out))
-		.in_group("network")
-		.flowing(Direction::Out);
-	// Only worth breaking down where there is more than one link to break it into.
-	if per_interface.len() > 1 {
-		for (name, each_in, each_out) in &per_interface {
-			inbound = inbound.with_detail(name, rate(*each_in));
-			outbound = outbound.with_detail(name, rate(*each_out));
-		}
-	}
-	vec![inbound, outbound]
-}
-
-/// A rate, in the unit that suits the count, per second.
-fn rate(per_second: u64) -> Value {
-	let Value::Quantity { number, unit, .. } = bytes(per_second) else {
-		return Value::quantity(0.0, "B/s");
-	};
-	Value::quantity(number, format!("{unit}/s"))
+	entries
 }
 
 /// The cumulative counts, one entry per interface worth reporting.
@@ -223,31 +197,21 @@ fn counters() -> BTreeMap<String, Counters> {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn the_headline_prefers_ipv4_and_falls_back_to_what_there_is() {
-		assert_eq!(
-			preferred(&["2001:db8::1".to_owned(), "192.0.2.10".to_owned()]).as_deref(),
-			Some("192.0.2.10")
-		);
-		assert_eq!(
-			preferred(&["2001:db8::1".to_owned()]).as_deref(),
-			Some("2001:db8::1")
-		);
-		assert_eq!(preferred(&[]), None);
+	fn direction(entry: &Entry) -> &str {
+		entry
+			.traits
+			.get("direction")
+			.and_then(Json::as_str)
+			.unwrap()
 	}
 
-	/// The headline is deliberately shorter than the detail: an operator needs one address to reach
-	/// the device, and everything else once they are diagnosing.
-	#[test]
-	fn the_detail_carries_every_address_with_its_interface() {
-		let Some(reading) = addresses() else {
-			return; // A machine with nothing up is a legitimate answer.
-		};
-		assert!(reading.is_coherent());
-		assert!(!reading.detail.is_empty(), "the detail names every address");
-		for entry in &reading.detail {
-			assert!(!entry.label.is_empty(), "each address names its interface");
-		}
+	fn interface_name(entry: &Entry) -> &str {
+		entry
+			.traits
+			.get("interface")
+			.and_then(|i| i.get("name"))
+			.and_then(Json::as_str)
+			.unwrap()
 	}
 
 	#[test]
@@ -263,8 +227,7 @@ mod tests {
 	#[test]
 	fn the_first_sample_yields_no_rate() {
 		let mut previous = BTreeMap::new();
-		assert!(throughput(&mut previous, None).is_empty());
-		// But the baseline is kept, so the next sample has an interval behind it.
+		assert!(throughput(1, &mut previous, None).is_empty());
 		assert!(!previous.is_empty() || counters().is_empty());
 	}
 
@@ -285,13 +248,12 @@ mod tests {
 				sent: 10,
 			},
 		)]);
-		assert!(rates(&previous, &current, 1.0).is_empty());
+		assert!(rates(1, &previous, &current, 1.0, None).is_empty());
 	}
 
-	/// One tile answers the question at a glance, and a device with several links sums into it rather
-	/// than making an operator add up four numbers.
+	/// Throughput is one reading per interface and direction, never summed on the device (NFO).
 	#[test]
-	fn throughput_is_summed_across_interfaces() {
+	fn throughput_is_reported_per_interface_and_direction() {
 		let previous = BTreeMap::from([
 			(
 				"end0".to_owned(),
@@ -324,68 +286,27 @@ mod tests {
 				},
 			),
 		]);
-		let readings = rates(&previous, &current, 1.0);
+		let readings = rates(1, &previous, &current, 1.0, Some("end0"));
+		assert_eq!(readings.len(), 4, "two interfaces, two directions each");
+
+		// Each names its interface and direction, and none is an aggregate.
+		let end0_in = readings
+			.iter()
+			.find(|e| interface_name(e) == "end0" && direction(e) == "in")
+			.unwrap();
+		assert_eq!(end0_in.value.as_ref().and_then(Json::as_f64), Some(2_000.0));
+		assert_eq!(end0_in.unit.as_deref(), Some("bytes/second"));
+		// The default route is marked descriptively on the interface it is on.
 		assert_eq!(
-			readings.len(),
-			2,
-			"one reading a direction, however many links"
+			end0_in
+				.traits
+				.get("interface")
+				.and_then(|i| i.get("route"))
+				.and_then(Json::as_str),
+			Some("default")
 		);
-		assert_eq!(readings[0].value, Some(rate(5_000)));
-		assert_eq!(readings[1].value, Some(rate(1_500)));
-		// Each link is still there, behind the tap.
-		assert_eq!(readings[0].detail.len(), 2);
 	}
 
-	/// With one link there is nothing to break down, so the detail stays empty.
-	#[test]
-	fn a_single_interface_gets_no_breakdown() {
-		let previous = BTreeMap::from([(
-			"end0".to_owned(),
-			Counters {
-				received: 0,
-				sent: 0,
-			},
-		)]);
-		let current = BTreeMap::from([(
-			"end0".to_owned(),
-			Counters {
-				received: 2_000,
-				sent: 1_000,
-			},
-		)]);
-		let readings = rates(&previous, &current, 1.0);
-		assert!(readings[0].detail.is_empty());
-	}
-
-	#[test]
-	fn both_directions_are_reported_and_opposed() {
-		let previous = BTreeMap::from([(
-			"end0".to_owned(),
-			Counters {
-				received: 0,
-				sent: 0,
-			},
-		)]);
-		let current = BTreeMap::from([(
-			"end0".to_owned(),
-			Counters {
-				received: 2_000,
-				sent: 1_000,
-			},
-		)]);
-		let readings = rates(&previous, &current, 1.0);
-		assert_eq!(readings.len(), 2);
-
-		let inbound = readings[0].direction.clone().unwrap();
-		let outbound = readings[1].direction.clone().unwrap();
-		assert!(inbound.opposes(&outbound));
-		// Grouped together, so a client shows them as one reading with two directions, and exactly two
-		// so the pair can be drawn mirrored about one axis.
-		assert_eq!(readings[0].group.as_deref(), Some("network"));
-		assert_eq!(readings[1].group.as_deref(), Some("network"));
-	}
-
-	/// An interface that appeared since the last sample has no interval behind it.
 	#[test]
 	fn a_new_interface_yields_no_rate_until_its_second_sample() {
 		let current = BTreeMap::from([(
@@ -395,6 +316,6 @@ mod tests {
 				sent: 5_000,
 			},
 		)]);
-		assert!(rates(&BTreeMap::new(), &current, 1.0).is_empty());
+		assert!(rates(1, &BTreeMap::new(), &current, 1.0, None).is_empty());
 	}
 }
