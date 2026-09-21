@@ -26,11 +26,19 @@ use serde_json::{Map, Value};
 
 /// A set of message types that can be read from the wire.
 pub trait MessageSet: DeserializeOwned + Serialize {
+	/// Every message type this build knows, by name.
+	///
+	/// One list, from which [`MessageSet::knows`] is derived, so that a type cannot be added to the
+	/// set without appearing here. What is critical on each is enumerated against it.
+	fn known_types() -> &'static [&'static str];
+
 	/// Whether this build knows the named message type.
 	///
 	/// Read before deserialising, so that a type this build has never heard of is told apart from one
 	/// it knows but cannot parse: the first is a newer peer, the second a broken one.
-	fn knows(type_name: &str) -> bool;
+	fn knows(type_name: &str) -> bool {
+		Self::known_types().contains(&type_name)
+	}
 
 	/// What MSG requires of criticality on the named message type.
 	///
@@ -502,8 +510,8 @@ mod tests {
 	}
 
 	impl MessageSet for Sample {
-		fn knows(type_name: &str) -> bool {
-			type_name == "sample"
+		fn known_types() -> &'static [&'static str] {
+			&["sample"]
 		}
 	}
 

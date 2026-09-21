@@ -20,6 +20,8 @@
 pub mod compress;
 pub mod envelope;
 pub mod framing;
+#[cfg(feature = "generate")]
+pub mod generate;
 pub mod messages;
 pub mod noise;
 pub mod readings;

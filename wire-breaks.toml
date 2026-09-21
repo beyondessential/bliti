@@ -1,0 +1,23 @@
+# Members that peers older than this build refuse.
+#
+# A member named in upper case is critical: a receiver that does not recognise it must not act on
+# the object carrying it (MSG). Adding one is permitted without moving the version marker of VER,
+# and it still breaks every peer older than the change, which stops acting on that message type
+# rather than acting on a reading the sender has said is incomplete.
+#
+# So it is recorded here, with a reason, and `cargo test -p bliti-wire-compat` fails until it is.
+# This file is checked against what the build actually marks critical, in both directions: a member
+# missing from here fails, and one recorded here that is no longer critical fails too.
+#
+# This is not a schema. It says nothing about which members exist, what they carry, or what shape a
+# message has, and it is not what checks compatibility: the oracle does that, by running the
+# baseline build against the current one. This records only the deliberate breaks.
+
+[[critical]]
+message = "subscribe"
+member = "topic"
+reason = """
+A subscription is a request to be sent something, and an end that acted on one whose selector it \
+had not read would send something other than what was asked for. Marking the selector critical is \
+what says so on the wire (MSG).
+"""

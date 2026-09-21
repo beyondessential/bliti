@@ -141,8 +141,8 @@ fn string<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<String,
 }
 
 impl MessageSet for Message {
-	fn knows(type_name: &str) -> bool {
-		matches!(type_name, "hello" | "subscribe" | "fact" | "reading")
+	fn known_types() -> &'static [&'static str] {
+		&["hello", "subscribe", "fact", "reading"]
 	}
 
 	/// `hello` carries no critical member; `subscribe` carries exactly one, its selector. The feature

@@ -1,0 +1,24 @@
+[package]
+name = "bliti-wire-compat"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85.0"
+publish = false
+
+authors = ["Félix Saparelli <felix@passcod.name>", "BES Developers <contact@bes.au>"]
+license = "GPL-3.0-or-later"
+description = "Wire compatibility oracle: the bliti protocol baseline against the current build"
+repository = "https://github.com/beyondessential/bliti"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Both builds of the protocol crate, linked side by side. Cargo keys packages on their source, so
+# the shared version number is not an obstacle.
+bliti-core = { path = "../bliti-core", default-features = false, features = ["generate"] }
+bliti-core-baseline.workspace = true
+proptest = "1.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+toml = "0.9.8"
