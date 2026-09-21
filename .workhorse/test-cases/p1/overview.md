@@ -66,7 +66,7 @@ Covers the wire shape of [MSG](../../specs/messages.md), the catalogue of [NFO](
 - [ ] Loopback and virtual interfaces are not reported (verifies spec: NFO)
 - [ ] `power-source` reports one of `via-backup`, `battery` or `bypassing-backup`, and `bypassing-backup` reports `warning` (verifies spec: NFO)
 - [ ] `battery-direction` reports one of `charging`, `discharging` or `idle`, and follows `power-source` where that reading exists (verifies spec: NFO)
-- [ ] A derived battery direction reports `warning`, and is withheld until there is enough history (verifies spec: NFO)
+- [ ] `battery-direction` reports `skipped` with a reason until the voltage has been watched long enough, and reports plainly thereafter rather than carrying a standing warning (verifies spec: NFO)
 - [ ] A direction disagreeing with the power source reports `battery-charge` as `warning` (verifies spec: NFO)
 - [ ] Units are spelled out in full on the wire (verifies spec: NFO)
 

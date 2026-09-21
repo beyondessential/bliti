@@ -28,7 +28,7 @@ Three things move at once, and they are hard to land separately because each mak
 
 **The vocabulary is bestool's.** `passed`, `warning`, `failed`, `skipped`, `broken`, verified against `crates/alertd/src/check.rs`, where the wire strings are the inflected forms and every non-`passed` variant already carries free text. An operator meets the same five words here as in a doctor run. It also buys the `skipped` / `broken` distinction for free: a measurement this platform cannot make is not one that should have worked and did not.
 
-**`reason` is free text.** The useful part of a failure is the part nobody anticipated: a path, a permission, an errno. The hyphenated codes (`throttled`, `derived`, `backup-bypassed`, `against-source`) are gone; NFO requires the warning and says what the reason must convey, and the device writes it.
+**`reason` is free text.** The useful part of a failure is the part nobody anticipated: a path, a permission, an errno. The hyphenated codes (`throttled`, `backup-bypassed`, `against-source`) are gone; NFO requires the warning and says what the reason must convey, and the device writes it. `derived` is gone outright: no board reports the cell's direction of travel, so a marking for it would stand on every device forever.
 
 ## Rejected
 

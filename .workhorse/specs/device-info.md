@@ -243,11 +243,9 @@ A device MUST NOT assert `bypassing-backup` until the voltage has been watched l
 | `discharging` | the cell is carrying the device |
 | `idle` | the cell is doing neither |
 
-A device MUST take `battery-direction` from `power-source` where that reading exists: `battery` gives `discharging`, `bypassing-backup` gives `idle`, and `via-backup` gives `charging` or `idle` as the cell is taking charge or is full.
+A device MUST derive `battery-direction` from the movement of the cell voltage, and MUST keep it consistent with `power-source` where that reading exists: `battery` gives `discharging`, `bypassing-backup` gives `idle`, and `via-backup` gives `charging` or `idle` as the cell is taking charge or is full.
 
-A device MUST derive `battery-direction` from the movement of the cell voltage where `power-source` does not exist.
-
-A device that derives the direction MUST report it as `warning`, with a reason saying the direction is derived from the cell voltage rather than read, and MUST NOT report a derived direction it does not yet have enough history to establish.
+A device MUST report `battery-direction` as `skipped` until the voltage has been watched long enough to establish it.
 
 Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST report `battery-charge` as `warning`, with a reason saying the cell's direction of travel disagrees with the power source.
 
@@ -255,6 +253,7 @@ Where a device has both signals and they disagree, it MUST report `power-source`
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 > The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, while an idle cell's voltage does not move at all and a cell carrying the device drifts down continuously.
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
+> No board reports the cell's direction of travel, so it is always worked out from the voltage. A reading that said so would say it on every device for the device's whole life, which is why the direction is reported plainly and only its absence needs a reason.
 
 ## Temperature and processor speed
 
