@@ -34,6 +34,16 @@ lto = true
 codegen-units = 1
 strip = "symbols"
 
+# What the browser client ships: `opt-level = "s"` rather than the release profile's speed-tuned
+# `3`, because the module crosses a phone network before it runs. One codegen unit and LTO so that
+# identical monomorphisations are merged rather than emitted once per unit. `"z"` was measured and
+# comes out larger here, so this is "s" deliberately.
+[profile.wasm]
+inherits = "release"
+lto = true
+codegen-units = 1
+opt-level = "s"
+
 [profile.dev.build-override]
 opt-level = 0
 codegen-units = 1024

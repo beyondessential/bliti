@@ -77,11 +77,17 @@ jobs:
         with:
           shared-key: wasm
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      # Must match the wasm-bindgen crate version the client builds against: the
-      # generated bindings and the runtime in the module are one pair.
       - uses: taiki-e/install-action@v2
         with:
-          tool: wasm-bindgen-cli@0.2.128
+          tool: just
+      # The pair is version-locked, so the version comes from the lockfile rather than being
+      # written here too. A prebuilt binary rather than `just setup`'s `cargo install`, which
+      # would compile it from source on every run.
+      - id: wasm-bindgen
+        run: echo "version=$(just wasm-bindgen-version)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ steps.wasm-bindgen.outputs.version }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -92,7 +98,7 @@ jobs:
       # carries neither the argon2 derivation nor any board-ID backend, and needs
       # no system libraries here.
       - name: Build the wasm module
-        run: ./crates/bliti-web/build.sh
+        run: just build-wasm
       - name: Install the application's dependencies
         run: npm ci
         working-directory: crates/bliti-web/app
