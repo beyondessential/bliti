@@ -214,13 +214,15 @@ pre.json i { font-style: normal; color: #8a8580; }
 
 <div class="block">
 	<h2>Address</h2>
-	<div class="rule-box"><b>Rule.</b> Select <code>fact = network-address</code>. Headline the one whose <code>traits.route</code> is <code>default</code>, plus the one carrying an <code>overlay</code> trait. All of them behind the tap.</div>
+	<div class="rule-box"><b>Rule.</b> Select <code>fact = network-address</code>. Headline the one whose interface carries <code>route: default</code>, plus the one whose interface carries an <code>overlay</code>. All of them behind the tap.</div>
 <pre class="json">{ <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
-  <u>"traits"</u>: { <i>"interface"</i>: "eth0", <i>"family"</i>: "ipv4", <i>"route"</i>: "default" },
+  <u>"traits"</u>: { <i>"interface"</i>: { "name": "eth0", "route": "default" },
+             <i>"family"</i>: "ipv4" },
   <b>"kind"</b>: "text", <b>"value"</b>: "192.168.1.42" }
 
 { <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
-  <u>"traits"</u>: { <i>"interface"</i>: "tailscale0", <i>"family"</i>: "ipv4", <i>"overlay"</i>: "tailscale" },
+  <u>"traits"</u>: { <i>"interface"</i>: { "name": "tailscale0", "overlay": "tailscale" },
+             <i>"family"</i>: "ipv4" },
   <b>"kind"</b>: "text", <b>"value"</b>: "100.101.102.103" }</pre>
 	<p class="muted">Which address to headline was a device-side judgement under the old shape. Here the device states the facts that make it decidable and the client decides.</p>
 </div>
@@ -229,15 +231,15 @@ pre.json i { font-style: normal; color: #8a8580; }
 	<h2>Storage</h2>
 	<div class="rule-box"><b>Rule.</b> Select <code>measurement = filesystem-usage</code>, group by <code>traits.filesystem</code>. Headline the worst state, then the highest value. One row per filesystem behind the tap.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "filesystem-usage",
-  <u>"traits"</u>: { <i>"filesystem"</i>: "/boot/firmware", <i>"device"</i>: "mmcblk0p1" },
+  <u>"traits"</u>: { <i>"filesystem"</i>: { "mount": "/boot/firmware", "device": "mmcblk0p1" } },
   <b>"state"</b>: "warn", <b>"kind"</b>: "fraction", <b>"value"</b>: 0.9412 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "filesystem-usage",
-  <u>"traits"</u>: { <i>"filesystem"</i>: "/", <i>"device"</i>: "nvme0n1p2" },
+  <u>"traits"</u>: { <i>"filesystem"</i>: { "mount": "/", "device": "nvme0n1p2" } },
   <b>"state"</b>: "ok", <b>"kind"</b>: "fraction", <b>"value"</b>: 0.7803 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "filesystem-usage",
-  <u>"traits"</u>: { <i>"filesystem"</i>: "/mnt/data", <i>"device"</i>: "nvme0n1p3" },
+  <u>"traits"</u>: { <i>"filesystem"</i>: { "mount": "/mnt/data", "device": "nvme0n1p3" } },
   <b>"state"</b>: "ok", <b>"kind"</b>: "fraction", <b>"value"</b>: 0.3129 }</pre>
 	<p class="muted">Each filesystem carries its own state, so the device says which one is in trouble rather than leaving the client to infer it by comparing numbers. The old <code>disk</code> headline with filesystems in <code>detail</code> could not say it at all.</p>
 </div>
@@ -281,13 +283,13 @@ pre.json i { font-style: normal; color: #8a8580; }
 	<h2>An unknown reading</h2>
 	<div class="rule-box"><b>Rule.</b> No rule matched. Title-case the measurement for the label, render the trait values as the qualifier, draw the value by its kind. State still colours it, and it still gets a history. Append after everything recognised.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
-  <u>"traits"</u>: { <i>"modem"</i>: "cdc-wdm0", <i>"technology"</i>: "lte" },
+  <u>"traits"</u>: { <i>"modem"</i>: { "name": "cdc-wdm0", "technology": "lte" } },
   <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -71 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
-  <u>"traits"</u>: { <i>"modem"</i>: "cdc-wdm1", <i>"technology"</i>: "nr5g" },
+  <u>"traits"</u>: { <i>"modem"</i>: { "name": "cdc-wdm1", "technology": "nr5g" } },
   <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -84 }</pre>
-	<p class="muted"><b>The traits have to be rendered, not merely ignored.</b> Two modems share a measurement and differ only in traits the client cannot read. Dropping them would put two tiles on screen labelled "Modem signal" with different numbers and nothing to tell them apart.</p>
+	<p class="muted"><b>The traits have to be rendered, not merely ignored.</b> Two modems share a measurement and differ only in the one trait the client cannot read. Dropping them would put two tiles on screen labelled "Modem signal" with different numbers and nothing to tell them apart.</p>
 	<p class="muted"><b>Identity still works</b> for the same reason: it is the <code>traits</code> object wholesale, so the two stay two series rather than collapsing into one garbled graph. That is what the container buys over reserving base names.</p>
 </div>
 

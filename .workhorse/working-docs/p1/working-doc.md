@@ -44,6 +44,20 @@ Traits sit in a `traits` container and say what this measurement is about: that 
 
 A trait may be a bare value where there is one thing to say, and an object where there is more.
 
+**A trait stands alone, or it sits inside the one it qualifies.**
+A trait is its own member only where it means something independently of the others.
+`direction` is independent: any flow measurement has one, with or without an interface.
+A modem's radio technology is not — it describes the modem, so it belongs inside the modem trait rather than beside it.
+
+The same test applied to the readings a device already reports moves two things: the default route and the overlay describe the interface, and the block device describes the filesystem.
+
+```json
+"traits": { "interface": { "name": "eth0", "route": "default" }, "family": "ipv4" }
+"traits": { "filesystem": { "mount": "/boot/firmware", "device": "mmcblk0p1" } }
+```
+
+This is the `detail`-versus-reading question one level down, and it takes the same answer: a thing that stands on its own is its own member, and a thing that only qualifies another belongs inside it.
+
 **A trait names, it does not flag.**
 The overlay trait carries `"tailscale"`, not `true`.
 A boolean says only that some unnamed property holds, which a client cannot render and cannot tell apart from another device's different reason for setting it; a name is a fact worth carrying and reads in the generic qualifier without translation.
