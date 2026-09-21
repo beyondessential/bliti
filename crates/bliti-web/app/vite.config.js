@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => ({
 		VitePWA({
 			registerType: 'autoUpdate',
 			workbox: { globPatterns: ['**/*.{js,css,html,wasm}'] },
+			// The manifest's own icons are precached for us. This one is reached from the markup
+			// instead, so it has to be named, and it is worth caching because an installed
+			// application may never be online again after the install.
+			includeAssets: ['apple-touch-icon.png'],
 			manifest: {
 				name: 'bliti',
 				short_name: 'bliti',
@@ -22,6 +26,17 @@ export default defineConfig(({ mode }) => ({
 				background_color: '#fbfbfa',
 				display: 'standalone',
 				start_url: '/',
+				id: '/',
+				// Chromium offers to install only once a 192px and a 512px icon are declared, so these
+				// two are what makes the application installable rather than merely manifested. The
+				// maskable pair is cropped to Android's safe zone; see icons.sh.
+				icons: [
+					{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+					{ src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+					{ src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+					{ src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+					{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+				],
 			},
 		}),
 	],
