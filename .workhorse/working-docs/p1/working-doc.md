@@ -199,10 +199,13 @@ Nothing carries an address family, because the kind already says it.
 **The fallback for an unrecognised kind has to change.**
 Today an unrecognised kind makes the value unreadable and the client renders the label alone.
 That was written for a closed set where the risk was drawing a number whose scale the client did not know.
-With an open vocabulary it is too harsh: a client that has never heard of `ipv4` would show nothing, where showing the string verbatim would have been correct.
+With an open vocabulary it is too harsh: a client that has never heard of `ipv4` would show nothing, where showing the address would have been correct.
 
-A client that does not recognise a kind renders a string value as text.
-A string carries its own meaning; a number without its scale does not, so an unrecognised kind with a numeric value stays unreadable.
+**A client that does not recognise a kind renders the stringification of `value`, with `unit` after it where there is one.**
+
+The old caution does not survive the value being inlined.
+It guarded against drawing a bare number, which was a real risk when `kind` decided which member held it and the unit lived inside the value object.
+`unit` is now a member of the message like any other, so a client that has never heard of a kind still has it: `1200000 bytes/second` is renderable without knowing what `quantity` means.
 
 ### Units are spelled out; abbreviating them is the client's
 
