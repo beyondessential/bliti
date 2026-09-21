@@ -20,7 +20,7 @@ Three things move at once, and they are hard to land separately because each mak
 
 **Aggregation is the test for a trait.** A trait slices one catalogue entry into instances that can be summed, ranked or compared. Two candidates failed it while drafting and became separate entries instead: `part` (used against total) and `condition` (undervoltage against speed-capped). Both were two measurements wearing one name.
 
-**`state-reason` rather than boolean conditions.** Throttling is why the frequency reading is in trouble, not a measurement beside it. This also carries a distinction a derived boolean could not: `cpu-frequency < cpu-frequency-max` is true whenever the processor is idle.
+**State is a trait, and a reason sits inside it.** Throttling is why the frequency reading is in trouble, not a measurement beside it, and this carries a distinction a derived boolean could not: `cpu-frequency < cpu-frequency-max` is true whenever the processor is idle. Making state a trait rather than a required member also lets a measurement with no notion of difficulty carry none — a link is not doing badly by being busy, and `network-throughput` sending `ok` would answer a question the measurement does not ask.
 
 ## Rejected
 
@@ -35,9 +35,9 @@ Three things move at once, and they are hard to land separately because each mak
 Core first, because both ends depend on the types.
 
 - [ ] Merge `ClientMessage` and `DeviceMessage` into one `Message`, with one `hello` and one criticality table
-- [ ] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with one shape carrying `at`, catalogue name, `traits`, `kind`, `unit`, `value`, `state`, `state-reason`, `limits`, `error`; `fact` and `reading` differ by which catalogue names them and by a fact carrying no state
+- [ ] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with one shape carrying `at`, catalogue name, `traits`, `kind`, `unit`, `value`, `error`; state and limits are traits, and `fact` and `reading` differ only by which catalogue names them and by a fact carrying no `state` trait
 - [ ] Inline the value: `kind` as an open string, `unit` alongside, `value` as raw JSON rather than a tagged enum
-- [ ] Identity as catalogue name plus every trait the client does not know to be descriptive, with equality and hashing over it, and `route` and `overlay` on the descriptive list
+- [ ] Identity as catalogue name plus every trait the client does not know to be descriptive, with equality and hashing over it, and `route`, `overlay`, `state` and `limits` on the descriptive list
 - [ ] Round numeric values to four decimal places on send
 - [ ] Delete `system-identity`, `system-sample`, `system-history` and the series shape
 
@@ -64,6 +64,6 @@ Client last, since it needs real messages to render.
 
 **The two D1 defects should dissolve rather than need fixing.** The `network` group collision cannot recur because there is no `group`; the opposed-pair reveal dropping its members' detail cannot recur because a mirrored pair is two readings each rendered in full. If either needs code written specifically to address it, the model has not been applied properly.
 
-**Identity equality is the subtle one.** It must compare unrecognised traits, which means comparing raw JSON rather than a parsed struct, minus an explicit descriptive list. A build that parsed traits into known fields and compared those would pass every test written against today's catalogue and fail in the field the first time a device gained a trait. A build that forgot the descriptive list would fork an interface's graph whenever the default route moved.
+**Identity equality is the subtle one.** It must compare unrecognised traits, which means comparing raw JSON rather than a parsed struct, minus an explicit descriptive list. A build that parsed traits into known fields and compared those would pass every test written against today's catalogue and fail in the field the first time a device gained a trait. A build that forgot the descriptive list would fork a graph whenever the default route moved or a reading went to `warn`.
 
 **`at` stays boot-relative.** `last-boot` is the one datetime, and it is a fact the device may not be able to answer for. Nothing else gains a wall clock.

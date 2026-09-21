@@ -14,10 +14,10 @@ Covers the wire shape of [MSG](../../specs/messages.md) and the catalogue and re
 ## Facts and readings
 
 - [ ] A `fact` and a `reading` of the same catalogue name are different entries and do not collide (verifies spec: NFO)
-- [ ] A `fact` carrying `state`, `state-reason` or `limits` is rejected (verifies spec: NFO)
+- [ ] A `fact` carrying a `state` trait is rejected (verifies spec: NFO)
+- [ ] `network-throughput` carries no `state` trait at all, rather than one saying `ok` (verifies spec: NFO)
 - [ ] A message carrying both `value` and `error` is rejected, as is one carrying neither (verifies spec: NFO)
-- [ ] A `reading` carrying `error` has `state` of `fault` (verifies spec: NFO)
-- [ ] `state-reason` is absent wherever `state` is `ok` (verifies spec: NFO)
+- [ ] A message carrying `error` carries a `state` trait of `fault` (verifies spec: NFO)
 - [ ] A numeric `value` is rounded to four decimal places on send (verifies spec: NFO)
 - [ ] A trait that only qualifies another sits inside it: `route` and `overlay` within `interface`, `device` and `role` within `filesystem` (verifies spec: NFO)
 
@@ -27,6 +27,7 @@ Covers the wire shape of [MSG](../../specs/messages.md) and the catalogue and re
 - [ ] Two readings identical in name and traits are one series (verifies spec: NFO)
 - [ ] **A trait this build has never heard of still separates two series.** Feed a client two readings alike but for an unknown trait and assert it holds two histories, not one merged (verifies spec: NFO)
 - [ ] **A descriptive trait changing does not fork a series.** Move `route: default` from one interface to another and assert the first interface's history continues rather than starting again (verifies spec: NFO)
+- [ ] **A reading going into difficulty does not fork its series.** Drive a reading from no `state` trait to `warn` and back and assert one continuous history (verifies spec: NFO)
 - [ ] Trait member order does not affect identity (verifies spec: NFO)
 
 ## Values

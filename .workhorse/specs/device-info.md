@@ -41,19 +41,14 @@ What separates them is which catalogue names them, and that only a `reading` may
 | `unit` | string | no | the unit the value is in |
 | `value` | any | no | the value |
 | `error` | string | no | why there is none |
-| `state` | string | readings | `ok`, `warn` or `fault` |
-| `state-reason` | string | no | what the trouble is, named |
-| `limits` | array | no | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
-
-A `reading` MUST carry `state`.
-
-A `fact` MUST NOT carry `state`, `state-reason` or `limits`.
 
 Either MUST carry `value` or `error`, and MUST NOT carry both.
 
-A message carrying `error` MUST NOT carry `value`, and where it is a `reading` its `state` MUST be `fault`.
+Whether something is in difficulty, and the scale it is drawn against, are traits.
 
-`state-reason` MUST NOT be sent where `state` is `ok`.
+A `fact` MUST NOT carry the `state` trait.
+
+A message carrying `error` MUST carry the `state` trait, with `is` of `fault`.
 
 A receiver MUST treat `at` as meaningful only relative to other `at` values from the same sender.
 
@@ -67,7 +62,11 @@ A device MUST send one message per fact or reading, at whatever cadence suits wh
 
 `traits` says what a fact or reading is about.
 
-A trait MUST be a dimension the sender could aggregate across: one that slices its catalogue entry into instances which can meaningfully be summed, ranked or compared.
+A trait either distinguishes what a measurement was taken on, or describes it.
+
+A distinguishing trait MUST be a dimension the sender could aggregate across: one that slices its catalogue entry into instances which can meaningfully be summed, ranked or compared.
+
+A descriptive trait says something about the measurement without separating it from anything else the same measurement is taken on.
 
 A trait's value MAY be of any JSON type, and MUST be an object where the trait has more than one thing to say.
 
@@ -85,8 +84,6 @@ A fact or reading's identity MUST be its catalogue name together with its traits
 A receiver MUST treat every trait as part of that identity, except one it knows to be descriptive.
 
 A receiver MUST treat a trait it does not recognise as part of that identity.
-
-A trait is descriptive where it says something about what is being measured without distinguishing it from anything else the same measurement is taken on.
 
 > [!NOTE]
 > Identity is the receiver's to compute, and two receivers at different versions may reach different answers about the same data. That is deliberate: a sender newer than its receiver may add a trait that splits one series into several, and a receiver that left unrecognised traits out of identity would merge them and draw one series that is wrong. Treating an unknown trait as distinguishing leaves it two series it cannot fully tell apart, which is degraded and true, and it stops splitting them when it learns better.
@@ -108,7 +105,7 @@ This catalogue uses:
 
 An application MAY draw a `fraction` against its scale.
 
-An application MUST NOT draw a `quantity` against a scale unless a `limits` entry gives it one.
+An application MUST NOT draw a `quantity` against a scale unless its `limits` trait gives it one.
 
 A receiver that does not recognise a `kind` MUST render the stringification of `value`, followed by `unit` where there is one.
 
@@ -170,11 +167,16 @@ Where the hardware is fitted and the measurement cannot be taken, a device MUST 
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
 | `fan` | — | which fan |
+| `state` | `is`, `reason` | that the reading is in difficulty: `is` is `warn` or `fault`, and `reason` names what the trouble is |
+| `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-An application MUST treat `route` and `overlay` as descriptive.
+A device MUST carry the `state` trait only where the measurement has a notion of being in difficulty, and MUST NOT carry it to say that nothing is wrong.
+
+An application MUST treat `route`, `overlay`, `state` and `limits` as descriptive.
 
 > [!NOTE]
-> The default route moves between interfaces. An application that let it distinguish would start a new series for an interface each time the route left it, which is the one place this catalogue would otherwise fork a graph for a reason that has nothing to do with what it measures.
+> The default route moves between interfaces, and a reading goes in and out of difficulty constantly. An application that let either distinguish would start a new series each time, forking a graph for a reason that has nothing to do with what it measures.
+> Throughput has no notion of being in difficulty: a link is not doing badly by being busy. Sending `ok` against it would be answering a question the measurement does not ask.
 
 ## Storage
 
@@ -213,15 +215,15 @@ A device MUST distinguish the three by a hardware signal reporting whether exter
 
 A device whose board exposes no such hardware signal MUST omit `power-source` rather than guess at it.
 
-A device MUST report the third state as `warn`, with `state-reason` of `backup-bypassed`.
+A device MUST report the third state with a `state` trait of `warn` and a reason of `backup-bypassed`.
 
 A device MUST NOT assert the third state until the voltage has been watched long enough to tell drifting from static, and MUST report the second until then.
 
 A device MUST take `battery-direction` from `power-source` where that reading exists, and MUST derive it from the movement of the cell voltage otherwise.
 
-A device that derives the direction MUST set `state-reason` to `derived`, and MUST NOT report a derived direction it does not yet have enough history to establish.
+A device that derives the direction MUST say so with a `state` trait reason of `derived`, and MUST NOT report a derived direction it does not yet have enough history to establish.
 
-Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST set `battery-charge` to `warn` with `state-reason` of `against-source`.
+Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST give `battery-charge` a `state` trait of `warn` with a reason of `against-source`.
 
 > [!NOTE]
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
@@ -230,11 +232,11 @@ Where a device has both signals and they disagree, it MUST report `power-source`
 
 ## Temperature and processor speed
 
-`temperature` on the `cpu` sensor MUST carry the board's own declared thresholds in `limits`.
+`temperature` on the `cpu` sensor MUST carry the board's own declared thresholds as its `limits` trait.
 
 `temperature` MUST be `warn` or `fault` only where the board is in difficulty, not merely warm.
 
-A device MUST report `cpu-frequency` as `warn` with `state-reason` of `throttled` where the platform reports that it is limiting the processor.
+A device MUST give `cpu-frequency` a `state` trait of `warn` with a reason of `throttled` where the platform reports that it is limiting the processor.
 
 A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequency-max`.
 
@@ -273,9 +275,9 @@ An application MUST render in this order:
 | tiles | `network-address`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
 | appended | everything it does not recognise |
 
-An application MUST NOT reorder by `state`.
+An application MUST NOT reorder by the `state` trait.
 
-An application MUST supply its own wording for every catalogue name, trait, unit and `state-reason` it recognises.
+An application MUST supply its own wording for every catalogue name, trait, trait value and unit it recognises.
 
 An application MUST render `last-boot` as an elapsed time.
 
@@ -299,9 +301,9 @@ An application MUST show each tile's face carrying a label and a headline value,
 
 An application MUST reveal what is behind the headline, any scale drawn as a bar, and any history drawn as a graph, when the operator opens the tile.
 
-An application MUST colour the face of an entry whose `state` is `warn` or `fault`, and MUST NOT add a further element to the face to carry that.
+An application MUST colour the face of an entry carrying a `state` trait, and MUST NOT add a further element to the face to carry that.
 
-An application MUST show every reading in a reveal with its own `limits`, `state-reason` and error reason.
+An application MUST show every reading in a reveal with its own limits, state reason and error reason.
 
 > [!NOTE]
 > An open tile wants the full width, because figures and graphs are not read through half a column.
