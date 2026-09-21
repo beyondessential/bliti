@@ -44,7 +44,7 @@ pre.json i { font-style:normal; color:#8a8580; }
 
 <h1>Measurement and fact catalogue</h1>
 <p>Every reading the device reports today, restated as a measurement or a fact with its traits. Green is a fact (no state, no history); the rest are readings. The last column says what it was before, so nothing is silently dropped.</p>
-<p>Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open. Where the device holds a piece of information, it sends it rather than leaving it implied.</p>
+<p>Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open. Where the device holds a piece of information, it sends it rather than leaving it implied. No prose crosses the wire: a bad state is named by <code>state-reason</code> and worded by the client.</p>
 
 <h2>What a trait is</h2>
 <p class="note" style="max-width:52rem"><b>A trait is a dimension you can aggregate across.</b> It slices one measurement into instances, and re-combining those instances — summing, ranking, comparing — means something. That is the whole test, and it is what separates a trait from two measurements that merely look alike.</p>
@@ -85,7 +85,7 @@ pre.json i { font-style:normal; color:#8a8580; }
 <tr><td class="t">reading</td><td class="n"><code>cpu-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>cpu</code></td></tr>
 <tr><td class="t">reading</td><td class="n"><code>cpu-frequency</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Speed"</td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>cpu-frequency-max</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Full speed"</td></tr>
-<tr><td class="t">reading</td><td class="n"><code>supply-voltage</code> <b style="color:var(--warn)">?</b></td><td><code>quantity</code> · <code>volts</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>supply-voltage</code> <b style="color:var(--warn)">W1</b></td><td><code>quantity</code> · <code>volts</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
 <tr><td class="t">reading</td><td class="n"><code>memory-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>memory</code></td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>memory-total</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr">—</td><td class="was"><code>memory</code> detail "Used" and "Total"</td></tr>
 </table>
@@ -95,7 +95,7 @@ pre.json i { font-style:normal; color:#8a8580; }
   <b>"kind"</b>: "quantity", <b>"unit"</b>: "hertz", <b>"value"</b>: 1500000000 }</pre>
 <p class="note"><code>state-reason</code> names why a state is not ok, as <code>error</code> names why there is no value at all. It is a name rather than prose: the client holds the wording, as it holds every other label.</p>
 <p class="note">This also settles a thing a boolean could not. <code>frequency-capped</code> would not have been derivable from <code>cpu-frequency &lt; cpu-frequency-max</code>, because ordinary idle scaling lowers the frequency on a device that is merely not busy. As a reason on the frequency itself, the distinction is carried without a second measurement to reconcile.</p>
-<div class="callout"><b><span style="color:var(--warn)">?</span> <code>supply-voltage</code> is unverified.</b> The device reads <code>rpi_volt</code>'s undervoltage alarm today, which is one bit and no number. A Pi 5's PMIC exposes per-rail volts and amps through <code>vcgencmd</code> rather than sysfs, which wants confirming on the real board before it goes in a spec. If a number is readable, undervoltage is <code>supply-voltage</code> with <code>state-reason: undervoltage</code> and the <code>boolean</code> kind is not needed anywhere. If only the alarm is readable, it is a boolean with no value to report.</div>
+<div class="callout"><b><span style="color:var(--warn)">W1</span> <code>supply-voltage</code> waits on W1.</b> The device reads <code>rpi_volt</code>'s undervoltage alarm today, which is one bit and no number, so there is nothing for <code>state-reason: undervoltage</code> to attach to yet. W1 establishes what the board's power management actually yields. Until it lands, the device reports no supply reading at all rather than a bare alarm.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "undervoltage",
   <b>"state"</b>: "warn", <b>"kind"</b>: "boolean", <b>"value"</b>: true }
 
@@ -138,7 +138,8 @@ pre.json i { font-style:normal; color:#8a8580; }
 <div class="callout"><b>A fraction and a total, and every other figure comes from those two.</b> Used bytes, free bytes and percentages are all arithmetic on a fraction and a total, so only those two cross the wire. The division also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.</div>
 <div class="callout"><b>Details that were the same number twice</b> collapse: battery charge appeared as both the fraction headline and a percentage in its detail.</div>
 <div class="callout"><b>One new base member, <code>state-reason</code>,</b> naming why a state is not ok. It takes over most of what <code>note</code> carried: the advice attached to a bypassed backup supply, and the caveat on a derived battery direction, are both wording the client can hold against a reason rather than prose the device has to send.</div>
-<div class="callout"><b>No new kind, if the PMIC gives numbers.</b> The kinds are <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>datetime</code>, <code>ipv4</code> and <code>ipv6</code>. <code>boolean</code> is wanted only if undervoltage stays an alarm bit.</div>
+<div class="callout"><b>No new kind.</b> The kinds are <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>datetime</code>, <code>ipv4</code> and <code>ipv6</code>. <code>boolean</code> is punted until something needs it, which on current evidence is only a valueless alarm W1 may well replace with a number.</div>
+<div class="callout"><b><code>note</code> leaves the wire.</b> It was prose the device sent for a client to display, and too generic to act on. Everything it carried is either catalogue knowledge the client already holds — that a temperature is the core rather than the case — or wording keyed to a <code>state-reason</code>, which says what the trouble is rather than describing it.</div>
 
 </div>
 </body>

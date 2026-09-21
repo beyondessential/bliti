@@ -222,6 +222,13 @@ Used bytes, free bytes and percentages are arithmetic on those two, so only thos
 
 The split also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.
 
+### No supply reading until W1
+
+The device reads an undervoltage alarm bit today and no voltage, so there is nothing for `state-reason: undervoltage` to attach to.
+W1 establishes what the board's power management actually yields.
+
+Until it lands the device reports no supply reading rather than a bare alarm, and no `boolean` kind is added: a kind introduced for one valueless reading is worth avoiding when a real number may be available instead.
+
 ### `state-reason` names why a state is not ok
 
 `error` says why a reading has no value.
@@ -237,8 +244,9 @@ It is a name, not prose: the client holds the wording as it holds every other la
 
 This is what throttling is. A capped processor is the frequency reading carrying a reason, not a separate measurement beside it, and the distinction ordinary idle scaling would otherwise blur — a low frequency on a device that is merely not busy — is carried without a second measurement to reconcile against the first.
 
-It also takes over most of what `note` carried.
-The advice attached to a bypassed backup supply, and the caveat on a derived battery direction, are both wording a client can hold against a reason rather than prose the device has to send.
+**`note` leaves the wire.**
+It was prose the device sent for a client to display, and too generic to act on: a client could show it and nothing more.
+Everything it carried is either catalogue knowledge the client already holds — that a temperature is the processor core rather than the case — or wording keyed to a `state-reason`, which names what the trouble is rather than describing it.
 
 ### What a trait is
 
@@ -339,8 +347,6 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] Whether `note` survives on the wire at all, now that `state-reason` carries the cases it was serving
-- [ ] Whether the PMIC yields a supply voltage, which decides whether a `boolean` kind is needed anywhere
 - [ ] The measurement and fact catalogue, drafted at `.workhorse/design/mockups/p1/catalogue.html`
 
 ## Testing notes
