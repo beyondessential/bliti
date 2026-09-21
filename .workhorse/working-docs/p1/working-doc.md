@@ -21,18 +21,71 @@ Order goes: the sequence readings arrive in carries no meaning, and a client ren
 `label` stays, but only as raw material for the generic renderer.
 `direction` stays, because which way a flow runs is a fact.
 
-### What arrives
+### What arrives: measurements and traits
 
-Nesting, where the data genuinely nests.
-An interface's in and out are two facts about one interface.
-Exact shape is open — see the nesting question below.
+A reading is not a named thing with a value.
+It is a **measurement type** plus a set of **traits** describing what that measurement is about.
 
-### One message type for readings
+```json
+{
+  "type": "reading",
+  "at": 20308140,
+  "measurement": "network-throughput",
+  "traits": { "interface": "eth0", "direction": "in" },
+  "state": "ok",
+  "kind": "quantity",
+  "unit": "B/s",
+  "value": 1200000
+}
+```
 
-`system-identity`, `system-sample` and `system-history` collapse into one type carrying a timestamp and readings.
-Static facts are readings that rarely change, carrying `graph: false`; they are no longer a distinct message.
+`measurement` names the reading against a catalogue of measurement types.
+Traits sit in a `traits` container and say what this measurement is about: that it concerns an interface, which one, and which way the flow runs.
 
-The mechanism moves into the base framework (MSG), leaving NFO as a catalogue of which readings a device reports.
+A trait may be a bare value where there is one thing to say, and an object where there is more.
+
+`detail` dissolves.
+What sat inside it becomes readings in its own right, distinguished by a trait: each filesystem carries a `filesystem` trait, memory's used and total carry theirs, each address its interface.
+That is what makes them addressable, graphable, and able to carry a state of their own, which is the defect the card names for per-interface throughput.
+
+There is no identifier.
+A reading's identity — and so its series — is its measurement together with its `traits` object wholesale.
+Nothing on the wire is a string to be parsed, which is what `group` was and what a compound id would have quietly become.
+
+Traits are ignorable by case, so a client that has never heard of `interface` renders the measurement generically and is still correct.
+The `traits` container is what lets identity be computed over traits the client cannot read: nothing has to be reserved, and the object compares wholesale.
+
+### The client selects rather than looks up
+
+A client's render rule is a query over measurements and traits, not a name lookup.
+"One tile for network throughput" is: select every `network-throughput` reading, group by `interface`, pair by `direction`, aggregate the headline by summing.
+
+This is what separates the trait model from `group`.
+`group` was an opaque string the client bucketed and hoped about; traits are structured and the client knows their schema, so selecting on them is reading data rather than re-deriving presentation.
+
+### One message per reading
+
+Batching is gone.
+Every reading is its own message carrying its own `at`, sent at whatever cadence suits what it measures.
+
+There is no sample boundary, so nothing has to decide what a snapshot contains, and "a sample need not carry every reading" stops needing saying.
+
+Two message types:
+
+| type | names itself with | carries | has |
+| --- | --- | --- | --- |
+| `fact` | `fact` | something true about the device | no state, no history |
+| `reading` | `measurement` | a measurement | state, and a history worth keeping |
+
+The `graph` flag is replaced by the type itself.
+
+The two catalogues overlap freely.
+A `network-addresses` fact and a `network-addresses` reading are different things, and neither has to avoid the other's name.
+
+The value is inlined rather than nested in a `value` object: `kind` says how to read `value`, and `unit` accompanies it where the kind wants one.
+
+`system-identity`, `system-sample` and `system-history` all go.
+The mechanism moves into the base framework (MSG), leaving NFO as the catalogue of measurement types and traits, and of which the client renders bespoke.
 
 ### Feeds
 
@@ -106,26 +159,32 @@ A reveal shows each reading's own `detail`, `note`, `limits` and error reason, i
 
 ## Implementation options
 
-### Nesting shape (open)
+### Device judgements become client rules
 
-Mocked up at `.workhorse/design/mockups/p1/nesting-options.html`.
-The client's screen is fixed and does not vary with the option; the question is only which option carries enough for the client to draw the screen it has already decided on.
+Writing the messages out showed how far this reaches beyond the readings the card names.
 
-1. **`detail` becomes readings.** One mechanism; every sub-value is a reading with a name, state, graph and children.
-2. **`readings` alongside `detail`.** A sub-fact that stands on its own is a child reading; a figure that only qualifies its parent stays in `detail`.
-3. **Nesting only where it is a fact.** Same two mechanisms, bar set high: only an interface's in and out nest.
+The device currently picks which address to headline: it prefers the interface carrying the default route, and IPv4 over IPv6, because that is the one a person can read out.
+Those are presentation decisions taken on the device.
+Under traits the device states what makes them decidable — `route: default`, `family: ipv4`, `overlay: true` — and the client applies its own rule.
 
-What writing the messages out showed:
+### Where a note about an aggregate goes
 
-- Option 3 cannot carry a state per filesystem, so a device that knows which filesystem is in trouble has no way to say so, and the client is left inferring a judgement the device already made.
-- Options 2 and 3 cannot carry a history for memory's used figure, which is the same structural inertness the card already names for per-interface throughput.
-- A `detail` entry has no `name`, so nothing can key a history to it under any option that leaves values there.
+`detail` dissolving leaves nothing for some notes to attach to.
+"Filesystem use does not move fast enough for a graph to say anything" was a note on the `disk` reading, and there is no longer a `disk` reading — only one reading per filesystem and a client-side aggregate.
 
-### A parent reading has no value of its own
+A note about what a measurement type *means* is catalogue knowledge and belongs to the client, alongside the label it already supplies.
+A note about *this particular* reading is data and stays on the wire, as a derived battery direction's caveat does.
 
-An interface reading holds two children and measures nothing itself, but a reading currently MUST carry either `value` or `error`.
-Either that rule relaxes so children can stand in for a value, or a parent carries the aggregate of its children.
-The mockup shows the aggregate, which is also what the network tile's face needs.
+Mocked up at `.workhorse/design/mockups/p1/measurements-and-traits.html`.
+
+### Series identity must include traits the client does not know
+
+If a newer device adds a trait that splits one series into several — per-queue throughput under an existing interface, say — a client that ignores the unknown trait merges them and draws a garbled graph.
+
+So identity includes every trait, recognised or not.
+An older client then shows two series it cannot fully tell apart, which is degraded but correct, rather than one series that is wrong.
+
+Making such traits critical instead would cost the older client the reading entirely, which is worse.
 
 ### Rounding
 
@@ -153,9 +212,6 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] Which nesting option, of the three mocked up
-- [ ] Whether a parent reading may carry children instead of a `value`, or must carry an aggregate
-- [ ] What the one readings message type is called, now that it is neither identity nor sample nor history
 - [ ] What the client's preferred order actually is, and whether state reorders it
 - [ ] Whether `hostname`, `board` and `os` render as a header rather than as tiles
 
