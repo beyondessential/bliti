@@ -24,7 +24,7 @@ rust_2018_idioms = { level = "deny", priority = -1 }
 # baseline-to-current direction from the recorded corpus instead. Moving this to a revision built
 # with `generate` upgrades that direction to live generation, and the `features` key below gains
 # `"generate"` at the same time.
-bliti-core-baseline = { package = "bliti-core", git = "https://github.com/beyondessential/bliti.git", rev = "638c4db7ec55bebd85cf0be10821fd2d8123ff3e", default-features = false }
+bliti-core-baseline = { package = "bliti-core", git = "https://github.com/beyondessential/bliti.git", rev = "c4d4ed6b52bd97e102413f11c6d1b52a238f02c3", default-features = false }
 clap = { version = "4.6.1", features = ["cargo", "derive", "wrap_help"] }
 futures = "0.3.30"
 rand = "0.10.1"

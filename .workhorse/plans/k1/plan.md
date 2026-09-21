@@ -226,9 +226,13 @@ a manifest, so this is the only home that avoids duplicating it or reading it fr
 and it puts the pointer in the most-read manifest in the repository. Verified to work, including
 the rename alongside `git` and `rev`.
 
-Its initial value is the commit introducing the ledger and the generator. The oracle calls the
-baseline build's own generator, so the baseline cannot precede the commit that adds one. Because
-this repository does not squash, the rev stays reachable and the pointer cannot dangle.
+Its initial value is this branch's point on `main`, which carries the message types but not the
+generator: the generator arrives with this card, so nothing merged can precede it. That is why the
+baseline-to-current direction runs from the recorded snapshot for now. Because this repository does
+not squash, the rev stays reachable and the pointer cannot dangle.
+
+It moves with the branch point. Rebasing onto a newer `main` should carry it along, so that the
+oracle measures this card's changes and not upstream's.
 
 It is a pointer, not a constant. It moves when `VERSION` bumps, since a baseline at a different
 marker makes the check vacuous and it would otherwise stay skipped for good. Before the first
