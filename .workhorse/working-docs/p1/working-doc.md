@@ -4,6 +4,13 @@ status: complete
 
 # Make the feed model structural, and move presentation out of the wire
 
+> [!WARNING]
+> **Stale. The specs are authoritative.**
+>
+> This is the drafting space the work was thought through in, kept for its reasoning. It has been split into [MSG](../../specs/messages.md), [NFO](../../specs/device-info.md) and [VIEW](../../specs/device-view.md), and those three say what the system does. Where this document disagrees with them, it is wrong.
+>
+> The larger divergences: history and backfill are scoped out to U1; nesting became traits; `state` became the `status` trait over `passed` / `warning` / `failed` / `skipped` / `broken`, absorbing `error` as `broken`; series identity left the wire for a device-side unambiguity obligation; and the rendering rules moved into VIEW, which binds our application alone.
+
 Rework the diagnostics wire so it carries data rather than presentation: strip `group` and ordering, fold identity into samples, make the `default` feed device-pushed with `subscribe` as the resume path, and merge the two message enums into one.
 
 ## Behaviour
