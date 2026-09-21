@@ -215,6 +215,13 @@ Choosing a readable magnitude is the client's too: the wire carries `1200000 byt
 
 A client that does not recognise a unit writes it out as it was sent, which is correct if ungainly.
 
+### A fraction and a total, and nothing else
+
+A quantity that fills something is reported as a `-usage` fraction and a `-total` fact.
+Used bytes, free bytes and percentages are arithmetic on those two, so only those two cross the wire.
+
+The split also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.
+
 ### A trait distinguishes instances, not quantities
 
 A trait separates instances of one measurement: `eth0` and `wlan0` are the same thing measured on different subjects.
@@ -298,7 +305,6 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] Whether the `-usage` fraction survives alongside `-available` and `-total`, given it is derivable from them
 - [ ] The measurement and fact catalogue, drafted at `.workhorse/design/mockups/p1/catalogue.html`
 
 ## Testing notes
