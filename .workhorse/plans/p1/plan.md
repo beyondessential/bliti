@@ -14,7 +14,9 @@ Three things move at once, and they are hard to land separately because each mak
 
 **Traits rather than nesting.** The card asked for nesting where data nests. Drafting it showed nesting needs a path to key a series by, and cannot address anything that stayed in `detail`. Measurement-plus-traits is the metrics model: identity is structural, every value is addressable at one level, and grouping is a query the client runs rather than a string it buckets. `group` and a compound identifier both failed for the same reason — a string the client has to parse.
 
-**A `traits` container rather than reserved base member names.** Identity must include traits the receiver cannot read, or a sender that adds a trait splitting one series into several makes an older receiver merge them into one wrong graph. A container compares wholesale with nothing reserved; reserved base names would work too, but then adding a base member later is a version change.
+**A `traits` container rather than reserved base member names.** Identity must include traits the receiver cannot read, or a sender that adds a trait splitting one series into several makes an older receiver merge them into one wrong graph. A container needs nothing reserved; reserved base names would work too, but then adding a base member later is a version change.
+
+**Dimensional by default, descriptive by exception.** A trait counts toward identity unless the receiver knows it does not. This fails safe — an unrecognised trait splits a series rather than merging two — and it makes identity the receiver's to compute rather than a wire absolute, which is the same division as everything else on this card. The exception list exists because some traits genuinely vary: the default route moves between interfaces, and an application that let `route` distinguish would fork an interface's graph each time the route left it, for a reason that has nothing to do with throughput.
 
 **Aggregation is the test for a trait.** A trait slices one catalogue entry into instances that can be summed, ranked or compared. Two candidates failed it while drafting and became separate entries instead: `part` (used against total) and `condition` (undervoltage against speed-capped). Both were two measurements wearing one name.
 
@@ -33,9 +35,9 @@ Three things move at once, and they are hard to land separately because each mak
 Core first, because both ends depend on the types.
 
 - [ ] Merge `ClientMessage` and `DeviceMessage` into one `Message`, with one `hello` and one criticality table
-- [ ] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with the `fact` and `reading` shapes: `at`, catalogue name, `traits`, `kind`, `unit`, `value`, `state`, `state-reason`, `limits`, `error`
+- [ ] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with one shape carrying `at`, catalogue name, `traits`, `kind`, `unit`, `value`, `state`, `state-reason`, `limits`, `error`; `fact` and `reading` differ by which catalogue names them and by a fact carrying no state
 - [ ] Inline the value: `kind` as an open string, `unit` alongside, `value` as raw JSON rather than a tagged enum
-- [ ] Identity as catalogue name plus the `traits` object entire, including traits this build does not know, with equality and hashing over it
+- [ ] Identity as catalogue name plus every trait the client does not know to be descriptive, with equality and hashing over it, and `route` and `overlay` on the descriptive list
 - [ ] Round numeric values to four decimal places on send
 - [ ] Delete `system-identity`, `system-sample`, `system-history` and the series shape
 
@@ -62,6 +64,6 @@ Client last, since it needs real messages to render.
 
 **The two D1 defects should dissolve rather than need fixing.** The `network` group collision cannot recur because there is no `group`; the opposed-pair reveal dropping its members' detail cannot recur because a mirrored pair is two readings each rendered in full. If either needs code written specifically to address it, the model has not been applied properly.
 
-**Identity equality is the subtle one.** It must compare unrecognised traits, which means comparing raw JSON rather than a parsed struct. A build that parsed traits into known fields and compared those would pass every test written against today's catalogue and fail in the field the first time a device gained a trait.
+**Identity equality is the subtle one.** It must compare unrecognised traits, which means comparing raw JSON rather than a parsed struct, minus an explicit descriptive list. A build that parsed traits into known fields and compared those would pass every test written against today's catalogue and fail in the field the first time a device gained a trait. A build that forgot the descriptive list would fork an interface's graph whenever the default route moved.
 
 **`at` stays boot-relative.** `last-boot` is the one datetime, and it is a fact the device may not be able to answer for. Nothing else gains a wall clock.

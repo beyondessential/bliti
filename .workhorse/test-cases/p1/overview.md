@@ -13,24 +13,26 @@ Covers the wire shape of [MSG](../../specs/messages.md) and the catalogue and re
 
 ## Facts and readings
 
-- [ ] A `fact` and a `reading` of the same catalogue name are different entries and do not collide (verifies spec: MSG)
-- [ ] A message carrying both `value` and `error` is rejected, as is one carrying neither (verifies spec: MSG)
-- [ ] A `reading` carrying `error` has `state` of `fault` (verifies spec: MSG)
-- [ ] `state-reason` is absent wherever `state` is `ok` (verifies spec: MSG)
-- [ ] A numeric `value` is rounded to four decimal places on send (verifies spec: MSG)
+- [ ] A `fact` and a `reading` of the same catalogue name are different entries and do not collide (verifies spec: NFO)
+- [ ] A `fact` carrying `state`, `state-reason` or `limits` is rejected (verifies spec: NFO)
+- [ ] A message carrying both `value` and `error` is rejected, as is one carrying neither (verifies spec: NFO)
+- [ ] A `reading` carrying `error` has `state` of `fault` (verifies spec: NFO)
+- [ ] `state-reason` is absent wherever `state` is `ok` (verifies spec: NFO)
+- [ ] A numeric `value` is rounded to four decimal places on send (verifies spec: NFO)
 - [ ] A trait that only qualifies another sits inside it: `route` and `overlay` within `interface`, `device` and `role` within `filesystem` (verifies spec: NFO)
 
 ## Identity
 
-- [ ] Two readings sharing a catalogue name and differing in one trait are two series (verifies spec: MSG)
-- [ ] Two readings identical in name and traits are one series (verifies spec: MSG)
-- [ ] **A trait this build has never heard of still separates two series.** Feed a client two readings alike but for an unknown trait and assert it holds two histories, not one merged (verifies spec: MSG)
-- [ ] Trait member order does not affect identity (verifies spec: MSG)
+- [ ] Two readings sharing a catalogue name and differing in one trait are two series (verifies spec: NFO)
+- [ ] Two readings identical in name and traits are one series (verifies spec: NFO)
+- [ ] **A trait this build has never heard of still separates two series.** Feed a client two readings alike but for an unknown trait and assert it holds two histories, not one merged (verifies spec: NFO)
+- [ ] **A descriptive trait changing does not fork a series.** Move `route: default` from one interface to another and assert the first interface's history continues rather than starting again (verifies spec: NFO)
+- [ ] Trait member order does not affect identity (verifies spec: NFO)
 
 ## Values
 
-- [ ] An unrecognised `kind` renders as the stringification of `value` followed by `unit` (verifies spec: MSG)
-- [ ] An unrecognised `unit` is written out as sent (verifies spec: MSG)
+- [ ] An unrecognised `kind` renders as the stringification of `value` followed by `unit` (verifies spec: NFO)
+- [ ] An unrecognised `unit` is written out as sent (verifies spec: NFO)
 - [ ] A `quantity` with no scale is not drawn against one (verifies spec: NFO)
 
 ## Topics and feeds
