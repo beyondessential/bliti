@@ -136,11 +136,20 @@ U1 carries that work and is free to change whatever it has to.
 
 ### The order a client renders in
 
-Proposed, to be corrected: what the device *is* first, then what it is *doing*, then what it is *running on*.
+The order is fixed and does not move.
+A reading in `warn` or `fault` stays where it sits and is found by colour, which is why the face colours the value rather than adding an element to carry it.
 
-Identity as a header rather than tiles: hostname, board, OS.
-Then tiles: address, processor, memory, storage, network, temperature, throttling, fan, power source, battery, uptime.
-Then everything the client does not recognise, generically, in the order received.
+A layout that rearranged under an operator while they were looking at it would cost the screen its familiarity, and a device with several marginal readings would reshuffle as they crossed back and forth.
+
+What the device *is*, then what it is *doing*:
+
+| position | from |
+| --- | --- |
+| header | the `hostname`, `board` and `os` facts |
+| tiles | `network-address`, then `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `throttling`, `fan-speed`, `power-source`, `battery-charge`, `uptime` |
+| appended | everything unrecognised, generically, in the order received |
+
+The measurement and fact names here are drafted, not settled; naming the catalogue is NFO's job.
 
 ### What the client owns
 
@@ -231,9 +240,8 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] What the client's preferred order actually is, and whether state reorders it
-- [ ] Whether a trait may ever be a value that is not a name, given the rule below
-- [ ] Whether `hostname`, `board` and `os` render as a header rather than as tiles
+- [ ] Whether a trait may ever be a value that is not a name
+- [ ] The measurement and fact catalogue: the names themselves
 
 ## Testing notes
 
