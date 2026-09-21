@@ -125,18 +125,34 @@ workspace `strip = "symbols"` removes the name section the profiler reads):
 
 ## Remaining work
 
-- [ ] Add a `wasm` cargo profile (`inherits = "release"`, `lto = true`, `codegen-units = 1`,
+- [x] Add a `wasm` cargo profile (`inherits = "release"`, `lto = true`, `codegen-units = 1`,
       `opt-level = "s"`) and build the browser client with it.
-- [ ] Switch `bliti-core`'s snow dependency to the granular `use-*` features.
-- [ ] Add a justfile as the single definition of the build: `just setup` installs the toolchain
+- [x] Switch `bliti-core`'s snow dependency to the granular `use-*` features.
+- [x] Add a justfile as the single definition of the build: `just setup` installs the toolchain
       (wasm32 target, `wasm-bindgen-cli` at the version pinned to the crate), `just build` produces
       the artefact. Fold `crates/bliti-web/build.sh` into it and have CI call `just` so local and CI
       builds cannot drift. AGENTS.md points at `just setup` rather than listing prerequisites.
-- [ ] Add `--remap-path-prefix` for the registry, toolchain and workspace roots, so the artefact
+- [x] Add `--remap-path-prefix` for the registry, toolchain and workspace roots, so the artefact
       stops embedding the building developer's home directory and builds are reproducible.
 - [ ] Consider pre-compressing the static bundle to brotli (and gzip as fallback) and serving with
-      Caddy's precompressed support.
-- [ ] Record the before/after on the card.
+      Caddy's precompressed support. Not done: the repository has no serving configuration at all
+      (CI uploads `dist` so that hosting it is later wiring), so pre-compressed files would have
+      nothing reading them and the server they assume does not exist yet. It belongs with whatever
+      card stands the origin up.
+- [x] Record the before/after on the card.
+
+## Delivered
+
+`just build` produces, measured on the artefact Vite bundles:
+
+| | baseline | now | change |
+| --- | --- | --- | --- |
+| raw | 633,460 | 440,752 | -30.4% |
+| gzip -9 | 216,746 | 158,084 | -27.1% |
+| brotli -q11 | 168,057 | 130,380 | -22.4% |
+
+No diagnostic capability was given up: `console_error_panic_hook` and readable panic messages stay,
+because the measurement showed aborting bought nothing.
 
 ## Open questions
 

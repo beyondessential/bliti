@@ -65,5 +65,5 @@ This one reverses at release rather than simply lapsing. Once devices are in the
 
 ## This repo
 
-- The browser client is built with `crates/bliti-web/build.sh`, which needs the `wasm32-unknown-unknown` target and `wasm-bindgen`.
+- Run `just setup` once to install what a build needs, then `just build` for the browser client. `just --list` shows the rest.
 - When writing or changing specs in `.workhorse/specs/` or plans in `.workhorse/plans/`, follow the spec and plan rules in [.workhorse/rules.md](.workhorse/rules.md).
