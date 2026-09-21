@@ -53,14 +53,14 @@ pub enum DeviceMessage {
 	},
 
 	/// What the device is: readings that do not change while it runs, or change rarely. Sent on the
-	/// reporting stream and again whenever they change (SYS).
+	/// reporting stream and again whenever they change (NFO).
 	#[serde(rename = "system-identity")]
 	SystemIdentity {
 		/// The static readings.
 		readings: Vec<readings::Reading>,
 	},
 
-	/// One sample of the device's live readings, sent on a `system` subscription (SYS).
+	/// One sample of the device's live readings, sent on a `system` subscription (NFO).
 	#[serde(rename = "system-sample")]
 	SystemSample {
 		/// Milliseconds since the device booted, when the sample was taken.
@@ -70,7 +70,7 @@ pub enum DeviceMessage {
 	},
 
 	/// The buffered window, sent first on a `system` subscription so a graph is populated the moment
-	/// it appears rather than filling from empty (SYS).
+	/// it appears rather than filling from empty (NFO).
 	///
 	/// Numbers only, one series per reading. Sending whole samples would repeat every reading's
 	/// description against every past point, which is far more bytes than the numbers and more than a
@@ -113,7 +113,7 @@ impl Message for DeviceMessage {
 		)
 	}
 
-	/// `device-hello` carries no critical member. The system types belong to SYS, which pins
+	/// `device-hello` carries no critical member. The system types belong to NFO, which pins
 	/// nothing.
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {

@@ -307,7 +307,7 @@ pub async fn connect(
 			}
 			// Rendered from what each reading says about itself, with no list of names to match
 			// against: a device that has gained a reading shows it here without this client
-			// changing (SYS).
+			// changing (NFO).
 			Ok(Reading::Message(DeviceMessage::SystemIdentity { readings })) => {
 				for reading in &readings {
 					println!("{}", render(reading));
@@ -341,7 +341,7 @@ pub async fn connect(
 /// One reading, rendered from its own description.
 ///
 /// Nothing here matches on a reading's name: a client that did could only show what it already knew
-/// about, which is the property SYS exists to avoid.
+/// about, which is the property NFO exists to avoid.
 fn render(reading: &SystemReading) -> String {
 	let mut line = format!("{}: ", reading.label);
 	match (&reading.value, &reading.error) {

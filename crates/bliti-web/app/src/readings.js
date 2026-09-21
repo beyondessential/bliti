@@ -1,4 +1,4 @@
-// Making sense of the self-describing readings of BLI-SYS, with no list of names to match against.
+// Making sense of the self-describing readings of NFO, with no list of names to match against.
 //
 // Nothing here asks what a reading is called. A reading says what it is, what unit it is in, and
 // where its limits sit, and everything below works from that alone. The consequence is the one that

@@ -38,7 +38,7 @@ export default function App() {
 	const [device, setDevice] = useState(null)
 	// What the device is, and how it is doing. The window holds the recent samples a graph is drawn
 	// from; the device sends its buffered window before anything live, so a graph is populated the
-	// moment it appears rather than filling from empty while an operator waits (BLI-SYS).
+	// moment it appears rather than filling from empty while an operator waits (NFO).
 	const [statics, setStatics] = useState([])
 	const [window_, setWindow] = useState([])
 	const [history, setHistory] = useState(() => new Map())

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 ---
 
 # Make the feed model structural, and move presentation out of the wire

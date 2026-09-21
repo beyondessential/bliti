@@ -33,7 +33,7 @@ pub fn readings() -> Vec<Reading> {
 /// The processor core temperature, against the board's own thresholds.
 fn temperature(zone: &str) -> Option<Reading> {
 	// The zone being present is the sensor being fitted. One that is there and will not answer is a
-	// fault nobody can see from outside the case, so it is reported rather than left out (SYS).
+	// fault nobody can see from outside the case, so it is reported rather than left out (NFO).
 	if fs::metadata(zone).is_err() {
 		return None;
 	}
@@ -55,7 +55,7 @@ fn temperature(zone: &str) -> Option<Reading> {
 		"temperature",
 		"Temperature",
 		// Drawn against what the board declares hot, never against a ceiling we invented: a board
-		// naming no critical trip gives the reading no scale, so it carries none (SYS).
+		// naming no critical trip gives the reading no scale, so it carries none (NFO).
 		match critical {
 			Some(critical) => Value::scaled(round(celsius), "°C", critical),
 			None => Value::quantity(round(celsius), "°C"),
@@ -198,7 +198,7 @@ fn fan(root: &str) -> Option<Reading> {
 			continue;
 		}
 		// The hwmon is the fan being fitted. One that is there and will not answer is a fault rather
-		// than an absence, so it is reported rather than left out (SYS).
+		// than an absence, so it is reported rather than left out (NFO).
 		let Some(rpm) = read_number(&format!("{path}/fan1_input")) else {
 			return Some(Reading::failed(
 				"fan",
@@ -313,7 +313,7 @@ mod tests {
 
 	/// Hardware that is not fitted is left out entirely; hardware that is fitted and will not answer
 	/// is reported as failing. An operator can see the first from where they stand and cannot see the
-	/// second at all, so conflating them hides a real fault (SYS).
+	/// second at all, so conflating them hides a real fault (NFO).
 	#[test]
 	fn a_thermal_zone_that_is_absent_and_one_that_will_not_answer_are_different_things() {
 		let tree = Tree::new();

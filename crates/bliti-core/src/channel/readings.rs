@@ -1,6 +1,6 @@
 //! Self-describing readings: what a device reports about itself, carrying its own meaning.
 //!
-//! Behaviour is specified in SYS. A reading names itself, says what it measures and in what
+//! Behaviour is specified in NFO. A reading names itself, says what it measures and in what
 //! unit, and a client renders it from that alone. The point is that a device which gains a reading
 //! appears in a client that has never heard of it, with no client release in between.
 //!
@@ -295,7 +295,7 @@ impl<'de> Deserialize<'de> for Value {
 		};
 
 		// A kind this build does not know is not an error: it is a device newer than this client, and
-		// SYS says the reading renders as its label alone rather than the message failing.
+		// NFO says the reading renders as its label alone rather than the message failing.
 		match kind.as_str() {
 			"fraction" => Ok(Self::Fraction(number(&raw, "number")?)),
 			"quantity" => Ok(Self::Quantity {

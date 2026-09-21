@@ -28,7 +28,7 @@ use crate::{facts::Facts, sampler::Sampler};
 /// How often to look for a change in what the device reports about itself.
 const IDENTITY_POLL: Duration = Duration::from_secs(2);
 
-/// The topic carrying the device's live readings (SYS).
+/// The topic carrying the device's live readings (NFO).
 const SYSTEM_TOPIC: &str = "system";
 
 /// What the device calls itself to a client, and the version it is at.
@@ -80,7 +80,7 @@ where
 	});
 
 	// Holds sampling open for as long as this session lasts, so a device that had gone quiet starts
-	// filling its window again the moment somebody connects (SYS).
+	// filling its window again the moment somebody connects (NFO).
 	let _session = sampler.session();
 
 	let result = converse(&mut streams, &sampler).await;
@@ -171,7 +171,7 @@ async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), Sessio
 /// Serve a subscription to the device's live readings, until the client closes the stream.
 ///
 /// The window goes first, so a graph is populated the moment it appears rather than filling from
-/// empty while an operator waits (SYS).
+/// empty while an operator waits (NFO).
 async fn serve_system<S>(stream: &mut S, sampler: &Sampler) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -505,7 +505,7 @@ mod tests {
 	}
 
 	/// The window comes before anything live, so a graph is populated the moment it appears rather
-	/// than filling from empty while an operator waits (SYS).
+	/// than filling from empty while an operator waits (NFO).
 	#[tokio::test]
 	async fn a_subscription_receives_the_window_before_anything_live() {
 		let mut streams = paired(&secret(0x42)).await;

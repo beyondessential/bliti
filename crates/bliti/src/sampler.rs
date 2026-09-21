@@ -1,6 +1,6 @@
 //! The buffer of recent samples, and the task that fills it.
 //!
-//! Behaviour is specified in SYS, "Sampling and history". A client subscribing receives the
+//! Behaviour is specified in NFO, "Sampling". A client subscribing receives the
 //! window before it receives anything live, so a graph is populated the moment it appears rather
 //! than filling from empty while an operator waits.
 //!

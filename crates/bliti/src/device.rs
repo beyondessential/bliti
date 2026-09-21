@@ -55,7 +55,7 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 	let readvertise = Arc::new(tokio::sync::Notify::new());
 
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
-	// to a device that has been up a while finds a populated window (SYS).
+	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start();
 	let _application = adapter
 		.serve_gatt_application(application(

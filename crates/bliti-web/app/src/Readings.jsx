@@ -1,4 +1,4 @@
-// The diagnostics view of BLI-SYS: a tile per reading, with the detail behind a tap.
+// The diagnostics view of NFO: a tile per reading, with the detail behind a tap.
 //
 // Nothing here matches on a reading's name. Every tile is built from what the reading says about
 // itself, so a device that has gained a reading shows it without this file changing. Where a reading
@@ -120,7 +120,7 @@ function Face({ entry }) {
 function headline(reading) {
 	if (reading.error) return 'unavailable'
 	// A value of a kind this build does not know: the reading is treated as carrying none, and renders
-	// as its label alone (BLI-SYS). A token in its place would claim to have read something we did not.
+	// as its label alone (NFO). A token in its place would claim to have read something we did not.
 	return formatValue(reading.value)
 }
 

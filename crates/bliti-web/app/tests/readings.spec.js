@@ -1,4 +1,4 @@
-// The diagnostics view of BLI-SYS, fed decoded readings with no wasm and no Bluetooth in the loop.
+// The diagnostics view of NFO, fed decoded readings with no wasm and no Bluetooth in the loop.
 //
 // The property under test throughout is that nothing here is matched by name. Every case below feeds
 // a reading this application has never been told about and expects it rendered from what it says
