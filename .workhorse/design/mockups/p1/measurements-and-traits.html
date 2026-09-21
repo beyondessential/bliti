@@ -82,6 +82,7 @@ pre.json i { font-style: normal; color: #8a8580; }
 <h1>Measurements and traits</h1>
 <p>The wire carries one message per reading: a measurement type, a set of traits saying what it is about, and a value. There is no identifier, no grouping, no ordering and no nesting. A reading's identity, and so its series, is its measurement together with its <code>traits</code> object.</p>
 <p>The screen is the client's and does not move. Each tile is produced by a rule that selects on measurement and traits and aggregates — shown in blue above the messages that feed it.</p>
+<p>Units are spelled out on the wire and abbreviated by the client, which is why the messages say <code>bytes/second</code> and the screen says <code>MB/s</code>. Scaling to a readable magnitude is the client's too.</p>
 
 <div class="split">
 
@@ -248,11 +249,11 @@ pre.json i { font-style: normal; color: #8a8580; }
 	<div class="rule-box"><b>Rule.</b> Select <code>measurement = network-throughput</code>. Headline: sum every reading, both directions. Behind the tap: group by <code>traits.interface</code>, pair on <code>traits.direction</code>, draw each pair mirrored.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "network-throughput",
   <u>"traits"</u>: { <i>"interface"</i>: "eth0", <i>"direction"</i>: "in" },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "B/s", <b>"value"</b>: 1200000 }
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "bytes/second", <b>"value"</b>: 1200000 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "network-throughput",
   <u>"traits"</u>: { <i>"interface"</i>: "eth0", <i>"direction"</i>: "out" },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "B/s", <b>"value"</b>: 340000 }
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "bytes/second", <b>"value"</b>: 340000 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "network-throughput",
   <u>"traits"</u>: { <i>"interface"</i>: "wlan0", <i>"direction"</i>: "out" },
@@ -269,11 +270,11 @@ pre.json i { font-style: normal; color: #8a8580; }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "memory-bytes",
   <u>"traits"</u>: { <i>"part"</i>: "used" },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "B", <b>"value"</b>: 5153960756 }
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "bytes", <b>"value"</b>: 5153960756 }
 
 { <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "memory-bytes",
   <u>"traits"</u>: { <i>"part"</i>: "total" },
-  <b>"kind"</b>: "quantity", <b>"unit"</b>: "B", <b>"value"</b>: 8375186227 }</pre>
+  <b>"kind"</b>: "quantity", <b>"unit"</b>: "bytes", <b>"value"</b>: 8375186227 }</pre>
 	<p class="muted">Total is a fact and used is a reading, which is why the screen draws a sparkline under one and not the other. Nothing had to carry a <code>graph</code> flag to say so: the type says it.</p>
 	<p class="muted">This is also the catalogues overlapping — <code>memory-bytes</code> names both, and they are different things.</p>
 </div>
@@ -283,11 +284,11 @@ pre.json i { font-style: normal; color: #8a8580; }
 	<div class="rule-box"><b>Rule.</b> No rule matched. Title-case the measurement for the label, render the trait values as the qualifier, draw the value by its kind. State still colours it, and it still gets a history. Append after everything recognised.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
   <u>"traits"</u>: { <i>"modem"</i>: { "name": "cdc-wdm0", "technology": "lte" } },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -71 }
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "decibel-milliwatts", <b>"value"</b>: -71 }
 
 { <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
   <u>"traits"</u>: { <i>"modem"</i>: { "name": "cdc-wdm1", "technology": "nr5g" } },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -84 }</pre>
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "decibel-milliwatts", <b>"value"</b>: -84 }</pre>
 	<p class="muted"><b>The traits have to be rendered, not merely ignored.</b> Two modems share a measurement and differ only in the one trait the client cannot read. Dropping them would put two tiles on screen labelled "Modem signal" with different numbers and nothing to tell them apart.</p>
 	<p class="muted"><b>Identity still works</b> for the same reason: it is the <code>traits</code> object wholesale, so the two stay two series rather than collapsing into one garbled graph. That is what the container buys over reserving base names.</p>
 </div>

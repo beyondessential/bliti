@@ -201,6 +201,17 @@ With an open vocabulary it is too harsh: a client that has never heard of `ipv4`
 Proposed, to be corrected: a client that does not recognise a kind renders a string value as text, and treats a numeric value as unreadable.
 A string carries its own meaning; a number without its scale does not.
 
+### Units are spelled out; abbreviating them is the client's
+
+A unit is named in full on the wire — `bytes`, `bits`, `bytes/second`, `celsius`, `volts` — and the client writes it however it writes units.
+
+An abbreviation is presentation, and an ambiguous one is worse than none: `B/s` and `bps` differ by a factor of eight and are routinely written for each other.
+Spelling the unit out removes the ambiguity from the wire rather than relying on both ends reading the same abbreviation the same way.
+
+Choosing a readable magnitude is the client's too: the wire carries `1200000 bytes/second` and the screen says `1.2 MB/s`.
+
+A client that does not recognise a unit writes it out as it was sent, which is correct if ungainly.
+
 ### The generic fallback
 
 Both types need one, and it is the same rule with the parts a fact does not have removed.
