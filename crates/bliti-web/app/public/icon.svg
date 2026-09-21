@@ -1,11 +1,27 @@
 <!-- An amaranthus flower, white on amaranthus-flower ground: bliti is the white rust of
      amaranthus, Albugo bliti, which is what the project is named for.
 
-     Two outlines, the upper three petals and the cup below, each drawn as a left half and mirrored
-     about x=256 so the mark is symmetric by construction. Regenerate the PNG files beside this
-     file with ../../icons.sh after changing it. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="bliti">
+     The crown and one petal are the only shapes; the petal is mirrored about x=256 and repeated
+     down the stem, because what makes an amaranthus recognisable is the chain of petals rather
+     than any one of them. Each is filled white and stroked in the background colour, so the seam
+     where one laps over another draws itself. Regenerate the PNG files beside this file with
+     ../../icons.sh after changing it. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+		 role="img" aria-label="bliti">
 	<title>bliti</title>
 	<rect width="512" height="512" fill="#cc3467"/>
-	<path fill="#ffffff" d="M 256 103.7 C 259.1 103.9 260.6 107.3 261.9 109.7 C 278.4 159.9 276.7 213.9 281.6 265.9 C 302 246.2 322.4 215.4 352.5 213.7 C 354.8 217.2 353.9 221.5 353.6 225.4 C 341.6 276.5 314.9 343.2 256 350.9 C 197.1 343.2 170.4 276.5 158.4 225.4 C 158.1 221.5 157.2 217.2 159.5 213.7 C 189.6 215.4 210 246.2 230.4 265.9 C 235.3 213.9 233.6 159.9 250.1 109.7 C 251.4 107.3 252.9 103.9 256 103.7Z M 256 361.3 C 291.3 360.5 316.1 331.4 334.2 304.3 C 357.1 295 381.1 286 405.3 281.5 C 401.5 349.4 324.6 426.6 256 384.1 C 187.4 426.6 110.5 349.4 106.7 281.5 C 130.9 286 154.9 295 177.8 304.3 C 195.9 331.4 220.7 360.5 256 361.3Z"/>
+	<defs>
+		<path id="crown" d="M256 103.7 C 259.1 103.9 260.6 107.3 261.9 109.7 C 278.4 159.9 276.7 213.9 281.6 265.9 C 302 246.2 322.4 215.4 352.5 213.7 C 354.8 217.2 353.9 221.5 353.6 225.4 C 341.6 276.5 314.9 343.2 256 350.9 C 197.1 343.2 170.4 276.5 158.4 225.4 C 158.1 221.5 157.2 217.2 159.5 213.7 C 189.6 215.4 210 246.2 230.4 265.9 C 235.3 213.9 233.6 159.9 250.1 109.7 C 251.4 107.3 252.9 103.9 256 103.7Z "/>
+		<path id="petal" d="M 256 361.3 C 220.7 360.5 195.9 331.4 177.8 304.3 C 154.9 295 130.9 286 106.7 281.5 C 110.5 349.4 187.4 426.6 256 384.1Z"/>
+	</defs>
+	<g transform="translate(23.57 -27.59) scale(0.90793)"
+	   fill="#ffffff" stroke="#cc3467" stroke-width="15.42" stroke-linejoin="round">
+		<use href="#crown"/>
+		<use href="#petal"/>
+		<use href="#petal" transform="translate(512 0) scale(-1 1)"/>
+		<use href="#petal" transform="translate(0 62)"/>
+		<use href="#petal" transform="translate(512 62) scale(-1 1)"/>
+		<use href="#petal" transform="translate(0 124)"/>
+		<use href="#petal" transform="translate(512 124) scale(-1 1)"/>
+	</g>
 </svg>

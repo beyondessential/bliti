@@ -9,11 +9,12 @@ cd "$(dirname "$0")/app/public"
 
 BACKGROUND='#cc3467'
 
-# Android crops a maskable icon to a circle 80% of the tile across, so the mark is rendered smaller
-# and the tile is made back up to size around it. The flower is 300 units wide in the master's 512
-# tile; 256 is what leaves it clear of the crop with room to spare.
+# Android crops a maskable icon to a circle 80% of the tile across. The master already sits inside
+# that circle, so the mark is rendered slightly larger than the tile and the overflow cropped away,
+# which fills the circle rather than leaving the flower marooned in the middle of it. 104% is the
+# most that fits; past about 108% the outermost petals cross the circle and lose their tips.
 maskable() {
-	rsvg-convert -w "$((${1} * 256 / 300))" icon.svg |
+	rsvg-convert -w "$((${1} * 104 / 100))" icon.svg |
 		magick - -background "$BACKGROUND" -gravity center -extent "${1}x${1}" \
 			-alpha remove -alpha off "PNG24:$2"
 }
