@@ -4,9 +4,8 @@
 //! machine can answer for, because most of this view is built on a development laptop and a field
 //! that only exists on the target hardware is a field nobody sees while building it.
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use bliti_core::channel::readings::Entry;
+use jiff::Timestamp;
 
 use super::{read_trimmed, uptime};
 
@@ -83,41 +82,25 @@ pub fn os(at: u64) -> Vec<Entry> {
 /// Worked out from the wall clock less uptime, so it needs a clock that is set. A device in the field
 /// may have none, in which case it cannot answer for the instant and the fact is omitted (NFO).
 pub fn last_boot(at: u64) -> Option<Entry> {
-	let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-	// A clock that has not been set sits near the epoch. There is no honest boot instant to report
-	// from it, so the fact is omitted rather than reported as some time in 1970.
-	if now < CLOCK_SET_THRESHOLD {
-		return None;
-	}
-	let booted = now.saturating_sub(uptime()?.as_secs());
-	Some(Entry::datetime(at, "last-boot", rfc3339_utc(booted)))
+	let booted = boot_instant(Timestamp::now().as_second(), uptime()?.as_secs())?;
+	Some(Entry::datetime(at, "last-boot", booted))
 }
 
 /// Wall times below this are a clock that was never set (2021-01-01 UTC).
-const CLOCK_SET_THRESHOLD: u64 = 1_609_459_200;
+const CLOCK_SET_THRESHOLD: i64 = 1_609_459_200;
 
-/// Format seconds since the Unix epoch as RFC 3339 in UTC.
+/// The boot instant from a wall clock and an uptime, or nothing where the clock is not set.
 ///
-/// A civil-time conversion by the days-from-civil algorithm, so no calendar dependency is pulled in
-/// for the one datetime this protocol carries.
-fn rfc3339_utc(secs: u64) -> String {
-	let days = (secs / 86_400) as i64;
-	let rem = secs % 86_400;
-	let (hour, minute, second) = (rem / 3600, (rem % 3600) / 60, rem % 60);
-
-	// Howard Hinnant's civil_from_days, with the epoch shifted so the era arithmetic stays positive.
-	let z = days + 719_468;
-	let era = z.div_euclid(146_097);
-	let doe = z.rem_euclid(146_097);
-	let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-	let year = yoe + era * 400;
-	let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-	let mp = (5 * doy + 2) / 153;
-	let day = doy - (153 * mp + 2) / 5 + 1;
-	let month = if mp < 10 { mp + 3 } else { mp - 9 };
-	let year = if month <= 2 { year + 1 } else { year };
-
-	format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+/// A clock that has not been set sits near the epoch, and there is no honest boot instant to report
+/// from it. Taken to whole seconds: the device cannot know the instant finer than that, and a
+/// fractional rendering would claim a precision the two sources do not have.
+fn boot_instant(now: i64, uptime: u64) -> Option<String> {
+	if now < CLOCK_SET_THRESHOLD {
+		return None;
+	}
+	Timestamp::from_second(now - uptime as i64)
+		.ok()
+		.map(|booted| booted.to_string())
 }
 
 /// One field of a release file, unquoted.
@@ -166,12 +149,28 @@ mod tests {
 		assert_eq!(field(raw, "VERSION"), None);
 	}
 
-	/// The civil conversion against instants whose UTC rendering is known, including a leap day.
+	/// The boot instant renders as whole-second RFC 3339 in UTC, including across a leap day.
 	#[test]
-	fn the_epoch_formats_as_rfc_3339_in_utc() {
-		assert_eq!(rfc3339_utc(0), "1970-01-01T00:00:00Z");
-		assert_eq!(rfc3339_utc(1_609_459_200), "2021-01-01T00:00:00Z");
-		assert_eq!(rfc3339_utc(1_582_934_400), "2020-02-29T00:00:00Z");
-		assert_eq!(rfc3339_utc(1_700_000_000), "2023-11-14T22:13:20Z");
+	fn the_boot_instant_renders_as_rfc_3339_in_utc() {
+		// 2023-11-14T22:13:20Z, an hour after booting.
+		assert_eq!(
+			boot_instant(1_700_000_000, 3600).as_deref(),
+			Some("2023-11-14T21:13:20Z")
+		);
+		// A leap day, to catch a calendar that does not have one.
+		assert_eq!(
+			boot_instant(1_709_164_800, 0).as_deref(),
+			Some("2024-02-29T00:00:00Z")
+		);
+	}
+
+	/// A device in the field may have no set clock, and cannot answer for the instant it booted. The
+	/// fact is omitted rather than reported as some time in 1970 (NFO).
+	#[test]
+	fn a_device_whose_clock_is_unset_reports_no_boot_instant() {
+		assert_eq!(boot_instant(0, 60), None);
+		assert_eq!(boot_instant(CLOCK_SET_THRESHOLD - 1, 60), None);
+		// And a clock that is set answers.
+		assert!(boot_instant(CLOCK_SET_THRESHOLD, 60).is_some());
 	}
 }

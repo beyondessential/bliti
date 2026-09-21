@@ -61,7 +61,7 @@ Covers the wire shape of [MSG](../../specs/messages.md), the catalogue of [NFO](
 - [x] One filesystem is reported per block device, the shortest mount path winning (verifies spec: NFO)
 - [x] Each temperature sensor is its own reading, and the `cpu` sensor carries the board's thresholds in `limits` (verifies spec: NFO)
 - [ ] `cpu-frequency` reports `warning` when the platform reports throttling, and `passed` when the frequency is merely low (verifies spec: NFO)
-- [ ] `last-boot` is omitted where the device cannot answer for the instant (verifies spec: NFO)
+- [x] `last-boot` is omitted where the device cannot answer for the instant (verifies spec: NFO)
 - [x] Hardware that is not fitted produces no entry at all (verifies spec: NFO)
 - [x] Loopback and virtual interfaces are not reported (verifies spec: NFO)
 - [x] `power-source` reports one of `via-backup`, `battery` or `bypassing-backup`, and `bypassing-backup` reports `warning` (verifies spec: NFO)

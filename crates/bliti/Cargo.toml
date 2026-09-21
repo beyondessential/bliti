@@ -34,6 +34,7 @@ clap = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.3"
 if-addrs = "0.15.0"
+jiff = { version = "0.2.37", default-features = false, features = ["std"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 rand = { workspace = true }
 rustix = { version = "1.1.5", default-features = false, features = ["fs"] }
