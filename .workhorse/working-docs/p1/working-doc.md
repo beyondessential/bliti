@@ -237,6 +237,8 @@ The boot instant does not change, where an uptime changes every second and is a 
 This needs a clock, which `at` being boot-relative exists precisely because a device may not have.
 A device that cannot answer for its boot instant omits `last-boot`, under the same rule as any other reading its hardware and operating system cannot answer for — which makes a missing clock visible where an uptime quietly hid it.
 
+A clock that is set but wrong is a different problem, and not this card's: V1 carries detecting device drift and telling it apart from a drifted client.
+
 ### The generic fallback
 
 Both types need one, and it is the same rule with the parts a fact does not have removed.
