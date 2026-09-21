@@ -2,13 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Readings from './Readings.jsx'
 import { createClient } from './client.js'
-import { latest, pushSample, readHistory } from './readings.js'
+import { entryOf, identityKey, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
-
-// The topic the diagnostics feature defines. A device that does not serve it sends nothing and does
-// not fail, which is what a device older than this application looks like (BLI-MSG, "Subscribing"),
-// so subscribing here is correct against both and carries no readings until a device offers them.
-const TOPIC = 'system'
 
 // How many notices are kept. The far end decides how many arrive.
 const KEPT = 20
@@ -17,15 +12,13 @@ const KEPT = 20
 // surface and the interesting line is often several steps back.
 const LOGGED = 100
 
-// Message types that arrive continuously while subscribed. They are the point of the view and would
-// drown the log, so the log records that a subscription is running rather than every sample on it.
-const STREAMED = new Set(['system-sample'])
+// Readings stream continuously on the feed and would drown the log, so it records that the feed is
+// running rather than every reading on it. Facts and the hello are rare and are recorded.
+const STREAMED = new Set(['reading'])
 
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
-	// Bluetooth in the loop. Compiled out of any build but the harness's, because anything able to run
-	// a script on this origin before the app mounts could otherwise install its own client and become
-	// the device's peer, and the presence token is the only credential there is.
+	// Bluetooth in the loop. Compiled out of any build but the harness's.
 	const client = useMemo(() => (__TEST_SEAM__ && window.__blitiClient) || createClient(), [])
 
 	const [unsupported] = useState(() => client.unsupported())
@@ -36,22 +29,16 @@ export default function App() {
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
 	const [device, setDevice] = useState(null)
-	// What the device is, and how it is doing. The window holds the recent samples a graph is drawn
-	// from; the device sends its buffered window before anything live, so a graph is populated the
-	// moment it appears rather than filling from empty while an operator waits (NFO).
-	const [statics, setStatics] = useState([])
-	const [window_, setWindow] = useState([])
+	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
+	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
+	// the device; a graph fills forward from connection.
+	const [entries, setEntries] = useState(() => new Map())
 	const [history, setHistory] = useState(() => new Map())
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
 	const video = useRef(null)
 	const scanning_ = useRef(null)
 
-	// Both are fed by the far end, so both are bounded: a device repeating a fault or a refusal must
-	// cost a fixed amount of memory rather than growing the view until the phone the operator is
-	// trying to diagnose stops responding.
-	// Every line carries when it happened and which way it went, so the log reads as a record of the
-	// conversation rather than as a place the view writes remarks.
 	const note = useCallback(
 		(direction, text) =>
 			setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
@@ -67,28 +54,25 @@ export default function App() {
 		[],
 	)
 
-	// One reading off the wire, already sorted into the outcomes of BLI-MSG by the protocol half. The
+	// One message off the wire, already sorted into the outcomes of MSG by the protocol half. The
 	// application renders what it understood and says what it could not, and never blanks the view for
 	// either: a device newer than this build is ordinary, and most of a view beats none of it.
 	const onEvent = useCallback(
 		(event) => {
 			switch (event.kind) {
-				case 'message':
-					if (event.message.type === 'device-hello') {
-						setDevice({ name: event.message.name, version: event.message.version })
-					} else if (event.message.type === 'system-identity') {
-						setStatics(event.message.readings)
-					} else if (event.message.type === 'system-sample') {
-						setWindow((held) =>
-							pushSample(held, { at: event.message.at, readings: event.message.readings }),
-						)
-					} else if (event.message.type === 'system-history') {
-						setHistory(readHistory(event.message.series))
+				case 'message': {
+					const message = event.message
+					if (message.type === 'hello') {
+						setDevice({ name: message.name, version: message.version })
+					} else if (message.type === 'fact' || message.type === 'reading') {
+						const entry = entryOf(message)
+						setEntries((held) => new Map(held).set(identityKey(entry), entry))
+						setHistory((held) => pushHistory(held, entry))
 					}
-					if (!STREAMED.has(event.message.type)) note('in', describe(event.message))
+					if (!STREAMED.has(message.type)) note('in', describe(message))
 					break
+				}
 				case 'skipped':
-					// Safe to pass over, and silent on screen: it belongs in the record, not in the way.
 					note('in', `skipped  ${event.detail}`)
 					break
 				case 'refused':
@@ -120,54 +104,31 @@ export default function App() {
 		[client, note],
 	)
 
-	// Following the link opens the application with the payload already in the fragment. It is read
-	// here in the browser and goes no further.
+	// Following the link opens the application with the payload already in the fragment.
 	useEffect(() => {
 		if (location.hash.length > 1) readFrom(location.hash)
 	}, [readFrom])
 
-	// A subscription lasts exactly as long as the operator is looking. Hiding the page closes the
-	// stream, which is the unsubscribe, and showing it again opens a fresh one: this is what keeps a
-	// phone in a pocket from pulling samples over a link nobody is reading (BLI-MSG).
+	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
+	// showing it again subscribes to `default` to resume. This is what keeps a phone in a pocket from
+	// pulling readings over a link nobody is reading (VIEW, MSG).
 	useEffect(() => {
 		if (!connected) return
-		// The in-flight open is tracked rather than the handle it resolves to. Tracking the handle
-		// means a close arriving while an open is still in flight finds nothing to close, and the
-		// stream that arrives a moment later is never closed by anyone: the device goes on pushing to
-		// a page that is hidden or gone, which is the one thing this mechanism exists to prevent.
-		let opening = null
-		let stopped = false
 
-		const open = () => {
-			if (opening || stopped || document.hidden) return
-			opening = client
-				.subscribe(TOPIC, { onEvent, onClosed: () => {}, onActivity: note })
-				.then(async (handle) => {
-					// The page may have been hidden, or the effect torn down, while this was in flight.
-					if (stopped || document.hidden) {
-						await handle.close()
-						return null
-					}
-					return handle
-				})
+		const onVisibility = () => {
+			if (document.hidden) {
+				client.pauseFeed()
+			} else {
+				client.resumeFeed({ onEvent, onActivity: note })
+			}
 		}
 
-		const close = async () => {
-			const inFlight = opening
-			opening = null
-			if (!inFlight) return
-			const handle = await inFlight
-			if (handle) await handle.close()
-		}
-
-		const onVisibility = () => (document.hidden ? close() : open())
-
-		open()
+		// The pushed feed is already running from connect. Only decline it if the page starts hidden.
+		if (document.hidden) client.pauseFeed()
 		document.addEventListener('visibilitychange', onVisibility)
 		return () => {
-			stopped = true
 			document.removeEventListener('visibilitychange', onVisibility)
-			close()
+			client.pauseFeed()
 		}
 	}, [connected, client, onEvent, note])
 
@@ -178,11 +139,8 @@ export default function App() {
 			await client.connect(code.qr, {
 				onEvent,
 				onActivity: note,
-				onClosed: (why) => note('note', why ? `reporting stream ended: ${why}` : 'reporting stream ended'),
+				onClosed: (why) => note('note', why ? `the feed ended: ${why}` : 'the feed ended'),
 				onDisconnected: (why) => {
-					// The channel closed: the link dropped, the device restarted, or a fault ended the
-					// connection. The operator is told, and the code screen returns with its button, which is
-					// the offer to open it again (CHN, "When the channel closes").
 					note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
 					setConnected(false)
 					setConnecting(false)
@@ -193,10 +151,7 @@ export default function App() {
 			})
 			setConnectStatus('')
 			setConnected(true)
-			// Nothing is logged here: the handshake and the device's first messages happen inside the
-			// call above, so a line written now would sit behind them and read out of order.
 		} catch (error) {
-			// Picking nothing in the chooser is an ordinary thing to do, not a failure to report.
 			const why = error.message ?? String(error)
 			note('note', error.name === 'NotFoundError' ? 'no device chosen' : `could not connect: ${why}`)
 			setConnectStatus(error.name === 'NotFoundError' ? '' : why)
@@ -210,8 +165,7 @@ export default function App() {
 		setConnected(false)
 		setConnecting(false)
 		setConnectStatus('')
-		setStatics([])
-		setWindow([])
+		setEntries(new Map())
 		setHistory(new Map())
 		note('note', 'disconnected')
 	}
@@ -240,8 +194,6 @@ export default function App() {
 		}
 	}
 
-	// Leaving the code screen with the camera running would leave it running with nothing showing
-	// it, so the scan is cancelled on the way out as well as by the button.
 	useEffect(() => () => scanning_.current?.abort(), [])
 
 	if (unsupported) {
@@ -311,12 +263,17 @@ export default function App() {
 							Disconnect
 						</button>
 					</div>
+					{device && (
+						<p className="muted software">
+							{device.name} {device.version}
+						</p>
+					)}
 					{notices.map((each) => (
 						<p key={each.id} className={`notice ${each.kind}`}>
 							{each.detail}
 						</p>
 					))}
-					<Readings readings={latest(statics, window_)} window={window_} history={history} />
+					<Readings entries={[...entries.values()]} history={history} />
 				</>
 			)}
 
@@ -338,7 +295,7 @@ export default function App() {
 	)
 }
 
-const ARROWS = { in: '\u2190', out: '\u2192', note: '\u00b7' }
+const ARROWS = { in: '←', out: '→', note: '·' }
 
 function clock(at) {
 	return at.toLocaleTimeString(undefined, {
@@ -348,13 +305,14 @@ function clock(at) {
 	})
 }
 
-/// One message, summarised for the log. The type and enough of the message to tell one from another,
-/// without reprinting a hundred readings.
+/// One message, summarised for the log: its type and enough to tell one from another, without
+/// reprinting the traits or value of every reading.
 function describe(message) {
-	const { type, ...rest } = message
+	const { type, at, ...rest } = message
+	const name = rest.fact ?? rest.measurement
+	if (name) return `${type}  ${name}`
 	const summary = Object.entries(rest)
 		.map(([member, value]) => {
-			if (Array.isArray(value)) return `${member} ${value.length}`
 			if (value && typeof value === 'object') return member
 			return `${member} ${value}`
 		})

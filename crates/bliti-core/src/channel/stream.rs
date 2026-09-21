@@ -205,6 +205,36 @@ impl Streams {
 	pub async fn accept(&mut self) -> Option<Stream> {
 		self.inbound.next().await
 	}
+
+	/// A handle that can open streams independently of this one.
+	///
+	/// Opening is a message to the driver rather than work done here, so an [`Opener`] can open a
+	/// stream while [`Streams::accept`] is parked awaiting an inbound one. That is what lets a client
+	/// read the streams a device pushes and open a subscription at the same time.
+	pub fn opener(&self) -> Opener {
+		Opener {
+			open: self.open.clone(),
+		}
+	}
+}
+
+/// Opens outbound streams without holding the [`Streams`] handle, so opening and accepting can happen
+/// at once.
+#[derive(Clone)]
+pub struct Opener {
+	open: mpsc::UnboundedSender<oneshot::Sender<io::Result<Stream>>>,
+}
+
+impl Opener {
+	/// Open a new outbound stream.
+	pub async fn open(&self) -> io::Result<Stream> {
+		let (tx, rx) = oneshot::channel();
+		self.open
+			.unbounded_send(tx)
+			.map_err(|_| io::Error::from(io::ErrorKind::NotConnected))?;
+		rx.await
+			.map_err(|_| io::Error::from(io::ErrorKind::NotConnected))?
+	}
 }
 
 /// Run yamux over an encrypted stream, returning a handle and a driver future.
@@ -368,7 +398,8 @@ mod tests {
 	use super::*;
 	use crate::channel::{
 		envelope::{Reading, read},
-		messages::{ClientMessage, DeviceMessage},
+		messages::Message,
+		readings::Entry,
 	};
 
 	/// Set up a client and device connected over an in-memory duplex: a full `NNpsk0` handshake, then
@@ -397,8 +428,8 @@ mod tests {
 
 		// Client to device: a subscription.
 		let mut cs = client.open().await.unwrap();
-		let subscribe = ClientMessage::Subscribe {
-			topic: "system".to_owned(),
+		let subscribe = Message::Subscribe {
+			topic: "default".to_owned(),
 		};
 		write_message(&mut cs, &subscribe.to_json()).await.unwrap();
 
@@ -406,14 +437,11 @@ mod tests {
 		let received = read_message(&mut ds).await.unwrap().unwrap();
 		assert_eq!(read(&received).unwrap(), Reading::Message(subscribe));
 
-		// Device to client, on the same stream: a sample for that subscription.
-		let sample = DeviceMessage::SystemSample {
-			at: 20_308_140,
-			readings: Vec::new(),
-		};
-		write_message(&mut ds, &sample.to_json()).await.unwrap();
+		// Device to client, on the same stream: a reading for that subscription.
+		let reading = Message::Reading(Entry::fraction(20_308_140, "cpu-usage", 0.12));
+		write_message(&mut ds, &reading.to_json()).await.unwrap();
 		let back = read_message(&mut cs).await.unwrap().unwrap();
-		assert_eq!(read(&back).unwrap(), Reading::Message(sample));
+		assert_eq!(read(&back).unwrap(), Reading::Message(reading));
 	}
 
 	/// Closing a stream is the unsubscribe, and it is a half-close: the peer reads end of stream while
@@ -425,8 +453,8 @@ mod tests {
 		let (mut client, mut device) = paired().await;
 
 		let mut cs = client.open().await.unwrap();
-		let subscribe = ClientMessage::Subscribe {
-			topic: "system".to_owned(),
+		let subscribe = Message::Subscribe {
+			topic: "default".to_owned(),
 		};
 		write_message(&mut cs, &subscribe.to_json()).await.unwrap();
 		let mut ds = device.accept().await.unwrap();

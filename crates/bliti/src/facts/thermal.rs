@@ -1,48 +1,55 @@
-//! Temperature, throttling, and cooling.
+//! Temperature and cooling.
 //!
-//! The temperature reading is drawn against the board's own declared trip points rather than an
-//! invented scale, and it is marked as trouble only where the board is in difficulty rather than
-//! merely warm. A device running hot and working is not a device in trouble, and colouring warmth as
-//! failure teaches an operator to distrust a healthy reading.
+//! The processor temperature is drawn against the board's own declared trip points rather than an
+//! invented scale, and it is `warning` or `failed` only where the board is in difficulty rather than
+//! merely warm (NFO). A device running hot and working is not a device in trouble, and colouring
+//! warmth as failure teaches an operator to distrust a healthy reading.
 //!
-//! Throttling is reported as the conditions the platform can establish. The Pi firmware's throttle
-//! bitmask is not among them: reaching it needs a tool that is not installed on the image we ship,
-//! and there is no sysfs node for it. What is reachable is the undervoltage alarm and the processor
-//! running below the speed it is capable of, which between them cover the faults an operator in the
-//! field is looking for.
+//! Throttling no longer lives here: it is reported as `cpu-frequency` going to `warning` where the
+//! platform reports it (see [`super::compute`]). The undervoltage alarm is gone until W1.
 
 use std::fs;
 
-use bliti_core::channel::readings::{Reading, State, Value};
+use bliti_core::channel::readings::{Entry, kind};
+use serde_json::Value as Json;
 
 use super::{read_number, read_trimmed};
 
-/// The processor's thermal zone, and the hwmon tree the fan and the voltage alarm sit in.
+/// The processor's thermal zone, and the hwmon tree the other sensors and the fan sit in.
 const THERMAL_ZONE: &str = "/sys/class/thermal/thermal_zone0";
 const HWMON_ROOT: &str = "/sys/class/hwmon";
 
-/// What the processor core reads, plus any throttling and cooling the board reports.
-pub fn readings() -> Vec<Reading> {
-	let mut readings = Vec::new();
-	readings.extend(temperature(THERMAL_ZONE));
-	readings.extend(throttling());
-	readings.extend(fan(HWMON_ROOT));
-	readings
+/// One `temperature` reading per sensor. The processor core is the `cpu` sensor and carries the
+/// board's thresholds; every other hwmon that reports a temperature is a sensor of its own (NFO).
+pub fn temperature(at: u64) -> Vec<Entry> {
+	let mut entries = Vec::new();
+	entries.extend(cpu_temperature(at, THERMAL_ZONE));
+	entries.extend(other_sensors(at, HWMON_ROOT));
+	entries
+}
+
+/// Fan speed, which says whether a hot device is hot because its cooling has stopped.
+pub fn fan(at: u64) -> Vec<Entry> {
+	fan_in(at, HWMON_ROOT)
 }
 
 /// The processor core temperature, against the board's own thresholds.
-fn temperature(zone: &str) -> Option<Reading> {
+fn cpu_temperature(at: u64, zone: &str) -> Option<Entry> {
 	// The zone being present is the sensor being fitted. One that is there and will not answer is a
-	// fault nobody can see from outside the case, so it is reported rather than left out (NFO).
+	// fault nobody can see from outside the case, so it is reported as broken rather than left out.
 	if fs::metadata(zone).is_err() {
 		return None;
 	}
 	let Some(millidegrees) = read_number(&format!("{zone}/temp")) else {
-		return Some(Reading::failed(
-			"temperature",
-			"Temperature",
-			format_args!("no answer from {zone}/temp"),
-		));
+		return Some(
+			Entry::broken(
+				at,
+				"temperature",
+				kind::QUANTITY,
+				format!("no answer from {zone}/temp"),
+			)
+			.with_trait("sensor", Json::String("cpu".to_owned())),
+		);
 	};
 	let celsius = millidegrees as f64 / 1000.0;
 
@@ -51,25 +58,12 @@ fn temperature(zone: &str) -> Option<Reading> {
 		.find(|(kind, _)| kind == "critical")
 		.map(|(_, at)| *at);
 
-	let mut reading = Reading::new(
-		"temperature",
-		"Temperature",
-		// Drawn against what the board declares hot, never against a ceiling we invented: a board
-		// naming no critical trip gives the reading no scale, so it carries none (NFO).
-		match critical {
-			Some(critical) => Value::scaled(round(celsius), "°C", critical),
-			None => Value::quantity(round(celsius), "°C"),
-		},
-	)
-	.with_note(
-		"This is the CPU core, not the case or the room. \
-		 Above 70 °C is normal under load, and the board slows itself down well before anything is \
-		 at risk.",
-	);
+	let mut entry = Entry::quantity(at, "temperature", "celsius", celsius)
+		.with_trait("sensor", Json::String("cpu".to_owned()));
 
-	for (kind, at) in trips(zone) {
+	for (kind, mark) in trips(zone) {
 		if kind == "critical" {
-			reading = reading.with_limit(at, "Critical");
+			entry = entry.with_limit(mark, "Critical");
 		}
 	}
 	// The hottest active trip is where the board itself starts working to cool down.
@@ -80,23 +74,50 @@ fn temperature(zone: &str) -> Option<Reading> {
 		.fold(None, |held: Option<f64>, at| {
 			Some(held.map_or(at, |held| held.max(at)))
 		}) {
-		reading = reading.with_limit(hottest, "Cooling");
+		entry = entry.with_limit(hottest, "Cooling");
 	}
 
 	// Trouble only where the board is in difficulty. Warmth on its own is not a fault.
 	if let Some(critical) = critical {
 		if celsius >= critical {
-			reading = reading.with_state(State::Fault);
+			entry = entry.failed(format!(
+				"the processor is at {celsius:.1} °C, its critical limit"
+			));
 		}
 	}
+	Some(entry)
+}
 
-	for (name, label) in [("hwmon2", "Disk"), ("hwmon3", "Board")] {
-		if let Some(other) = hwmon_temperature(name) {
-			reading = reading.with_detail(label, Value::quantity(round(other), "°C"));
+/// Every other hwmon that reports a temperature, as a sensor of its own. The processor core is left
+/// to the thermal zone above.
+fn other_sensors(at: u64, root: &str) -> Vec<Entry> {
+	let Ok(entries) = fs::read_dir(root) else {
+		return Vec::new();
+	};
+	let mut readings = Vec::new();
+	for entry in entries.flatten() {
+		let path = entry.path();
+		let Some(name) = read_trimmed(&format!("{}/name", path.display())) else {
+			continue;
+		};
+		if name == "cpu_thermal" {
+			continue;
 		}
+		let Some(millidegrees) = read_number(&format!("{}/temp1_input", path.display())) else {
+			continue;
+		};
+		readings.push(
+			Entry::quantity(at, "temperature", "celsius", millidegrees as f64 / 1000.0)
+				.with_trait("sensor", Json::String(name)),
+		);
 	}
-
-	Some(reading)
+	readings.sort_by(|a, b| {
+		a.traits
+			.get("sensor")
+			.and_then(Json::as_str)
+			.cmp(&b.traits.get("sensor").and_then(Json::as_str))
+	});
+	readings
 }
 
 /// The thermal zone's declared trip points, as kind and temperature.
@@ -124,160 +145,54 @@ fn trips(zone: &str) -> Vec<(String, f64)> {
 	found
 }
 
-/// A temperature from a named hwmon, where that hwmon exists and reports one.
-fn hwmon_temperature(hwmon: &str) -> Option<f64> {
-	let path = format!("/sys/class/hwmon/{hwmon}");
-	// Only report a sensor that is not the processor core, which is already the headline.
-	let name = read_trimmed(&format!("{path}/name"))?;
-	if name == "cpu_thermal" {
-		return None;
-	}
-	Some(read_number(&format!("{path}/temp1_input"))? as f64 / 1000.0)
-}
-
-/// What is currently limiting the board, if anything.
-fn throttling() -> Option<Reading> {
-	let undervolted = undervoltage_alarm();
-	let capped = frequency_cap();
-
-	// A board with neither source reports nothing rather than claiming all is well.
-	if undervolted.is_none() && capped.is_none() {
-		return None;
-	}
-
-	let undervolted = undervolted.unwrap_or(false);
-	let limited = capped.is_some_and(|(current, max)| current < max);
-
-	let summary = match (undervolted, limited) {
-		(true, true) => "Undervolted and slowed",
-		(true, false) => "Undervolted",
-		(false, true) => "Slowed",
-		(false, false) => "None",
-	};
-
-	let mut reading = Reading::new("throttling", "Throttling", Value::text(summary));
-	if undervolted || limited {
-		reading = reading.with_state(State::Warn);
-	}
-	if let Some((current, max)) = capped {
-		reading = reading
-			.with_detail("Speed", gigahertz(current))
-			.with_detail("Full speed", gigahertz(max));
-	}
-	Some(reading)
-}
-
-/// Whether the supply voltage has dropped below what the board needs.
-fn undervoltage_alarm() -> Option<bool> {
-	for index in 0..8 {
-		let path = format!("/sys/class/hwmon/hwmon{index}");
-		if read_trimmed(&format!("{path}/name")).as_deref() == Some("rpi_volt") {
-			return Some(read_number(&format!("{path}/in0_lcrit_alarm"))? != 0);
-		}
-	}
-	None
-}
-
-/// The processor's current and maximum speed, in kilohertz.
-fn frequency_cap() -> Option<(i64, i64)> {
-	let base = "/sys/devices/system/cpu/cpu0/cpufreq";
-	let current = read_number(&format!("{base}/scaling_cur_freq"))?;
-	let max = read_number(&format!("{base}/cpuinfo_max_freq"))?;
-	Some((current, max))
-}
-
-fn gigahertz(kilohertz: i64) -> Value {
-	Value::quantity(round(kilohertz as f64 / 1_000_000.0), "GHz")
-}
-
-/// Fan speed, which says whether a hot device is hot because its cooling has stopped.
-fn fan(root: &str) -> Option<Reading> {
+/// Fan speed under a given hwmon root, so a scratch tree can stand in for sysfs.
+fn fan_in(at: u64, root: &str) -> Vec<Entry> {
 	for index in 0..8 {
 		let path = format!("{root}/hwmon{index}");
 		if read_trimmed(&format!("{path}/name")).as_deref() != Some("pwmfan") {
 			continue;
 		}
 		// The hwmon is the fan being fitted. One that is there and will not answer is a fault rather
-		// than an absence, so it is reported rather than left out (NFO).
-		let Some(rpm) = read_number(&format!("{path}/fan1_input")) else {
-			return Some(Reading::failed(
-				"fan",
-				"Fan",
-				format_args!("no answer from {path}/fan1_input"),
-			));
+		// than an absence, so it is reported as broken rather than left out (NFO).
+		let entry = match read_number(&format!("{path}/fan1_input")) {
+			Some(rpm) => {
+				let entry = Entry::quantity(at, "fan-speed", "revolutions/minute", rpm as f64)
+					.with_trait("fan", Json::String("cpu".to_owned()));
+				if rpm == 0 {
+					entry.warning("the fan has stopped")
+				} else {
+					entry
+				}
+			}
+			None => Entry::broken(
+				at,
+				"fan-speed",
+				kind::QUANTITY,
+				format!("no answer from {path}/fan1_input"),
+			)
+			.with_trait("fan", Json::String("cpu".to_owned())),
 		};
-		let mut reading = Reading::new("fan", "Fan", Value::quantity(rpm as f64, "rpm"));
-		if rpm == 0 {
-			reading = reading.with_state(State::Warn);
-		}
-		return Some(reading);
+		return vec![entry];
 	}
-	None
-}
-
-fn round(value: f64) -> f64 {
-	(value * 10.0).round() / 10.0
+	Vec::new()
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	/// The reading that prompted the note: warm is not a fault. A device in the seventies is working
-	/// correctly, and marking it as trouble is what teaches an operator to distrust the number.
+	/// Warm is not a fault. A device in the seventies is working correctly, and marking it as trouble
+	/// is what teaches an operator to distrust the number (NFO).
 	#[test]
 	fn a_warm_board_is_not_reported_as_trouble() {
-		let Some(reading) = temperature(THERMAL_ZONE) else {
+		let Some(cpu) = cpu_temperature(1, THERMAL_ZONE) else {
 			return; // No thermal zone on this machine.
 		};
-		let Some(Value::Quantity { number, .. }) = reading.value else {
-			panic!("temperature is a quantity")
+		let Some(celsius) = cpu.value.as_ref().and_then(Json::as_f64) else {
+			return; // Broken, which carries no value.
 		};
-		if number < 100.0 {
-			assert!(
-				!reading.state.is_trouble(),
-				"{number} °C is warm at most, not trouble"
-			);
-		}
-	}
-
-	/// Without it the number is routinely read as a fault on a device that is working correctly.
-	#[test]
-	fn the_temperature_carries_its_note() {
-		let Some(reading) = temperature(THERMAL_ZONE) else {
-			return;
-		};
-		if reading.error.is_some() {
-			return; // a sensor that did not answer carries its reason instead
-		}
-		let note = reading.note.expect("temperature explains itself");
-		assert!(note.contains("CPU core"), "{note}");
-		assert!(note.contains("70"), "{note}");
-	}
-
-	#[test]
-	fn the_temperature_is_drawn_against_a_declared_ceiling_or_against_none() {
-		let Some(reading) = temperature(THERMAL_ZONE) else {
-			return;
-		};
-		let Some(value) = reading.value.as_ref() else {
-			return;
-		};
-		let declared = trips(THERMAL_ZONE)
-			.iter()
-			.find(|(kind, _)| kind == "critical")
-			.map(|(_, at)| *at);
-
-		assert_eq!(
-			value.has_scale(),
-			declared.is_some(),
-			"a scale exists exactly where the board declared one"
-		);
-		if let (Value::Quantity { max: Some(max), .. }, Some(critical)) = (value, declared) {
-			assert_eq!(
-				*max, critical,
-				"the ceiling is the board's own critical trip"
-			);
+		if celsius < 100.0 {
+			assert_eq!(cpu.status(), Some("passed"), "{celsius} °C is warm at most");
 		}
 	}
 
@@ -300,6 +215,7 @@ mod tests {
 		}
 
 		fn write(&self, name: &str, contents: &str) -> &Self {
+			fs::create_dir_all(self.0.join(name).parent().unwrap()).unwrap();
 			fs::write(self.0.join(name), contents).unwrap();
 			self
 		}
@@ -311,95 +227,57 @@ mod tests {
 		}
 	}
 
-	/// Hardware that is not fitted is left out entirely; hardware that is fitted and will not answer
-	/// is reported as failing. An operator can see the first from where they stand and cannot see the
-	/// second at all, so conflating them hides a real fault (NFO).
+	/// Not fitted and fitted-but-silent are different things: the first is left out, the second is
+	/// reported broken with its reason (NFO).
 	#[test]
-	fn a_thermal_zone_that_is_absent_and_one_that_will_not_answer_are_different_things() {
+	fn a_zone_absent_and_one_that_will_not_answer_are_different() {
 		let tree = Tree::new();
+		assert!(cpu_temperature(1, &tree.at("nonexistent")).is_none());
 
-		// Not fitted: no zone at all.
-		assert!(temperature(&tree.at("nonexistent")).is_none());
-
-		// Fitted and silent: the zone is there, `temp` is not.
-		let reading = temperature(&tree.at(".")).expect("a zone that is present is reported");
-		assert!(reading.value.is_none());
-		assert_eq!(reading.state, State::Fault);
-		assert!(
-			reading
-				.error
-				.as_deref()
-				.is_some_and(|why| why.contains("temp")),
-			"{reading:?}"
-		);
-		assert!(reading.is_coherent());
+		let zone = tree.at("zone");
+		fs::create_dir_all(&zone).unwrap();
+		let entry = cpu_temperature(1, &zone).expect("a present zone is reported");
+		assert_eq!(entry.status(), Some("broken"));
+		assert!(entry.value.is_none());
+		assert!(entry.reason().is_some_and(|why| why.contains("temp")));
 	}
 
+	/// The ceiling is the board's own critical trip, never one invented: a zone declaring none leaves
+	/// the reading with no scale (NFO).
 	#[test]
-	fn a_fan_that_is_absent_and_one_that_will_not_answer_are_different_things() {
+	fn a_zone_declaring_a_critical_trip_carries_it_as_a_limit() {
 		let tree = Tree::new();
-		let root = tree.at(".");
-
-		// Not fitted: no hwmon names itself pwmfan.
-		assert!(fan(&root).is_none());
-
-		// Fitted and silent: the hwmon is there, `fan1_input` is not.
-		fs::create_dir_all(tree.0.join("hwmon0")).unwrap();
-		tree.write("hwmon0/name", "pwmfan\n");
-		let reading = fan(&root).expect("a fan that is present is reported");
-		assert!(reading.value.is_none());
-		assert_eq!(reading.state, State::Fault);
+		let zone = tree.at("zone");
+		tree.write("zone/temp", "48500\n");
+		let entry = cpu_temperature(1, &zone).expect("fitted and answering");
+		assert_eq!(entry.value.as_ref().and_then(Json::as_f64), Some(48.5));
 		assert!(
-			reading
-				.error
-				.as_deref()
-				.is_some_and(|why| why.contains("fan1_input")),
-			"{reading:?}"
+			entry.traits.get("limits").is_none(),
+			"no trips declared, no limits"
 		);
-		assert!(reading.is_coherent());
 
-		// And one that answers reports its speed.
-		tree.write("hwmon0/fan1_input", "2400\n");
-		let reading = fan(&root).expect("fitted");
-		assert_eq!(reading.value, Some(Value::quantity(2400.0, "rpm")));
+		tree.write("zone/trip_point_0_type", "critical\n");
+		tree.write("zone/trip_point_0_temp", "85000\n");
+		let entry = cpu_temperature(1, &zone).expect("fitted and answering");
+		let limits = entry.traits.get("limits").and_then(Json::as_array).unwrap();
+		assert_eq!(limits[0].get("at").and_then(Json::as_f64), Some(85.0));
 	}
 
-	/// The ceiling is the board's own critical trip, never one we invented: a zone declaring none
-	/// leaves the reading with no scale rather than inventing one to draw against.
 	#[test]
-	fn a_zone_declaring_no_critical_trip_gives_the_reading_no_scale() {
+	fn a_fan_absent_and_one_that_will_not_answer_are_different() {
 		let tree = Tree::new();
-		let zone = tree.at(".");
-		tree.write("temp", "48500\n");
+		let root = tree.at("hwmon");
+		fs::create_dir_all(&root).unwrap();
+		assert!(fan_in(1, &root).is_empty(), "no pwmfan, nothing reported");
 
-		let reading = temperature(&zone).expect("fitted and answering");
-		assert_eq!(reading.value, Some(Value::quantity(48.5, "°C")));
-		assert!(!reading.value.as_ref().unwrap().has_scale());
+		tree.write("hwmon/hwmon0/name", "pwmfan\n");
+		let broken = &fan_in(1, &root)[0];
+		assert_eq!(broken.status(), Some("broken"));
+		assert!(broken.value.is_none());
 
-		// Declare one, and it becomes the ceiling.
-		tree.write("trip_point_0_type", "critical\n");
-		tree.write("trip_point_0_temp", "85000\n");
-		let reading = temperature(&zone).expect("fitted and answering");
-		assert_eq!(reading.value, Some(Value::scaled(48.5, "°C", 85.0)));
-	}
-
-	#[test]
-	fn a_speed_is_reported_in_gigahertz() {
-		assert_eq!(gigahertz(2_400_000), Value::quantity(2.4, "GHz"));
-		assert_eq!(gigahertz(1_500_000), Value::quantity(1.5, "GHz"));
-	}
-
-	/// Both conditions are reported independently, and neither is claimed when both are clear.
-	#[test]
-	fn throttling_names_each_condition_it_finds() {
-		let Some(reading) = throttling() else { return };
-		let Some(Value::Text(summary)) = &reading.value else {
-			panic!("throttling is text")
-		};
-		assert!(
-			["None", "Undervolted", "Slowed", "Undervolted and slowed"].contains(&summary.as_str()),
-			"{summary}"
-		);
-		assert_eq!(reading.state.is_trouble(), summary != "None");
+		tree.write("hwmon/hwmon0/fan1_input", "2400\n");
+		let ok = &fan_in(1, &root)[0];
+		assert_eq!(ok.status(), Some("passed"));
+		assert_eq!(ok.value.as_ref().and_then(Json::as_f64), Some(2400.0));
 	}
 }

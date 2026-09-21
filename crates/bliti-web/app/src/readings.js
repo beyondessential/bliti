@@ -1,47 +1,164 @@
-// Making sense of the self-describing readings of NFO, with no list of names to match against.
+// Making sense of the facts and readings of NFO, and rendering them the way VIEW asks ours to.
 //
-// Nothing here asks what a reading is called. A reading says what it is, what unit it is in, and
-// where its limits sit, and everything below works from that alone. The consequence is the one that
-// matters: a device that gains a reading appears in an application that has never heard of it, with
-// no release in between.
+// The wire carries data; the intelligence is here. This module holds our application's own order, its
+// wording for the catalogue it recognises, and its aggregation rules. Everything it does not
+// recognise still renders, from the entry's own name, kind and traits, so a device ahead of this
+// build degrades to a plain reading card rather than vanishing (VIEW).
 
-// How far back the view keeps samples. The device sends about this much on subscribing, and the
-// window is trimmed to it as more arrive.
-export const WINDOW_MS = 5 * 60 * 1000
-
-/// The number behind a value, where it has one. Null for text, and for a kind this build does not
-/// know.
-export function numberOf(value) {
-	if (!value) return null
-	switch (value.kind) {
-		case 'fraction':
-			return value.number
-		case 'quantity':
-			return value.number
-		case 'duration':
-			return value.seconds
-		default:
-			return null
+/// One fact or reading, normalised from a message. `fact` is true for a fact, false for a reading;
+/// the two catalogues are separate and a name may appear in both.
+export function entryOf(message) {
+	return {
+		fact: message.type === 'fact',
+		name: message.fact ?? message.measurement,
+		at: message.at,
+		traits: message.traits ?? {},
+		kind: message.kind,
+		unit: message.unit,
+		value: message.value,
 	}
 }
 
-/// A value as an operator reads it.
-export function formatValue(value) {
-	if (!value) return null
-	switch (value.kind) {
+/// The status trait's `is`, or null. A status this build does not know is left as it arrived, and
+/// treated as passed rather than crying wolf.
+export function statusOf(entry) {
+	return entry.traits?.status?.is ?? null
+}
+
+export function reasonOf(entry) {
+	return entry.traits?.status?.reason ?? null
+}
+
+/// Whether a reading should draw an operator's attention. Only the two states with a notion of
+/// difficulty do; skipped and broken say nothing is wrong with the thing measured, only that there is
+/// no value.
+export function isTrouble(entry) {
+	return statusOf(entry) === 'warning' || statusOf(entry) === 'failed'
+}
+
+/// Whether the entry has a value at all. Skipped and broken carry none (NFO). Tolerates a missing
+/// entry, so a fold that names one the device did not send is simply empty.
+export function hasValue(entry) {
+	return entry != null && entry.value !== undefined && entry.value !== null
+}
+
+// The order our application renders the catalogue it recognises in, and the wording it gives each
+// name. The order is fixed and does not move when a reading goes into difficulty (VIEW).
+export const HEADER = ['hostname', 'board', 'board-revision', 'os', 'kernel']
+
+export const TILE_ORDER = [
+	'network-address',
+	'cpu-usage',
+	'memory-usage',
+	'filesystem-usage',
+	'network-throughput',
+	'temperature',
+	'cpu-frequency',
+	'fan-speed',
+	'power-source',
+	'battery-charge',
+	'last-boot',
+]
+
+// Entries rendered inside another's reveal rather than as a tile of their own.
+export const IN_REVEAL = new Set([
+	'memory-total',
+	'filesystem-total',
+	'cpu-frequency-max',
+	'battery-voltage',
+	'battery-direction',
+])
+
+// Our wording for each catalogue name. A name not here is title-cased from the name itself.
+const LABELS = {
+	'network-address': 'Address',
+	'cpu-usage': 'Processor',
+	'memory-usage': 'Memory',
+	'filesystem-usage': 'Storage',
+	'network-throughput': 'Network',
+	temperature: 'Temperature',
+	'cpu-frequency': 'Processor speed',
+	'fan-speed': 'Fan',
+	'power-source': 'Power',
+	'battery-charge': 'Battery',
+	'last-boot': 'Uptime',
+}
+
+// Our wording for the values of the catalogue's descriptive text readings.
+const VALUES = {
+	'power-source': { 'via-backup': 'On backup', battery: 'On battery', 'bypassing-backup': 'Backup bypassed' },
+	'battery-direction': { charging: 'Charging', discharging: 'Discharging', idle: 'Idle' },
+}
+
+export function labelOf(name) {
+	return LABELS[name] ?? titleCase(name)
+}
+
+function titleCase(name) {
+	return name
+		.split(/[-_]/)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(' ')
+}
+
+/// A value as an operator reads it: by its kind, in our own wording and at our own magnitude, or the
+/// value stringified where the kind is one this build does not know (VIEW).
+export function formatValue(entry) {
+	if (!hasValue(entry)) return null
+	const { kind, value, unit, name } = entry
+	switch (kind) {
 		case 'fraction':
-			return `${Math.round(value.number * 100)}%`
+			return `${Math.round(value * 100)}%`
 		case 'quantity':
-			return `${trim(value.number)} ${value.unit}`
+			return formatQuantity(value, unit)
 		case 'duration':
-			return formatDuration(value.seconds)
+			return formatDuration(value)
+		case 'datetime':
+			return name === 'last-boot' ? elapsedSince(value) : String(value)
 		case 'text':
-			return value.text
+			return VALUES[name]?.[value] ?? String(value)
+		case 'ipv4':
+		case 'ipv6':
+			return String(value)
 		default:
-			// A kind this build has never heard of. The reading's label already said what it is, and
-			// saying nothing further beats guessing at a number whose meaning we do not know.
-			return null
+			// A kind this build does not know: the value stringified, with the unit where there is one.
+			return unit ? `${stringify(value)} ${unit}` : stringify(value)
 	}
+}
+
+function stringify(value) {
+	return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/// A quantity written in our own abbreviation and magnitude. An unrecognised unit is written out as
+/// it was sent (VIEW).
+function formatQuantity(number, unit) {
+	switch (unit) {
+		case 'bytes':
+			return magnitude(number, 'B', 'kB', 'MB', 'GB')
+		case 'bytes/second':
+			return magnitude(number, 'B/s', 'kB/s', 'MB/s', 'GB/s')
+		case 'hertz':
+			return magnitude(number, 'Hz', 'kHz', 'MHz', 'GHz')
+		case 'celsius':
+			return `${trim(number)} °C`
+		case 'volts':
+			return `${trim(number)} V`
+		case 'revolutions/minute':
+			return `${Math.round(number)} rpm`
+		default:
+			return `${trim(number)} ${unit}`
+	}
+}
+
+function magnitude(number, ...units) {
+	let value = number
+	let index = 0
+	while (value >= 1000 && index < units.length - 1) {
+		value /= 1000
+		index += 1
+	}
+	return `${trim(Math.round(value * 100) / 100)} ${units[index]}`
 }
 
 function trim(number) {
@@ -58,148 +175,139 @@ function formatDuration(seconds) {
 	return `${minutes}m`
 }
 
-/// Where a value sits on its scale, from 0 to 1, or null where it has no scale to be drawn against.
-///
-/// Only a fraction and a quantity that named its ceiling have one. A quantity without a ceiling is
-/// never drawn against one, because the bar would imply a maximum the device never claimed.
-export function scaleOf(value) {
-	if (!value) return null
-	if (value.kind === 'fraction') return clamp(value.number)
-	if (value.kind === 'quantity' && typeof value.max === 'number' && value.max > 0) {
-		return clamp(value.number / value.max)
+/// An RFC 3339 instant rendered as how long ago it was. `last-boot` is shown as an elapsed time
+/// (VIEW); a clock the device could not answer for is not sent, so this only runs on a real instant.
+function elapsedSince(rfc3339) {
+	const then = Date.parse(rfc3339)
+	if (Number.isNaN(then)) return String(rfc3339)
+	return formatDuration(Math.max(0, (Date.now() - then) / 1000))
+}
+
+/// Where a value sits on its scale, from 0 to 1, or null where it has none to be drawn against. Only
+/// a fraction, or a quantity with a total or a `limits` trait, has a scale (VIEW).
+export function scaleOf(entry, total = null) {
+	if (!hasValue(entry)) return null
+	if (entry.kind === 'fraction') return clamp(entry.value)
+	if (entry.kind === 'quantity') {
+		const top = total ?? limitTop(entry)
+		if (typeof top === 'number' && top > 0) return clamp(entry.value / top)
 	}
 	return null
+}
+
+/// The largest limit on a reading, which its scale is drawn against where it has no total.
+function limitTop(entry) {
+	const limits = entry.traits?.limits
+	if (!Array.isArray(limits) || limits.length === 0) return null
+	return Math.max(...limits.map((limit) => limit.at))
 }
 
 function clamp(fraction) {
 	return Math.min(1, Math.max(0, fraction))
 }
 
-/// Whether a reading should draw an operator's attention. A state this build does not know is not
-/// treated as trouble: a newer device must not make an older application cry wolf.
-export function isTrouble(reading) {
-	return reading.state === 'warn' || reading.state === 'fault'
+// Series keying. A reading's history is keyed by its catalogue name together with every trait NFO
+// does not name as descriptive; an unrecognised trait is part of the key, so a device that gains a
+// trait splitting one series into several is left two series it cannot fully tell apart rather than
+// one merged wrong one (VIEW).
+
+// The descriptive traits, which do not distinguish one thing measured from another: the whole
+// `status` and `limits` traits, and `route` and `overlay` within `interface`.
+const DESCRIPTIVE = new Set(['status', 'limits'])
+const DESCRIPTIVE_INTERFACE_MEMBERS = new Set(['route', 'overlay'])
+
+/// The key a reading's history is held under: its name and its distinguishing traits, canonicalised
+/// so member order does not matter.
+export function seriesKey(entry) {
+	return `${entry.name}\u001f${canonical(distinguishing(entry.traits))}`
 }
 
-/// Readings arranged for display: those sharing a group become one entry, the rest stand alone.
-///
-/// An application that ignored grouping would show the members separately and still be correct, so
-/// this is an improvement on the floor rather than part of it.
-export function groupReadings(readings) {
-	const entries = []
-	const byGroup = new Map()
+/// The identity of one entry instance for the tile grid: the same key, so two readings alike but for
+/// a distinguishing trait are two entries and the same one re-sampled is one.
+export function identityKey(entry) {
+	return `${entry.fact ? 'fact' : 'reading'}\u001f${seriesKey(entry)}`
+}
 
-	for (const reading of readings) {
-		if (!reading.group) {
-			entries.push({ key: reading.name, label: reading.label, readings: [reading] })
-			continue
+/// The traits with the descriptive ones stripped: the whole `status` and `limits`, and `route` and
+/// `overlay` from within `interface`.
+function distinguishing(traits) {
+	const kept = {}
+	for (const [name, value] of Object.entries(traits ?? {})) {
+		if (DESCRIPTIVE.has(name)) continue
+		if (name === 'interface' && value && typeof value === 'object' && !Array.isArray(value)) {
+			const trimmed = {}
+			for (const [member, inner] of Object.entries(value)) {
+				if (!DESCRIPTIVE_INTERFACE_MEMBERS.has(member)) trimmed[member] = inner
+			}
+			kept[name] = trimmed
+		} else {
+			kept[name] = value
 		}
-		let entry = byGroup.get(reading.group)
-		if (!entry) {
-			entry = { key: reading.group, label: titleCase(reading.group), readings: [] }
-			byGroup.set(reading.group, entry)
-			entries.push(entry)
-		}
-		entry.readings.push(reading)
 	}
-	return entries
+	return kept
 }
 
-function titleCase(key) {
-	const words = key.replace(/-/g, ' ')
-	return words.charAt(0).toUpperCase() + words.slice(1)
-}
-
-/// The two readings of a group that are opposed flows, where it has exactly that.
-///
-/// This is what lets a pair be drawn mirrored about one time axis rather than as two charts. A group
-/// that is not a pair, or whose directions are not opposed, gets no special treatment.
-export function opposedPair(entry) {
-	if (entry.readings.length !== 2) return null
-	const [first, second] = entry.readings
-	const opposed =
-		(first.direction === 'in' && second.direction === 'out') ||
-		(first.direction === 'out' && second.direction === 'in')
-	if (!opposed) return null
-	return first.direction === 'in' ? [first, second] : [second, first]
-}
-
-/// Add a sample to the window, keeping it ordered and trimmed.
-///
-/// Times are milliseconds since the device booted, so they are comparable only against each other.
-/// They are never treated as wall time: a device in the field may have no set clock.
-export function pushSample(window, sample) {
-	const next = [...window, sample]
-	next.sort((a, b) => a.at - b.at)
-	const newest = next[next.length - 1].at
-	return next.filter((each) => newest - each.at <= WINDOW_MS)
-}
-
-/// The buffered window a device sends on subscribing, as points by reading name.
-///
-/// It arrives as numbers rather than as whole samples: repeating every reading's description against
-/// every past point is far more bytes than the numbers, and more than the link will carry.
-export function readHistory(series) {
-	const held = new Map()
-	for (const each of series) {
-		held.set(
-			each.name,
-			each.points.map(([at, number]) => ({ at, number })),
-		)
+/// A stable string for a JSON value, with object keys sorted, so member order does not change a key.
+function canonical(value) {
+	if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+	if (value && typeof value === 'object') {
+		return `{${Object.keys(value)
+			.sort()
+			.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+			.join(',')}}`
 	}
-	return held
+	return JSON.stringify(value)
 }
 
-/// The history of one reading, as points a graph can be drawn from.
-///
-/// The window the device sent on subscribing, extended by every sample since. Spaced by the time
-/// each point was taken rather than evenly, so a gap in sampling shows as a gap rather than being
-/// smoothed away.
-export function seriesOf(history, window, name) {
-	const points = [...(history.get(name) ?? [])]
-	const earliest = points.length > 0 ? points[points.length - 1].at : -Infinity
-	for (const sample of window) {
-		// A live sample may repeat a point the window already carried; the window is what the device
-		// had at the moment of subscribing, and sampling did not stop while it was being sent.
-		if (sample.at <= earliest) continue
-		const reading = sample.readings.find((each) => each.name === name)
-		if (!reading) continue
-		const number = numberOf(reading.value)
-		if (number === null) continue
-		points.push({ at: sample.at, number })
+/// Add a reading to its history, keeping the points ordered and trimmed to the window. Facts have no
+/// history and are never added (VIEW).
+export function pushHistory(history, entry) {
+	if (entry.fact || !hasValue(entry)) return history
+	const number = numberOf(entry)
+	if (number === null) return history
+	const key = seriesKey(entry)
+	const next = new Map(history)
+	const points = [...(next.get(key) ?? []), { at: entry.at, number }]
+	points.sort((a, b) => a.at - b.at)
+	const newest = points[points.length - 1].at
+	next.set(
+		key,
+		points.filter((point) => newest - point.at <= WINDOW_MS),
+	)
+	return next
+}
+
+/// How far back the graph keeps points. A graph fills forward from connection; no history is sent, so
+/// this is only the trimming of what accumulates (U1 carries bringing sent history back).
+export const WINDOW_MS = 5 * 60 * 1000
+
+/// The number behind a value, where it has one. Null for text and for a kind with no number.
+export function numberOf(entry) {
+	if (!entry || !hasValue(entry)) return null
+	switch (entry.kind) {
+		case 'fraction':
+		case 'quantity':
+			return typeof entry.value === 'number' ? entry.value : null
+		case 'duration':
+			return typeof entry.value === 'number' ? entry.value : null
+		default:
+			return null
 	}
-	return points
 }
 
-/// The most recent reading of each name: the static ones, with anything sampled since on top.
-///
-/// A name carried by both is the live one, because a sample is fresher than the identity that
-/// preceded it. The other way round, a device reporting a name in both would show its static value
-/// forever and never move.
-export function latest(statics, window) {
-	const held = new Map()
-	for (const reading of statics) held.set(reading.name, reading)
-	for (const sample of window) {
-		for (const reading of sample.readings) held.set(reading.name, reading)
-	}
-	return [...held.values()]
-}
-
-/// Points as an SVG polyline, scaled to their own peak within the box.
-///
-/// Each series is scaled to its own peak rather than to a peak shared with another: two directions of
-/// throughput routinely differ by an order of magnitude, and a shared scale flattens the quieter one
-/// to a line. The peak is stated alongside so the asymmetry is a number rather than lost geometry.
+/// Points as an SVG polyline, scaled to their own peak within the box. Each series is scaled to its
+/// own peak, and the peak is stated alongside, because two directions of throughput routinely differ
+/// by an order of magnitude and a shared scale flattens the quieter one to a line (VIEW).
 export function polyline(points, { width, height, flip = false, peak = null }) {
 	if (points.length === 0) return { points: '', peak: 0 }
-	const top = peak ?? Math.max(...points.map((each) => each.number), 0)
+	const top = peak ?? Math.max(...points.map((point) => point.number), 0)
 	const first = points[0].at
 	const span = points[points.length - 1].at - first || 1
 
 	const coords = points.map((point) => {
 		const x = ((point.at - first) / span) * width
-		const height_ = top > 0 ? (point.number / top) * height : 0
-		const y = flip ? height_ : height - height_
+		const drawn = top > 0 ? (point.number / top) * height : 0
+		const y = flip ? drawn : height - drawn
 		return `${round(x)},${round(y)}`
 	})
 	return { points: coords.join(' '), peak: top }
@@ -207,4 +315,25 @@ export function polyline(points, { width, height, flip = false, peak = null }) {
 
 function round(value) {
 	return Math.round(value * 10) / 10
+}
+
+/// A trait value written for display: a string as-is, an object as its members joined. Used as the
+/// qualifier on an entry this build does not otherwise recognise (VIEW).
+export function qualifierOf(entry) {
+	const parts = []
+	for (const [name, value] of Object.entries(entry.traits ?? {})) {
+		if (DESCRIPTIVE.has(name)) continue
+		parts.push(traitText(value))
+	}
+	return parts.filter(Boolean).join(' · ')
+}
+
+function traitText(value) {
+	if (value === null || value === undefined) return ''
+	if (typeof value === 'object' && !Array.isArray(value)) {
+		return Object.values(value)
+			.map((inner) => (typeof inner === 'object' ? JSON.stringify(inner) : String(inner)))
+			.join(' ')
+	}
+	return String(value)
 }

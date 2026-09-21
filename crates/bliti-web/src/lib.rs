@@ -19,10 +19,8 @@ use bliti_core::{
 	advertisement::Advertised,
 	channel::{
 		envelope::{Reading, read},
-		messages::{ClientMessage, DeviceMessage},
-		stream::{
-			Mode, Stream, Streams, connect_initiator, multiplex, read_message, write_message,
-		},
+		messages::Message,
+		stream::{Mode, Opener, Stream, connect_initiator, multiplex, read_message, write_message},
 	},
 	qr::QrPayload,
 };
@@ -30,7 +28,6 @@ use futures::{
 	AsyncWriteExt,
 	channel::{mpsc, oneshot},
 	future::{self, Either},
-	lock::Mutex,
 };
 use js_sys::{Function, Promise};
 use wasm_bindgen::prelude::*;
@@ -152,13 +149,12 @@ struct Inner {
 	payload: QrPayload,
 	transport: RefCell<Option<WebTransport>>,
 	inbound: RefCell<mpsc::Sender<Vec<u8>>>,
-	// An async lock rather than a cell: it is held across opening a stream, and two sends in
-	// flight queue behind each other rather than colliding over the handle.
-	streams: Mutex<Option<Streams>>,
-	// The stream this client named itself on, held open for whatever a feature gives a client to send.
-	control: Mutex<Option<Stream>>,
-	// Closes the device's reporting stream, the same way a subscription is closed.
-	reporting_closer: RefCell<Option<oneshot::Sender<()>>>,
+	// Opens subscription streams. Independent of the accept loop, so a subscription can be opened while
+	// the pushed streams are being read.
+	opener: RefCell<Option<Opener>>,
+	// Closes the streams the device pushed (its hello and the default feed), which is how the client
+	// declines the feed (MSG).
+	feed_closers: RefCell<Vec<oneshot::Sender<()>>>,
 }
 
 /// A channel to a device: the handshake of CHN and the streams above it.
@@ -182,9 +178,8 @@ impl Channel {
 				payload: code.payload.clone(),
 				transport: RefCell::new(Some(transport)),
 				inbound: RefCell::new(inbound),
-				streams: Mutex::new(None),
-				control: Mutex::new(None),
-				reporting_closer: RefCell::new(None),
+				opener: RefCell::new(None),
+				feed_closers: RefCell::new(Vec::new()),
 			}),
 		}
 	}
@@ -194,16 +189,14 @@ impl Channel {
 		let _ = self.inner.inbound.borrow_mut().try_send(bytes.to_vec());
 	}
 
-	/// Run the handshake, name this client to the device, and start reading what the device reports.
+	/// Run the handshake, name this client to the device, and read the streams the device pushes.
 	///
-	/// The client opens a control stream and sends its hello without waiting for the device's, and the
-	/// device opens its reporting stream without being asked; neither blocks on the other (MSG).
-	/// Every message the device sends is passed to `on_message` as one of the outcomes described in
-	/// [`describe`], and `on_closed` is called once the reporting stream ends. `on_channel_closed` is
-	/// called once the whole channel closes, which happens when the connection ends for any reason: the
-	/// device going out of range or restarting, or a fault such as a decompression failure that CHN
-	/// requires the receiver to report (CHN, "Compression" and "When the channel closes"). A client
-	/// tells the operator, and offers a way back to the view.
+	/// The client opens its hello stream and sends its hello without waiting for the device's, and the
+	/// device pushes its own hello and the `default` feed without being asked; neither blocks on the
+	/// other (MSG). Every message on a pushed stream is passed to `on_message` as one of the outcomes
+	/// described in [`describe`]. `on_closed` is called when a pushed stream ends. `on_channel_closed`
+	/// is called once the whole channel closes, for any reason: the device going out of range or
+	/// restarting, or a fault the connection could not survive (CHN).
 	pub fn connect(
 		&self,
 		name: String,
@@ -225,8 +218,6 @@ impl Channel {
 				.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
 
 			let (mut streams, driver) = multiplex(encrypted, Mode::Client);
-			// The driver ends when the connection does, so it is where a channel-level close surfaces:
-			// a clean end, or a fault the connection could not survive. Either way the operator is told.
 			spawn_local(async move {
 				let why = driver.await.err().map(|err| err.to_string());
 				let _ = on_channel_closed.call1(
@@ -238,52 +229,70 @@ impl Channel {
 				);
 			});
 
-			// This client names itself, on a control stream of its own. The device logs it and never
-			// acts on it, and nothing here waits for an answer because there is none.
-			let mut control = streams
+			// This client names itself, on its own hello stream. The device logs it and never acts on
+			// it, and nothing here waits for an answer because there is none.
+			let opener = streams.opener();
+			let mut hello_stream = opener
 				.open()
 				.await
-				.map_err(|err| JsError::new(&format!("opening the control stream: {err}")))?;
-			let hello = ClientMessage::Hello { name, version };
-			write_message(&mut control, &hello.to_json())
-				.await
-				.map_err(|err| JsError::new(&format!("naming this client: {err}")))?;
+				.map_err(|err| JsError::new(&format!("opening the hello stream: {err}")))?;
+			write_message(
+				&mut hello_stream,
+				&Message::Hello { name, version }.to_json(),
+			)
+			.await
+			.map_err(|err| JsError::new(&format!("naming this client: {err}")))?;
+			*inner.opener.borrow_mut() = Some(opener);
 
-			let reporting = streams
-				.accept()
-				.await
-				.ok_or_else(|| JsError::new("the device closed the channel before reporting"))?;
-			// The reporting stream is closed the same way a subscription is, so that dropping the
-			// channel does not leave a reader holding it.
-			let (closer, closing) = oneshot::channel();
-			spawn_local(report_until_closed(
-				reporting, closing, on_message, on_closed,
-			));
-			*inner.reporting_closer.borrow_mut() = Some(closer);
+			// Read whatever the device pushes: its hello, and the default feed. Each is delivered to
+			// `on_message`, and each carries a closer so declining the feed closes it (MSG).
+			let inner_loop = inner.clone();
+			spawn_local(async move {
+				// Keep the hello stream we opened alive for the life of the loop.
+				let _hello_stream = hello_stream;
+				while let Some(stream) = streams.accept().await {
+					let (closer, closing) = oneshot::channel();
+					inner_loop.feed_closers.borrow_mut().push(closer);
+					spawn_local(report_until_closed(
+						stream,
+						closing,
+						on_message.clone(),
+						on_closed.clone(),
+					));
+				}
+			});
 
-			*inner.control.lock().await = Some(control);
-			*inner.streams.lock().await = Some(streams);
 			Ok(JsValue::UNDEFINED)
 		})
+	}
+
+	/// Close the streams the device pushed, declining the feed. Sampling continues on the device, so a
+	/// later [`Channel::subscribe`] for `default` is served what is current (MSG).
+	pub fn close_feed(&self) {
+		for closer in self.inner.feed_closers.borrow_mut().drain(..) {
+			let _ = closer.send(());
+		}
 	}
 
 	/// Subscribe to what the device sends continuously on a topic.
 	///
 	/// The subscription is the stream: it begins with this message and ends when the stream is closed,
-	/// so [`Subscription::close`] is the unsubscribe and there is no message for it (MSG). A topic
-	/// the device does not know yields no data and no error, which is what an older device looks like.
+	/// so [`SubscriptionHandle::close`] is the unsubscribe and there is no message for it (MSG). A
+	/// topic the device does not know yields no data and no error, which is what an older device looks
+	/// like.
 	pub fn subscribe(&self, topic: String, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
-			let mut streams = inner.streams.lock().await;
-			let streams = streams
-				.as_mut()
+			let opener = inner
+				.opener
+				.borrow()
+				.clone()
 				.ok_or_else(|| JsError::new("this channel is not connected"))?;
-			let mut stream = streams
+			let mut stream = opener
 				.open()
 				.await
 				.map_err(|err| JsError::new(&format!("opening a subscription: {err}")))?;
-			write_message(&mut stream, &ClientMessage::Subscribe { topic }.to_json())
+			write_message(&mut stream, &Message::Subscribe { topic }.to_json())
 				.await
 				.map_err(|err| JsError::new(&format!("subscribing: {err}")))?;
 
@@ -371,7 +380,7 @@ async fn report_until_closed(
 /// is a device newer than this build saying something safe to pass over, `refused` is one saying
 /// something that must not be half read, and `fault` is a device not speaking the protocol.
 fn describe(raw: &[u8]) -> (String, Option<String>) {
-	match read::<DeviceMessage>(raw) {
+	match read::<Message>(raw) {
 		Ok(Reading::Message(message)) => (
 			serde_json::json!({ "kind": "message", "message": message }).to_string(),
 			None,

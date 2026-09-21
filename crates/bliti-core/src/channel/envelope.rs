@@ -25,7 +25,7 @@ use serde::{
 use serde_json::{Map, Value};
 
 /// A set of message types that can be read from the wire.
-pub trait Message: DeserializeOwned + Serialize {
+pub trait MessageSet: DeserializeOwned + Serialize {
 	/// Whether this build knows the named message type.
 	///
 	/// Read before deserialising, so that a type this build has never heard of is told apart from one
@@ -45,7 +45,7 @@ pub trait Message: DeserializeOwned + Serialize {
 
 	/// The members this build writes as critical on the named type.
 	///
-	/// Separate from [`Message::criticality`], which is what MSG pins for the types it defines.
+	/// Separate from [`MessageSet::criticality`], which is what MSG pins for the types it defines.
 	/// This is the growth rule's sending half: a feature adding a member its message does not mean
 	/// anything without names it here, and an older peer refuses the message rather than acting on a
 	/// reading the sender has said is incomplete. A pinned type's two must agree.
@@ -63,7 +63,7 @@ pub trait Message: DeserializeOwned + Serialize {
 /// that caused it, so a feature adding a message type should assert this over an example of each.
 ///
 /// Returns the paths of members that did not survive, empty where the type is sound.
-pub fn round_trip_omissions<T: Message>(message: &T) -> Vec<String> {
+pub fn round_trip_omissions<T: MessageSet>(message: &T) -> Vec<String> {
 	let Ok(written) = serde_json::to_value(message) else {
 		return vec!["<does not serialise>".to_owned()];
 	};
@@ -208,7 +208,7 @@ pub enum Fault {
 /// Read one application message.
 ///
 /// `bytes` is one length-delimited message off a stream, without its length prefix.
-pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
+pub fn read<T: MessageSet>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 	let text = std::str::from_utf8(bytes).map_err(|_| Fault::NotUtf8)?;
 	let raw: Raw = serde_json::from_str(text).map_err(|err| Fault::NotJson(err.to_string()))?;
 
@@ -291,8 +291,8 @@ pub fn read<T: Message>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 ///
 /// Casing is applied here rather than in each message type's own declaration, because the convention
 /// belongs to the envelope: a type says what it carries, and this says how a member is named on the
-/// wire. Members the type names in [`Message::critical_members`] go out in upper case.
-pub fn write<T: Message>(message: &T) -> Vec<u8> {
+/// wire. Members the type names in [`MessageSet::critical_members`] go out in upper case.
+pub fn write<T: MessageSet>(message: &T) -> Vec<u8> {
 	let mut value = serde_json::to_value(message).expect("a message serialises");
 	let type_name = value
 		.get("type")
@@ -501,7 +501,7 @@ mod tests {
 		Sample { topic: String },
 	}
 
-	impl Message for Sample {
+	impl MessageSet for Sample {
 		fn knows(type_name: &str) -> bool {
 			type_name == "sample"
 		}

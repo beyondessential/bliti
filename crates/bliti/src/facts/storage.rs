@@ -1,99 +1,104 @@
-//! Filesystem use, one reading per block device.
+//! Filesystem size and use, one reading per block device (NFO).
 //!
 //! Counted per device rather than per mount point: a device carrying several mounts would otherwise
 //! be reported once for each, and its capacity counted several times over.
 
 use std::{collections::BTreeMap, fs};
 
-use bliti_core::channel::readings::{Reading, Value};
+use bliti_core::channel::readings::Entry;
+use serde_json::Value as Json;
 
-use super::compute::bytes;
-
-/// One mount worth reporting, and the device behind it.
-struct Mount {
+/// One filesystem worth reporting: the block device, its shortest mount, and its usage.
+struct Filesystem {
 	device: String,
-	point: String,
+	mount: String,
+	used: u64,
+	total: u64,
 }
 
-/// How full the device is: the fullest block device, with each of them behind it.
-///
-/// One number, because the question at a glance is whether anything is about to run out, and that is
-/// answered by whichever is closest to doing so.
-pub fn disks() -> Option<Reading> {
-	let mut found: Vec<(String, String, u64, u64)> = Vec::new();
-	for (device, point) in by_device(&mounts()) {
-		let Some((used, total)) = usage(&point) else {
+impl Filesystem {
+	/// The `filesystem` trait: mount and device, and the `boot` role on a boot partition. `device` and
+	/// `role` qualify the filesystem, so they sit inside the one trait (NFO).
+	fn trait_value(&self) -> Json {
+		let mut object = serde_json::Map::new();
+		object.insert("mount".to_owned(), Json::String(self.mount.clone()));
+		object.insert("device".to_owned(), Json::String(self.device.clone()));
+		if is_boot(&self.mount) {
+			object.insert("role".to_owned(), Json::String("boot".to_owned()));
+		}
+		Json::Object(object)
+	}
+}
+
+/// The size of each filesystem, as a fact in bytes.
+pub fn totals(at: u64) -> Vec<Entry> {
+	filesystems()
+		.into_iter()
+		.map(|fs| {
+			Entry::quantity(at, "filesystem-total", "bytes", fs.total as f64)
+				.with_trait("filesystem", fs.trait_value())
+		})
+		.collect()
+}
+
+/// How full each filesystem is, as a reading.
+pub fn usage(at: u64) -> Vec<Entry> {
+	filesystems()
+		.into_iter()
+		.map(|fs| {
+			let fraction = (fs.used as f64 / fs.total as f64).clamp(0.0, 1.0);
+			Entry::fraction(at, "filesystem-usage", fraction)
+				.with_trait("filesystem", fs.trait_value())
+		})
+		.collect()
+}
+
+/// Every filesystem worth reporting, one per block device.
+fn filesystems() -> Vec<Filesystem> {
+	let mut found = Vec::new();
+	for (device, mount) in by_device(&mounts()) {
+		let Some((used, total)) = disk_usage(&mount) else {
 			continue;
 		};
 		if total == 0 {
 			continue;
 		}
-		found.push((point, device, used, total));
+		found.push(Filesystem {
+			device,
+			mount,
+			used,
+			total,
+		});
 	}
-	if found.is_empty() {
-		return None;
-	}
-	found.sort_by(|a, b| a.0.cmp(&b.0));
-
-	// The boot partitions are small, written once at imaging, and sit near full for the life of the
-	// device. Letting one set the headline would show every device as nearly out of space.
-	let fullest = found
-		.iter()
-		.filter(|(point, ..)| !is_boot(point))
-		.map(|(_, _, used, total)| *used as f64 / *total as f64)
-		.fold(f64::NAN, f64::max);
-	let headline = if fullest.is_nan() {
-		// Nothing but boot partitions, which is not a machine we ship, but reporting nothing at all
-		// would be worse than reporting what there is.
-		found
-			.iter()
-			.map(|(_, _, used, total)| *used as f64 / *total as f64)
-			.fold(0.0, f64::max)
-	} else {
-		fullest
-	};
-
-	let mut reading = Reading::new("disk", "Disk", Value::Fraction(headline.clamp(0.0, 1.0)))
-		// A filesystem does not move fast enough for a graph to say anything, so the reveal keeps its
-		// space for the figures instead.
-		.ungraphed();
-	for (point, device, used, total) in &found {
-		reading = reading
-			.with_detail(
-				point,
-				Value::Fraction((*used as f64 / *total as f64).clamp(0.0, 1.0)),
-			)
-			.with_detail("  free", bytes(total.saturating_sub(*used)))
-			.with_detail("  of", bytes(*total))
-			.with_detail("  on", Value::text(device));
-	}
-	Some(reading)
+	found.sort_by(|a, b| a.mount.cmp(&b.mount));
+	found
 }
 
 /// Whether a mount is one of the boot partitions, which are small and permanently near full.
-fn is_boot(point: &str) -> bool {
-	point == "/boot" || point.starts_with("/boot/")
+fn is_boot(mount: &str) -> bool {
+	mount == "/boot" || mount.starts_with("/boot/")
 }
 
 /// One mount per device: where a device carries several, the shortest path wins, being the one an
-/// operator would recognise.
-fn by_device(mounts: &[Mount]) -> BTreeMap<String, String> {
+/// operator would recognise (NFO).
+fn by_device(mounts: &[(String, String)]) -> BTreeMap<String, String> {
 	let mut chosen: BTreeMap<String, String> = BTreeMap::new();
-	for mount in mounts {
+	for (device, mount) in mounts {
 		chosen
-			.entry(mount.device.clone())
+			.entry(device.clone())
 			.and_modify(|held| {
-				if mount.point.len() < held.len() {
-					*held = mount.point.clone();
+				if mount.len() < held.len() {
+					*held = mount.clone();
 				}
 			})
-			.or_insert_with(|| mount.point.clone());
+			.or_insert_with(|| mount.clone());
 	}
 	chosen
 }
 
-/// The mounts backed by a real block device. Virtual filesystems carry no device and are left out.
-fn mounts() -> Vec<Mount> {
+/// The mounts backed by a real block device, as (device, mount). Virtual filesystems carry no device
+/// and are left out (NFO).
+fn mounts() -> Vec<(String, String)> {
 	let Ok(raw) = fs::read_to_string("/proc/mounts") else {
 		return Vec::new();
 	};
@@ -101,11 +106,10 @@ fn mounts() -> Vec<Mount> {
 		.filter_map(|line| {
 			let mut fields = line.split_whitespace();
 			let device = fields.next()?;
-			let point = fields.next()?;
-			device.starts_with("/dev/").then(|| Mount {
-				device: device.to_owned(),
-				point: unescape(point),
-			})
+			let mount = fields.next()?;
+			device
+				.starts_with("/dev/")
+				.then(|| (device.to_owned(), unescape(mount)))
 		})
 		.collect()
 }
@@ -134,8 +138,8 @@ fn unescape(point: &str) -> String {
 }
 
 /// Bytes used and total for the filesystem at a path.
-fn usage(point: &str) -> Option<(u64, u64)> {
-	let stat = rustix::fs::statvfs(point).ok()?;
+fn disk_usage(mount: &str) -> Option<(u64, u64)> {
+	let stat = rustix::fs::statvfs(mount).ok()?;
 	let block = stat.f_frsize;
 	let total = stat.f_blocks.checked_mul(block)?;
 	// Available to an unprivileged writer, which is what "free" means to an operator; the difference
@@ -153,22 +157,15 @@ mod tests {
 	#[test]
 	fn several_mounts_on_one_device_are_counted_once() {
 		let mounts = vec![
-			Mount {
-				device: "/dev/mapper/root".to_owned(),
-				point: "/var/lib/postgresql".to_owned(),
-			},
-			Mount {
-				device: "/dev/mapper/root".to_owned(),
-				point: "/".to_owned(),
-			},
-			Mount {
-				device: "/dev/nvme0n1p2".to_owned(),
-				point: "/boot".to_owned(),
-			},
+			(
+				"/dev/mapper/root".to_owned(),
+				"/var/lib/postgresql".to_owned(),
+			),
+			("/dev/mapper/root".to_owned(), "/".to_owned()),
+			("/dev/nvme0n1p2".to_owned(), "/boot".to_owned()),
 		];
 		let chosen = by_device(&mounts);
 		assert_eq!(chosen.len(), 2);
-		// The shortest path wins, being the one an operator would recognise.
 		assert_eq!(chosen["/dev/mapper/root"], "/");
 		assert_eq!(chosen["/dev/nvme0n1p2"], "/boot");
 	}
@@ -180,32 +177,40 @@ mod tests {
 		assert_eq!(unescape("/trailing\\"), "/trailing\\");
 	}
 
+	/// Each filesystem is its own reading, carrying its own trait; a boot partition is marked (NFO).
 	#[test]
-	fn the_root_filesystem_is_reported() {
-		let reading = disks().expect("every machine has a root filesystem");
-		assert!(reading.is_coherent());
-		assert!(
-			!reading.graph,
-			"a filesystem does not move fast enough to draw"
-		);
-		let Some(Value::Fraction(used)) = reading.value else {
-			panic!("disk use is a fraction")
-		};
+	fn the_root_filesystem_is_a_reading_of_its_own() {
+		let readings = usage(1);
+		let root = readings
+			.iter()
+			.find(|e| {
+				e.traits
+					.get("filesystem")
+					.and_then(|f| f.get("mount"))
+					.and_then(Json::as_str)
+					== Some("/")
+			})
+			.expect("every machine has a root filesystem");
+		let used = root.value.as_ref().and_then(Json::as_f64).unwrap();
 		assert!((0.0..=1.0).contains(&used), "{used}");
-		assert!(
-			!reading.detail.is_empty(),
-			"every filesystem is behind the headline"
-		);
 	}
 
-	/// Boot partitions are small, written once at imaging, and sit near full forever. One setting the
-	/// headline would show every device we ship as nearly out of space.
 	#[test]
-	fn a_boot_partition_is_not_the_headline() {
+	fn a_boot_partition_is_marked_with_the_boot_role() {
 		assert!(is_boot("/boot"));
 		assert!(is_boot("/boot/firmware"));
 		assert!(!is_boot("/"));
 		assert!(!is_boot("/bootstrap"));
-		assert!(!is_boot("/var/lib/postgresql"));
+
+		let fs = Filesystem {
+			device: "/dev/mmcblk0p1".to_owned(),
+			mount: "/boot/firmware".to_owned(),
+			used: 10,
+			total: 100,
+		};
+		assert_eq!(
+			fs.trait_value().get("role").and_then(Json::as_str),
+			Some("boot")
+		);
 	}
 }

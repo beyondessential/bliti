@@ -16,8 +16,8 @@ use bliti_core::{
 	advertisement::Advertised,
 	channel::{
 		envelope::{Reading, read},
-		messages::{ClientMessage, DeviceMessage},
-		readings::{Reading as SystemReading, Value as ReadingValue},
+		messages::Message,
+		readings::Entry,
 		stream::{Mode, connect_initiator, multiplex, read_message, write_message},
 	},
 	key_schedule::PresenceToken,
@@ -272,103 +272,106 @@ pub async fn connect(
 		let _ = driver.await;
 	});
 
-	// The client names itself on a control stream of its own, without waiting to be asked and without
-	// waiting for the device's hello. The device logs it and never acts on it (MSG).
-	let mut control = streams.open().await?;
-	let hello = ClientMessage::Hello {
+	// The client names itself on its own hello stream, without waiting to be asked and without waiting
+	// for the device's hello. The device logs it and never acts on it (MSG).
+	let mut hello_stream = streams.open().await?;
+	let hello = Message::Hello {
 		name: env!("CARGO_PKG_NAME").to_owned(),
 		version: env!("CARGO_PKG_VERSION").to_owned(),
 	};
-	write_message(&mut control, &hello.to_json()).await?;
+	write_message(&mut hello_stream, &hello.to_json()).await?;
 
-	// The device speaks first too, without being asked.
-	let reporting = tokio::time::timeout(std::time::Duration::from_secs(20), streams.accept())
-		.await
-		.map_err(|_| anyhow!("the device did not open its reporting stream"))?;
-	let mut reporting = reporting.ok_or_else(|| anyhow!("the connection closed"))?;
-
-	// Read the reporting stream for as long as it lives, rather than once: the device sends again
-	// whenever what it reports changes.
+	// The device pushes its own hello and the default feed unprompted, each on its own stream (MSG).
+	// Read whatever it pushes for a few seconds and print each message from its own description.
 	let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
 	while std::time::Instant::now() < deadline {
-		let next = tokio::time::timeout(
-			std::time::Duration::from_secs(1),
-			read_message(&mut reporting),
-		)
-		.await;
-		let Ok(raw) = next else { continue };
-		let Some(raw) = raw? else {
-			break;
+		let Ok(Some(mut stream)) =
+			tokio::time::timeout(std::time::Duration::from_secs(1), streams.accept()).await
+		else {
+			continue;
 		};
-
-		match read::<DeviceMessage>(&raw) {
-			Ok(Reading::Message(DeviceMessage::Hello { name, version })) => {
-				println!("device:   {name} {version}");
-			}
-			// Rendered from what each reading says about itself, with no list of names to match
-			// against: a device that has gained a reading shows it here without this client
-			// changing (NFO).
-			Ok(Reading::Message(DeviceMessage::SystemIdentity { readings })) => {
-				for reading in &readings {
-					println!("{}", render(reading));
+		tokio::spawn(async move {
+			while let Ok(Some(raw)) = read_message(&mut stream).await {
+				match read::<Message>(&raw) {
+					Ok(Reading::Message(Message::Hello { name, version })) => {
+						println!("device:   {name} {version}");
+					}
+					// Rendered from what each entry says about itself, with no list of names to match
+					// against: a device that has gained an entry shows it here without this client
+					// changing (NFO).
+					Ok(Reading::Message(Message::Fact(entry) | Message::Reading(entry))) => {
+						println!("{}", render(&entry));
+					}
+					Ok(Reading::Message(Message::Subscribe { topic })) => {
+						println!("subscribe: {topic}");
+					}
+					// A device newer than this build: passed over, or not acted on, but never fatal.
+					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
+					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),
+					// A device not speaking the protocol. The stream goes; the connection does not.
+					Err(fault) => {
+						println!("fault:    {fault}");
+						break;
+					}
 				}
 			}
-			Ok(Reading::Message(DeviceMessage::SystemSample { at, readings })) => {
-				println!("sample at {at} ms since boot:");
-				for reading in &readings {
-					println!("  {}", render(reading));
-				}
-			}
-			Ok(Reading::Message(DeviceMessage::SystemHistory { series })) => {
-				let points: usize = series.iter().map(|each| each.points.len()).sum();
-				println!("history:  {} series, {points} points", series.len());
-			}
-			// A device newer than this build: passed over, or not acted on, but never fatal.
-			Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
-			Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),
-			// A device that is not speaking the protocol. The stream goes; the connection does not.
-			Err(fault) => {
-				println!("fault:    {fault}");
-				break;
-			}
-		}
+		});
 	}
 
 	let _ = device.disconnect().await;
 	Ok(())
 }
 
-/// One reading, rendered from its own description.
+/// One fact or reading, rendered from its own description.
 ///
-/// Nothing here matches on a reading's name: a client that did could only show what it already knew
+/// Nothing here matches on an entry's name: a client that did could only show what it already knew
 /// about, which is the property NFO exists to avoid.
-fn render(reading: &SystemReading) -> String {
-	let mut line = format!("{}: ", reading.label);
-	match (&reading.value, &reading.error) {
-		(Some(value), _) => line.push_str(&show(value)),
-		(None, Some(why)) => line.push_str(&format!("unavailable ({why})")),
-		(None, None) => line.push_str("unreadable"),
+fn render(entry: &Entry) -> String {
+	let mut line = format!("{}: ", entry.name);
+	match &entry.value {
+		Some(value) => line.push_str(&show(value, &entry.kind, entry.unit.as_deref())),
+		None => match entry.reason() {
+			Some(why) => line.push_str(&format!(
+				"{} ({why})",
+				entry.status().unwrap_or("unavailable")
+			)),
+			None => line.push_str(entry.status().unwrap_or("unavailable")),
+		},
 	}
-	if reading.state.is_trouble() {
+	if matches!(entry.status(), Some("warning" | "failed" | "broken")) {
 		line.push_str("  [!]");
-	}
-	for detail in &reading.detail {
-		line.push_str(&format!("\n    {}: {}", detail.label, show(&detail.value)));
 	}
 	line
 }
 
-/// A value, in the unit it names for itself.
-fn show(value: &ReadingValue) -> String {
-	match value {
-		ReadingValue::Fraction(number) => format!("{:.0}%", number * 100.0),
-		ReadingValue::Quantity { number, unit, .. } => format!("{number} {unit}"),
-		ReadingValue::Duration(seconds) => {
-			let seconds = *seconds as u64;
-			format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
+/// A value, drawn by its kind, with the unit the entry named for itself.
+fn show(value: &serde_json::Value, kind: &str, unit: Option<&str>) -> String {
+	use bliti_core::channel::readings::kind as k;
+	match kind {
+		k::FRACTION => value.as_f64().map_or_else(
+			|| value.to_string(),
+			|number| format!("{:.0}%", number * 100.0),
+		),
+		k::DURATION => value.as_f64().map_or_else(
+			|| value.to_string(),
+			|seconds| {
+				let seconds = seconds as u64;
+				format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
+			},
+		),
+		k::TEXT | k::DATETIME | k::IPV4 | k::IPV6 => value
+			.as_str()
+			.map_or_else(|| value.to_string(), ToOwned::to_owned),
+		// A quantity, or a kind this build does not know: the value stringified, with the unit where
+		// there is one (VIEW).
+		_ => {
+			let number = value
+				.as_f64()
+				.map_or_else(|| value.to_string(), |n| n.to_string());
+			match unit {
+				Some(unit) => format!("{number} {unit}"),
+				None => number,
+			}
 		}
-		ReadingValue::Text(text) => text.clone(),
-		// A kind this build does not know. The label already said what it is.
-		ReadingValue::Unknown(_) => "(not understood by this client)".to_owned(),
 	}
 }

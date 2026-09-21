@@ -42,33 +42,33 @@ Three things move at once, and they are hard to land separately because each mak
 
 Core first, because both ends depend on the types.
 
-- [ ] Merge `ClientMessage` and `DeviceMessage` into one `Message`, with one `hello` and one criticality table
-- [ ] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with one shape carrying `at`, catalogue name, `traits`, `kind`, `unit`, `value`; status and limits are traits, and `fact` and `reading` differ only by which catalogue names them
-- [ ] Inline the value: `kind` as an open string, `unit` alongside, `value` as raw JSON rather than a tagged enum
-- [ ] Drop `error`: a `status` trait of `is` plus free-text `reason`, over `passed` / `warning` / `failed` / `skipped` / `broken`, present on every entry, with `value` present for the first three and absent for the last two
-- [ ] Round numeric values to four decimal places on send
-- [ ] Delete `system-identity`, `system-sample`, `system-history` and the series shape
+- [x] Merge `ClientMessage` and `DeviceMessage` into one `Message`, with one `hello` and one criticality table
+- [x] Replace `Reading`/`Series`/`Value` in `channel/readings.rs` with one shape carrying `at`, catalogue name, `traits`, `kind`, `unit`, `value`; status and limits are traits, and `fact` and `reading` differ only by which catalogue names them
+- [x] Inline the value: `kind` as an open string, `unit` alongside, `value` as raw JSON rather than a tagged enum
+- [x] Drop `error`: a `status` trait of `is` plus free-text `reason`, over `passed` / `warning` / `failed` / `skipped` / `broken`, present on every entry, with `value` present for the first three and absent for the last two
+- [x] Round numeric values to four decimal places on send
+- [x] Delete `system-identity`, `system-sample`, `system-history` and the series shape (the `Message` enum no longer carries them; the envelope trait renamed `Message`→`MessageSet` to free the name)
 
 Device next.
 
-- [ ] Rework `facts/` to the catalogue: one entry per fact or reading, traits instead of `detail`, no `group`, no `label`, no `note`
-- [ ] Report `skipped` where a precondition was not met and `broken` where the measurement errored, each with a reason worth reading
-- [ ] Split what was aggregated: `network-throughput` per interface and direction; `filesystem-usage` per filesystem with the `boot` role marked; `temperature` per sensor
-- [ ] Replace `uptime` with `last-boot`, omitted where the device cannot answer for the instant
-- [ ] Replace the `throttling` prose summary with `cpu-frequency` reported as `warning`, and drop the undervoltage alarm until W1
-- [ ] Set the value vocabularies: `via-backup` / `battery` / `bypassing-backup` for `power-source`, and `charging` / `discharging` / `idle` for `battery-direction`
-- [ ] Spell units out
-- [ ] Open the `default` feed unprompted after `hello`, on its own stream; serve `subscribe` for `default` as the resume path; skip a `subscribe` for a topic already being served
-- [ ] Keep sampling running across a decline, holding only what a derivation needs and nothing for replay
+- [x] Rework `facts/` to the catalogue: one entry per fact or reading, traits instead of `detail`, no `group`, no `label`, no `note`
+- [x] Report `skipped` where a precondition was not met and `broken` where the measurement errored, each with a reason worth reading
+- [x] Split what was aggregated: `network-throughput` per interface and direction; `filesystem-usage` per filesystem with the `boot` role marked; `temperature` per sensor
+- [x] Replace `uptime` with `last-boot`, omitted where the device cannot answer for the instant (RFC 3339 formatted from the wall clock less uptime, omitted where the clock is unset)
+- [x] Replace the `throttling` prose summary with `cpu-frequency` reported as `warning`, and drop the undervoltage alarm until W1
+- [x] Set the value vocabularies: `via-backup` / `battery` / `bypassing-backup` for `power-source`, and `charging` / `discharging` / `idle` for `battery-direction`
+- [x] Spell units out (`hertz`, `bytes`, `bytes/second`, `celsius`, `volts`, `revolutions/minute`)
+- [x] Open the `default` feed unprompted after `hello`, on its own stream; serve `subscribe` for `default` as the resume path; skip a `subscribe` for a topic already being served
+- [x] Keep sampling running across a decline, holding only what a derivation needs and nothing for replay
 
 Client last, since it needs real messages to render.
 
-- [ ] Hold the fixed order, the label table, and unit abbreviation and magnitude; render `reason` as the device wrote it
-- [ ] Render bespoke what it recognises; render the rest generically, with trait values as the qualifier
-- [ ] Aggregation rules: fullest non-boot filesystem, summed throughput, `cpu` sensor, default-route and overlay addresses
-- [ ] Per-interface mirrored graphs, with each reading's own `limits` and status reason in the reveal
-- [ ] Key histories by catalogue name plus every non-descriptive trait, comparing unrecognised traits raw, and hold none for a `fact`
-- [ ] Decline the feed when the page is hidden and resume with `subscribe`
+- [x] Hold the fixed order, the label table, and unit abbreviation and magnitude; render `reason` as the device wrote it
+- [x] Render bespoke what it recognises; render the rest generically, with trait values as the qualifier
+- [x] Aggregation rules: fullest non-boot filesystem, summed throughput, `cpu` sensor, default-route and overlay addresses
+- [x] Per-interface mirrored graphs, with each reading's own `limits` and status reason in the reveal
+- [x] Key histories by catalogue name plus every non-descriptive trait, comparing unrecognised traits raw (`route`/`overlay` stripped from within `interface`), and hold none for a `fact`
+- [x] Decline the feed when the page is hidden and resume with `subscribe` (using the device's pushed feed while visible, so no decline-then-resubscribe race)
 
 ## Watch for
 

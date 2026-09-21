@@ -1,8 +1,10 @@
-//! Processor and memory use.
+//! Processor and memory.
 
 use std::fs;
 
-use bliti_core::channel::readings::{Reading, Value};
+use bliti_core::channel::readings::Entry;
+
+use super::{read_number, read_trimmed};
 
 /// The cumulative processor times one read of `/proc/stat` yields.
 ///
@@ -17,7 +19,7 @@ pub struct CpuCounters {
 /// Processor use across all cores, as a fraction of the interval since the last sample.
 ///
 /// Yields nothing on the first sample, which has no interval behind it.
-pub fn cpu(previous: &mut Option<CpuCounters>) -> Option<Reading> {
+pub fn cpu_usage(at: u64, previous: &mut Option<CpuCounters>) -> Option<Entry> {
 	let current = counters()?;
 	let last = previous.replace(current)?;
 
@@ -29,7 +31,7 @@ pub fn cpu(previous: &mut Option<CpuCounters>) -> Option<Reading> {
 	}
 
 	let used = (busy as f64 / total as f64).clamp(0.0, 1.0);
-	Some(Reading::new("cpu", "CPU", Value::Fraction(used)))
+	Some(Entry::fraction(at, "cpu-usage", used))
 }
 
 /// The aggregate line of `/proc/stat`, which sums every core.
@@ -53,11 +55,62 @@ fn counters() -> Option<CpuCounters> {
 	})
 }
 
-/// Memory in use, as a fraction, with the figures behind it.
+/// Where the processor's current and maximum speed sit, in kilohertz.
+const CPUFREQ: &str = "/sys/devices/system/cpu/cpu0/cpufreq";
+
+/// The processor's current speed, reported as `warning` where the platform reports it is limiting
+/// the processor. Never inferred from the frequency sitting below its maximum: idle scaling lowers it
+/// on a device that is simply not busy (NFO).
+pub fn cpu_frequency(at: u64) -> Option<Entry> {
+	let khz = read_number(&format!("{CPUFREQ}/scaling_cur_freq"))?;
+	let entry = Entry::quantity(at, "cpu-frequency", "hertz", khz as f64 * 1000.0);
+	Some(match throttled_reason() {
+		Some(reason) => entry.warning(reason),
+		None => entry,
+	})
+}
+
+/// The speed the processor is capable of, in hertz.
+pub fn cpu_frequency_max(at: u64) -> Option<Entry> {
+	let khz = read_number(&format!("{CPUFREQ}/cpuinfo_max_freq"))?;
+	Some(Entry::quantity(
+		at,
+		"cpu-frequency-max",
+		"hertz",
+		khz as f64 * 1000.0,
+	))
+}
+
+/// The Pi firmware's throttling word, where the platform exposes one and reports it is limiting the
+/// processor now. Bit 1 is the arm frequency capped, bit 2 is currently throttled; the higher bits
+/// are the has-occurred history and are not what "limiting now" means.
+fn throttled_reason() -> Option<String> {
+	let raw = read_trimmed("/sys/devices/platform/soc/soc:firmware/get_throttled")?;
+	let word = u64::from_str_radix(raw.trim_start_matches("0x"), 16).ok()?;
+	(word & 0b110 != 0).then(|| "the platform is limiting the processor".to_owned())
+}
+
+/// Memory in use, as a fraction.
 ///
 /// Uses available rather than free: the kernel's free figure excludes cache it would hand back on
 /// demand, and reporting it would show a healthy machine as nearly full.
-pub fn memory() -> Option<Reading> {
+pub fn memory_usage(at: u64) -> Option<Entry> {
+	let (used, total) = memory()?;
+	Some(Entry::fraction(
+		at,
+		"memory-usage",
+		(used as f64 / total as f64).clamp(0.0, 1.0),
+	))
+}
+
+/// Memory fitted, in bytes.
+pub fn memory_total(at: u64) -> Option<Entry> {
+	let (_, total) = memory()?;
+	Some(Entry::quantity(at, "memory-total", "bytes", total as f64))
+}
+
+/// Bytes used and total, from `/proc/meminfo`.
+fn memory() -> Option<(u64, u64)> {
 	let raw = fs::read_to_string("/proc/meminfo").ok()?;
 	let kib = |name: &str| -> Option<u64> {
 		raw.lines()
@@ -71,34 +124,7 @@ pub fn memory() -> Option<Reading> {
 	if total == 0 {
 		return None;
 	}
-	let used = total.saturating_sub(available);
-
-	Some(
-		Reading::new(
-			"memory",
-			"Memory",
-			Value::Fraction((used as f64 / total as f64).clamp(0.0, 1.0)),
-		)
-		.with_detail("Used", bytes(used * 1024))
-		.with_detail("Total", bytes(total * 1024)),
-	)
-}
-
-/// A byte count as a quantity in the largest unit that leaves it above one.
-pub fn bytes(count: u64) -> Value {
-	const UNITS: [(&str, f64); 4] = [
-		("GB", 1_000_000_000.0),
-		("MB", 1_000_000.0),
-		("kB", 1_000.0),
-		("B", 1.0),
-	];
-	let count = count as f64;
-	for (unit, scale) in UNITS {
-		if count >= scale {
-			return Value::quantity((count / scale * 10.0).round() / 10.0, unit);
-		}
-	}
-	Value::quantity(0.0, "B")
+	Some((total.saturating_sub(available) * 1024, total * 1024))
 }
 
 #[cfg(test)]
@@ -108,27 +134,24 @@ mod tests {
 	#[test]
 	fn the_first_read_of_the_processor_yields_nothing() {
 		let mut previous = None;
-		assert!(cpu(&mut previous).is_none(), "no interval behind it");
+		assert!(
+			cpu_usage(1, &mut previous).is_none(),
+			"no interval behind it"
+		);
 		assert!(previous.is_some(), "but a baseline is kept");
 	}
 
 	#[test]
-	fn memory_is_a_fraction_with_its_figures_behind_it() {
-		let reading = memory().expect("every Linux machine has meminfo");
-		let Some(Value::Fraction(used)) = reading.value else {
-			panic!("memory use is a fraction")
-		};
+	fn memory_use_is_a_fraction() {
+		let entry = memory_usage(1).expect("every Linux machine has meminfo");
+		let used = entry.value.as_ref().and_then(|v| v.as_f64()).unwrap();
 		assert!((0.0..=1.0).contains(&used), "{used}");
-		assert_eq!(reading.detail.len(), 2);
 	}
 
 	#[test]
-	fn a_byte_count_takes_the_unit_that_suits_it() {
-		assert_eq!(bytes(0), Value::quantity(0.0, "B"));
-		assert_eq!(bytes(512), Value::quantity(512.0, "B"));
-		assert_eq!(bytes(1_500), Value::quantity(1.5, "kB"));
-		assert_eq!(bytes(2_000_000), Value::quantity(2.0, "MB"));
-		assert_eq!(bytes(441_000_000_000), Value::quantity(441.0, "GB"));
+	fn memory_total_is_a_quantity_in_bytes() {
+		let entry = memory_total(1).expect("meminfo");
+		assert_eq!(entry.unit.as_deref(), Some("bytes"));
 	}
 
 	/// A counter that went backwards, which a suspend can cause, must not produce a nonsense figure.
@@ -138,6 +161,6 @@ mod tests {
 			busy: u64::MAX,
 			total: u64::MAX,
 		});
-		assert!(cpu(&mut previous).is_none());
+		assert!(cpu_usage(1, &mut previous).is_none());
 	}
 }
