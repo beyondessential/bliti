@@ -1,11 +1,3 @@
-<!-- An amaranthus flower, white on amaranthus-flower ground: bliti is the white rust of
-     amaranthus, Albugo bliti, which is what the project is named for.
-
-     Three shapes only: the crown, one side petal, and one floret. The petal is mirrored about
-     x=256 and the pair repeated down the stem with a floret between them, because what makes an
-     amaranthus recognisable is the chain of petals rather than any one of them. Each is filled
-     white and stroked in the background colour, so the seam where one laps over another draws
-     itself. Regenerate the PNG files beside this file with ../../icons.sh after changing it. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
 		 role="img" aria-label="bliti">
 	<title>bliti</title>
