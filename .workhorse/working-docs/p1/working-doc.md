@@ -251,6 +251,44 @@ This is what throttling is. A capped processor is the frequency reading carrying
 It was prose the device sent for a client to display, and too generic to act on: a client could show it and nothing more.
 Everything it carried is either catalogue knowledge the client already holds — that a temperature is the processor core rather than the case — or wording keyed to a `state-reason`, which names what the trouble is rather than describing it.
 
+### The catalogue
+
+Every reading the device reports today, restated. A fact has no state and no history; a reading has both.
+
+| type | name | kind · unit | traits | was |
+| --- | --- | --- | --- | --- |
+| fact | `hostname` | text | — | `hostname` |
+| fact | `board` | text | — | `board` headline |
+| fact | `board-revision` | text | — | `board` detail "Revision" |
+| fact | `os` | text | — | `os` headline |
+| fact | `kernel` | text | — | `os` detail "Kernel" |
+| fact | `last-boot` | datetime | — | `uptime` |
+| fact | `network-address` | ipv4 / ipv6 | `interface{name, route?, overlay?}` | `address` headline + detail |
+| reading | `network-throughput` | quantity · bytes/second | `interface{name}`, `direction` | `network-in`/`network-out` + detail |
+| reading | `cpu-usage` | fraction | — | `cpu` |
+| reading | `cpu-frequency` | quantity · hertz | — | `throttling` detail "Speed" |
+| fact | `cpu-frequency-max` | quantity · hertz | — | `throttling` detail "Full speed" |
+| reading | `memory-usage` | fraction | — | `memory` |
+| fact | `memory-total` | quantity · bytes | — | `memory` detail "Used" and "Total" |
+| reading | `filesystem-usage` | fraction | `filesystem{mount, device, role?}` | `disk` headline + detail |
+| fact | `filesystem-total` | quantity · bytes | `filesystem{…}` | `disk` detail "  free" and "  of" |
+| reading | `temperature` | quantity · celsius | `sensor` | `temperature` headline + detail |
+| reading | `fan-speed` | quantity · revolutions/minute | `fan` | `fan` |
+| reading | `power-source` | text | — | `power-source` |
+| reading | `battery-charge` | fraction | — | `battery` headline + detail "Charge" |
+| reading | `battery-voltage` | quantity · volts | — | `battery` detail "Voltage" |
+| reading | `battery-direction` | text | — | `battery` detail "Direction" |
+
+`supply-voltage` is absent pending W1.
+
+The kinds are `text`, `quantity`, `fraction`, `duration`, `datetime`, `ipv4` and `ipv6`.
+
+Three device-side judgements become client rules, each by the device stating a trait and no longer choosing: which address to headline (`route`, `overlay`), which filesystem sets the storage headline (`role`), and which temperature sensor leads (`sensor`).
+
+The device's "one mount per block device, shortest path wins" rule stays on the device: it is deduplication of what to report, not a judgement about what matters.
+
+The board's declared thresholds stay as `limits` on the sensor that has them.
+
 ### What a trait is
 
 **A trait is a dimension you can aggregate across.**
@@ -297,23 +335,8 @@ Two modems share a measurement and differ only in traits the client cannot read.
 Dropping them puts two tiles on screen under one label with different numbers and nothing to tell them apart.
 This is the display counterpart of the identity rule below, and it has the same cause.
 
-### Device judgements become client rules
-
-Writing the messages out showed how far this reaches beyond the readings the card names.
-
-The device currently picks which address to headline: it prefers the interface carrying the default route, and IPv4 over IPv6, because that is the one a person can read out.
-Those are presentation decisions taken on the device.
-Under traits the device states what makes them decidable — `route: default`, `family: ipv4`, `overlay: true` — and the client applies its own rule.
-
-### Where a note about an aggregate goes
-
-`detail` dissolving leaves nothing for some notes to attach to.
-"Filesystem use does not move fast enough for a graph to say anything" was a note on the `disk` reading, and there is no longer a `disk` reading — only one reading per filesystem and a client-side aggregate.
-
-A note about what a measurement type *means* is catalogue knowledge and belongs to the client, alongside the label it already supplies.
-A note about *this particular* reading is data and stays on the wire, as a derived battery direction's caveat does.
-
-Mocked up at `.workhorse/design/mockups/p1/measurements-and-traits.html`.
+Mocked up at `.workhorse/design/mockups/p1/measurements-and-traits.html` and `catalogue.html`.
+Both are card scratch and go on merge; the catalogue above is the copy that survives, and becomes NFO's body at the split.
 
 ### Series identity must include traits the client does not know
 
@@ -350,7 +373,7 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
-- [ ] The measurement and fact catalogue, drafted at `.workhorse/design/mockups/p1/catalogue.html`
+*(none)*
 
 ## Testing notes
 
