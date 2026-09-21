@@ -222,6 +222,24 @@ Used bytes, free bytes and percentages are arithmetic on those two, so only thos
 
 The split also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.
 
+### `state-reason` names why a state is not ok
+
+`error` says why a reading has no value.
+`state-reason` says why a reading that has a value is in trouble.
+
+```json
+{ "type": "reading", "at": 20308140, "measurement": "cpu-frequency",
+  "state": "warn", "state-reason": "throttled",
+  "kind": "quantity", "unit": "hertz", "value": 1500000000 }
+```
+
+It is a name, not prose: the client holds the wording as it holds every other label.
+
+This is what throttling is. A capped processor is the frequency reading carrying a reason, not a separate measurement beside it, and the distinction ordinary idle scaling would otherwise blur — a low frequency on a device that is merely not busy — is carried without a second measurement to reconcile against the first.
+
+It also takes over most of what `note` carried.
+The advice attached to a bypassed backup supply, and the caveat on a derived battery direction, are both wording a client can hold against a reason rather than prose the device has to send.
+
 ### What a trait is
 
 **A trait is a dimension you can aggregate across.**
@@ -321,6 +339,8 @@ The device's sampling buffer is not removed with it, because battery direction i
 
 ## Open questions
 
+- [ ] Whether `note` survives on the wire at all, now that `state-reason` carries the cases it was serving
+- [ ] Whether the PMIC yields a supply voltage, which decides whether a `boolean` kind is needed anywhere
 - [ ] The measurement and fact catalogue, drafted at `.workhorse/design/mockups/p1/catalogue.html`
 
 ## Testing notes

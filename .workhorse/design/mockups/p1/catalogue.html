@@ -85,13 +85,17 @@ pre.json i { font-style:normal; color:#8a8580; }
 <tr><td class="t">reading</td><td class="n"><code>cpu-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>cpu</code></td></tr>
 <tr><td class="t">reading</td><td class="n"><code>cpu-frequency</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Speed"</td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>cpu-frequency-max</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Full speed"</td></tr>
-<tr><td class="t">reading</td><td class="n"><code>undervoltage</code></td><td><code>boolean</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
-<tr><td class="t">reading</td><td class="n"><code>frequency-capped</code></td><td><code>boolean</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>supply-voltage</code> <b style="color:var(--warn)">?</b></td><td><code>quantity</code> · <code>volts</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
 <tr><td class="t">reading</td><td class="n"><code>memory-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>memory</code></td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>memory-total</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr">—</td><td class="was"><code>memory</code> detail "Used" and "Total"</td></tr>
 </table>
-<div class="callout"><b>Throttling becomes two measurements, not a sentence.</b> The device currently composes "Undervolted and slowed" as text, which a client cannot act on. Two named conditions, each with its own state, is the same information as data, and this is the one place a new <code>boolean</code> kind is wanted.</div>
-<div class="callout"><b><code>frequency-capped</code> is not <code>cpu-frequency &lt; cpu-frequency-max</code>.</b> Ordinary idle scaling lowers the frequency too, so the comparison would report throttling on a device that is simply not busy. The platform's own flag is a distinct fact and is not derivable from the two frequencies.</div>
+<div class="callout"><b>Throttling is not a measurement. It is why another measurement is in trouble.</b> A capped processor is <code>cpu-frequency</code> carrying a state and a reason, not a separate boolean beside it. The device currently composes "Undervolted and slowed" as prose, which a client cannot act on at all.</div>
+<pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "cpu-frequency",
+  <b>"state"</b>: "warn", <u>"state-reason"</u>: "throttled",
+  <b>"kind"</b>: "quantity", <b>"unit"</b>: "hertz", <b>"value"</b>: 1500000000 }</pre>
+<p class="note"><code>state-reason</code> names why a state is not ok, as <code>error</code> names why there is no value at all. It is a name rather than prose: the client holds the wording, as it holds every other label.</p>
+<p class="note">This also settles a thing a boolean could not. <code>frequency-capped</code> would not have been derivable from <code>cpu-frequency &lt; cpu-frequency-max</code>, because ordinary idle scaling lowers the frequency on a device that is merely not busy. As a reason on the frequency itself, the distinction is carried without a second measurement to reconcile.</p>
+<div class="callout"><b><span style="color:var(--warn)">?</span> <code>supply-voltage</code> is unverified.</b> The device reads <code>rpi_volt</code>'s undervoltage alarm today, which is one bit and no number. A Pi 5's PMIC exposes per-rail volts and amps through <code>vcgencmd</code> rather than sysfs, which wants confirming on the real board before it goes in a spec. If a number is readable, undervoltage is <code>supply-voltage</code> with <code>state-reason: undervoltage</code> and the <code>boolean</code> kind is not needed anywhere. If only the alarm is readable, it is a boolean with no value to report.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "undervoltage",
   <b>"state"</b>: "warn", <b>"kind"</b>: "boolean", <b>"value"</b>: true }
 
@@ -133,7 +137,8 @@ pre.json i { font-style:normal; color:#8a8580; }
 <div class="callout"><b>Two traits were rejected by the aggregation test</b> while drafting this: <code>part</code> and <code>condition</code>. Both were two measurements wearing one name. <code>part</code> gave it away by reading as <code>used</code> against memory and <code>free</code> against filesystems, the same name for opposite quantities.</div>
 <div class="callout"><b>A fraction and a total, and every other figure comes from those two.</b> Used bytes, free bytes and percentages are all arithmetic on a fraction and a total, so only those two cross the wire. The division also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.</div>
 <div class="callout"><b>Details that were the same number twice</b> collapse: battery charge appeared as both the fraction headline and a percentage in its detail.</div>
-<div class="callout"><b>One new kind, <code>boolean</code>,</b> so throttling conditions are data rather than an English sentence. Everything else uses <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>ipv4</code> and <code>ipv6</code>.</div>
+<div class="callout"><b>One new base member, <code>state-reason</code>,</b> naming why a state is not ok. It takes over most of what <code>note</code> carried: the advice attached to a bypassed backup supply, and the caveat on a derived battery direction, are both wording the client can hold against a reason rather than prose the device has to send.</div>
+<div class="callout"><b>No new kind, if the PMIC gives numbers.</b> The kinds are <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>datetime</code>, <code>ipv4</code> and <code>ipv6</code>. <code>boolean</code> is wanted only if undervoltage stays an alarm bit.</div>
 
 </div>
 </body>
