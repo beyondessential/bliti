@@ -222,12 +222,26 @@ Used bytes, free bytes and percentages are arithmetic on those two, so only thos
 
 The split also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.
 
-### A trait distinguishes instances, not quantities
+### What a trait is
 
-A trait separates instances of one measurement: `eth0` and `wlan0` are the same thing measured on different subjects.
-A total and an available figure are not that — they are different quantities — so they take different names rather than one name and a dimension.
+**A trait is a dimension you can aggregate across.**
+It slices one measurement into instances, and re-combining those instances — summing, ranking, comparing — means something.
 
-Drafting the catalogue showed what happens otherwise: the same trait read as `used` against memory and `free` against filesystems, one name for opposite quantities.
+| trait | slices | re-combining gives |
+| --- | --- | --- |
+| `interface` | throughput per link | total traffic, by summing |
+| `direction` | throughput per way it runs | total traffic, by summing |
+| `filesystem` | usage per mount | the fullest, by ranking |
+| `sensor` | temperature per probe | the hottest, by ranking |
+
+Most traits also name a subject you could point at — a link, a mount, a probe.
+`direction` does not, which is why naming a subject is a useful habit rather than the test.
+
+Drafting the catalogue rejected two candidate traits by this test.
+`part` (used against total) re-combines to nothing, a fraction and a byte count being neither summable nor rankable; it gave itself away by reading as `used` against memory and `free` against filesystems, one name for opposite quantities.
+`condition` (undervoltage against speed-capped) re-combines to nothing either, being two unrelated questions rather than one question about two subjects.
+
+Both were two measurements wearing one name, and both take two names instead.
 
 ### Uptime becomes the instant of boot
 

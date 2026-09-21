@@ -46,6 +46,18 @@ pre.json i { font-style:normal; color:#8a8580; }
 <p>Every reading the device reports today, restated as a measurement or a fact with its traits. Green is a fact (no state, no history); the rest are readings. The last column says what it was before, so nothing is silently dropped.</p>
 <p>Units are spelled out. <code>kind</code> names what the value is, and its vocabulary is open. Where the device holds a piece of information, it sends it rather than leaving it implied.</p>
 
+<h2>What a trait is</h2>
+<p class="note" style="max-width:52rem"><b>A trait is a dimension you can aggregate across.</b> It slices one measurement into instances, and re-combining those instances — summing, ranking, comparing — means something. That is the whole test, and it is what separates a trait from two measurements that merely look alike.</p>
+<table style="max-width:52rem">
+<tr><th>trait</th><th>slices</th><th>re-combining gives</th></tr>
+<tr><td class="tr"><code>interface</code></td><td>throughput per link</td><td>total traffic, by summing</td></tr>
+<tr><td class="tr"><code>direction</code></td><td>throughput per way it runs</td><td>total traffic, by summing</td></tr>
+<tr><td class="tr"><code>filesystem</code></td><td>usage per mount</td><td>the fullest, by ranking</td></tr>
+<tr><td class="tr"><code>sensor</code></td><td>temperature per probe</td><td>the hottest, by ranking</td></tr>
+</table>
+<p class="note" style="max-width:52rem">Most traits also name a subject you could point at — a link, a mount, a probe. <code>direction</code> does not, which is why naming a subject is a useful habit rather than the test.</p>
+<div class="callout" style="max-width:52rem"><b>Two rejected traits, by the same test.</b> <code>part: used | total</code> re-combines to nothing: a fraction and a byte count do not sum or rank. <code>condition: undervoltage | speed-capped</code> re-combines to nothing either: they are two unrelated questions, not one question about two subjects. Both are two measurements wearing one name, and both take two names instead.</div>
+
 <h2>Identity</h2>
 <table>
 <tr><th>type</th><th>name</th><th>kind</th><th>traits</th><th>was</th></tr>
@@ -73,17 +85,17 @@ pre.json i { font-style:normal; color:#8a8580; }
 <tr><td class="t">reading</td><td class="n"><code>cpu-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>cpu</code></td></tr>
 <tr><td class="t">reading</td><td class="n"><code>cpu-frequency</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Speed"</td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>cpu-frequency-max</code></td><td><code>quantity</code> · <code>hertz</code></td><td class="tr">—</td><td class="was"><code>throttling</code> detail "Full speed"</td></tr>
-<tr><td class="t">reading</td><td class="n"><code>throttling</code></td><td><code>boolean</code></td><td class="tr"><code>condition</code></td><td class="was"><code>throttling</code> text summary</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>undervoltage</code></td><td><code>boolean</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
+<tr><td class="t">reading</td><td class="n"><code>frequency-capped</code></td><td><code>boolean</code></td><td class="tr">—</td><td class="was"><code>throttling</code> text summary</td></tr>
 <tr><td class="t">reading</td><td class="n"><code>memory-usage</code></td><td><code>fraction</code></td><td class="tr">—</td><td class="was"><code>memory</code></td></tr>
 <tr class="fact"><td class="t">fact</td><td class="n"><code>memory-total</code></td><td><code>quantity</code> · <code>bytes</code></td><td class="tr">—</td><td class="was"><code>memory</code> detail "Used" and "Total"</td></tr>
 </table>
-<div class="callout"><b>Throttling becomes one reading per condition, not a sentence.</b> The device currently composes "Undervolted and slowed" as text, which a client cannot act on. Two conditions, each with its own state, is the same information as data. This is the one place a new <code>boolean</code> kind is wanted.</div>
-<pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "throttling",
-  <u>"traits"</u>: { <i>"condition"</i>: "undervoltage" },
+<div class="callout"><b>Throttling becomes two measurements, not a sentence.</b> The device currently composes "Undervolted and slowed" as text, which a client cannot act on. Two named conditions, each with its own state, is the same information as data, and this is the one place a new <code>boolean</code> kind is wanted.</div>
+<div class="callout"><b><code>frequency-capped</code> is not <code>cpu-frequency &lt; cpu-frequency-max</code>.</b> Ordinary idle scaling lowers the frequency too, so the comparison would report throttling on a device that is simply not busy. The platform's own flag is a distinct fact and is not derivable from the two frequencies.</div>
+<pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "undervoltage",
   <b>"state"</b>: "warn", <b>"kind"</b>: "boolean", <b>"value"</b>: true }
 
-{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "throttling",
-  <u>"traits"</u>: { <i>"condition"</i>: "speed-capped" },
+{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "frequency-capped",
   <b>"state"</b>: "ok", <b>"kind"</b>: "boolean", <b>"value"</b>: false }</pre>
 
 <h2>Storage</h2>
@@ -118,7 +130,7 @@ pre.json i { font-style:normal; color:#8a8580; }
 
 <h2>What this catalogue decides</h2>
 <div class="callout"><b>Three device-side judgements become client rules.</b> Which address to headline, which filesystem sets the storage headline, and which temperature sensor leads. In each case the device gains a trait stating the fact — <code>route</code>, <code>role</code>, <code>sensor</code> — and stops choosing.</div>
-<div class="callout"><b><code>part</code> is gone, and was never a trait.</b> It read as <code>used</code> against memory and <code>free</code> against filesystems — the same name for opposite quantities. A trait distinguishes instances of one measurement, as <code>eth0</code> and <code>wlan0</code> do; a total and an available figure are two measurements, so they take two names.</div>
+<div class="callout"><b>Two traits were rejected by the aggregation test</b> while drafting this: <code>part</code> and <code>condition</code>. Both were two measurements wearing one name. <code>part</code> gave it away by reading as <code>used</code> against memory and <code>free</code> against filesystems, the same name for opposite quantities.</div>
 <div class="callout"><b>A fraction and a total, and every other figure comes from those two.</b> Used bytes, free bytes and percentages are all arithmetic on a fraction and a total, so only those two cross the wire. The division also falls where the data does: the fraction is what moves and is compact, the total is a fact that does not move.</div>
 <div class="callout"><b>Details that were the same number twice</b> collapse: battery charge appeared as both the fraction headline and a percentage in its detail.</div>
 <div class="callout"><b>One new kind, <code>boolean</code>,</b> so throttling conditions are data rather than an English sentence. Everything else uses <code>text</code>, <code>quantity</code>, <code>fraction</code>, <code>duration</code>, <code>ipv4</code> and <code>ipv6</code>.</div>
