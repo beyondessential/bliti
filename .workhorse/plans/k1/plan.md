@@ -103,10 +103,58 @@ That ceiling is gone: message size is now bounded structurally by the three-byte
 with no runtime check (`stream.rs`, "there is no ceiling to check and nothing to refuse"). There
 is no size ceiling for a compatibility check to watch.
 
+## Generation: proptest
+
+Chosen for shrinking. The failure mode this exists to serve is "someone broke the wire and needs
+to see which member", and a wall of generated JSON does not serve it. Shrinking also feeds the
+corpus decision: a shrunk case is small enough to be worth committing verbatim.
+
+## Acknowledging a deliberate break: a ledger
+
+A member added in upper case is critical, and MSG permits it without moving the version marker.
+It is nonetheless a break: every peer older than the change refuses that message type outright.
+It should be possible, and impossible by accident.
+
+The checking therefore splits in two, answering different questions:
+
+- **the oracle** asks whether anything broke that must not. Behaviour, from real code on both
+  sides.
+- **the ledger** asks whether the set of deliberate breaks changed. A declaration, checked
+  against real code.
+
+The oracle structurally cannot do the second job: a refusal is legal, so it has nothing to fail
+on. The ledger is what turns "permitted" into "permitted, but say so". It is the shape
+`#[expect(..., reason = "...")]` already has in this repo, and the same bargain.
+
+**The ledger is keyed on the code, not on the run.** Collecting the refusals the oracle happens
+to observe would make it a function of random generation: flaky, and able to pass by luck. It is
+keyed instead on `MessageSet::critical_members`, a `&'static` list and a property of the build,
+independent of proptest entirely.
+
+Enumerating it needs one addition: `MessageSet::known_types() -> &'static [&'static str]`, with
+`knows()` gaining a default implementation of membership in it. That removes a remembering-point
+rather than adding one, since the `Message` variants and the `matches!` in `knows` are currently
+two lists that must silently agree. `knows` has one real implementation and one call site, so the
+refactor is contained.
+
+The ledger itself is hand-written TOML: every (message type, critical member) pair, with a
+reason. A test asserts exact correspondence with `known_types()` by `critical_members()` in both
+directions, so a missing entry fails and a stale one does too. Hand-written, so the reasons are
+prose; enforced, so it cannot drift.
+
+Adding an entry remains possible with a worthless reason. It is a diff in a file whose only
+purpose is deliberate breaks, which is as far as enforcement reaches without demanding a marker
+bump.
+
+Constraint: `envelope::write` uppercases only top-level members, so this build cannot emit a
+nested critical member. The ledger covers everything reachable today. Nested criticality on write
+would require member paths rather than names.
+
 ## Open
 
-- [ ] Generation library choice, and how optional members are reliably populated
-- [ ] Whether `Refused` (critical member added) fails CI, warns, or needs explicit acknowledgement
+- [ ] How proptest reliably populates optional members, rather than reaching them by chance
+      (the `unit` coverage cliff above)
 - [ ] Upstream the containment walk: `envelope` has it privately as `collect_unknown` and exposes
       only the single-build `round_trip_omissions`
 - [ ] How the baseline commit is recorded, and how it is moved
+- [ ] Whether the ledger lives beside the corpus or in `.workhorse/`, and its exact file name
