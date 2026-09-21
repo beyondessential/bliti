@@ -44,6 +44,10 @@ Traits sit in a `traits` container and say what this measurement is about: that 
 
 A trait may be a bare value where there is one thing to say, and an object where there is more.
 
+**A trait names, it does not flag.**
+The overlay trait carries `"tailscale"`, not `true`.
+A boolean says only that some unnamed property holds, which a client cannot render and cannot tell apart from another device's different reason for setting it; a name is a fact worth carrying and reads in the generic qualifier without translation.
+
 `detail` dissolves.
 What sat inside it becomes readings in its own right, distinguished by a trait: each filesystem carries a `filesystem` trait, memory's used and total carry theirs, each address its interface.
 That is what makes them addressable, graphable, and able to carry a state of their own, which is the defect the card names for per-interface throughput.
@@ -159,6 +163,21 @@ A reveal shows each reading's own `detail`, `note`, `limits` and error reason, i
 
 ## Implementation options
 
+### The generic fallback
+
+Both types need one, and it is the same rule with the parts a fact does not have removed.
+
+For a reading with no matching rule: title-case the `measurement` for the label, render the trait values as the qualifier, draw the value by its `kind`.
+State still colours it and it still accumulates a history, because neither depends on recognising the measurement.
+
+For a fact with no matching rule: the same, from `fact` rather than `measurement`, without state, scale or history.
+An unknown fact is a tile rather than a header entry — the header is the facts the client knows name the device.
+
+**The traits have to be rendered, not merely ignored.**
+Two modems share a measurement and differ only in traits the client cannot read.
+Dropping them puts two tiles on screen under one label with different numbers and nothing to tell them apart.
+This is the display counterpart of the identity rule below, and it has the same cause.
+
 ### Device judgements become client rules
 
 Writing the messages out showed how far this reaches beyond the readings the card names.
@@ -213,6 +232,7 @@ The device's sampling buffer is not removed with it, because battery direction i
 ## Open questions
 
 - [ ] What the client's preferred order actually is, and whether state reorders it
+- [ ] Whether a trait may ever be a value that is not a name, given the rule below
 - [ ] Whether `hostname`, `board` and `os` render as a header rather than as tiles
 
 ## Testing notes

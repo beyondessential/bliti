@@ -180,9 +180,22 @@ pre.json i { font-style: normal; color: #8a8580; }
 
 		<div class="tile"><div class="label">Battery</div><div class="value">94%</div></div>
 		<div class="tile"><div class="label">Uptime</div><div class="value">5d 14h</div></div>
-		<div class="tile wide"><div class="label">Modem signal</div><div class="value">-71 dBm</div></div>
+		<div class="tile wide">
+			<div class="label">Modem signal</div>
+			<div class="value small">
+				<span><span class="part">cdc-wdm0 · lte</span> -71 dBm</span>
+				<span><span class="part">cdc-wdm1 · nr5g</span> -84 dBm</span>
+			</div>
+		</div>
+		<div class="tile wide">
+			<div class="label">Firmware</div>
+			<div class="value small">
+				<span><span class="part">bootloader</span> 2026-04-17</span>
+				<span><span class="part">eeprom</span> 2026-02-03</span>
+			</div>
+		</div>
 	</div>
-	<p class="muted">Modem signal is a measurement this client has never heard of. It renders generically and is appended after everything recognised.</p>
+	<p class="muted">Neither of these is known to this client. Both render generically, with their trait values as the qualifier, and are appended after everything recognised.</p>
 </div>
 
 <!-- ================= THE WIRE ================= -->
@@ -201,13 +214,13 @@ pre.json i { font-style: normal; color: #8a8580; }
 
 <div class="block">
 	<h2>Address</h2>
-	<div class="rule-box"><b>Rule.</b> Select <code>fact = network-address</code>. Headline the one whose <code>traits.route</code> is <code>default</code>, plus the one whose <code>traits.interface</code> is the overlay. All of them behind the tap.</div>
+	<div class="rule-box"><b>Rule.</b> Select <code>fact = network-address</code>. Headline the one whose <code>traits.route</code> is <code>default</code>, plus the one carrying an <code>overlay</code> trait. All of them behind the tap.</div>
 <pre class="json">{ <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
   <u>"traits"</u>: { <i>"interface"</i>: "eth0", <i>"family"</i>: "ipv4", <i>"route"</i>: "default" },
   <b>"kind"</b>: "text", <b>"value"</b>: "192.168.1.42" }
 
 { <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "network-address",
-  <u>"traits"</u>: { <i>"interface"</i>: "tailscale0", <i>"family"</i>: "ipv4", <i>"overlay"</i>: true },
+  <u>"traits"</u>: { <i>"interface"</i>: "tailscale0", <i>"family"</i>: "ipv4", <i>"overlay"</i>: "tailscale" },
   <b>"kind"</b>: "text", <b>"value"</b>: "100.101.102.103" }</pre>
 	<p class="muted">Which address to headline was a device-side judgement under the old shape. Here the device states the facts that make it decidable and the client decides.</p>
 </div>
@@ -265,12 +278,30 @@ pre.json i { font-style: normal; color: #8a8580; }
 </div>
 
 <div class="block">
-	<h2>What a client that is behind does</h2>
-	<div class="rule-box"><b>Rule.</b> No rule matched. Render generically from measurement, value and unit, and append after everything recognised.</div>
+	<h2>An unknown reading</h2>
+	<div class="rule-box"><b>Rule.</b> No rule matched. Title-case the measurement for the label, render the trait values as the qualifier, draw the value by its kind. State still colours it, and it still gets a history. Append after everything recognised.</div>
 <pre class="json">{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
   <u>"traits"</u>: { <i>"modem"</i>: "cdc-wdm0", <i>"technology"</i>: "lte" },
-  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -71 }</pre>
-	<p class="muted"><b>Identity still works.</b> The client cannot read <code>modem</code> or <code>technology</code>, but series identity is the <code>traits</code> object wholesale, so two modems stay two series rather than collapsing into one garbled graph. That is what the container buys over reserving base names.</p>
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -71 }
+
+{ <b>"type"</b>: "reading", <b>"at"</b>: 20308140, <u>"measurement"</u>: "modem-signal",
+  <u>"traits"</u>: { <i>"modem"</i>: "cdc-wdm1", <i>"technology"</i>: "nr5g" },
+  <b>"state"</b>: "ok", <b>"kind"</b>: "quantity", <b>"unit"</b>: "dBm", <b>"value"</b>: -84 }</pre>
+	<p class="muted"><b>The traits have to be rendered, not merely ignored.</b> Two modems share a measurement and differ only in traits the client cannot read. Dropping them would put two tiles on screen labelled "Modem signal" with different numbers and nothing to tell them apart.</p>
+	<p class="muted"><b>Identity still works</b> for the same reason: it is the <code>traits</code> object wholesale, so the two stay two series rather than collapsing into one garbled graph. That is what the container buys over reserving base names.</p>
+</div>
+
+<div class="block">
+	<h2>An unknown fact</h2>
+	<div class="rule-box"><b>Rule.</b> As above, from <code>fact</code> rather than <code>measurement</code>, and without the parts a fact does not have: no state to colour by, no scale, no history. Label, qualifier and value.</div>
+<pre class="json">{ <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "firmware",
+  <u>"traits"</u>: { <i>"component"</i>: "bootloader" },
+  <b>"kind"</b>: "text", <b>"value"</b>: "2026-04-17" }
+
+{ <b>"type"</b>: "fact", <b>"at"</b>: 20308140, <u>"fact"</u>: "firmware",
+  <u>"traits"</u>: { <i>"component"</i>: "eeprom" },
+  <b>"kind"</b>: "text", <b>"value"</b>: "2026-02-03" }</pre>
+	<p class="muted">An unknown fact is a tile, not a header entry. The header is the three facts this client knows name the device; anything else is something it has learned about the device and has nowhere better to put.</p>
 </div>
 
 </div>
