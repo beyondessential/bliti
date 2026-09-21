@@ -109,6 +109,54 @@ Chosen for shrinking. The failure mode this exists to serve is "someone broke th
 to see which member", and a wall of generated JSON does not serve it. Shrinking also feeds the
 corpus decision: a shrunk case is small enough to be worth committing verbatim.
 
+### Generate the representable set, not the constructible one
+
+`Entry`'s fields are all public, so a struct literal reaches shapes the constructors never
+compose: only `Entry::quantity` sets `unit`, but any entry may carry one. Generate over the
+representable set. Some shapes will look semantically odd, such as a `text` entry carrying a
+unit, and that is the right trade: the wire admits them, and the web client or a third
+implementation may emit them.
+
+Verified to matter. With the removal of `unit` staged as a break, generation found it and shrank
+to a `text` reading carrying a unit and nothing else. Generating through the constructors would
+have confined `unit` to `quantity` entries and produced a larger, less pointed case.
+
+### Coverage is adequate, given explicit optionality
+
+Measured over 2000 samples, across the ~980 that were entries: `unit` present 490, `value`
+absent 470, traits non-empty 718, an upper case trait name 485, a nested trait 702. The cliff the
+hand-written corpus fell off does not appear, because optionality is generated explicitly rather
+than reached by chance.
+
+### Conformance is the real work in the strategy
+
+The envelope faults on a member name that is mixed case, that carries anything but letters,
+digits and hyphens, or that appears twice once lowercased. A generator ignoring those rules
+produces messages both builds reject identically, which the oracle would read as a
+compatibility failure. So the naming rules belong in the strategy, at every depth, including
+inside `traits` and inside any generated `value`.
+
+### The containment walk is case-blind
+
+Found by generation, shrunk to `traits: {"A": null}`. The envelope lowercases member names on
+read, so a critical trait `A` returns as `a`; comparing raw bytes reads that as a loss. A
+member's case marks criticality, which is metadata rather than content, so the containment walk
+folds case before comparing. That criticality itself may have changed is the ledger's question,
+not the oracle's, and this is a second argument for the ledger existing.
+
+### Seeds
+
+Leave proptest on a random seed rather than pinning one. A compat check that explores more of
+the space over time is worth more than one that is reproducible by construction, and every case
+it finds becomes permanent the moment it is written to the corpus as JSON. The consequence is
+that a latent break can surface on a change that did not cause it. That is the check working.
+
+### Consequence for `bliti-core`
+
+The generator lives in `bliti-core` behind a feature, so proptest becomes an optional dependency
+there rather than a dev-dependency: a dev-dependency is invisible to anything that depends on
+the crate, and the oracle depends on two builds of it.
+
 ## Acknowledging a deliberate break: a ledger
 
 A member added in upper case is critical, and MSG permits it without moving the version marker.
@@ -152,8 +200,6 @@ would require member paths rather than names.
 
 ## Open
 
-- [ ] How proptest reliably populates optional members, rather than reaching them by chance
-      (the `unit` coverage cliff above)
 - [ ] Upstream the containment walk: `envelope` has it privately as `collect_unknown` and exposes
       only the single-build `round_trip_omissions`
 - [ ] How the baseline commit is recorded, and how it is moved
