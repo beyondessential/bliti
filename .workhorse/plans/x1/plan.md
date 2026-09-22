@@ -78,8 +78,9 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [ ] Wireless joining: PSK, SAE, transitional, enterprise, WPS push-button and PIN
 - [ ] Hotspot: bring-up, upstream sharing, client isolation, DHCP range
 - [ ] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
-- [ ] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`
-- [ ] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md)
+- [x] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`, with the wireless and hotspot tiles placed where VIEW puts them
+- [x] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md): `Channel::configure` in the wasm crate, `Network.jsx` for the four stages, and `capabilities.js` as the only module that reads the capabilities shape
+  - [ ] Candidate states on a real device. The screen renders the proposed `state` message, but `state` is not yet in `bliti-core`'s message set, so through wasm it is skipped. Waits on gap 1 of the wire shape mockup
 - [ ] Privileges: whichever of the three options above is chosen
 
 ## Notes

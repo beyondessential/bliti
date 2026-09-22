@@ -71,17 +71,19 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## The screen
 
-- [ ] Editing puts nothing on the wire: a device watched through a session sees no proposal until apply is pressed. Verifies spec: NSCR
-- [ ] A half-typed gateway is never proposed. Verifies spec: NSCR
-- [ ] Reset during editing returns the fields to the configuration in force. Verifies spec: NSCR
-- [ ] Fields are not editable while a proposal is being verified. Verifies spec: NSCR
-- [ ] After a failure the fields hold what was proposed, not what the device reverted to, and the field named by the failure is marked. Verifies spec: NSCR
-- [ ] The verification stages show which passed and which failed. Verifies spec: NSCR
-- [ ] The device's reason is rendered as the device wrote it. Verifies spec: NSCR
-- [ ] A setting the device did not report supporting is not offered, and the screen says why it is absent. Verifies spec: NSCR
-- [ ] Each candidate's state is shown, and an unavailable one is described by what the device observed. Verifies spec: NSCR
-- [ ] Whether the running configuration is durable stays in view while the operator scrolls. Verifies spec: NSCR
-- [ ] The vocabulary of the wire does not appear on screen. Verifies spec: NSCR
+- [x] Editing puts nothing on the wire: a device watched through a session sees no proposal until apply is pressed. Verifies spec: NSCR
+- [x] A half-typed gateway is never proposed. Verifies spec: NSCR
+- [x] Reset during editing returns the fields to the configuration in force. Verifies spec: NSCR
+- [x] Fields are not editable while a proposal is being verified. Verifies spec: NSCR
+- [x] After a failure the fields hold what was proposed, not what the device reverted to, and the field named by the failure is marked. Verifies spec: NSCR
+- [x] The verification stages show which passed and which failed. Verifies spec: NSCR
+- [x] The device's reason is rendered as the device wrote it. Verifies spec: NSCR
+- [x] A setting the device did not report supporting is not offered, and the screen says why it is absent. Verifies spec: NSCR
+- [x] Each candidate's state is shown, and an unavailable one is described by what the device observed. Verifies spec: NSCR
+- [x] Whether the running configuration is durable stays in view while the operator scrolls. Verifies spec: NSCR
+- [x] The vocabulary of the wire does not appear on screen. Verifies spec: NSCR
+- [x] A wireless network whose channel changes replaces its tile rather than adding a second. Verifies spec: NFO
+- [ ] Candidate states reach the screen from a real device, once the device sends them. Verifies spec: NSCR
 
 ## Reporting
 
