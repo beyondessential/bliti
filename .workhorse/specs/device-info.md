@@ -252,15 +252,15 @@ Where a device derives `battery-direction` from the cell voltage, it MUST report
 
 Where a device takes `battery-direction` from its operating system and the operating system reports the battery but cannot say which of the three holds, it MUST report `battery-direction` as `skipped`.
 
-A device MUST report `battery-charge`, `battery-voltage` and `battery-direction` once for each battery fitted to the device, told apart by the `battery` trait.
+A device MUST report `battery-charge`, `battery-voltage` and `battery-direction` once for each battery that powers it, whether fitted inside the device or an external supply carrying it, told apart by the `battery` trait.
 
-A device MUST NOT report a battery fitted to a peripheral attached to it.
+A device MUST NOT report a battery that powers a peripheral attached to the device rather than the device itself.
 
 A device MUST name each battery in its `battery` trait, and MUST carry the battery's serial, model and vendor where it holds them.
 
-A device that reports a battery through a backup supply it manages itself MUST supply that battery's name.
+A device MUST name a battery fitted inside the device `built-in`, and MUST supply that name itself where the battery is reported through a backup supply the device manages rather than through its operating system.
 
-A device that reads a battery from its operating system has no hardware signal for whether external power reaches a backup supply, and so MUST omit `power-source` for want of one.
+A device that reads its batteries from its operating system MUST omit `power-source`, since an operating system's report of an external supply cannot tell a device fed through that supply from one fed around it.
 
 Where a battery is fitted but no cell voltage can be read for it, a device MUST report `battery-voltage` as `skipped`, with a reason that no voltage is available.
 
@@ -270,6 +270,7 @@ Where a device has both a backup supply's signal and the movement of the cell vo
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 > The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, while an idle cell's voltage does not move at all and a cell carrying the device drifts down continuously.
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
+> A battery inside the case is named for being inside it rather than for the board managing it, which is what tells it apart from an external supply the same device also reports.
 > A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
 
 ## Temperature and processor speed

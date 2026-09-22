@@ -14,6 +14,10 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 - [ ] The machine's own battery (BAT0, no scope file) is reported (verifies spec: NFO)
 - [ ] Where several batteries qualify, each is reported once and told apart by the `battery` trait (verifies spec: NFO)
 - [ ] A machine with only peripheral batteries reports no device battery (verifies spec: NFO)
+- [ ] An external UPS carrying the device is reported as a battery (verifies spec: NFO)
+- [ ] Mains and USB power supplies are not reported as batteries (verifies spec: NFO)
+- [ ] A machine with both a built-in cell and a UPS reports both, named apart (verifies spec: NFO)
+- [ ] A UPS declaring no scope is still reported when another entry declares scope=System (verifies spec: NFO)
 
 ## Reading values
 
@@ -23,6 +27,8 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 - [ ] `battery-direction` is `charging` / `discharging` / `idle` from the OS charging state (verifies spec: NFO)
 - [ ] The OS reporting an unknown charging state yields `battery-direction` as `skipped` (verifies spec: NFO)
 - [ ] The `battery` trait carries name, and serial/model/vendor where held (verifies spec: NFO)
+- [ ] The I2C battery is named `built-in` with vendor `SupTronics` (verifies spec: NFO)
+- [ ] A UPS reporting charge but no voltage yields a `skipped` `battery-voltage` alongside a present charge (verifies spec: NFO)
 
 ## Interaction with power-source
 
@@ -31,7 +37,8 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 
 ## View
 
-- [ ] The view headlines `battery-charge` with the first battery and shows every battery in the reveal (verifies spec: VIEW)
+- [ ] The view headlines `battery-charge` with the `built-in` battery where one is reported, and shows every battery in the reveal (verifies spec: VIEW)
+- [ ] With no `built-in` battery, the view headlines the first by `battery` name (verifies spec: VIEW)
 - [ ] Each battery's voltage and direction appear in that battery's reveal, paired by the `battery` trait (verifies spec: VIEW)
 
 ## On this hardware
