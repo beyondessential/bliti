@@ -97,6 +97,16 @@ impl Facts {
 	}
 }
 
+impl crate::sampler::Source for Facts {
+	fn gather(&mut self, slow: bool) -> Vec<Entry> {
+		self.sample(Self::since_boot(), slow)
+	}
+
+	fn reset(&mut self) {
+		*self = Self::new();
+	}
+}
+
 /// How long the device has been up. The first field of `/proc/uptime`, in seconds.
 fn uptime() -> Option<Duration> {
 	let raw = fs::read_to_string("/proc/uptime").ok()?;

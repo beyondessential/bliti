@@ -33,6 +33,19 @@ const IDLE_STOP: Duration = Duration::from_secs(30 * 60);
 /// slow to keep up misses samples rather than stalling the sampler.
 const LIVE_LAG: usize = 64;
 
+/// A source of readings the sampler ticks. The gathering here reads the kernel's files directly and
+/// can take as long as a syscall on a stalled filesystem does, so the sampler runs it off the async
+/// runtime: a source that has blocked holds a blocking-pool thread, never the worker carrying the
+/// BLE session and the connection to the system bus.
+pub(crate) trait Source: Send + 'static {
+	/// Gather one tick's readings. `slow` asks for the readings taken every fifth tick as well as the
+	/// fast ones. Runs off the runtime, so it may block for as long as the kernel takes to answer.
+	fn gather(&mut self, slow: bool) -> Vec<Entry>;
+
+	/// Drop the derivation state after a gap in sampling, so every counter is a baseline again (NFO).
+	fn reset(&mut self);
+}
+
 /// The current readings, and a feed of them as they are taken.
 #[derive(Debug, Clone)]
 pub struct Sampler {
@@ -45,12 +58,18 @@ impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
 	pub fn start() -> Self {
+		Self::start_with(Box::new(Facts::new()))
+	}
+
+	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
+	/// of its own to exercise the sampler without reading the real machine.
+	fn start_with(source: Box<dyn Source>) -> Self {
 		let sampler = Self {
 			current: Arc::new(Mutex::new(HashMap::new())),
 			sessions: Arc::new(Mutex::new(0)),
 			live: broadcast::channel(LIVE_LAG).0,
 		};
-		tokio::spawn(sampler.clone().run());
+		tokio::spawn(sampler.clone().run(source));
 		sampler
 	}
 
@@ -88,8 +107,7 @@ impl Sampler {
 			.expect("the count is never held across a panic")
 	}
 
-	async fn run(self) {
-		let mut facts = Facts::new();
+	async fn run(self, mut source: Box<dyn Source>) {
 		let mut ticks: u32 = 0;
 		let mut idle = Duration::ZERO;
 		let mut ticker = tokio::time::interval(FAST);
@@ -105,7 +123,7 @@ impl Sampler {
 					tracing::debug!("no session for a while; sampling stops until one opens");
 					self.await_session(&mut ticker).await;
 					// The gap makes every counter a baseline again, and the snapshot stale.
-					facts = Facts::new();
+					source.reset();
 					self.current
 						.lock()
 						.expect("the snapshot is never held across a panic")
@@ -118,7 +136,18 @@ impl Sampler {
 			}
 
 			ticks = ticks.wrapping_add(1);
-			let readings = facts.sample(Facts::since_boot(), ticks % SLOW_EVERY == 0);
+			let slow = ticks % SLOW_EVERY == 0;
+			// The gathering reads the kernel's files directly and can block for as long as a stalled
+			// filesystem takes to answer, so it runs off the runtime: while it blocks it holds a
+			// blocking-pool thread, not the worker the session and the bus connection run on. The
+			// source moves in and back out so its per-tick derivation state survives.
+			let (returned, readings) = tokio::task::spawn_blocking(move || {
+				let readings = source.gather(slow);
+				(source, readings)
+			})
+			.await
+			.expect("the sampling task neither panics nor is cancelled");
+			source = returned;
 			if readings.is_empty() {
 				continue;
 			}
@@ -175,7 +204,83 @@ impl Drop for SessionGuard {
 
 #[cfg(test)]
 mod tests {
+	use std::sync::mpsc;
+
 	use super::*;
+
+	/// A source whose first gather blocks until the test releases it, standing in for a reading whose
+	/// kernel source has stalled (a filesystem that has gone away). It signals when it has entered the
+	/// block so the test need not guess at timing.
+	struct BlockingSource {
+		entered: mpsc::Sender<()>,
+		release: mpsc::Receiver<()>,
+		blocked: bool,
+	}
+
+	impl Source for BlockingSource {
+		fn gather(&mut self, _slow: bool) -> Vec<Entry> {
+			if !self.blocked {
+				self.blocked = true;
+				let _ = self.entered.send(());
+				let _ = self.release.recv();
+			}
+			vec![Entry::quantity(1, "test-reading", "unit", 1.0)]
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// The failure this guards against: a source taking its time must not occupy the runtime worker the
+	/// session runs on, or a device whose storage is in trouble loses the Bluetooth link to the very
+	/// operator diagnosing it. With the gather off the runtime, an async timer still fires and
+	/// the session count still moves while a source sits blocked mid-sample.
+	#[tokio::test]
+	async fn a_blocking_source_does_not_stall_sampling_or_the_session() {
+		let (entered_tx, entered_rx) = mpsc::channel();
+		let (release_tx, release_rx) = mpsc::channel();
+		let sampler = Sampler::start_with(Box::new(BlockingSource {
+			entered: entered_tx,
+			release: release_rx,
+			blocked: false,
+		}));
+		let session = sampler.session();
+		let mut live = sampler.live();
+
+		// Wait, off the runtime, for the source to reach its block. If gathering ran on the runtime
+		// worker instead, the worker would be frozen here and nothing below would make progress.
+		let entered_rx = tokio::task::spawn_blocking(move || {
+			entered_rx
+				.recv_timeout(Duration::from_secs(5))
+				.expect("sampling reached the source");
+			entered_rx
+		})
+		.await
+		.unwrap();
+
+		// The source is blocked mid-sample. The runtime must still be serving: an async timer fires,
+		// and a session opens and closes.
+		tokio::time::timeout(
+			Duration::from_secs(1),
+			tokio::time::sleep(Duration::from_millis(50)),
+		)
+		.await
+		.expect("the runtime kept running while a source blocked");
+		let another = sampler.session();
+		assert_eq!(sampler.open_sessions(), 2);
+		drop(another);
+		assert_eq!(sampler.open_sessions(), 1);
+
+		// Release the source; sampling carries on and the reading reaches the feed.
+		release_tx.send(()).unwrap();
+		let readings = tokio::time::timeout(Duration::from_secs(2), live.recv())
+			.await
+			.expect("a reading arrived once the block cleared")
+			.expect("the live feed stayed open");
+		assert!(!readings.is_empty());
+
+		drop(session);
+		drop(entered_rx);
+	}
 
 	#[tokio::test]
 	async fn a_session_guard_holds_sampling_open_and_releases_it() {
