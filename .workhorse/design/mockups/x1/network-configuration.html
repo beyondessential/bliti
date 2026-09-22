@@ -224,6 +224,10 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 	<label class="check"><input type="checkbox" checked> Keep clients isolated</label>
 	<details>
 		<summary>Radio and addressing</summary>
+		<!-- Band, channel and width are shown only where the radio can run an access point and a client
+		     on independent channels. The board this targets cannot, so on it these three are absent and
+		     a line in their place says the radio uses one channel for both. They are drawn here because
+		     a mockup of the absent case would be a mockup of nothing. -->
 		<label for="band">Band</label>
 		<select id="band"><option>Device picks</option><option>2.4 GHz</option><option>5 GHz</option></select>
 		<div class="pair">

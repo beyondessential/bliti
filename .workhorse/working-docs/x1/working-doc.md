@@ -214,9 +214,18 @@ The client offers to generate a password, so the operator is not inventing one, 
 The hotspot exists only because a configuration says so.
 A device out of the box raises nothing: it is reachable over BLE alone, which is what the QR code is for.
 
-Band, channel and channel width are all settings, and all default to the device choosing.
-An operator who knows their own RF environment can place the hotspot away from the site's access points; one who does not leaves all three unset and the device picks.
+Band, channel and channel width are settings on hardware whose radio can run an access point and a client on independent channels.
+All three default to the device choosing, so an operator who knows their own RF environment can place the hotspot away from the site's access points, and one who does not leaves them unset.
 The spectrum survey verb above is what makes the first of those possible: it reports what the radio can see of the occupied and usable spectrum, where the hardware can tell.
+
+Much hardware cannot do that, including the board this targets: its radio runs an access point and a client only on one shared channel, so a hotspot sharing a radio with a wireless client has no channel of its own to be given.
+On such a device the three settings are not offered at all, and the device chooses, following the client's channel whenever one is associated.
+
+This is deliberately an absent setting rather than an overridden one.
+The device advertises the constraint with the rest of its capabilities when the session opens, so the client never presents a field the device could not honour, and nothing is applied-in-part.
+A setting that existed and was quietly overridden the moment a client associated would be the unhonoured setting the capability rule exists to prevent, and it would be worse than most, because whether it held would depend on something that changes while nobody is looking.
+
+Where the fields are absent the client says why, rather than leaving an operator hunting for a control that is not there.
 
 The address range has a fixed default, the same on every bliti device, which an operator may override where it clashes with an upstream or where a site has its own conventions.
 
@@ -235,12 +244,11 @@ A site handing out an internal resolver over DHCP keeps resolving its own names 
 
 The document defines its own model rather than projecting whatever the device's network stack happens to support.
 A spec has to constrain a re-implementation, and one that deferred to a backend would constrain nothing and would change meaning whenever the image changed.
-A device maps the document onto the stack it has, and reports a setting it cannot honour as not applied rather than silently dropping it.
+A device maps the document onto the stack it has, and what it cannot map it never offers: a setting its stack cannot honour is one the device leaves out of the capabilities it advertises when the session opens, so it never reaches a document at all.
+This is the same rule the shared-channel constraint follows, and it is why there is no applied-in-part outcome anywhere in this design.
 
 Where our own model has no strong opinion, take the shape from netplan rather than inventing one.
 It already covers wired addressing, per-link resolvers, wireless credentials and access-point mode, in a declarative document that is close to what this needs, so it is a good source of naming and structure even though nothing here defers to it at runtime.
-
-Open: what a device does with a setting its stack cannot honour. Is the document invalid, or applied-in-part with that setting reported unhonoured?
 
 ### Wireless security
 
@@ -294,9 +302,14 @@ The NFO catalogue gains:
 
 | entry | kind | what it reports |
 | --- | --- | --- |
-| the wireless network in use | fact | the SSID joined, and the security in force |
-| hotspot state | fact | whether the hotspot is up, and its SSID |
+| the wireless network in use | fact | the SSID joined, with the security in force and the channel as traits |
+| hotspot state | fact | the hotspot's SSID, with the channel as a trait |
 | hotspot clients | reading | how many clients are joined |
+
+Channel is reported for the hotspot and for the wireless client link both.
+That is what makes the shared-channel behaviour legible instead of mysterious: an operator who cannot set the hotspot's channel can at least see the one it landed on, and see that it is the client's.
+
+It rides as a trait on the two entries rather than as catalogue entries of its own, because it describes the link being reported rather than distinguishing one instance of it from another. It is descriptive in NFO's sense, as `route` and `overlay` already are.
 
 `network-address` and the `interface` trait's `route` member already carry which link is carrying traffic, so nothing new is needed for that.
 
@@ -356,9 +369,16 @@ Either the daemon runs privileged, or it holds specific capabilities, or it talk
 
 ## Open questions
 
-Everything else is settled.
+Behaviour is settled. Nothing below blocks the split.
 
 - [x] **Blocking spike:** does the BLE session survive a network reconfiguration on target hardware? Yes. Verified on a Raspberry Pi 5 (Cypress CYW43455) across a wireless client connection change, a switch into AP mode, and AP+STA together: the LE session carried traffic throughout, the controller never disconnected, and `brcmfmac` never reloaded its firmware. Detail in the configuration session section above.
+
+Two decisions are deliberately left open for the plan rather than the specs, because both are implementation choices that constrain nothing an operator can observe:
+
+- which backend configures the network underneath, of the three candidates above
+- whether bliti owns the backend's files outright or merges with what an image already ships
+
+The split should carry these into the plan as open, not treat them as unresolved spec questions.
 
 ## Trade-offs
 
@@ -378,9 +398,11 @@ Everything else is settled.
 
 **Concurrent AP+STA where supported.** Honest about hardware, but it makes the device's capability part of the protocol: the client must be told what the device can do before it can offer a coherent configuration. Requiring concurrency outright would have been simpler and would have narrowed the hardware.
 
+**Capability reaches into the screen, not just the document.** The shared-channel constraint is the case that proved this. It could have been handled by accepting a hotspot channel and overriding it, which keeps the document uniform across hardware and makes the running configuration a thing the operator has to reason about separately. Instead the capability removes the field. The document's shape now varies by device, and a client cannot render a configuration screen without first asking the device what it is; what it buys is that a setting on screen is always a setting that will hold.
+
 ## Testing notes
 
-- The BLE session survives a client connection change, a switch into AP mode, and AP+STA coming up together, on real target hardware.
+- The BLE session survives a client connection change, a switch into AP mode, and AP+STA coming up together, on real target hardware. Verified by the spike, so this lands ticked at the split; it stays on the list because a firmware or hardware change could take it back.
 - A device that joins each supported security type: WPA2-PSK, WPA3-SAE, transitional, enterprise, WPS push-button, WPS PIN.
 - An open network and an OWE network are both refused, with a reason an operator can act on rather than a bare failure.
 - An access point in OWE transition mode, which broadcasts an open BSS beside the OWE one, is refused on both.
@@ -392,11 +414,14 @@ Everything else is settled.
 - After a failure the fields hold what was tried, not what the device reverted to, and the failing field is marked.
 - A session abandoned without confirming (stream closed, channel dropped, device powered off) leaves the last confirmed configuration in force.
 - A configuration that cannot work (wrong key, absent SSID) reverts, and the device reports both the attempt and the revert.
-- A change the device cannot judge stays provisional and reverts when no confirmation arrives.
-- The channel drops mid-window; the device behaves as specified rather than as an accident.
+- A change the device cannot judge stays provisional, and reverts when the session ends without a confirmation.
+- The channel drops mid-verification, and the device lands on the last confirmed configuration rather than somewhere accidental.
 - Read the configuration, write it back unmodified, and observe that nothing changes.
 - Hotspot with an upstream present and absent; sharing on and off.
 - Hotspot and wireless client concurrently on hardware that supports it, and the fallback on hardware that does not.
+- On shared-channel hardware the band, channel and width fields are absent, the client says why, and a document carrying them is invalid.
+- On shared-channel hardware the hotspot follows the client's channel when one associates, and NFO reports the channel both are on.
+- On independent-channel hardware the three fields are present and a set channel is the one the hotspot comes up on.
 - Ordering: the default route follows the ordering, and moves when a higher candidate comes back.
 - A device holding two static wired candidates on different subnets picks the right one at each site, unattended, with no client connected.
 - A site that changes around a device whose cable never moved is noticed, and the device re-selects.
