@@ -20,13 +20,14 @@ fn at(member: &str) -> [Segment<'_>; 2] {
 	[Segment::Name("hotspot"), Segment::Name(member)]
 }
 
-/// Read `band`. Kept to this one function because HOT does not pin its values.
+/// Read `band`, in the vocabulary proposed with the wire shape and shared with NFO's `channel`
+/// trait. Kept to this one function because HOT does not pin its values.
 fn band(band: &str) -> Result<Band, String> {
 	match band {
-		"2.4" => Ok(Band::TwoPointFour),
-		"5" => Ok(Band::Five),
+		"2.4ghz" => Ok(Band::TwoPointFour),
+		"5ghz" => Ok(Band::Five),
 		other => Err(format!(
-			"{other:?} is not a band; bands are \"2.4\" and \"5\""
+			"{other:?} is not a band; bands are \"2.4ghz\" and \"5ghz\""
 		)),
 	}
 }
@@ -230,8 +231,8 @@ mod tests {
 	/// A band is `2.4` or `5`.
 	#[test]
 	fn bands_parse() {
-		assert_eq!(band("2.4"), Ok(Band::TwoPointFour));
-		assert_eq!(band("5"), Ok(Band::Five));
-		assert!(band("6").is_err());
+		assert_eq!(band("2.4ghz"), Ok(Band::TwoPointFour));
+		assert_eq!(band("5ghz"), Ok(Band::Five));
+		assert!(band("6ghz").is_err());
 	}
 }

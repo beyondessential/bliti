@@ -391,7 +391,7 @@ fn hotspot_overrides() {
 		"hotspot": {
 			"ssid": "bliti-setup", "passphrase": "read this aloud",
 			"share-upstream": false, "isolate-clients": false, "dhcp-range": "172.30.5.0/24",
-			"band": "5", "channel": 44, "channel-width": 80
+			"band": "5ghz", "channel": 44, "channel-width": 80
 		},
 		"regulatory-domain": "NZ"
 	}));
@@ -451,7 +451,7 @@ fn shared_channel_hardware_follows_the_station() {
 
 	for member in ["band", "channel", "channel-width"] {
 		let value = if member == "band" {
-			json!("2.4")
+			json!("2.4ghz")
 		} else {
 			json!(1)
 		};
