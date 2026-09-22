@@ -171,18 +171,47 @@ def main():
     except dbus.DBusException:
         still = False
 
+    # Summarise: a long soak produces too many arrivals to dump verbatim.
+    import collections
+    per_sec = collections.Counter()
+    gaps = []
+    if arrivals:
+        base = arrivals[0][0]
+        prev = None
+        for t, q, _z in arrivals:
+            per_sec[int((t - base) / 1e9)] += 1
+            if prev is not None and q != prev + 1:
+                gaps.append([prev, q, q - prev - 1])
+            prev = q
+        span = (arrivals[-1][0] - base) / 1e9
+        seqs = [a[1] for a in arrivals]
+        lo, hi = min(seqs), max(seqs)
+        expected = hi - lo + 1
+        lost = expected - len(arrivals)
+    else:
+        span, lo, hi, expected, lost = 0, 0, 0, 0, 0
+
     out = {
         "label": args.label,
         "att_mtu": att_mtu,
         "count": len(arrivals),
+        "span_s": span,
+        "mean_rate": len(arrivals) / span if span else 0,
+        "seq_lo": lo, "seq_hi": hi, "expected": expected, "lost": lost,
+        "loss_pct": (100.0 * lost / expected) if expected else 0,
+        "gap_events": len(gaps),
+        "first_gap": gaps[0] if gaps else None,
+        "per_second": [per_sec.get(i, 0) for i in range(int(span) + 1)],
         "disconnected_at": disconnected_at,
         "still_connected": still,
-        "arrivals": [[int(a), int(q), int(z)] for a, q, z in arrivals],
+        "arrivals": [[int(a), int(q), int(z)] for a, q, z in arrivals] if len(arrivals) < 200000 else [],
     }
     with open(args.out, "w") as fh:
         json.dump(out, fh)
-    print(f"[done] {len(arrivals)} notifications, still_connected={still}, wrote {args.out}",
-          flush=True)
+    print(f"[done] {len(arrivals)} notifications over {span:.1f}s = {out['mean_rate']:.0f}/s", flush=True)
+    print(f"[loss] {lost} lost of {expected} expected ({out['loss_pct']:.3f}%), "
+          f"{len(gaps)} gap events", flush=True)
+    print(f"[link] still_connected={still} disconnected_at={disconnected_at}", flush=True)
 
 
 if __name__ == "__main__":

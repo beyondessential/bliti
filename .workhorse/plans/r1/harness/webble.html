@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R1 notification receiver</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; padding: 16px; background: #f8f7f4; color: #1c1917;
+         font-family: Inter, system-ui, -apple-system, sans-serif; font-size: 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: #57534e; font-size: 14px; }
+  button { font: inherit; font-weight: 600; padding: 12px 20px; border-radius: 8px;
+           border: none; background: #c2410c; color: #fff; width: 100%; margin-bottom: 8px; }
+  button.secondary { background: #fff; color: #1c1917; border: 1px solid #d6d3d1; }
+  button:disabled { opacity: .45; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; }
+  .card { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 12px; }
+  .card .k { font-size: 12px; color: #57534e; }
+  .card .v { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card.bad .v { color: #c2410c; }
+  .wide { grid-column: 1 / -1; }
+  pre { background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; padding: 12px;
+        font-size: 12px; overflow-x: auto; white-space: pre-wrap; margin: 0; }
+</style>
+</head>
+<body>
+<h1>R1 notification receiver</h1>
+<p class="sub">Counts notifications from R1BENCH and derives loss from the sequence number in each payload.</p>
+
+<button id="go">Connect</button>
+<button id="copy" class="secondary" disabled>Copy results</button>
+
+<div class="grid">
+  <div class="card"><div class="k">Received</div><div class="v" id="count">0</div></div>
+  <div class="card"><div class="k">Rate /s</div><div class="v" id="rate">0</div></div>
+  <div class="card" id="lostCard"><div class="k">Lost (from seq)</div><div class="v" id="lost">0</div></div>
+  <div class="card" id="gapCard"><div class="k">Gap events</div><div class="v" id="gaps">0</div></div>
+  <div class="card wide"><div class="k">Link</div><div class="v" id="link">idle</div></div>
+</div>
+
+<pre id="log">Waiting.</pre>
+
+<script>
+const SERVICE   = '63c7f3bc-0599-4a66-bdcd-f28ec571c118';
+const DEVICE_TX = 'a7aabad6-3fc2-4c9b-953b-03a70a193ec4';
+
+let count = 0, lost = 0, gaps = 0, lastSeq = null;
+let t0 = null, tLast = null, perSec = [], secBase = null, secCount = 0;
+const lines = [];
+
+const $ = id => document.getElementById(id);
+function log(s) { lines.push(s); $('log').textContent = lines.slice(-14).join('\n'); }
+
+function onNotify(e) {
+  const dv = e.target.value;
+  if (dv.byteLength < 4) return;
+  const seq = dv.getUint32(0, false);
+  const now = performance.now();
+  if (t0 === null) { t0 = now; secBase = now; }
+  tLast = now;
+  count++;
+  if (lastSeq !== null && seq !== lastSeq + 1) {
+    // Wrapping or restart aside, a skip means notifications vanished in flight.
+    if (seq > lastSeq) { gaps++; lost += seq - lastSeq - 1; }
+  }
+  lastSeq = seq;
+  secCount++;
+  if (now - secBase >= 1000) {
+    perSec.push(secCount);
+    $('rate').textContent = secCount;
+    secCount = 0; secBase = now;
+  }
+  if (count % 200 === 0) {
+    $('count').textContent = count;
+    $('lost').textContent = lost;
+    $('gaps').textContent = gaps;
+    $('lostCard').className = 'card' + (lost ? ' bad' : '');
+    $('gapCard').className = 'card' + (gaps ? ' bad' : '');
+  }
+}
+
+function onDisconnect() {
+  const held = t0 ? ((tLast - t0) / 1000).toFixed(1) : '0';
+  $('link').textContent = 'dropped';
+  $('count').textContent = count; $('lost').textContent = lost; $('gaps').textContent = gaps;
+  log(`link dropped after ${held}s of notifications`);
+  log(`total ${count}, lost ${lost}, gap events ${gaps}`);
+  log(`per second: ${perSec.join(', ')}`);
+  $('go').disabled = false; $('copy').disabled = false;
+}
+
+$('go').onclick = async () => {
+  if (!navigator.bluetooth) { log('Web Bluetooth unavailable. Use Chrome over HTTPS.'); return; }
+  try {
+    $('go').disabled = true;
+    count = lost = gaps = 0; lastSeq = null; t0 = tLast = null; perSec = []; secCount = 0;
+    log('requesting device');
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }] });
+    dev.addEventListener('gattserverdisconnected', onDisconnect);
+    log(`connecting to ${dev.name || dev.id}`);
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    const ch = await svc.getCharacteristic(DEVICE_TX);
+    ch.addEventListener('characteristicvaluechanged', onNotify);
+    await ch.startNotifications();
+    $('link').textContent = 'subscribed';
+    log('subscribed, counting');
+  } catch (err) {
+    log('error: ' + err);
+    $('go').disabled = false;
+  }
+};
+
+$('copy').onclick = () => {
+  const out = JSON.stringify({ count, lost, gaps, perSec,
+    heldSeconds: t0 ? (tLast - t0) / 1000 : 0 }, null, 2);
+  navigator.clipboard?.writeText(out);
+  log('results copied');
+};
+</script>
+</body>
+</html>

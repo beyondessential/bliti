@@ -136,3 +136,47 @@ on the connection.
 So `Io` buys a partial signal, not flow control. It does not remove the need for a ceiling, and
 swapping the device onto it would not by itself make the device adaptive. Saturation kills the link
 in roughly 15 s on either path, while half of saturation (2,000/s at 20 B, 47 KiB/s) ran clean.
+
+### Correction: there was never any loss
+
+An earlier reading of the coarse ladder recorded the 3,000/s step as "81.1% delivered, 4,533 lost".
+That was offered-minus-delivered arithmetic, not loss. Checked by sequence number, that step had
+**zero gaps**: it ran at the full 3,018/s and was cut short when the link dropped 6.5 s into an 8 s
+hold. Every run since has been the same — **0 gap events at every rate, on every step**.
+
+This holds because the BLE link layer retransmits until acknowledged, so a notification that reaches
+the air arrives. What was discarded in the unpaced blasts was dropped on the sender side inside
+BlueZ's queue and never reached the air at all, which is precisely what a receiver cannot observe.
+
+### Soak and the located cliff
+
+| offered | KiB/s | held | loss |
+| --- | --- | --- | --- |
+| 2,000/s | 46.9 | 10 min, 1,200,000 notifications, link alive at the end | 0 |
+| 2,200/s | 51.6 | clean 30 s | 0 |
+| 2,400/s | 56.2 | clean 30 s | 0 |
+| 2,600/s | 60.9 | clean 30 s | 0 |
+| 2,800/s | 65.6 | link lost ~8 s in | 0 |
+| 3,000/s | 70.3 | link lost 6.5 s in | 0 |
+
+The soak is the load-bearing result: 2,000/s at 20 B sustained ten minutes with zero loss and no
+disconnect, confirmed on air (57,219 PDUs, no disconnect events). The cliff sits between
+**61 and 66 KiB/s**, giving the soaked figure about a 1.3× margin.
+
+### Why client-fed-back loss cannot drive backoff
+
+At 2,800/s the receiver counted full-rate delivery for seven consecutive seconds
+(2793, 2772, 2814, 2835, 2772, 2835, 2835 per second) and then the connection was gone. A loss
+metric reported by the client would have read 0.000% in every one of those seconds.
+
+So loss is not a leading indicator here; it is constant zero until the link dies. Delivered rate is
+no better, since it tracks the offered rate exactly over the same window. Neither quantity moves
+before the failure, so a feedback message carrying them would arrive too late to act on, whatever
+feed it travelled over.
+
+Web Bluetooth also exposes no delivery or loss accounting of its own: it surfaces
+`characteristicvaluechanged` for notifications that arrive, and nothing about ones that did not. A
+client can only derive loss where the application protocol numbers its packets, and the channel of
+[CHN](../../specs/channel.md) is a byte stream rather than datagrams, so a missing chunk does not
+present as a gap. It corrupts the Noise transport message or the zlib stream, which is already
+specified to close the connection.
