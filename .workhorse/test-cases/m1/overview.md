@@ -33,6 +33,10 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 - [ ] The I2C battery is named `built-in` with vendor `SupTronics` (verifies spec: NFO)
 - [ ] A UPS reporting charge but no voltage yields a `skipped` `battery-voltage` alongside a present charge (verifies spec: NFO)
 - [ ] A placeholder serial is not carried in the `battery` trait (verifies spec: NFO)
+- [ ] An OS-read battery is named by its model (verifies spec: NFO)
+- [ ] An OS-read battery reporting no model is named by what the OS knows it as (verifies spec: NFO)
+- [ ] Two batteries of the same model are given names that tell them apart (verifies spec: NFO)
+- [ ] `built-in` is used only on the I2C path, never for an OS-read battery (verifies spec: NFO)
 
 ## Interaction with power-source
 
@@ -48,6 +52,6 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 ## On this hardware
 
 - [ ] Run on the dev laptop: BAT0 reported with a plausible charge, voltage and direction; the wireless mouse's battery is absent
-- [ ] Run on the dev laptop with the Eaton 3S attached: it is reported as a second battery, with charge and direction but no voltage
+- [ ] Run on the dev laptop with the Eaton 3S attached: it is reported as a second battery named `Eaton 3S`, with charge and direction but no voltage, alongside `DELL T453X`
 - [ ] With upower not running, BAT0 is still reported via the sysfs fallback
 - [ ] With upower not running, the Eaton 3S is absent, since sysfs cannot see it

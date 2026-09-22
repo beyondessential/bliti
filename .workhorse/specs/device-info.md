@@ -258,7 +258,9 @@ A device MUST NOT report a battery that powers a peripheral attached to the devi
 
 A device MUST name each battery in its `battery` trait, and MUST carry the battery's serial, model and vendor where it holds them.
 
-A device MUST name a battery fitted inside the device `built-in`, and MUST supply that name itself where the battery is reported through a backup supply the device manages rather than through its operating system.
+A device that reports a battery through a backup supply it manages itself MUST supply that battery's name, and MUST name a battery fitted inside the device `built-in`.
+
+A device MUST name each battery it reads from its operating system by the model the operating system reports, and MUST instead use the name the operating system knows the battery as where it reports no model or where two batteries would otherwise share a name.
 
 A device that reads its batteries from its operating system MUST omit `power-source`, since an operating system's report of an external supply cannot tell a device fed through that supply from one fed around it.
 
@@ -270,7 +272,7 @@ Where a device has both a backup supply's signal and the movement of the cell vo
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 > The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, while an idle cell's voltage does not move at all and a cell carrying the device drifts down continuously.
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
-> A battery inside the case is named for being inside it rather than for the board managing it, which is what tells it apart from an external supply the same device also reports.
+> A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case is what tells it from an external supply the same device might also report.
 > A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
 
 ## Temperature and processor speed

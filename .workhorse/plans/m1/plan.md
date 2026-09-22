@@ -7,7 +7,7 @@ Add an OS-battery fallback so a machine without the X120x Maxim gauge (a laptop,
 - **Source: upower over D-Bus.** Not sysfs. An external UPS is invisible to sysfs: the Eaton 3S on the dev laptop creates no `/sys/class/power_supply` entry at all, because the kernel's usbhid driver does not expose HID Power Device class hardware as a power supply. upower does see it (`ups_hiddev5`), reading `/dev/usb/hiddev5` directly — a root-only node, which upowerd already has the privilege for and we would otherwise have to acquire.
 - **The D-Bus cost is already paid.** `dbus` 0.9.12 is already a direct Linux dependency of this crate, carried so the `vendored-dbus` feature can reach bluer's copy, and it is not yet used by any of our own code. Talking to upower adds no new dependency and no new cross-build burden. The crate likewise already requires a system daemon, since bluer is built with `bluetoothd`.
 - **Which entries count as a battery powering the device.** Take upower devices whose `Type` is battery or UPS *and* whose `PowerSupply` is true. `PowerSupply` is upower's own answer to "does this power the machine", and it is exactly the peripheral distinction: the laptop cell and the UPS are both true, the wireless mouse is false. upower goes as far as annotating the mouse's own percentage "should be ignored".
-- **Battery naming.** `name` is the basename of the upower object path (`BAT0`, `hiddev5`), which is unique within a running system and so can distinguish. It is not stable across a replug into another port; the operator-facing identity is `vendor`/`model`/`serial`, which are descriptive and carried alongside.
+- **Battery naming.** `name` is upower's `Model` where it reports one, giving `DELL T453X` and `Eaton 3S` on this laptop. A model is stable across a replug, which the object path is not. Where a device reports no model, or where two batteries would take the same model, fall back to the object-path basename (`BAT0`, `hiddev5`), which is unique within a running system. `built-in` is the I2C path's name only and is never used here.
 - **sysfs is the fallback, not the source.** Where upower cannot be reached at all, fall back to `/sys/class/power_supply`, so a headless machine with an internal cell and no upowerd still reports it. The fallback covers `type` = `Battery` only: a HID UPS is not in sysfs under any filter, so there is nothing there to find.
 - **The fallback engages on unreachable, never on empty.** upower answering with no batteries is an authoritative answer and is reported as no batteries. Only a failure to reach upower at all falls through. Rescanning after a valid empty answer would report a peripheral cell on a machine upower had correctly said has no battery.
 - **The fallback needs its own peripheral filter.** `PowerSupply` is an upower property with no sysfs equivalent, so the sysfs path excludes `scope` = `Device` instead, and keeps `type` = `Battery` with `scope` = `System` or no `scope` at all. On this laptop that keeps `BAT0` and drops `hidpp_battery_0`.
@@ -18,10 +18,10 @@ Add an OS-battery fallback so a machine without the X120x Maxim gauge (a laptop,
 - `battery-charge` ← `Percentage` (0–100) as a fraction.
 - `battery-voltage` ← `Voltage`, where the device reports one. The Eaton reports none, which is the specced `skipped` case; the laptop reports 12.889 V.
 - `battery-direction` ← `State`: charging → `charging`, discharging → `discharging`, fully-charged / pending-charge / pending-discharge / empty → `idle`, unknown → `skipped`.
-- `battery` trait ← `{ name: <object path basename>, serial: Serial, model: Model, vendor: Vendor }`, carrying only the members that hold a value. Drop placeholder serials: the Eaton reports the literal string `Blank`.
+- `battery` trait ← `{ name: Model or object-path basename, serial: Serial, model: Model, vendor: Vendor }`, carrying only the members that hold a value. `name` and `model` therefore usually coincide, which is fine: one distinguishes and the other describes. Drop placeholder serials: the Eaton reports the literal string `Blank`.
 - No `power-source` on either OS path, per NFO.
 
-On the sysfs fallback the same three readings come from `capacity` (or `energy_now`/`energy_full`), `voltage_now` (µV → volts) and `status` (`Charging`/`Discharging`/`Full`/`Not charging`/`Unknown`), with the `battery` trait built from the directory name plus `serial_number`, `model_name` and `manufacturer`.
+On the sysfs fallback the same three readings come from `capacity` (or `energy_now`/`energy_full`), `voltage_now` (µV → volts) and `status` (`Charging`/`Discharging`/`Full`/`Not charging`/`Unknown`), with the `battery` trait named by `model_name` where present and the directory name otherwise, plus `serial_number`, `model_name` and `manufacturer`.
 
 ## Code shape
 
@@ -36,6 +36,7 @@ On the sysfs fallback the same three readings come from `capacity` (or `energy_n
 
 - [ ] `upower.rs`: enumerate devices; filter to Type battery/UPS with PowerSupply true
 - [ ] `upower.rs`: build the three battery readings with the `battery` trait, per battery
+- [ ] `upower.rs`: name by model, falling back to the object-path basename on no model or a name collision
 - [ ] `upower.rs`: charge / voltage / direction mapping incl. skipped/broken cases and timeout handling
 - [ ] `sysfs.rs`: fallback reader (type=Battery, exclude scope=Device) with the same three readings
 - [ ] `power.rs`: dispatch gauge → upower → sysfs, falling through only when upower is unreachable
