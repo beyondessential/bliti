@@ -404,3 +404,33 @@ This does not mean link death is imaginary. The card records a crash at roughly 
 at once, observed against the real stack, and a slow client demonstrably can still take a link down.
 It means the failure belongs to a client that cannot keep up, rather than to a rate the air cannot
 carry, and no client shipped to date has been shown to fail that way.
+
+### Correction to the correction: the cliff is real, and it is stochastic
+
+The section above concluded from one desktop Chrome run that the cliff belonged to the test harness.
+A second run at the same rate refutes that. Chrome opened on the 3,200/s step and lost the link
+**3.4 s in**, after delivering 3,235, 3,234 and 3,150 in its three whole seconds with zero loss, on
+`HCI Disconnect Complete, Reason: Connection Timeout (0x08)` at the same 45 ms interval and 420 ms
+supervision timeout.
+
+So both BlueZ-backed clients die, in the same way, in the same region:
+
+| client | survived | died |
+| --- | --- | --- |
+| Python receiver | 2,600/s for 30 s | 2,800/s after ~8 s |
+| desktop Chrome | 3,200/s for 12 s | 3,200/s after 3.4 s |
+
+**The same rate on the same client both survived and failed**, so the edge is a probability rather
+than a threshold. Climbing a ladder into it, as the first Chrome run did, is not evidence that the
+rate is safe; it is one sample. Three consequences:
+
+- The cliff cannot be located precisely. Somewhere around 2,800 to 3,200/s, or 65 to 75 KiB/s, is
+  as tight as this gets, and a ceiling wants real margin under it rather than a value fitted to the
+  last rate that happened to survive.
+- Desktop Chrome is a real client, not a test rig, and it does die. The fragile peer exists.
+- Android remains the exception: it has never dropped a link at any rate, range or power state
+  measured.
+
+This also shows the send path's blindness plainly. After the link was gone the sender wrote 38,400,
+47,998, 59,999 and 77,998 notifications across the following steps, every one reported as having
+succeeded, because a `PropertiesChanged` notification has nothing to fail against.
