@@ -279,6 +279,9 @@ A device MUST NOT hold readings to send later.
 
 A device MUST choose each reading's update rate to suit what it measures, and a reader MUST NOT assume a fixed interval between readings.
 
+Taking a reading MUST NOT hold up the device's Bluetooth session or its connection to the system bus, however slow a source is to answer.
+The source most likely to be slow, a filesystem that has gone away, is the one an operator has most likely connected to diagnose, and the device MUST NOT lose its link while such a source is read.
+
 > [!NOTE]
 > Sampling before a session opens is what gives the device something current to send the moment one does, and what gives the cell voltage the history its direction of travel is derived from.
 > Nothing is kept for replay: a reader that comes back is sent what is current rather than what accumulated while it was away, as [MSG](messages.md) requires.
