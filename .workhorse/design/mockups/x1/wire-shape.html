@@ -124,7 +124,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<tr><td>an object</td><td>Supported, and constrained member by member, recursively. For a member whose values depend on another (a channel on a band), keyed by that other member's value.</td></tr>
 	</table>
 	<p style="margin:12px 0 0">Attachment and security kinds are keys, so a kind absent from capabilities cannot be proposed. A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed.</p>
-	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the document path of the first member not covered.</p>
+	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the Normalized Path of the first member not covered.</p>
 </div>
 
 <h3><code>radio</code>: facts HOT requires to be reported</h3>
@@ -274,8 +274,8 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		</tr>
 		<tr>
 			<td><code>invalid.at</code></td>
-			<td>dotted document path</td>
-			<td><code>attachments.1.gateway</code>, <code>hotspot.passphrase</code>. Array positions are numbers. The same form the envelope uses for its own paths. Acts that fail name the act: <code>wps</code>, <code>survey</code>.</td>
+			<td>RFC 9535 Normalized Path</td>
+			<td><code>$['attachments'][1]['gateway']</code>, <code>$['hotspot']['share-upstream']</code>. The normalized form is the one spelling of a node, so the client finds the field by comparing strings; the dot shorthand cannot carry a hyphenated name. Rooted at the document for a proposal, and at the act's own message for an act: <code>$</code> for a <code>survey</code> the radio cannot do, <code>$['method']</code> for a WPS method it does not offer.</td>
 		</tr>
 		<tr>
 			<td><code>band</code></td>

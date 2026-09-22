@@ -71,11 +71,12 @@ pub enum Message {
 	/// A device's answer that a proposal cannot be accepted, naming the part at fault, the device's own
 	/// reason, and the verification stage an apply-time failure reached (CFG).
 	Invalid {
-		/// Which part of the document is at fault.
+		/// Which part is at fault, as an RFC 9535 Normalized Path: into the document for a proposal,
+		/// into the act's own message for an act.
 		at: String,
 		/// What happened, in the device's own words.
 		reason: String,
-		/// The last verification stage of LINK a proposal applied and then failed reached.
+		/// The verification stage of LINK a proposal applied and then failed stopped at.
 		reached: Option<String>,
 	},
 

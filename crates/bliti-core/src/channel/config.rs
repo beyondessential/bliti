@@ -19,6 +19,8 @@
 
 use serde_json::{Map, Value as Json};
 
+use self::Segment::{Index, Name};
+
 /// Why a document, or a part of it, cannot be accepted.
 ///
 /// The shape of the `invalid` answer of CFG. `at` names the part at fault so a client can put an
@@ -26,11 +28,13 @@ use serde_json::{Map, Value as Json};
 /// of LINK an apply-time failure got to, absent for a fault found before anything was applied.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invalid {
-	/// Which part of the document is at fault, as a dotted path (e.g. `attachments.0.gateway`).
+	/// Which part of the document is at fault, as an RFC 9535 Normalized Path (e.g.
+	/// `$['attachments'][0]['gateway']`).
 	pub at: String,
 	/// What was wrong, in words an operator can act on.
 	pub reason: String,
-	/// The last verification stage of LINK an apply-time failure reached, where there was one.
+	/// The verification stage of LINK an apply-time failure stopped at; every stage before it passed.
+	/// Absent only for a fault found before anything was applied.
 	pub reached: Option<String>,
 }
 
@@ -188,7 +192,7 @@ impl Document {
 			Some(Json::Array(items)) => items,
 			_ => {
 				return Err(Invalid::at(
-					"attachments",
+					path(&[Name("attachments")]),
 					"the document carries an array `attachments`",
 				));
 			}
@@ -197,10 +201,10 @@ impl Document {
 		let mut parsed = Vec::with_capacity(attachments.len());
 		let mut dynamic_interfaces = Vec::new();
 		for (index, item) in attachments.iter().enumerate() {
-			let at = |member: &str| format!("attachments.{index}.{member}");
+			let at = |member: &str| path(&[Name("attachments"), Index(index), Name(member)]);
 			let Json::Object(candidate) = item else {
 				return Err(Invalid::at(
-					format!("attachments.{index}"),
+					path(&[Name("attachments"), Index(index)]),
 					"a candidate is an object",
 				));
 			};
@@ -222,7 +226,12 @@ impl Document {
 		let hotspot = match document.get("hotspot") {
 			None | Some(Json::Null) => None,
 			Some(Json::Object(object)) => Some(Hotspot::parse(object)?),
-			Some(_) => return Err(Invalid::at("hotspot", "the hotspot is an object")),
+			Some(_) => {
+				return Err(Invalid::at(
+					path(&[Name("hotspot")]),
+					"the hotspot is an object",
+				));
+			}
 		};
 
 		let regulatory_domain = match document.get("regulatory-domain") {
@@ -230,7 +239,7 @@ impl Document {
 			Some(Json::String(code)) => Some(code.clone()),
 			Some(_) => {
 				return Err(Invalid::at(
-					"regulatory-domain",
+					path(&[Name("regulatory-domain")]),
 					"the regulatory domain is a string",
 				));
 			}
@@ -263,7 +272,7 @@ impl Document {
 
 impl Attachment {
 	fn parse(candidate: &Map<String, Json>, index: usize) -> Result<Self, Invalid> {
-		let at = |member: &str| format!("attachments.{index}.{member}");
+		let at = |member: &str| path(&[Name("attachments"), Index(index), Name(member)]);
 		let label = string(candidate, "label")
 			.map_err(|reason| Invalid::at(at("label"), reason))?
 			.to_owned();
@@ -360,7 +369,7 @@ impl Attachment {
 
 impl Wireless {
 	fn parse(candidate: &Map<String, Json>, index: usize) -> Result<Self, Invalid> {
-		let at = |member: &str| format!("attachments.{index}.{member}");
+		let at = |member: &str| path(&[Name("attachments"), Index(index), Name(member)]);
 		let ssid = string(candidate, "ssid")
 			.map_err(|reason| Invalid::at(at("ssid"), reason))?
 			.to_owned();
@@ -399,7 +408,14 @@ impl Wireless {
 
 impl Security {
 	fn parse(security: &Map<String, Json>, index: usize) -> Result<Self, Invalid> {
-		let at = format!("attachments.{index}.security");
+		let at = |member: &str| {
+			path(&[
+				Name("attachments"),
+				Index(index),
+				Name("security"),
+				Name(member),
+			])
+		};
 		let passphrase = |kind: &str| {
 			security
 				.get("passphrase")
@@ -407,7 +423,7 @@ impl Security {
 				.map(ToOwned::to_owned)
 				.ok_or_else(|| {
 					Invalid::at(
-						format!("{at}.passphrase"),
+						at("passphrase"),
 						format!("a {kind} network carries a passphrase"),
 					)
 				})
@@ -426,7 +442,7 @@ impl Security {
 				members: security.clone(),
 			}),
 			_ => Err(Invalid::at(
-				format!("{at}.kind"),
+				at("kind"),
 				"security is one of `psk`, `sae`, `psk-sae` or `enterprise`",
 			)),
 		}
@@ -449,21 +465,21 @@ impl Security {
 impl Hotspot {
 	fn parse(hotspot: &Map<String, Json>) -> Result<Self, Invalid> {
 		let ssid = string(hotspot, "ssid")
-			.map_err(|reason| Invalid::at("hotspot.ssid", reason))?
+			.map_err(|reason| Invalid::at(hotspot_at("ssid"), reason))?
 			.to_owned();
 		let passphrase = string(hotspot, "passphrase")
-			.map_err(|reason| Invalid::at("hotspot.passphrase", reason))?
+			.map_err(|reason| Invalid::at(hotspot_at("passphrase"), reason))?
 			.to_owned();
 		let share_upstream = bool_member(hotspot, "share-upstream")
-			.map_err(|reason| Invalid::at("hotspot.share-upstream", reason))?;
+			.map_err(|reason| Invalid::at(hotspot_at("share-upstream"), reason))?;
 		let isolate_clients = bool_member(hotspot, "isolate-clients")
-			.map_err(|reason| Invalid::at("hotspot.isolate-clients", reason))?;
+			.map_err(|reason| Invalid::at(hotspot_at("isolate-clients"), reason))?;
 		let dhcp_range = match hotspot.get("dhcp-range") {
 			None | Some(Json::Null) => None,
 			Some(Json::String(range)) => Some(range.clone()),
 			Some(_) => {
 				return Err(Invalid::at(
-					"hotspot.dhcp-range",
+					hotspot_at("dhcp-range"),
 					"the DHCP range is a string",
 				));
 			}
@@ -471,12 +487,12 @@ impl Hotspot {
 		let band = match hotspot.get("band") {
 			None | Some(Json::Null) => None,
 			Some(Json::String(band)) => Some(band.clone()),
-			Some(_) => return Err(Invalid::at("hotspot.band", "the band is a string")),
+			Some(_) => return Err(Invalid::at(hotspot_at("band"), "the band is a string")),
 		};
 		let channel = u32_member(hotspot, "channel")
-			.map_err(|reason| Invalid::at("hotspot.channel", reason))?;
+			.map_err(|reason| Invalid::at(hotspot_at("channel"), reason))?;
 		let channel_width = u32_member(hotspot, "channel-width")
-			.map_err(|reason| Invalid::at("hotspot.channel-width", reason))?;
+			.map_err(|reason| Invalid::at(hotspot_at("channel-width"), reason))?;
 
 		Ok(Self {
 			ssid,
@@ -517,6 +533,56 @@ impl Hotspot {
 		}
 		map
 	}
+}
+
+/// One step of a path into a document: a member by name, or an array element by position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Segment<'a> {
+	/// A member of an object.
+	Name(&'a str),
+	/// An element of an array.
+	Index(usize),
+}
+
+/// The RFC 9535 Normalized Path of a node, e.g. `$['attachments'][1]['gateway']`.
+///
+/// The normalized form rather than the dot shorthand, because a Normalized Path is the one spelling
+/// of a node, so a client can find the field an `invalid` names by comparing strings, and because the
+/// shorthand cannot carry a hyphenated name such as `share-upstream`.
+pub fn path(segments: &[Segment<'_>]) -> String {
+	let mut out = String::from("$");
+	for segment in segments {
+		match segment {
+			Segment::Index(index) => {
+				out.push('[');
+				out.push_str(&index.to_string());
+				out.push(']');
+			}
+			Segment::Name(name) => {
+				out.push_str("['");
+				for c in name.chars() {
+					match c {
+						'\u{8}' => out.push_str("\\b"),
+						'\u{c}' => out.push_str("\\f"),
+						'\n' => out.push_str("\\n"),
+						'\r' => out.push_str("\\r"),
+						'\t' => out.push_str("\\t"),
+						'\'' => out.push_str("\\'"),
+						'\\' => out.push_str("\\\\"),
+						c if c < ' ' => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+						c => out.push(c),
+					}
+				}
+				out.push_str("']");
+			}
+		}
+	}
+	out
+}
+
+/// The path of a member of the hotspot.
+fn hotspot_at(member: &str) -> String {
+	path(&[Name("hotspot"), Name(member)])
 }
 
 /// A required string member, or a message naming it.
@@ -626,7 +692,7 @@ mod tests {
 	#[test]
 	fn a_document_without_attachments_is_invalid() {
 		let err = document(serde_json::json!({})).unwrap_err();
-		assert_eq!(err.at, "attachments");
+		assert_eq!(err.at, "$['attachments']");
 	}
 
 	/// A static candidate with no gateway cannot be told from any other, so LINK rejects it, and the
@@ -642,7 +708,7 @@ mod tests {
 			}]
 		}))
 		.unwrap_err();
-		assert_eq!(err.at, "attachments.0.gateway");
+		assert_eq!(err.at, "$['attachments'][0]['gateway']");
 		assert!(err.reached.is_none());
 	}
 
@@ -671,7 +737,7 @@ mod tests {
 			]
 		}))
 		.unwrap_err();
-		assert_eq!(err.at, "attachments.1.interface");
+		assert_eq!(err.at, "$['attachments'][1]['interface']");
 	}
 
 	/// Each key-based security kind requires a passphrase, and the fault names it.
@@ -685,7 +751,10 @@ mod tests {
 				}]
 			}))
 			.unwrap_err();
-			assert_eq!(err.at, "attachments.0.security.passphrase", "{kind}");
+			assert_eq!(
+				err.at, "$['attachments'][0]['security']['passphrase']",
+				"{kind}"
+			);
 		}
 	}
 
@@ -699,7 +768,7 @@ mod tests {
 			}]
 		}))
 		.unwrap_err();
-		assert_eq!(err.at, "attachments.0.security.kind");
+		assert_eq!(err.at, "$['attachments'][0]['security']['kind']");
 	}
 
 	/// Enterprise keeps its method and credentials as raw members, and they survive the round trip.
@@ -732,7 +801,7 @@ mod tests {
 			"attachments": [{ "kind": "cellular", "label": "modem" }]
 		}))
 		.unwrap_err();
-		assert_eq!(err.at, "attachments.0.kind");
+		assert_eq!(err.at, "$['attachments'][0]['kind']");
 	}
 
 	/// A hotspot carries an SSID and a passphrase, both required, and the fault names the missing one.
@@ -743,7 +812,7 @@ mod tests {
 			"hotspot": { "ssid": "setup" }
 		}))
 		.unwrap_err();
-		assert_eq!(err.at, "hotspot.passphrase");
+		assert_eq!(err.at, "$['hotspot']['passphrase']");
 	}
 
 	/// An unset hotspot boolean parses to None, which HOT reads as its enabled default, and a set one
@@ -773,5 +842,21 @@ mod tests {
 		assert!(!json.contains_key("hotspot"));
 		assert!(!json.contains_key("regulatory-domain"));
 		assert_eq!(json.get("attachments"), Some(&Json::Array(vec![])));
+	}
+
+	/// Paths are RFC 9535 Normalized Paths: bracketed, single-quoted, with its escapes, so a hyphenated
+	/// name the dot shorthand cannot carry is spelled one way only.
+	#[test]
+	fn paths_are_normalized_jsonpath() {
+		assert_eq!(path(&[]), "$");
+		assert_eq!(
+			path(&[Name("hotspot"), Name("share-upstream")]),
+			"$['hotspot']['share-upstream']"
+		);
+		assert_eq!(
+			path(&[Name("attachments"), Index(2), Name("gateway")]),
+			"$['attachments'][2]['gateway']"
+		);
+		assert_eq!(path(&[Name("it's\\\n\u{1}")]), r"$['it\'s\\\n\u0001']");
 	}
 }
