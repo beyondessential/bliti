@@ -141,7 +141,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 
 <h3><code>acts</code>: keyed by message type</h3>
 <div class="card">
-	<p style="margin:0">Each mirrors its message the way <code>document</code> mirrors the document. <code>scan</code> and <code>survey</code> are <code>true</code> where any radio offers them. <code>wps</code> carries the methods each radio offers, keyed by <code>interface</code> as the <code>wps</code> message may name one (WLAN).</p>
+	<p style="margin:0">Each mirrors its message the way <code>document</code> mirrors the document, keyed by <code>interface</code> as each act may name one. Under <code>scan</code> and <code>survey</code> are the radios able to do each; under <code>wps</code>, the methods each radio offers (WLAN). An act naming no interface runs on every radio listed, or for <code>wps</code> on one the device chooses. Scanning takes a radio off its channel for a moment, so naming one spares the rest: the uplink, or the hotspot's clients.</p>
 </div>
 
 <h3>Three devices</h3>
@@ -182,7 +182,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     }
   },
   <span class="k">"acts"</span>: {
-    <span class="k">"scan"</span>: true,
+    <span class="k">"scan"</span>: { <span class="k">"interface"</span>: { <span class="k">"wlan0"</span>: {} } },
     <span class="k">"wps"</span>: { <span class="k">"interface"</span>: {
       <span class="k">"wlan0"</span>: { <span class="k">"method"</span>: ["push-button", "pin"] }
     } }
@@ -234,8 +234,8 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     }
   },
   <span class="k">"acts"</span>: {
-    <span class="k">"scan"</span>: true,
-    <span class="k">"survey"</span>: true,
+    <span class="k">"scan"</span>: { <span class="k">"interface"</span>: { <span class="k">"wlan0"</span>: {}, <span class="k">"wlx00c0caa1b2c3"</span>: {} } },
+    <span class="k">"survey"</span>: { <span class="k">"interface"</span>: { <span class="k">"wlx00c0caa1b2c3"</span>: {} } },
     <span class="k">"wps"</span>: { <span class="k">"interface"</span>: {
       <span class="k">"wlan0"</span>: { <span class="k">"method"</span>: ["push-button", "pin"] },
       <span class="k">"wlx00c0caa1b2c3"</span>: { <span class="k">"method"</span>: ["push-button"] }

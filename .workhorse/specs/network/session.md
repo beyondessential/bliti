@@ -90,15 +90,17 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 
 | type | sent by | carries | asks the device to |
 | --- | --- | --- | --- |
-| `scan` | client | nothing beyond `type` | report the wireless networks it can see |
-| `survey` | client | nothing beyond `type` | report what its radio can see of the occupied and usable spectrum |
+| `scan` | client | `interface` where the client names one wireless interface | report the wireless networks it can see |
+| `survey` | client | `interface` where the client names one wireless interface | report what its radios can see of the occupied and usable spectrum |
 | `wps` | client | `method`, and `interface` where the client names the wireless interface to join on | join by WPS, as [WLAN](wireless.md) specifies |
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
-A device none of whose radios can survey its spectrum MUST omit `survey` from its capabilities.
+A device MUST answer a `scan` or `survey` naming an `interface` for that interface's radio alone, and one naming none for every radio able to.
 
-`spectrum` MUST carry a `spectrum` object whose `channels` member is an array with one entry for each channel usable under the regulatory domain in force, on each radio able to survey:
+A device MUST state among its capabilities which of its radios can scan and which can survey, and MUST omit `survey` where none can.
+
+`spectrum` MUST carry a `spectrum` object whose `channels` member is an array with one entry for each channel usable under the regulatory domain in force, on each radio surveyed:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |

@@ -179,7 +179,7 @@ struct Open<B: Backend> {
 /// What a session does to the running system, which a `discard` or a newer one interrupts.
 enum Attempt {
 	Propose(Map<String, Json>),
-	Wps(String),
+	Wps(String, Option<String>),
 }
 
 /// How an attempt ended.
@@ -292,7 +292,9 @@ async fn verify<T>(
 				Some(Message::Configuration { document, .. }) => {
 					return Ok(Outcome::Superseded(Attempt::Propose(document)));
 				}
-				Some(Message::Wps { method }) => return Ok(Outcome::Superseded(Attempt::Wps(method))),
+				Some(Message::Wps { method, interface }) => {
+					return Ok(Outcome::Superseded(Attempt::Wps(method, interface)));
+				}
 				Some(other) => deferred.push_back(other),
 			},
 
@@ -356,9 +358,9 @@ impl<B: Backend> Open<B> {
 					.attempt(Attempt::Propose(document), writer, incoming, deferred)
 					.await;
 			}
-			Message::Wps { method } => {
+			Message::Wps { method, interface } => {
 				return self
-					.attempt(Attempt::Wps(method), writer, incoming, deferred)
+					.attempt(Attempt::Wps(method, interface), writer, incoming, deferred)
 					.await;
 			}
 			Message::Confirm => self.confirm(writer).await?,
@@ -366,26 +368,30 @@ impl<B: Backend> Open<B> {
 				tracing::info!("proposal discarded");
 				self.revert().await;
 			}
-			Message::Scan => match self.state().backend.scan().await {
-				Ok(networks) => send(writer, &Message::Networks { networks }).await?,
-				Err(invalid) => send_invalid(writer, invalid).await?,
-			},
-			Message::Survey => match self.state().backend.survey().await {
-				Ok(Some(spectrum)) => send(writer, &Message::Spectrum { spectrum }).await?,
-				Ok(None) => {
-					send_invalid(
-						writer,
-						Invalid {
-							// Rooted at the act's own message: the whole `survey` is what cannot be done.
-							at: path(&[]),
-							reason: "this device cannot survey its spectrum".to_owned(),
-							reached: None,
-						},
-					)
-					.await?;
+			Message::Scan { interface } => {
+				match self.state().backend.scan(interface.as_deref()).await {
+					Ok(networks) => send(writer, &Message::Networks { networks }).await?,
+					Err(invalid) => send_invalid(writer, invalid).await?,
 				}
-				Err(invalid) => send_invalid(writer, invalid).await?,
-			},
+			}
+			Message::Survey { interface } => {
+				match self.state().backend.survey(interface.as_deref()).await {
+					Ok(Some(spectrum)) => send(writer, &Message::Spectrum { spectrum }).await?,
+					Ok(None) => {
+						send_invalid(
+							writer,
+							Invalid {
+								// Rooted at the act's own message: the whole `survey` is what cannot be done.
+								at: path(&[]),
+								reason: "no radio asked can survey its spectrum".to_owned(),
+								reached: None,
+							},
+						)
+						.await?;
+					}
+					Err(invalid) => send_invalid(writer, invalid).await?,
+				}
+			}
 			Message::Hello { name, version } => {
 				tracing::info!(client = %name, client_version = %version, "client named itself");
 			}
@@ -455,12 +461,15 @@ impl<B: Backend> Open<B> {
 						Outcome::Ended => Outcome::Ended,
 					}
 				}
-				Attempt::Wps(method) => {
-					tracing::info!(%method, "joining by WPS");
+				Attempt::Wps(method, interface) => {
+					tracing::info!(%method, ?interface, "joining by WPS");
 					let base = self.in_force();
 					self.applied = None;
 					self.provisional = true;
-					let joining = self.state().backend.wps(&method, &base);
+					let joining = self
+						.state()
+						.backend
+						.wps(&method, interface.as_deref(), &base);
 					match verify(joining, incoming, deferred).await? {
 						Outcome::Finished(Ok(raw)) => {
 							Outcome::Finished(Proposal::parse(raw).map(|proposal| (proposal, true)))

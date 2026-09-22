@@ -232,8 +232,8 @@ where
 				Message::Configuration { .. }
 				| Message::Confirm
 				| Message::Discard
-				| Message::Scan
-				| Message::Survey
+				| Message::Scan { .. }
+				| Message::Survey { .. }
 				| Message::Wps { .. },
 			)) => {
 				// A configuration-session message on a stream that opened no session. Nothing to act

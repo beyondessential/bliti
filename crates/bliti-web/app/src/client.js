@@ -206,9 +206,10 @@ export function createClient() {
 				propose: (document) => sending('configuration  document', () => handle.propose(document)),
 				confirm: () => sending('confirm', () => handle.confirm()),
 				discard: () => sending('discard', () => handle.discard()),
-				scan: () => sending('scan', () => handle.scan()),
-				survey: () => sending('survey', () => handle.survey()),
-				wps: (method) => sending(`wps  method ${method}`, () => handle.wps(method)),
+				scan: (iface) => sending(iface ? `scan  interface ${iface}` : 'scan', () => handle.scan(iface)),
+				survey: (iface) => sending(iface ? `survey  interface ${iface}` : 'survey', () => handle.survey(iface)),
+				wps: (method, iface) =>
+					sending(`wps  method ${method}${iface ? `  interface ${iface}` : ''}`, () => handle.wps(method, iface)),
 				close: () => {
 					if (closed) return
 					closed = true

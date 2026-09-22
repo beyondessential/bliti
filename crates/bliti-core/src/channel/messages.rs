@@ -90,15 +90,23 @@ pub enum Message {
 	Busy,
 
 	/// A client asking a device to report the wireless networks it can see (CFG).
-	Scan,
+	Scan {
+		/// The one wireless interface to scan on; every one able to where absent.
+		interface: Option<String>,
+	},
 
-	/// A client asking a device to report what its radio can see of the spectrum (CFG).
-	Survey,
+	/// A client asking a device to report what its radios can see of the spectrum (CFG).
+	Survey {
+		/// The one wireless interface to survey on; every one able to where absent.
+		interface: Option<String>,
+	},
 
 	/// A client asking a device to join a wireless network by WPS (CFG, WLAN).
 	Wps {
 		/// The WPS method: `push-button` or `pin`.
 		method: String,
+		/// The wireless interface to join on; the device chooses where absent.
+		interface: Option<String>,
 	},
 
 	/// A device's answer to `scan`. The shape of each network is the device-scanning feature's to
@@ -184,15 +192,18 @@ impl Message {
 			Self::Busy => {
 				map.insert("type".to_owned(), "busy".into());
 			}
-			Self::Scan => {
+			Self::Scan { interface } => {
 				map.insert("type".to_owned(), "scan".into());
+				insert_interface(&mut map, interface);
 			}
-			Self::Survey => {
+			Self::Survey { interface } => {
 				map.insert("type".to_owned(), "survey".into());
+				insert_interface(&mut map, interface);
 			}
-			Self::Wps { method } => {
+			Self::Wps { method, interface } => {
 				map.insert("type".to_owned(), "wps".into());
 				map.insert("method".to_owned(), method.clone().into());
+				insert_interface(&mut map, interface);
 			}
 			Self::Networks { networks } => {
 				map.insert("type".to_owned(), "networks".into());
@@ -204,6 +215,13 @@ impl Message {
 			}
 		}
 		map
+	}
+}
+
+/// Name the wireless interface an act is addressed to, where it names one.
+fn insert_interface(map: &mut Map<String, Json>, interface: &Option<String>) {
+	if let Some(interface) = interface {
+		map.insert("interface".to_owned(), interface.clone().into());
 	}
 }
 
@@ -266,10 +284,15 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"confirm" => Ok(Message::Confirm),
 			"discard" => Ok(Message::Discard),
 			"busy" => Ok(Message::Busy),
-			"scan" => Ok(Message::Scan),
-			"survey" => Ok(Message::Survey),
+			"scan" => Ok(Message::Scan {
+				interface: optional_string(&map, "interface")?,
+			}),
+			"survey" => Ok(Message::Survey {
+				interface: optional_string(&map, "interface")?,
+			}),
 			"wps" => Ok(Message::Wps {
 				method: string(&map, "method")?,
+				interface: optional_string(&map, "interface")?,
 			}),
 			"networks" => Ok(Message::Networks {
 				networks: array(&map, "networks")?,

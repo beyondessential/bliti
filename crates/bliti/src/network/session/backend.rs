@@ -85,20 +85,30 @@ pub trait Backend: Send + 'static {
 	/// Return the running system to a recorded configuration.
 	fn restore(&mut self, document: &Document) -> impl Future<Output = anyhow::Result<()>> + Send;
 
-	/// The wireless networks the radio can see, each in the shape the answer to `scan` carries.
-	fn scan(&mut self) -> impl Future<Output = Result<Vec<Json>, Invalid>> + Send;
+	/// What the radios can see, each entry in the shape the answer to `scan` carries: on `interface`
+	/// alone where one is named, else on every radio able to scan.
+	fn scan(
+		&mut self,
+		interface: Option<&str>,
+	) -> impl Future<Output = Result<Vec<Json>, Invalid>> + Send;
 
-	/// What the radio can see of the spectrum, or `None` where it cannot survey.
-	fn survey(&mut self)
-	-> impl Future<Output = Result<Option<Map<String, Json>>, Invalid>> + Send;
+	/// What the radios can see of the spectrum, on `interface` alone where one is named, else on every
+	/// radio able to survey. `None` where none asked can.
+	fn survey(
+		&mut self,
+		interface: Option<&str>,
+	) -> impl Future<Output = Result<Option<Map<String, Json>>, Invalid>> + Send;
 
 	/// Join a wireless network by WPS, leaving the result applied and unrecorded like any proposal.
 	///
 	/// `base` is the document in force; the answer is that document with the joined network added as a
 	/// candidate carrying the credentials WPS yielded. Dropping the future aborts the attempt.
+	///
+	/// `interface` names the radio to join on; unset, the backend chooses one offering `method`.
 	fn wps(
 		&mut self,
 		method: &str,
+		interface: Option<&str>,
 		base: &Map<String, Json>,
 	) -> impl Future<Output = Result<Map<String, Json>, Invalid>> + Send;
 }
@@ -134,7 +144,7 @@ impl Backend for Inert {
 		Ok(())
 	}
 
-	async fn scan(&mut self) -> Result<Vec<Json>, Invalid> {
+	async fn scan(&mut self, _interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 		Err(Invalid {
 			at: path(&[]),
 			reason: "this build of bliti cannot scan for wireless networks".to_owned(),
@@ -142,13 +152,17 @@ impl Backend for Inert {
 		})
 	}
 
-	async fn survey(&mut self) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(
+		&mut self,
+		_interface: Option<&str>,
+	) -> Result<Option<Map<String, Json>>, Invalid> {
 		Ok(None)
 	}
 
 	async fn wps(
 		&mut self,
 		_method: &str,
+		_interface: Option<&str>,
 		_base: &Map<String, Json>,
 	) -> Result<Map<String, Json>, Invalid> {
 		Err(Invalid {
@@ -200,6 +214,6 @@ mod tests {
 		assert_eq!(refused.reached, None);
 		assert!(inert.apply(&document).await.is_err());
 		assert!(inert.restore(&document).await.is_ok());
-		assert_eq!(inert.survey().await, Ok(None));
+		assert_eq!(inert.survey(None).await, Ok(None));
 	}
 }

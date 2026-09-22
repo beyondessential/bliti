@@ -383,19 +383,22 @@ impl ConfigurationHandle {
 		self.send(Message::Discard.to_json())
 	}
 
-	/// Ask for the wireless networks the device can see.
-	pub fn scan(&self) -> Result<(), JsError> {
-		self.send(Message::Scan.to_json())
+	/// Ask for the wireless networks the device can see, on one wireless interface or, where none is
+	/// named, on every one able to.
+	pub fn scan(&self, interface: Option<String>) -> Result<(), JsError> {
+		self.send(Message::Scan { interface }.to_json())
 	}
 
-	/// Ask for what the device's radio can see of the spectrum.
-	pub fn survey(&self) -> Result<(), JsError> {
-		self.send(Message::Survey.to_json())
+	/// Ask for what the device's radios can see of the spectrum, on one wireless interface or, where
+	/// none is named, on every one able to.
+	pub fn survey(&self, interface: Option<String>) -> Result<(), JsError> {
+		self.send(Message::Survey { interface }.to_json())
 	}
 
-	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN).
-	pub fn wps(&self, method: String) -> Result<(), JsError> {
-		self.send(Message::Wps { method }.to_json())
+	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN), on one wireless interface or,
+	/// where none is named, on one the device chooses.
+	pub fn wps(&self, method: String, interface: Option<String>) -> Result<(), JsError> {
+		self.send(Message::Wps { method, interface }.to_json())
 	}
 
 	/// End the session. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.

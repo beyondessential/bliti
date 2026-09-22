@@ -30,7 +30,7 @@ enum Call {
 	/// An apply whose future was dropped before it finished.
 	Aborted,
 	Restore(Document),
-	Wps(String),
+	Wps(String, Option<String>),
 }
 
 /// How the fake answers `apply`.
@@ -156,21 +156,30 @@ impl Backend for Fake {
 		Ok(())
 	}
 
-	async fn scan(&mut self) -> Result<Vec<Json>, Invalid> {
-		Ok(vec![json!({"ssid": "Clinic", "signal": -61})])
+	async fn scan(&mut self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
+		Ok(vec![
+			json!({"interface": interface.unwrap_or("wlan0"), "ssid": "Clinic", "signal": -61}),
+		])
 	}
 
-	async fn survey(&mut self) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(
+		&mut self,
+		_interface: Option<&str>,
+	) -> Result<Option<Map<String, Json>>, Invalid> {
 		Ok(self.0.lock().unwrap().survey.clone())
 	}
 
 	async fn wps(
 		&mut self,
 		method: &str,
+		interface: Option<&str>,
 		_base: &Map<String, Json>,
 	) -> Result<Map<String, Json>, Invalid> {
 		let mut shared = self.0.lock().unwrap();
-		shared.calls.push(Call::Wps(method.to_owned()));
+		shared.calls.push(Call::Wps(
+			method.to_owned(),
+			interface.map(ToOwned::to_owned),
+		));
 		shared.joined.clone()
 	}
 }
@@ -785,7 +794,7 @@ async fn anything_else_sent_during_verification_is_answered_after_the_proposal()
 		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
-	send(&mut client, Message::Scan).await;
+	send(&mut client, Message::Scan { interface: None }).await;
 	assert!(quiet(&mut client).await, "the scan waits for the proposal");
 
 	send(&mut client, Message::Discard).await;
@@ -806,11 +815,28 @@ async fn confirm_with_nothing_applied_records_nothing() {
 async fn scan_is_answered_with_networks() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
-	send(&mut client, Message::Scan).await;
+	send(&mut client, Message::Scan { interface: None }).await;
 	assert_eq!(
 		recv(&mut client).await,
 		Message::Networks {
-			networks: vec![json!({"ssid": "Clinic", "signal": -61})],
+			networks: vec![json!({"interface": "wlan0", "ssid": "Clinic", "signal": -61})],
+		}
+	);
+
+	// Naming an interface reaches the backend, which scans that radio alone.
+	send(
+		&mut client,
+		Message::Scan {
+			interface: Some("wlx00c0caa1b2c3".to_owned()),
+		},
+	)
+	.await;
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Networks {
+			networks: vec![
+				json!({"interface": "wlx00c0caa1b2c3", "ssid": "Clinic", "signal": -61})
+			],
 		}
 	);
 }
@@ -819,7 +845,7 @@ async fn scan_is_answered_with_networks() {
 async fn survey_is_answered_with_the_spectrum_or_invalid_where_unsupported() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
-	send(&mut client, Message::Survey).await;
+	send(&mut client, Message::Survey { interface: None }).await;
 	assert!(matches!(
 		recv(&mut client).await,
 		Message::Invalid { at, reached: None, .. } if at == "$"
@@ -827,7 +853,7 @@ async fn survey_is_answered_with_the_spectrum_or_invalid_where_unsupported() {
 
 	let spectrum = object(json!({"channels": [{"number": 6, "busy": 0.4}]}));
 	device.log.surveys(spectrum.clone());
-	send(&mut client, Message::Survey).await;
+	send(&mut client, Message::Survey { interface: None }).await;
 	assert_eq!(recv(&mut client).await, Message::Spectrum { spectrum });
 }
 
@@ -840,6 +866,7 @@ async fn wps_proposes_what_it_joined_for_the_client_to_confirm() {
 		&mut client,
 		Message::Wps {
 			method: "push-button".to_owned(),
+			interface: None,
 		},
 	)
 	.await;
@@ -855,7 +882,10 @@ async fn wps_proposes_what_it_joined_for_the_client_to_confirm() {
 
 	assert_eq!(confirmed(&mut client).await, proposal());
 	assert_eq!(device.store().load().unwrap(), Some(proposal()));
-	assert_eq!(device.log.calls(), [Call::Wps("push-button".to_owned())]);
+	assert_eq!(
+		device.log.calls(),
+		[Call::Wps("push-button".to_owned(), None)]
+	);
 }
 
 #[tokio::test]
@@ -866,6 +896,7 @@ async fn wps_that_fails_is_invalid_and_restores() {
 		&mut client,
 		Message::Wps {
 			method: "pin".to_owned(),
+			interface: Some("wlan0".to_owned()),
 		},
 	)
 	.await;
@@ -876,7 +907,7 @@ async fn wps_that_fails_is_invalid_and_restores() {
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Wps("pin".to_owned()),
+			Call::Wps("pin".to_owned(), Some("wlan0".to_owned())),
 			Call::Restore(parsed(&recorded())),
 		]
 	);
@@ -904,7 +935,7 @@ async fn messages_only_a_device_sends_are_no_ops() {
 		send(&mut client, message).await;
 	}
 	assert!(quiet(&mut client).await, "none is answered");
-	send(&mut client, Message::Scan).await;
+	send(&mut client, Message::Scan { interface: None }).await;
 	assert!(
 		matches!(recv(&mut client).await, Message::Networks { .. }),
 		"the session carries on"

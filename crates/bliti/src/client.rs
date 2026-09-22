@@ -315,8 +315,8 @@ pub async fn connect(
 						| Message::Confirm
 						| Message::Discard
 						| Message::Busy
-						| Message::Scan
-						| Message::Survey
+						| Message::Scan { .. }
+						| Message::Survey { .. }
 						| Message::Wps { .. }
 						| Message::Networks { .. }
 						| Message::Spectrum { .. },

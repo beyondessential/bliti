@@ -135,5 +135,7 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [ ] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
 - [ ] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
 - [ ] `wireless-network` in NFO carries `interface`, distinguishing
-- [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, and `wps` takes an optional `interface`
+- [x] `scan`, `survey` and `wps` take an optional `interface` on the wire and through the `Backend` trait; unset, scan and survey run on every radio able to
+- [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
+- [ ] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
 - [ ] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`, once the capabilities shape is signed off
