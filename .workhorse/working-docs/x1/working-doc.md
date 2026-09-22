@@ -336,13 +336,18 @@ The same care applies to what a candidate's state says. "No gateway", "No lease"
 
 The device has to hand the configuration to something. Candidates:
 
-- NetworkManager, over its D-Bus API. Handles wireless client, AP mode, wired addressing, DNS and connection priority itself, and is what a Raspberry Pi OS image ships with. Largest dependency, and its own model would have to be mapped onto ours.
-- systemd-networkd with wpa_supplicant. Smaller and file-driven, but AP mode and the hotspot's DHCP server are more assembly.
+- NetworkManager, over its D-Bus API. Handles wireless client, AP mode, wired addressing, DNS and connection priority itself, and is what a Raspberry Pi OS image ships with. Largest dependency, and its own model would have to be mapped onto ours. Note that the board this targets runs Ubuntu rather than Raspberry Pi OS, and has never had it installed.
+- systemd-networkd with wpa_supplicant. Smaller and file-driven, and already what the image runs. AP mode is the assembly, since it means driving hostapd; the hotspot's DHCP server is not, because networkd carries its own.
 - iwd with systemd-networkd. Modern and small, good WPA3 and enterprise support, weaker AP story.
 
 Whichever it is, the device's own configuration document is the contract and the backend is not: the spec describes the document, not the tool.
 
 Open: whether bliti owns these files outright, or merges with what an image already ships.
+
+### Device-side packages
+
+The packages a device needs at runtime are recorded in [services/README.md](../../../services/README.md), beside the unit file and the bluetoothd configuration, so that a Debian package can declare them when there is one to declare them in.
+That list forks on the choice above, which is the other reason it is written down: the first option costs nothing the image does not already carry, and the other two each add a package to it.
 
 ### Privileges
 
