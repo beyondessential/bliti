@@ -308,3 +308,59 @@ written down.
 
 RSSI logging produced no samples, so this section has no signal-strength figures to put against the
 throughput. Distance and walls are described rather than measured.
+
+### Correction: delivered rate does move, on the peer that matters
+
+An earlier note said delivered rate was no better a signal than loss, because it tracks the offered
+rate exactly. That was read off the BlueZ peer approaching its cliff and generalised too far. On the
+phone it is plainly false:
+
+| condition | offered/s | delivered/s | mismatch |
+| --- | --- | --- | --- |
+| phone close, 20 B soak | 700 | 700 | 1.0x |
+| phone close, ladder top | 4,000 | ~1,000 | 4.0x |
+| phone at range, plugged | 400 | 189 | 2.1x |
+| phone at range, battery | 400 | 145 | 2.8x |
+| BlueZ central near its cliff | 2,800 | 2,800 | 1.0x |
+
+Loss is structurally zero on every peer, so it can never be the signal. Delivered rate is different:
+on the phone it diverges from offered by 2x to 4x, sustained over minutes, with no cliff behind it.
+The divergence appears the moment the offered rate exceeds what the link carries, which is exactly
+when a sender should slow down.
+
+### Which peer the ceiling is really for
+
+The two peers fail differently, and only one of them fails hard.
+
+- A **BlueZ-backed central** dies: delivery tracks the offered rate perfectly and then the link is
+  gone on a supervision timeout. The 420 ms timeout and the 30 to 50 ms connection interval are
+  kernel defaults read from `/sys/kernel/debug/bluetooth/hci0`, not anything the CLI client chose,
+  so any central on that stack inherits them, a browser on a Linux desktop included. `client.rs`
+  describes itself as a way to exercise CHN without a browser, so the CLI is a test tool, but the
+  stack it exposed is not only a test artefact.
+- **Android Chrome** does not die, at any offered rate, at any range, on battery or plugged. It
+  queues and drains, losing nothing and arriving late.
+
+So on the deployment peer the ceiling is not protecting against link loss at all. It is bounding
+staleness, and the current figure bounds it badly in both directions: at a 20 B chunk the phone
+carries about 917/s close up against the permitted 200/s, while at range on battery it carries 145/s,
+so the same number is 4.5x too strict in one place and 2.8x too loose in another. No fixed number
+fits a peer whose capacity moves 5x with distance and power state.
+
+### Shape of the answer
+
+Two mechanisms, each doing the job it is suited to.
+
+**Client-reported delivered rate, paced against it.** The client already has the count; it needs a
+message on its feed carrying notifications or bytes received per second, and the device paces to it.
+This adapts across the phone's 5x swing without any number in the spec. The device already has what
+it needs to act: `gatt.rs` bounds the outbound queue at `QUEUE_DEPTH` 64, so once the pump drains at
+the reported rate, backpressure reaches the producer on its own. What is missing is only the signal.
+
+**A fixed ceiling kept as a backstop**, near the measured cliff rather than 10x below it, for peers
+where nothing moves before the link dies. It stops binding in ordinary operation and does the one
+job a fixed number can do.
+
+This is a design proposal, not a measurement. The feedback loop has not been built or tested, and
+its own stability, how often the client reports and how the device damps a noisy measurement, would
+need working through: per-second delivery at range swung between 2 and 793.
