@@ -18,7 +18,23 @@ A `wireless` candidate of [LINK](attachment.md) names a network to join and carr
 
 `psk`, `sae` and `psk-sae` MUST carry a `passphrase`.
 
-`enterprise` MUST carry the EAP method and the credentials that method requires.
+`enterprise` MUST carry an `eap` of `peap`, `ttls`, `tls` or `pwd`, and the members that method uses:
+
+| member | used by | meaning |
+| --- | --- | --- |
+| `identity` | every method | who authenticates; the inner identity under `peap` and `ttls` |
+| `anonymous-identity` | `peap`, `ttls` | the outer identity, where it differs |
+| `password` | `peap`, `ttls`, `pwd` | the password |
+| `phase2` | `peap`, `ttls` | the inner method |
+| `ca-certificate` | `peap`, `ttls`, `tls` | the certificate authority the server's certificate must chain to, as PEM |
+| `domain` | `peap`, `ttls`, `tls` | the name the server's certificate must carry |
+| `client-certificate` | `tls` | the device's certificate, as PEM |
+| `client-key` | `tls` | the device's private key, as PEM |
+| `client-key-passphrase` | `tls` | what decrypts the key, where it is encrypted |
+
+Every member a method uses is required, except `anonymous-identity` and `client-key-passphrase`.
+
+A device MUST treat an enterprise candidate carrying a member its method does not use as invalid.
 
 ## Which networks a device joins
 

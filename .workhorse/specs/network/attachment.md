@@ -52,12 +52,16 @@ A device MUST take the candidate highest in the ordering among those it has brou
 
 ## Verification
 
-A device MUST establish a candidate by observing, in order:
+A device MUST establish a candidate by observing, in order, the stages:
 
-1. the interface has carrier
-2. a wireless interface has associated
-3. an address is held, whether leased, autoconfigured or configured
-4. the gateway answers
+| stage | observed |
+| --- | --- |
+| `carrier` | the interface has carrier |
+| `association` | a wireless interface has associated |
+| `addressing` | an address is held, whether leased, autoconfigured or configured |
+| `gateway` | the gateway answers |
+
+A wired candidate has no `association` stage.
 
 A device MUST treat a candidate that reaches the last of these as established, and one that does not as failed.
 

@@ -53,9 +53,13 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
-| `at` | string | yes | which part of the document is at fault |
+| `at` | string | yes | which part is at fault |
 | `reason` | string | yes | what happened, in the device's own words |
-| `reached` | string | no | the last verification stage of [LINK](attachment.md) the proposal reached |
+| `reached` | string | no | the verification stage of [LINK](attachment.md) at which the attempt stopped |
+
+`at` MUST be an RFC 9535 Normalized Path, rooted at the proposed document for a proposal and at the message asking for an act for an act.
+
+`reached` MUST name a stage of [LINK](attachment.md) by its wire name, every stage before it having passed, and MUST be absent only where nothing was applied.
 
 > [!NOTE]
 > The three do different work. `at` puts an operator's cursor in the field that was wrong, `reached` says how far the attempt got, and `reason` carries the part nobody anticipated: a path, a permission, an errno.
@@ -93,6 +97,15 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
 A device that cannot survey its spectrum MUST omit `survey` from its capabilities.
+
+`spectrum` MUST carry a `spectrum` object whose `channels` member is an array with one entry for each channel usable under the regulatory domain in force:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `band` | string | yes | the band, as [HOT](hotspot.md) names bands |
+| `channel` | number | yes | the channel |
+| `networks` | number | yes | how many access points the radio heard on it |
+| `busy` | number | yes | the fraction of time the radio found it occupied, from 0 to 1 |
 
 > [!NOTE]
 > These are acts rather than settings: a document describes what is to be true, and none of these is a state a device could be left in.

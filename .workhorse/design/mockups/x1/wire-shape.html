@@ -265,7 +265,8 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 }</pre>
 </div>
 
-<h2>Vocabularies the specs leave open <span class="tag proposed">Proposed</span></h2>
+<h2>Vocabularies <span class="tag pinned">Pinned</span></h2>
+<p>Settled and written into CFG, LINK, WLAN, HOT and NFO.</p>
 
 <div class="card">
 	<table>
@@ -291,7 +292,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 			<td>Megahertz.</td>
 		</tr>
 		<tr>
-			<td><code>dhcp-range</code> <span class="tag pinned">Pinned</span></td>
+			<td><code>dhcp-range</code></td>
 			<td>one subnet, <code>"10.41.0.0/24"</code></td>
 			<td>The device takes the first host and hands out the rest. Unset is <code>10.41.0.0/24</code>. Settled and written into HOT.</td>
 		</tr>
@@ -303,7 +304,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	</table>
 </div>
 
-<h3><code>networks</code>, answering <code>scan</code></h3>
+<h3><code>networks</code>, answering <code>scan</code> <span class="tag proposed">Proposed</span></h3>
 <div class="card">
 	<p>One entry per access point the radio heard, rather than per network. A network is usually several access points, and a single physical access point often carries several BSSIDs, one per band and per SSID. Which one the device hears best is what decides both questions a scan answers:</p>
 	<ul style="margin:0 0 12px; padding-left:20px; max-width:46rem">
@@ -344,7 +345,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	<p style="margin:0">Siting wants a second reading of the same answer: every access point by signal, and the channels taken on each band the radio can use. Whether the screen grows a view for it is a separate question, below.</p>
 </div>
 
-<h3><code>spectrum</code>, answering <code>survey</code></h3>
+<h3><code>spectrum</code>, answering <code>survey</code> <span class="tag pinned">Pinned</span></h3>
 <div class="card">
 <pre>{
   <span class="k">"type"</span>: "spectrum",
@@ -355,7 +356,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     ]
   }
 }</pre>
-	<p style="margin:12px 0 0"><code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
+	<p style="margin:12px 0 0"><code>networks</code> is how many access points the radio heard on the channel. <code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
 </div>
 
 <h2>Gaps the specs need closing <span class="tag open">Open</span></h2>

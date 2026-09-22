@@ -186,7 +186,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | --- | --- | --- |
 | `interface` | `name`, `route`, `overlay` | a network interface; `route` is `default` on the one carrying the default route, and `overlay` names the overlay where it is one |
 | `security` | — | how a wireless link is secured |
-| `channel` | `number`, `band`, `width` | the channel a wireless link is on |
+| `channel` | `number`, `band`, `width` | the channel a wireless link is on; `band` is named as [HOT](network/hotspot.md) names bands, and `width` is in megahertz |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
