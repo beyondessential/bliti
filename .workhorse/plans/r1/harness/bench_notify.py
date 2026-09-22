@@ -234,6 +234,25 @@ def send_packets(sink, target_rate, duration, size, seq_start):
     }
 
 
+END_SEQ = 0xFFFFFFFF
+
+
+def send_end_marker(sink, size=20, repeats=10):
+    """Mark the end of the program so the receiver can finalise unattended.
+
+    Queued behind whatever backlog remains, so it arrives only once the link has
+    actually drained, which is the moment the run is genuinely over.
+    """
+    pkt = HEADER.pack(END_SEQ, time.monotonic_ns()) + bytes(max(0, size - HEADER.size))
+    for _ in range(repeats):
+        try:
+            sink.send(pkt)
+        except Exception:
+            break
+        time.sleep(0.05)
+    print("[end] sent end-of-run marker", flush=True)
+
+
 def out_path():
     base, _, ext = args.out.rpartition(".")
     return f"{base}_run{RUN}.{ext}" if base else f"{args.out}.run{RUN}"
@@ -268,6 +287,8 @@ def run_sweep(sink):
                     break
                 if gap:
                     time.sleep(gap)
+            else:
+                send_end_marker(sink)
         elif args.mode == "blast":
             print(f"[blast] {args.duration}s, payload {args.size}B, no pacing, sink={sink.kind}", flush=True)
             step = send_packets(sink, None, args.duration, args.size, seq)

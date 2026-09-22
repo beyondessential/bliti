@@ -63,6 +63,7 @@ function onNotify(e) {
   const dv = e.target.value;
   if (dv.byteLength < 4) return;
   const seq = dv.getUint32(0, false);
+  if (seq === 0xFFFFFFFF) { finalise('run complete'); return; }
   lastSize = dv.byteLength;
   secBytes += dv.byteLength;
   const now = performance.now();
@@ -108,7 +109,11 @@ function finalise(why) {
   log(`total ${count}, lost ${lost}, gap events ${gaps}, peak ${peak}/s`);
   log(`per second: ${perSec.join(', ')}`);
   log(`payload B per second: ${perSecSize.join(', ')}`);
-  $('go').disabled = false; $('stop').disabled = true;
+  try { dev && dev.gatt && dev.gatt.connected && dev.gatt.disconnect(); } catch (e) {}
+  try { wakeLock && wakeLock.release(); wakeLock = null; } catch (e) {}
+  navigator.clipboard?.writeText(resultsJSON()).catch(() => {});
+  $('log').textContent = resultsJSON();
+  $('go').disabled = false; $('stop').disabled = true; $('copy').disabled = false;
 }
 
 function onDisconnect() { finalise('link dropped'); }
@@ -147,15 +152,15 @@ $('go').onclick = async () => {
   }
 };
 
-$('stop').onclick = () => {
-  try { dev && dev.gatt && dev.gatt.disconnect(); } catch (e) {}
-  finalise('stopped');
-};
+$('stop').onclick = () => { finalise('stopped'); };
+
+function resultsJSON() {
+  return JSON.stringify({ count, lost, gaps, peak, perSec, perSecSize,
+    heldSeconds: t0 ? (tLast - t0) / 1000 : 0 }, null, 2);
+}
 
 $('copy').onclick = () => {
-  const out = JSON.stringify({ count, lost, gaps, peak, perSec, perSecSize,
-    heldSeconds: t0 ? (tLast - t0) / 1000 : 0 }, null, 2);
-  navigator.clipboard?.writeText(out);
+  navigator.clipboard?.writeText(resultsJSON());
   log('results copied');
 };
 </script>
