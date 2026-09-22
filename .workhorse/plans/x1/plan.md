@@ -91,3 +91,13 @@ This matters more than it looks. `identityKey` keys the tile grid as well as the
 ### Large responses are paced, not dropped
 
 [CHN](../../specs/channel.md) caps notification payload at a byte ceiling per second and requires a device that reaches it to hold the remainder rather than discard it. A scan across a busy site, or a spectrum survey, can be large enough to meet that ceiling. Nothing is lost, but a client waiting on `networks` or `spectrum` may wait longer than the device took to gather it, and must not read the delay as a failure.
+
+### Wire shape under review
+
+The capabilities shape and the vocabularies the specs leave open are drafted in the configuration session wire shape mockup (`.workhorse/design/mockups/x1/wire-shape.html`). In brief: `capabilities.document` mirrors the document (absent means not offered, `true` any value, an array exactly these, an object constrained member by member), `capabilities.radio.alongside` carries the concurrency fact HOT requires, and `capabilities.acts` is keyed by message type. Because the mirror rule is generic, one checker in `bliti-core` can serve the device's rejection and the client's pre-proposal check.
+
+`reached` names the stage an attempt stopped at, so a failure at `carrier` is told apart from a fault found before anything was applied.
+
+The mockup also lists five gaps needing spec edits once settled: a `state` message for per-candidate state (NSCR needs it and no CFG message carries it), what `wps` is answered with, capabilities that change with the country, the recorded configuration of an unconfigured device, and holding an `sae` candidate to SAE.
+
+The device session handler, the iwd/hostapd/networkd renderers, and the web screen are being built in parallel on local branches `x1-session`, `x1-render` and `x1-web`, and are cherry-picked onto the card branch as each lands. The web screen keeps all knowledge of the capabilities shape in one module so a change from review stays contained.
