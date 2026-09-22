@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 mod facts;
 mod gatt;
 mod identity;
+mod network;
 mod qr;
 mod sampler;
 mod session;
