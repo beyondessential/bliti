@@ -29,6 +29,7 @@
 <p class="sub">Counts notifications from R1BENCH and derives loss from the sequence number in each payload.</p>
 
 <button id="go">Connect</button>
+<button id="stop" class="secondary" disabled>Stop and finalise</button>
 <button id="copy" class="secondary" disabled>Copy results</button>
 
 <div class="grid">
@@ -36,6 +37,8 @@
   <div class="card"><div class="k">Rate /s</div><div class="v" id="rate">0</div></div>
   <div class="card" id="lostCard"><div class="k">Lost (from seq)</div><div class="v" id="lost">0</div></div>
   <div class="card" id="gapCard"><div class="k">Gap events</div><div class="v" id="gaps">0</div></div>
+  <div class="card"><div class="k">Elapsed</div><div class="v" id="elapsed">0s</div></div>
+  <div class="card"><div class="k">Peak /s</div><div class="v" id="peak">0</div></div>
   <div class="card wide"><div class="k">Link</div><div class="v" id="link">idle</div></div>
 </div>
 
@@ -47,6 +50,7 @@ const DEVICE_TX = 'a7aabad6-3fc2-4c9b-953b-03a70a193ec4';
 
 let count = 0, lost = 0, gaps = 0, lastSeq = null;
 let t0 = null, tLast = null, perSec = [], secBase = null, secCount = 0;
+let peak = 0, dev = null, timer = null, done = false;
 const lines = [];
 
 const $ = id => document.getElementById(id);
@@ -68,35 +72,45 @@ function onNotify(e) {
   secCount++;
   if (now - secBase >= 1000) {
     perSec.push(secCount);
+    if (secCount > peak) peak = secCount;
     $('rate').textContent = secCount;
     secCount = 0; secBase = now;
   }
-  if (count % 200 === 0) {
-    $('count').textContent = count;
-    $('lost').textContent = lost;
-    $('gaps').textContent = gaps;
-    $('lostCard').className = 'card' + (lost ? ' bad' : '');
-    $('gapCard').className = 'card' + (gaps ? ' bad' : '');
-  }
 }
 
-function onDisconnect() {
-  const held = t0 ? ((tLast - t0) / 1000).toFixed(1) : '0';
-  $('link').textContent = 'dropped';
-  $('count').textContent = count; $('lost').textContent = lost; $('gaps').textContent = gaps;
-  log(`link dropped after ${held}s of notifications`);
-  log(`total ${count}, lost ${lost}, gap events ${gaps}`);
-  log(`per second: ${perSec.join(', ')}`);
-  $('go').disabled = false; $('copy').disabled = false;
+function paint() {
+  $('count').textContent = count;
+  $('lost').textContent = lost;
+  $('gaps').textContent = gaps;
+  $('peak').textContent = peak;
+  $('elapsed').textContent = (t0 ? ((performance.now() - t0) / 1000).toFixed(0) : 0) + 's';
+  $('lostCard').className = 'card' + (lost ? ' bad' : '');
+  $('gapCard').className = 'card' + (gaps ? ' bad' : '');
 }
+
+function finalise(why) {
+  if (done) return;
+  done = true;
+  if (timer) { clearInterval(timer); timer = null; }
+  paint();
+  const held = t0 ? ((tLast - t0) / 1000).toFixed(1) : '0';
+  $('link').textContent = why;
+  log(`${why} after ${held}s of notifications`);
+  log(`total ${count}, lost ${lost}, gap events ${gaps}, peak ${peak}/s`);
+  log(`per second: ${perSec.join(', ')}`);
+  $('go').disabled = false; $('stop').disabled = true;
+}
+
+function onDisconnect() { finalise('link dropped'); }
 
 $('go').onclick = async () => {
   if (!navigator.bluetooth) { log('Web Bluetooth unavailable. Use Chrome over HTTPS.'); return; }
   try {
     $('go').disabled = true;
     count = lost = gaps = 0; lastSeq = null; t0 = tLast = null; perSec = []; secCount = 0;
+    peak = 0; done = false;
     log('requesting device');
-    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }] });
+    dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }] });
     dev.addEventListener('gattserverdisconnected', onDisconnect);
     log(`connecting to ${dev.name || dev.id}`);
     const server = await dev.gatt.connect();
@@ -106,14 +120,22 @@ $('go').onclick = async () => {
     await ch.startNotifications();
     $('link').textContent = 'subscribed';
     log('subscribed, counting');
+    // The phone may never disconnect, so results must be reachable while running.
+    $('copy').disabled = false; $('stop').disabled = false;
+    timer = setInterval(paint, 250);
   } catch (err) {
     log('error: ' + err);
     $('go').disabled = false;
   }
 };
 
+$('stop').onclick = () => {
+  try { dev && dev.gatt && dev.gatt.disconnect(); } catch (e) {}
+  finalise('stopped');
+};
+
 $('copy').onclick = () => {
-  const out = JSON.stringify({ count, lost, gaps, perSec,
+  const out = JSON.stringify({ count, lost, gaps, peak, perSec,
     heldSeconds: t0 ? (tLast - t0) / 1000 : 0 }, null, 2);
   navigator.clipboard?.writeText(out);
   log('results copied');

@@ -180,3 +180,59 @@ client can only derive loss where the application protocol numbers its packets, 
 [CHN](../../specs/channel.md) is a byte stream rather than datagrams, so a missing chunk does not
 present as a gap. It corrupts the Noise transport message or the zlib stream, which is already
 specified to close the connection.
+
+### Second peer: Android Chrome over Web Bluetooth
+
+Same device, same harness, ladder from 500/s to 4,000/s in eight 15 s steps (269,998 notifications
+offered). The phone behaved nothing like the Linux central.
+
+| | Linux/BlueZ central | Android Chrome |
+| --- | --- | --- |
+| negotiated ATT_MTU | 517 | 517 |
+| notification PDU | Multiple Value (0x23), ~21 coalesced | single Handle Value (0x1b), one per PDU |
+| PDU payload | 504 B | 22 B |
+| connection interval | 45 ms | 7.5 ms |
+| supervision timeout | 420 ms | 5,000 ms |
+| sustained ceiling | ~3,585 notifications/s | ~1,000 notifications/s (peak 1,010, median 840) |
+| air throughput | 84 KiB/s | 17.3 KiB/s |
+| when over-offered | link lost above 2,600/s | no loss, no disconnect, backlog drains late |
+
+The phone received **269,998 of 269,998 with zero gaps and never dropped the link**, taking 335.8 s
+to absorb a ladder the sender delivered in 184 s. Offering beyond its rate cost lateness, not loss.
+
+Three things follow.
+
+**The ceiling is not a notification count.** Two peers at the same ATT_MTU differ 3.6× in
+notifications per second, because one coalesces and the other does not. Coalescing is the peer's
+choice and the device cannot see it.
+
+**Nor is it a byte count.** Bytes per second held steady across a 25× payload change on one peer,
+which is what the earlier reading rested on, but across peers it moves 4.9× (84 vs 17.3 KiB/s). The
+quantity that actually held still across both is **ATT PDUs per connection event**: 170/22.2 = 7.7
+on the Linux central, 840–1,010/133 = 6.3–7.6 on the phone. That is the device controller's limit,
+and it is the one number neither the spec nor the device can usefully state, since the connection
+interval is negotiated by the peer and changes mid-session.
+
+**The crash is peer-specific.** The phone never lost the link because its supervision timeout is
+5,000 ms against the Linux central's 420 ms. The failure that motivated the conservative ceiling
+needs a peer whose supervision timeout is tight enough that a congested link misses enough
+connection events to time out.
+
+### The chunk size, not the rate, is what limits the deployment target
+
+On the phone each notification occupies a whole ATT PDU carrying 20 bytes of payload, out of a
+negotiated 517. `NOTIFY_CHUNK` in `gatt.rs` is 20, chosen as a conservative size that works on any
+peer. On a peer that coalesces this costs little, because the PDU is filled from several
+notifications regardless. On a peer that does not coalesce it is the binding constraint: the link
+spends a PDU to move 20 bytes.
+
+Raising the chunk toward the negotiated MTU is therefore the larger lever on the real target, and it
+is untested. Bigger PDUs occupy more air time, so fewer fit in a connection event and the gain will
+be less than the 25× the payload ratio suggests. It needs measuring rather than extrapolating.
+
+### Web Bluetooth and loss, settled
+
+Web Bluetooth exposes no delivery or loss accounting: `characteristicvaluechanged` reports what
+arrived and nothing about what did not. The page derives loss only because the harness numbers its
+payloads. It read zero throughout, on the peer that queued as well as on the one that died, which
+is the same answer the Linux central gave.
