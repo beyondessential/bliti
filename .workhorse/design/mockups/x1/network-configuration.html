@@ -115,31 +115,41 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 .pair { display: flex; gap: 8px; }
 .pair > * { flex: 1 1 0; }
 
-/* The session state. It says what is in force and what is not, because a provisional change is
-   invisible otherwise: the device is working, and nothing on it has been written down.
+/* The action bar. It says which stage the operator is in and offers only what that stage allows,
+   because the four are easy to confuse: a change being edited, a change being checked, a change that
+   failed, and a change running but not saved all look alike otherwise.
 
    In the built client this stays in view while the operator scrolls, pinned to the bottom of the
    viewport. It is rendered inline here because a sticky element sits on top of the rest of a mockup
    and makes it harder to read, not because its place in the page is at the top. */
-.session {
+.bar-state {
 	background: var(--surface);
 	border: 1px solid var(--line);
 	border-left: 3px solid var(--warn);
 	border-radius: 8px;
 	padding: 12px 16px;
 }
-.session p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state.working { border-left-color: var(--accent); }
+.bar-state.failed { border-left-color: var(--bad); }
+.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state .row > * { flex: 0 1 auto; }
+
+/* Not part of the screen. The four stages together, because which controls appear when is the part
+   of this that cannot be read off a single state. */
+.stages-ref { border-style: dashed; }
+.stages-ref .bar-state { margin-bottom: 8px; }
+.stages-ref .when { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 4px; }
 </style>
 </head>
 <body>
 <main>
 <h1>Network</h1>
 
-<section class="session">
-	<p><strong>2 changes not saved.</strong> The device is running them now. Discarded if you disconnect.</p>
+<section class="bar-state failed">
+	<p><strong>Could not apply.</strong> The device is back on the last saved configuration. Your changes are below.</p>
 	<div class="row">
-		<button>Save</button>
-		<button class="secondary">Discard</button>
+		<button>Apply</button>
+		<button class="secondary">Reset</button>
 	</div>
 </section>
 
@@ -182,7 +192,7 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 		<h2>Clinic wall port, north site</h2>
 		<button class="secondary small">Remove</button>
 	</div>
-	<p class="notice fault">Applied, then could not be confirmed. Reverted.</p>
+	<p class="notice fault">Applied, then could not be reached. Reverted.</p>
 	<p class="stages">
 		<span class="done">Link</span>
 		<span class="done">Address</span>
@@ -236,6 +246,35 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 	<h2>Country</h2>
 	<select><option>Vanuatu</option><option>Unset, world-safe channels only</option></select>
 	<p class="muted" style="margin:6px 0 0">Sets which channels the radio may use.</p>
+</section>
+
+<section class="stages-ref">
+	<h2>Action bar by stage</h2>
+	<p class="muted" style="margin:0 0 12px">Not part of the screen. The bar at the top is the third of these.</p>
+
+	<p class="when">Editing, fields read-write</p>
+	<div class="bar-state">
+		<p><strong>2 changes not applied.</strong> The device is still on its saved configuration.</p>
+		<div class="row"><button>Apply</button><button class="secondary">Reset</button></div>
+	</div>
+
+	<p class="when">Applying, fields read-only</p>
+	<div class="bar-state working">
+		<p><strong>Applying.</strong> Waiting on the gateway.</p>
+		<div class="row"><button class="secondary">Cancel</button></div>
+	</div>
+
+	<p class="when">Errored, fields read-write, filled with what was tried</p>
+	<div class="bar-state failed">
+		<p><strong>Could not apply.</strong> The device is back on the last saved configuration.</p>
+		<div class="row"><button>Apply</button><button class="secondary">Reset</button></div>
+	</div>
+
+	<p class="when">Applied, fields read-only</p>
+	<div class="bar-state">
+		<p><strong>Applied, not saved.</strong> Running now. Discarded if you disconnect.</p>
+		<div class="row"><button>Confirm</button><button class="secondary">Cancel</button></div>
+	</div>
 </section>
 
 </main>

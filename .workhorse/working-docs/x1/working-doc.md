@@ -89,14 +89,24 @@ The stream is the session: it carries the configuration in force, each change, w
 ```
 client → start
        ← current effective configuration                  device
+         ... the operator edits, entirely on the client ...
 client → proposed configuration
        ← applied, or invalid and why                      device
 client → confirm
        ← confirmed                                        device
        ← current effective configuration                  device
-         ... further changes on the same stream ...
+         ... further edits on the same stream ...
 client → discard, or end
 ```
+
+Note where the editing sits.
+It is entirely on the client and never reaches the wire: the operator types, and nothing is proposed until they say so.
+Applying is a deliberate act, which is what stops a half-typed gateway being handed to the device as though it were a configuration.
+See the editing stage below for what that means for the screen.
+
+`discard` is valid at any point after a proposal, not only after one has been applied.
+Sent while the device is still verifying it aborts the attempt; sent after it has applied it reverts.
+Both land in the same place, which is the last confirmed configuration, so it is one verb rather than two.
 
 A change stays provisional for exactly as long as the session, with no timer.
 The operator confirms when they are satisfied, and ending the session without confirming discards.
@@ -149,6 +159,30 @@ This puts a real requirement on the failure report, which carries three things:
 "Associated, then the gateway did not answer" lets the operator correct one field and tells them the key was right. "The configuration did not work" makes them start again.
 
 Note what the confirmation is for. Assuming the spike above comes back clean, the operator holds a BLE channel that a network change cannot break, so it is not their own access being protected: it is whatever the device was reachable over remotely, and whatever it was serving locally.
+
+### The editing stage is the client's alone
+
+The operator moves through four stages, and only two of them involve the device.
+
+| stage | screen | what it offers |
+| --- | --- | --- |
+| Editing | read-write | Apply, Reset |
+| Applying | read-only | Cancel |
+| Errored | read-write, filled with what was tried | Apply, Reset |
+| Applied | read-only | Confirm, Cancel |
+
+**Editing is local.** Nothing is on the wire, the device is running what it was running before, and the operator can type freely. Reset throws the edits away and returns to the configuration in force.
+
+**Applying is the deliberate act.** Without it the client would be proposing a configuration every time the operator paused between keystrokes, and a gateway typed halfway is a configuration that fails for a reason that is not real. The screen goes read-only while the device works, because a field edited mid-verification belongs to neither the attempt nor the next one.
+
+**Errored returns to read-write, filled with what was tried** rather than with what the device reverted to. This is the concrete form of the earlier decision that the client holds the attempt and the device keeps no record of it: the operator lands back in the document they wrote, with the offending field marked, and fixes that one thing.
+
+**Applied is read-only and not yet saved.** The device is running it; nothing is written down. Confirm saves it, Cancel reverts.
+
+The editing stage is also where the client validates. It already knows what the device supports, because the device said so when the session opened, so a document the device would reject should rarely reach it: Apply is the client's assertion that what it holds is coherent and within what it was told the device can do.
+
+The stages are the client's own and belong in its spec rather than in the wire's.
+The wire sees a proposal, a verdict, and then a confirm or a discard; it does not know that an operator spent two minutes typing before any of that.
 
 ### Secrets travel in full
 
@@ -343,6 +377,10 @@ Everything else is settled. One item remains, and it blocks the split.
 - An access point in OWE transition mode, which broadcasts an open BSS beside the OWE one, is refused on both.
 - A second client opening a configuration session while one is open is refused, with a reason.
 - A document asking for AP+STA on hardware that cannot do it is rejected, naming the conflict.
+- Editing puts nothing on the wire: a device watched through a session sees no proposal until Apply is pressed.
+- A half-typed gateway is never proposed, and Reset during editing returns the fields to the configuration in force.
+- Cancel during verification aborts the attempt, and the device lands on the last confirmed configuration.
+- After a failure the fields hold what was tried, not what the device reverted to, and the failing field is marked.
 - A session abandoned without confirming (stream closed, channel dropped, device powered off) leaves the last confirmed configuration in force.
 - A configuration that cannot work (wrong key, absent SSID) reverts, and the device reports both the attempt and the revert.
 - A change the device cannot judge stays provisional and reverts when no confirmation arrives.
