@@ -71,6 +71,7 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [x] The device's configuration session, in `crates/bliti/src/network/session.rs`: one device-wide session behind a lock (`busy` otherwise), the recorded configuration held raw in one file replaced atomically on `confirm`, proposals applied through a `Backend` trait (`capabilities`, `check`, `apply`, `restore`, `scan`, `survey`, `wps`), and restore on discard, failure, and however the session ends. Runs on an `Inert` backend until the real one lands. The daemon restores the recorded configuration at start
   - [x] A session dropped from outside ends the streams it served (`JoinSet` and an abort-on-drop driver in `session::run`), so a configuration session cannot outlive a client that unsubscribed
   - [ ] The recorded configuration of an unconfigured device, pending gap 4 of the wire shape mockup. Until then it is `{"attachments": []}`, which must not reach a real backend at boot
+- [x] Render a document, for a given selection of candidates, as the files iwd, hostapd and networkd read, in `crates/bliti/src/network/render.rs`. Pure: no filesystem, processes or D-Bus. `Paths::owns` tells the applier which files are bliti's so it can delete stale ones
 - [ ] Candidate selection and the four verification stages on the device
 - [ ] Event-driven reselection on carrier, failure and a higher candidate returning
 - [ ] Apply and revert against the chosen backend, with nothing provisional written to disk
@@ -104,3 +105,18 @@ The capabilities shape and the vocabularies the specs leave open are drafted in 
 The mockup also lists five gaps needing spec edits once settled: a `state` message for per-candidate state (NSCR needs it and no CFG message carries it), what `wps` is answered with, capabilities that change with the country, the recorded configuration of an unconfigured device, and holding an `sae` candidate to SAE.
 
 The device session handler, the iwd/hostapd/networkd renderers, and the web screen are being built in parallel on local branches `x1-session`, `x1-render` and `x1-web`, and are cherry-picked onto the card branch as each lands. The web screen keeps all knowledge of the capabilities shape in one module so a change from review stays contained.
+
+### What the renderer found about the stack
+
+Findings from building the renderer, each binding on the applier or on capability reporting. None is checked on hardware yet.
+
+- **Resolver order meets LINK's criteria but not its note.** networkd hands resolved a link's static `DNS=` first, then DHCPv4, DHCPv6 and RA servers, so configured resolvers are queried first and supplied ones where none are configured. But resolved moves to the next server only when one errors, and a public resolver answering "no such name" for a site-internal name has not errored, so an operator who adds a public resolver does lose the site's own names. Needs a decision (see below).
+- **SAE can be held to SAE, where the radio allows it.** A `sae` candidate renders `TransitionDisable=true` with `DisabledTransitionModes=personal`. iwd silently ignores the pin on a radio lacking CCMP or BIP-CMAC, so capabilities should offer `sae` only where the radio has SAE, CCMP and BIP-CMAC, and the device should still check the negotiated key management after association. There is no per-network way to hold iwd to PSK only, so a `psk` candidate upgrades to SAE on a transitional access point, which still authenticates it.
+- **iwd writes back into its known-network files**, so the applier cannot detect drift by comparing file contents.
+- **iwd adopts every interface on the radio.** It must run with `--nointerfaces ap0` (a unit drop-in, not `main.conf`), or it takes over the hotspot's interface.
+- **hostapd cannot follow another interface's channel.** On shared-channel hardware the renderer takes the station's current channel from the selection (20 MHz, falling back to 2.4 GHz channel 6 with no station), and the applier re-renders and restarts hostapd whenever the station changes channel, bringing the AP up before the station.
+- **The CYW43455 firmware has a reported crash in station-plus-AP mode on kernel 6.12** ([raspberrypi/linux#7092](https://github.com/raspberrypi/linux/issues/7092)). The hardware test case above passed on the image in use, but the kernel it runs is worth pinning against this.
+- **The regulatory domain takes three pieces**: iwd's `[General] Country=` hint, hostapd's `country_code` with `ieee80211d=1`, and `cfg80211 ieee80211_regdom` in modprobe.d, which only applies at module load. So the applier also runs `iw reg set` (the world domain `00` where unset) at runtime.
+- **`share-upstream: false` needs systemd 256 or later**, where `IPv4Forwarding=` exists. Older systemd ignores the key. Worth confirming against the image's systemd.
+- **The default hotspot range is `10.41.0.0/24`**: the device is `10.41.0.1` and hands out the rest.
+- **Structural rules the renderer enforces that no spec states**: passphrases are 8 to 63 printable ASCII characters, SAE included; two wireless candidates for one SSID with the same kind of key are refused, since iwd keys its files by SSID; enterprise members a method does not use are refused, `phase2` is required for PEAP and TTLS, and `ca-certificate` and `domain` for PEAP, TTLS and TLS.
