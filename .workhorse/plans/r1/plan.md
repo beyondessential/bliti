@@ -263,3 +263,48 @@ that negotiates the 23-byte minimum.
 The phone soak confirmed a sustainable figure on that peer: 336,000 notifications at 700/s over
 480 s, zero loss, link alive throughout. Delivered rate ran at ~900/s for the first 23 s while it
 caught up on the backlog left by the 500 B phase, then settled to exactly the offered 700/s.
+
+### At range, and on battery
+
+Phone moved to the far side of the house, roughly 10 to 15 m through several walls, running the
+same five-phase program twice: once plugged in, once on battery. Both runs delivered
+**86,400 of 86,400 with zero loss, zero gaps, and no disconnect**; the only disconnect in the
+capture is `Remote User Terminated Connection (0x13)`, the page closing cleanly at the end.
+
+Battery changed the link. Plugged in, the phone requested and held a **7.5 ms** connection
+interval, as it had close up. On battery it asked for **50 ms**, 6.7x longer. Supervision timeout
+stayed at 5,000 ms throughout.
+
+Air-side throughput, by payload:
+
+| payload | close, plugged | range, plugged | range, battery |
+| --- | --- | --- | --- |
+| 20 B | 17.9 KiB/s | 4.2 | 3.4 |
+| 100 B | 43.4 | 10.1 | 13.4 |
+| 250 B | 51.6 | 12.3 | 8.1 |
+| 500 B | 57.4 | 10.5 | 7.3 |
+
+Three things hold across both range runs.
+
+**Range costs about 4x, and battery a further 1.2x.** The whole program took 537 s plugged and
+665 s on battery against 297 s of sending. Note the modest battery penalty against a 6.7x longer
+connection interval: at 7.5 ms the link managed only 1.5 PDUs per connection event at range against
+6.9 close up, because retransmissions consume the short event, while at 50 ms it managed 8.0. A
+longer interval is more efficient per event, so it nearly compensates.
+
+**Bigger chunks stop helping, and start hurting.** Close up, throughput rose monotonically with
+payload. At range it peaks at 250 B plugged and 100 B on battery, and 500 B is worse than 250 B in
+both. A larger ATT PDU spans more link-layer packets, and losing any one of them costs the whole
+PDU a retransmission, so the gain reverses once the error rate is non-trivial.
+
+**Still no loss, at four times worse conditions.** Six distinct conditions now, zero gap events in
+every one. Per-second delivery does swing wildly at range, between 2 and 793, so any controller
+sampling a short window would be tracking multipath rather than a trend.
+
+The exact optimum was not measured: the sweep tested 20, 100, 250 and 500 B only. The principled
+target is an ATT PDU that fits inside one link-layer packet, which with Data Length Extension is
+251 bytes, so a chunk somewhere near 180 to 240 B. That is worth one more sweep before a number is
+written down.
+
+RSSI logging produced no samples, so this section has no signal-strength figures to put against the
+throughput. Distance and walls are described rather than measured.
