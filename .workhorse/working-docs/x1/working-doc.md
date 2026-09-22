@@ -112,17 +112,21 @@ A change stays provisional for exactly as long as the session, with no timer.
 The operator confirms when they are satisfied, and ending the session without confirming discards.
 This matches how MSG already makes a stream's life the whole story of a subscription, and leaves nothing to tune.
 
-> **Blocking spike.** No-timer rests entirely on the BLE session surviving a network reconfiguration. That is not free on the hardware this targets: wifi and Bluetooth share a chip on Pi-class boards, and `brcmfmac` can reload firmware when the interface switches into AP mode, which resets the shared radio and would take the channel with it.
+> **Spike resolved: the BLE session survives.** No-timer rests entirely on the BLE session surviving a network reconfiguration, and on target hardware it does.
 >
-> If the session does not survive, reconfiguring is itself the disconnect, every change discards the moment it is made, and the confirm model has to change. The fallback already identified is to hold the provisional configuration in the daemon's memory across a dropped channel so a reconnecting client can still confirm it, at the cost of the clean rule that a session ending is the discard.
+> The concern was that wifi and Bluetooth share a chip on Pi-class boards, and that `brcmfmac` might reload firmware when the interface switches into AP mode, resetting the shared radio and taking the channel with it. That reload does not happen on this hardware.
 >
-> Three things to run, on a real device reachable over SSH:
+> Run against a Raspberry Pi 5 (Cypress CYW43455, `brcmfmac43455-sdio` firmware 7.45.265, Bluetooth on UART), holding a live LE and GATT connection from a laptop in the same room while reconfiguring wifi on the device over an SSH control path that rides ethernet:
 >
-> 1. a wireless client connection change, while a BLE session is open
-> 2. a switch into AP mode, which is where the firmware reload is suspected
-> 3. AP+STA coming up together
+> 1. a wireless client association, then a forced disconnect and reconnect, while the session was open
+> 2. a switch into AP mode, the suspected firmware-reload path
+> 3. AP and STA up together on one channel
 >
-> This blocks the split. The confirm model is downstream of the answer, so specifying first risks specifying the wrong thing.
+> Through all three the link kept carrying GATT reads, the device's controller logged one LE connection and never a disconnect, and `brcmfmac` loaded its firmware once at boot and never again. Switching wifi into AP mode left `hci0` untouched.
+>
+> So the confirm model stands as written: a change stays provisional for the life of the session with no timer, and the in-memory-across-a-dropped-channel fallback is not needed.
+>
+> One hardware note for the split. This chip runs AP and STA only on a single shared channel (its interface combinations allow one AP plus one managed interface, but constrain them to the same channel). A hotspot and a wireless client cannot sit on different channels at once, so where both are up the hotspot's channel follows the client's rather than being freely chosen.
 
 Only one configuration session runs at a time.
 A second is refused while one is open, and told why rather than left to guess.
@@ -158,7 +162,7 @@ This puts a real requirement on the failure report, which carries three things:
 
 "Associated, then the gateway did not answer" lets the operator correct one field and tells them the key was right. "The configuration did not work" makes them start again.
 
-Note what the confirmation is for. Assuming the spike above comes back clean, the operator holds a BLE channel that a network change cannot break, so it is not their own access being protected: it is whatever the device was reachable over remotely, and whatever it was serving locally.
+Note what the confirmation is for. The spike above confirms the operator holds a BLE channel that a network change cannot break, so it is not their own access being protected: it is whatever the device was reachable over remotely, and whatever it was serving locally.
 
 ### The editing stage is the client's alone
 
@@ -347,9 +351,9 @@ Either the daemon runs privileged, or it holds specific capabilities, or it talk
 
 ## Open questions
 
-Everything else is settled. One item remains, and it blocks the split.
+Everything else is settled.
 
-- [ ] **Blocking spike:** does the BLE session survive a network reconfiguration on target hardware? Testable on a real device over SSH, which is in use for something else at time of writing. Detail in the configuration session section above.
+- [x] **Blocking spike:** does the BLE session survive a network reconfiguration on target hardware? Yes. Verified on a Raspberry Pi 5 (Cypress CYW43455) across a wireless client connection change, a switch into AP mode, and AP+STA together: the LE session carried traffic throughout, the controller never disconnected, and `brcmfmac` never reloaded its firmware. Detail in the configuration session section above.
 
 ## Trade-offs
 
