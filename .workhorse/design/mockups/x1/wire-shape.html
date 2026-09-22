@@ -1,0 +1,367 @@
+<!-- spec: network/session.md -->
+<!-- Also touches network/overview.md, network/attachment.md, network/wireless.md, network/hotspot.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration session wire shape</title>
+<style>
+:root {
+	--page: #f8f7f4;
+	--surface: #ffffff;
+	--line: #e7e5e4;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #c2410c;
+	--pinned: #15803d;
+	--proposed: #c2410c;
+	--open: #a16207;
+	--code: #f5f5f4;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 32px 16px 64px;
+	background: var(--page);
+	color: var(--text);
+	font: 15px/1.55 Inter, system-ui, sans-serif;
+}
+main { max-width: 60rem; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 40px 0 8px; }
+h3 { font-size: 0.95rem; margin: 20px 0 8px; }
+p { margin: 0 0 12px; max-width: 46rem; }
+.lede { color: var(--muted); margin-bottom: 24px; }
+.card {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px 20px;
+	margin: 12px 0;
+	box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 12px; }
+.grid .card { margin: 0; }
+.card h3 { margin-top: 0; }
+pre {
+	margin: 0;
+	padding: 12px;
+	background: var(--code);
+	border-radius: 6px;
+	font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+	overflow-x: auto;
+	white-space: pre;
+}
+code { font: 0.9em ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 1px 4px; border-radius: 4px; }
+.tag {
+	display: inline-block;
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	padding: 2px 8px;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+	vertical-align: 2px;
+	margin-left: 6px;
+}
+.tag.pinned { color: var(--pinned); }
+.tag.proposed { color: var(--proposed); }
+.tag.open { color: var(--open); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+.legend .tag { margin: 0 6px 0 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+.k { color: #9a3412; }
+.crit { color: #9a3412; font-weight: 700; }
+.c { color: #78716c; }
+.flow { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; }
+.flow li { display: grid; grid-template-columns: 5.5rem 1.5rem 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.flow li:last-child { border-bottom: 0; }
+.flow .who { color: var(--muted); }
+.q { border-left: 3px solid var(--open); }
+.q h3 { color: var(--text); }
+.q p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Configuration session wire shape</h1>
+<p class="lede">What goes over a configuration session stream (CFG), including the parts the specs leave to the implementation. For review before the capabilities shape is typed in <code>bliti-core</code>.</p>
+
+<div class="legend">
+	<span><span class="tag pinned">Pinned</span>fixed by a spec</span>
+	<span><span class="tag proposed">Proposed</span>decided here, needs sign-off</span>
+	<span><span class="tag open">Open</span>a gap the specs need closing</span>
+</div>
+
+<h2>The exchange</h2>
+<div class="card">
+	<ul class="flow">
+		<li><span class="who">client</span><span>→</span><span><code>configure</code> <span class="tag pinned">Pinned</span></span></li>
+		<li><span class="who">device</span><span>←</span><span><code>configuration</code> with <code>DOCUMENT</code> and <code>capabilities</code> <span class="tag pinned">Pinned</span></span></li>
+		<li><span class="who">device</span><span>←</span><span><code>state</code>, then again whenever a candidate's state changes <span class="tag open">Open</span></span></li>
+		<li><span class="who">client</span><span>→</span><span><code>configuration</code> with the proposed <code>DOCUMENT</code> <span class="tag pinned">Pinned</span></span></li>
+		<li><span class="who">device</span><span>←</span><span><code>applied</code>, or <code>invalid</code> with <code>at</code>, <code>reason</code>, <code>reached</code> <span class="tag pinned">Pinned</span></span></li>
+		<li><span class="who">client</span><span>→</span><span><code>confirm</code> or <code>discard</code> <span class="tag pinned">Pinned</span></span></li>
+		<li><span class="who">device</span><span>←</span><span><code>configuration</code> with what is now in force (after <code>confirm</code>) <span class="tag pinned">Pinned</span></span></li>
+	</ul>
+</div>
+
+<h2>Capabilities <span class="tag proposed">Proposed</span></h2>
+<p>Three members, each saying something different: <code>document</code> is what a document may carry, <code>radio</code> is what the hardware is, <code>acts</code> is what the device will do on request.</p>
+
+<h3>One rule for <code>document</code>: it mirrors the configuration document</h3>
+<div class="card">
+	<table>
+		<tr><th>at a member of the document, capabilities carry</th><th>meaning</th></tr>
+		<tr><td>nothing</td><td>Not supported. A document carrying it is invalid, and the client does not offer it (NET, NSCR).</td></tr>
+		<tr><td><code>true</code></td><td>Supported, with any value the document itself admits.</td></tr>
+		<tr><td>an array</td><td>Supported, with exactly these values.</td></tr>
+		<tr><td>an object</td><td>Supported, and constrained member by member, recursively. For a member whose values depend on another (a channel on a band), keyed by that other member's value.</td></tr>
+	</table>
+	<p style="margin:12px 0 0">Attachment and security kinds are keys, so a kind absent from capabilities cannot be proposed. A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed.</p>
+	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the document path of the first member not covered.</p>
+</div>
+
+<h3><code>radio</code>: facts HOT requires to be reported</h3>
+<div class="card">
+	<table>
+		<tr><th>member</th><th>values</th><th>meaning</th></tr>
+		<tr><td><code>alongside</code></td><td><code>independent</code><br><code>shared-channel</code><br><code>one-at-a-time</code></td><td>How the radio runs a hotspot beside a wireless client. Written whenever <code>radio</code> is. <code>shared-channel</code> is why <code>band</code>, <code>channel</code> and <code>channel-width</code> are absent, and is the sentence the client shows in their place. <code>one-at-a-time</code> makes a document with both a hotspot and a wireless candidate invalid.</td></tr>
+	</table>
+	<p style="margin:12px 0 0">No <code>radio</code> at all means no wireless hardware, and then <code>document</code> carries neither <code>wireless</code> nor <code>hotspot</code>.</p>
+</div>
+
+<h3><code>acts</code>: keyed by message type</h3>
+<div class="card">
+	<p style="margin:0"><code>scan</code> and <code>survey</code> are <code>true</code> where offered; <code>wps</code> is the array of methods the radio offers (WLAN). CFG already requires <code>survey</code> to be absent where the radio cannot survey.</p>
+</div>
+
+<h3>Three devices</h3>
+<div class="grid">
+	<div class="card">
+		<h3>Raspberry Pi 5, CYW43455</h3>
+<pre>{
+  <span class="k">"document"</span>: {
+    <span class="k">"attachments"</span>: {
+      <span class="k">"wireless"</span>: {
+        <span class="k">"security"</span>: {
+          <span class="k">"psk"</span>: true,
+          <span class="k">"sae"</span>: true,
+          <span class="k">"psk-sae"</span>: true,
+          <span class="k">"enterprise"</span>: {
+            <span class="k">"eap"</span>: ["peap", "ttls", "tls"]
+          }
+        },
+        <span class="k">"hidden"</span>: true,
+        <span class="k">"nameservers"</span>: true
+      },
+      <span class="k">"wired-dynamic"</span>: {
+        <span class="k">"interface"</span>: ["eth0"],
+        <span class="k">"nameservers"</span>: true
+      },
+      <span class="k">"wired-static"</span>: {
+        <span class="k">"interface"</span>: ["eth0"],
+        <span class="k">"nameservers"</span>: true
+      }
+    },
+    <span class="k">"hotspot"</span>: {
+      <span class="k">"share-upstream"</span>: true,
+      <span class="k">"isolate-clients"</span>: true,
+      <span class="k">"dhcp-range"</span>: true
+    },
+    <span class="k">"regulatory-domain"</span>: true
+  },
+  <span class="k">"radio"</span>: {
+    <span class="k">"alongside"</span>: "shared-channel"
+  },
+  <span class="k">"acts"</span>: {
+    <span class="k">"scan"</span>: true,
+    <span class="k">"wps"</span>: ["push-button", "pin"]
+  }
+}</pre>
+	</div>
+	<div class="card">
+		<h3>Two radios, independent channels</h3>
+<pre>{
+  <span class="k">"document"</span>: {
+    <span class="k">"attachments"</span>: { <span class="c">…as the Pi…</span> },
+    <span class="k">"hotspot"</span>: {
+      <span class="k">"share-upstream"</span>: true,
+      <span class="k">"isolate-clients"</span>: true,
+      <span class="k">"dhcp-range"</span>: true,
+      <span class="k">"band"</span>: ["2.4ghz", "5ghz"],
+      <span class="k">"channel"</span>: {
+        <span class="k">"2.4ghz"</span>: [1, 6, 11],
+        <span class="k">"5ghz"</span>: [36, 40, 44, 48]
+      },
+      <span class="k">"channel-width"</span>: {
+        <span class="k">"2.4ghz"</span>: [20],
+        <span class="k">"5ghz"</span>: [20, 40, 80]
+      }
+    },
+    <span class="k">"regulatory-domain"</span>: true
+  },
+  <span class="k">"radio"</span>: {
+    <span class="k">"alongside"</span>: "independent"
+  },
+  <span class="k">"acts"</span>: {
+    <span class="k">"scan"</span>: true,
+    <span class="k">"survey"</span>: true,
+    <span class="k">"wps"</span>: ["push-button"]
+  }
+}</pre>
+	</div>
+	<div class="card">
+		<h3>Wired only, two ports</h3>
+<pre>{
+  <span class="k">"document"</span>: {
+    <span class="k">"attachments"</span>: {
+      <span class="k">"wired-dynamic"</span>: {
+        <span class="k">"interface"</span>: ["eth0", "eth1"],
+        <span class="k">"nameservers"</span>: true
+      },
+      <span class="k">"wired-static"</span>: {
+        <span class="k">"interface"</span>: ["eth0", "eth1"],
+        <span class="k">"nameservers"</span>: true
+      }
+    }
+  },
+  <span class="k">"acts"</span>: {}
+}</pre>
+		<p style="margin:12px 0 0" class="c">No <code>radio</code>, so no wireless, hotspot or regulatory domain, and nothing to scan.</p>
+	</div>
+</div>
+
+<h3>Channels follow the country in force</h3>
+<div class="card">
+	<p style="margin:0">Channel lists are those usable under the regulatory domain the device is running. A proposal that changes the country changes what is usable; see the open question below.</p>
+</div>
+
+<h2>On the wire</h2>
+<div class="card">
+	<p>The device's first answer on the Pi, abridged. <code>DOCUMENT</code> is upper case because it is critical (CFG, recorded in <code>wire-breaks.toml</code>); nothing inside it is.</p>
+<pre>{
+  <span class="k">"type"</span>: "configuration",
+  <span class="crit">"DOCUMENT"</span>: {
+    <span class="k">"attachments"</span>: [
+      { <span class="k">"kind"</span>: "wireless", <span class="k">"label"</span>: "Clinic", <span class="k">"ssid"</span>: "Clinic",
+        <span class="k">"security"</span>: { <span class="k">"kind"</span>: "psk-sae", <span class="k">"passphrase"</span>: "…" } },
+      { <span class="k">"kind"</span>: "wired-static", <span class="k">"label"</span>: "Admin office", <span class="k">"interface"</span>: "eth0",
+        <span class="k">"addresses"</span>: ["192.168.60.20/24"], <span class="k">"gateway"</span>: "192.168.60.1" },
+      { <span class="k">"kind"</span>: "wired-dynamic", <span class="k">"label"</span>: "Any wall port", <span class="k">"interface"</span>: "eth0" }
+    ],
+    <span class="k">"hotspot"</span>: { <span class="k">"ssid"</span>: "iti-setup", <span class="k">"passphrase"</span>: "…" },
+    <span class="k">"regulatory-domain"</span>: "VU"
+  },
+  <span class="k">"capabilities"</span>: { <span class="c">…as above…</span> }
+}</pre>
+</div>
+
+<h2>Vocabularies the specs leave open <span class="tag proposed">Proposed</span></h2>
+
+<div class="card">
+	<table>
+		<tr><th>where</th><th>values</th><th>notes</th></tr>
+		<tr>
+			<td><code>invalid.reached</code></td>
+			<td><code>carrier</code>, <code>association</code>, <code>addressing</code>, <code>gateway</code></td>
+			<td>The stage the attempt <em>stopped at</em>. Everything before it passed. Wired candidates have no <code>association</code>. Absent only for a fault found before anything was applied, so a failure at <code>carrier</code> is still told apart from one.</td>
+		</tr>
+		<tr>
+			<td><code>invalid.at</code></td>
+			<td>dotted document path</td>
+			<td><code>attachments.1.gateway</code>, <code>hotspot.passphrase</code>. Array positions are numbers. The same form the envelope uses for its own paths. Acts that fail name the act: <code>wps</code>, <code>survey</code>.</td>
+		</tr>
+		<tr>
+			<td><code>band</code></td>
+			<td><code>2.4ghz</code>, <code>5ghz</code>, <code>6ghz</code></td>
+			<td>Shared with the <code>band</code> member of NFO's <code>channel</code> trait, so the value an operator sets reads the same as the one reported.</td>
+		</tr>
+		<tr>
+			<td><code>channel-width</code></td>
+			<td><code>20</code>, <code>40</code>, <code>80</code>, <code>160</code></td>
+			<td>Megahertz.</td>
+		</tr>
+		<tr>
+			<td><code>dhcp-range</code></td>
+			<td>a subnet, <code>"10.41.0.0/24"</code></td>
+			<td>The device takes the first host and hands out the rest. One subnet rather than a start and an end, because the device needs a subnet for itself anyway and a range outside it is meaningless. The fixed default is chosen with the renderer.</td>
+		</tr>
+		<tr>
+			<td>enterprise <code>security</code></td>
+			<td><code>eap</code>, <code>identity</code>, <code>anonymous-identity</code>, <code>password</code>, <code>phase2</code>, <code>ca-certificate</code>, <code>domain</code>, <code>client-certificate</code>, <code>client-key</code>, <code>client-key-passphrase</code></td>
+			<td>Certificates and keys inline as PEM. <code>ca-certificate</code> is required, and <code>domain</code> where the method allows it: without them the access point is not authenticated, which WLAN forbids joining.</td>
+		</tr>
+	</table>
+</div>
+
+<h3><code>networks</code>, answering <code>scan</code></h3>
+<div class="card">
+<pre>{
+  <span class="k">"type"</span>: "networks",
+  <span class="k">"networks"</span>: [
+    { <span class="k">"ssid"</span>: "Clinic", <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"signal"</span>: -52, <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36 },
+    { <span class="k">"ssid"</span>: "Guest", <span class="k">"security"</span>: ["open"], <span class="k">"signal"</span>: -61, <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6 }
+  ]
+}</pre>
+	<p style="margin:12px 0 0"><code>security</code> is what the access point advertises, and can include <code>open</code>, <code>owe</code> and <code>wep</code>, which the device will not join. The client compares it with <code>capabilities.document.attachments.wireless.security</code> to say why <code>Guest</code> cannot be picked. <code>signal</code> is dBm. One entry per SSID and band; a hidden network is not listed.</p>
+</div>
+
+<h3><code>spectrum</code>, answering <code>survey</code></h3>
+<div class="card">
+<pre>{
+  <span class="k">"type"</span>: "spectrum",
+  <span class="k">"spectrum"</span>: {
+    <span class="k">"channels"</span>: [
+      { <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 1, <span class="k">"networks"</span>: 4, <span class="k">"busy"</span>: 0.42 },
+      { <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6, <span class="k">"networks"</span>: 9, <span class="k">"busy"</span>: 0.71 }
+    ]
+  }
+}</pre>
+	<p style="margin:12px 0 0"><code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
+</div>
+
+<h2>Gaps the specs need closing <span class="tag open">Open</span></h2>
+
+<div class="card q">
+	<h3>1. Candidate state has no message</h3>
+	<p>NSCR requires each candidate's state beside it: default route, up, and each way it is unavailable, described by what the device observed. The design shows "No gateway", "No lease", "Out of range". No CFG message carries any of it. Proposal: a device-sent <code>state</code> on the session stream, after the first <code>configuration</code> and whenever it changes, positionally matching the attachments of the configuration running now (a proposal once one is applied).</p>
+<pre>{
+  <span class="k">"type"</span>: "state",
+  <span class="k">"attachments"</span>: [
+    { <span class="k">"is"</span>: "default-route" },
+    { <span class="k">"is"</span>: "unavailable", <span class="k">"reached"</span>: "gateway", <span class="k">"reason"</span>: "192.168.60.1 did not answer" },
+    { <span class="k">"is"</span>: "standby" }
+  ]
+}</pre>
+	<p style="margin-top:12px"><code>is</code> is <code>default-route</code>, <code>up</code>, <code>standby</code> (not tried, because a candidate above it holds the same interface) or <code>unavailable</code>. An unavailable candidate reuses <code>reached</code> and <code>reason</code> from <code>invalid</code>, so "No lease" is <code>reached: addressing</code> and "Out of range" is <code>reached: carrier</code> on a wireless candidate. The client words each; the device only names the stage.</p>
+</div>
+
+<div class="card q">
+	<h3>2. What <code>wps</code> is answered with</h3>
+	<p>CFG answers <code>scan</code> and <code>survey</code>, but says nothing of <code>wps</code>. Joining by WPS learns a credential, which is a change to the document. Proposal: the device answers with <code>configuration</code> carrying the document with the joined network added first, then <code>applied</code> or <code>invalid</code>. From there it is an ordinary proposal: confirm keeps it, discard or leaving forgets it, and the learned passphrase is visible like every other secret (NET).</p>
+</div>
+
+<div class="card q">
+	<h3>3. Capabilities that change with the country</h3>
+	<p>CFG puts capabilities on the first <code>configuration</code> only, but applying a new <code>regulatory-domain</code> changes which channels are usable. Proposal: <code>applied</code> carries <code>capabilities</code> whenever the proposal changed them, and the client revalidates against the new set.</p>
+</div>
+
+<div class="card q">
+	<h3>4. What a device runs before anything is confirmed</h3>
+	<p>A device out of the box has no recorded configuration. <code>{"attachments": []}</code> attaches to nothing, not even the wall port. Proposal: an unconfigured device records one <code>wired-dynamic</code> candidate per wired interface, labelled by the interface, and runs no hotspot, so a device plugged into a network with DHCP is reachable before anyone configures it.</p>
+</div>
+
+<div class="card q">
+	<h3>5. SAE held to SAE</h3>
+	<p>A candidate of kind <code>sae</code> should not quietly join a WPA2-only access point of the same name. Whether iwd can hold one network to SAE is being checked alongside the renderer. If it cannot, the device should verify the negotiated key management after association and fail the candidate at <code>association</code>, rather than drop <code>sae</code> from its capabilities.</p>
+</div>
+
+</main>
+</body>
+</html>
