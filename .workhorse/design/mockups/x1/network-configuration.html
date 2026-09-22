@@ -136,7 +136,7 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 <h1>Network</h1>
 
 <section class="session">
-	<p><strong>2 changes not saved.</strong> The device is running them now. They are lost if you leave.</p>
+	<p><strong>2 changes not saved.</strong> The device is running them now. Discarded if you disconnect.</p>
 	<div class="row">
 		<button>Save</button>
 		<button class="secondary">Discard</button>
@@ -145,29 +145,29 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 
 <section>
 	<div class="heading">
-		<h2>Order tried</h2>
+		<h2>Attachment order</h2>
 		<button class="secondary small">Add</button>
 	</div>
 	<ul class="order">
 		<li>
 			<span class="grip">⠿</span>
 			<span class="what"><span class="name">Clinic wall port</span><br><span class="kind">Wired, eth0, static 10.4.2.20</span></span>
-			<span class="state good">In use</span>
+			<span class="state good">Default route</span>
 		</li>
 		<li>
 			<span class="grip">⠿</span>
 			<span class="what"><span class="name">Clinic wall port, north site</span><br><span class="kind">Wired, eth0, static 192.168.60.20</span></span>
-			<span class="state muted">Not here</span>
+			<span class="state muted">No gateway</span>
 		</li>
 		<li>
 			<span class="grip">⠿</span>
 			<span class="what"><span class="name">eth0 automatic</span><br><span class="kind">Wired, eth0, DHCP</span></span>
-			<span class="state muted">Not offered</span>
+			<span class="state muted">No lease</span>
 		</li>
 		<li>
 			<span class="grip">⠿</span>
 			<span class="what"><span class="name">Clinic-Staff</span><br><span class="kind">Wireless, WPA3</span></span>
-			<span class="state good">Joined</span>
+			<span class="state good">Up</span>
 		</li>
 		<li>
 			<span class="grip">⠿</span>
@@ -175,7 +175,6 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 			<span class="state muted">Out of range</span>
 		</li>
 	</ul>
-	<p class="muted" style="margin:12px 0 0">The wall port carries traffic. Clinic-Staff is up as well.</p>
 </section>
 
 <section>
@@ -196,7 +195,7 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 	<input id="gateway" class="field-fault" value="192.168.60.1">
 	<label for="resolvers">Resolvers</label>
 	<input id="resolvers" value="192.168.60.1">
-	<p class="muted" style="margin:6px 0 0">Used before any the network supplies.</p>
+	<p class="muted" style="margin:6px 0 0">Queried before DHCP-supplied resolvers.</p>
 </section>
 
 <section>
@@ -204,15 +203,15 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 		<h2>Hotspot</h2>
 		<button class="secondary small">Turn off</button>
 	</div>
-	<label for="ssid">Name</label>
+	<label for="ssid">SSID</label>
 	<input id="ssid" value="Clinic-Field-04">
-	<label for="psk">Password</label>
+	<label for="psk">Passphrase</label>
 	<div class="pair">
 		<input id="psk" value="ripe-anchor-glass-77">
 		<button class="secondary">Generate</button>
 	</div>
-	<label class="check"><input type="checkbox" checked> Share the device's connection</label>
-	<label class="check"><input type="checkbox" checked> Keep clients apart from each other</label>
+	<label class="check"><input type="checkbox" checked> Share upstream connection</label>
+	<label class="check"><input type="checkbox" checked> Keep clients isolated</label>
 	<details>
 		<summary>Radio and addressing</summary>
 		<label for="band">Band</label>
@@ -228,14 +227,14 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 			</div>
 		</div>
 		<button class="secondary small" style="margin-top:12px">Survey the spectrum</button>
-		<label for="range">Addresses handed out</label>
+		<label for="range">DHCP range</label>
 		<input id="range" value="10.42.0.0/24">
 	</details>
 </section>
 
 <section>
-	<h2>Country</h2>
-	<select><option>Vanuatu</option><option>Not set, restricted channels</option></select>
+	<h2>Regulatory domain</h2>
+	<select><option>Vanuatu</option><option>Unset, world-safe channels only</option></select>
 	<p class="muted" style="margin:6px 0 0">Sets which channels the radio may use.</p>
 </section>
 

@@ -282,6 +282,10 @@ Decisions it makes, which are the parts worth holding on to:
 
 The client supplies its own wording throughout, as VIEW already requires of it: the wire says confirm and discard, the screen says Save and Discard, and the wire's vocabulary never reaches the operator.
 
+**Write the microcopy for a technician.** Whoever opens this screen is configuring a network, and the correct technical term is the clearer one: SSID rather than name, passphrase rather than password, regulatory domain rather than country, DHCP range rather than addresses handed out, isolated rather than kept apart. Plain-language paraphrase reads as friendlier and is vaguer, and vagueness is what costs someone a site visit.
+
+The same applies to what a candidate's state says. "No gateway", "No lease" and "Out of range" report what the device observed; "not here" and "not offered" are the same information with the diagnosis taken out of it.
+
 ## Implementation options
 
 ### What configures the network underneath
