@@ -278,7 +278,7 @@ Decisions it makes, which are the parts worth holding on to:
 - **The verification stages render as ticks and a cross.** This is what makes the stage worth carrying on the wire: "link, address, then gateway failed" tells an operator the addressing was fine and the network is not routing, without a sentence saying so.
 - **The pointer renders as a marked field**, with the device's reason as prose beneath the stages. The two do different jobs: the pointer puts the operator in the right box, the reason says the thing nobody anticipated.
 - **The hotspot's radio settings sit behind a disclosure**, all defaulting to "device picks", so the ordinary case is a name, a password and two checkboxes.
-- **The session state is a sticky footer.** A provisional change is otherwise invisible, because the device is working and nothing has been written down. It says what is running, that it is not saved, and what leaving costs.
+- **The session state stays in view.** A provisional change is otherwise invisible, because the device is working and nothing has been written down. It says what is running, that it is not saved, and what leaving costs. It belongs either at the top of the screen or pinned to the bottom of the viewport, not at the end of the document where an operator has to scroll to find out their change is unsaved. The mockup renders it inline at the top, because a sticky element sits over the rest of a mockup and makes it harder to review; that is a concession to the mockup and not the intended placement.
 
 The client supplies its own wording throughout, as VIEW already requires of it: the wire says confirm and discard, the screen says Save and Discard, and the wire's vocabulary never reaches the operator.
 

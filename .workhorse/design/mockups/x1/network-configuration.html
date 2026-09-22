@@ -115,16 +115,18 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 .pair { display: flex; gap: 8px; }
 .pair > * { flex: 1 1 0; }
 
-/* The session footer. It states what is in force and what is not, because a provisional change is
-   invisible otherwise: the device is working, and nothing on it has been written down. */
+/* The session state. It says what is in force and what is not, because a provisional change is
+   invisible otherwise: the device is working, and nothing on it has been written down.
+
+   In the built client this stays in view while the operator scrolls, pinned to the bottom of the
+   viewport. It is rendered inline here because a sticky element sits on top of the rest of a mockup
+   and makes it harder to read, not because its place in the page is at the top. */
 .session {
-	position: sticky;
-	bottom: 0;
 	background: var(--surface);
 	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
 	border-radius: 8px;
 	padding: 12px 16px;
-	margin-bottom: 0;
 }
 .session p { margin: 0 0 10px; font-size: 0.9rem; }
 </style>
@@ -132,6 +134,14 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 <body>
 <main>
 <h1>Network</h1>
+
+<section class="session">
+	<p><strong>2 changes not saved.</strong> The device is running them now. They are lost if you leave.</p>
+	<div class="row">
+		<button>Save</button>
+		<button class="secondary">Discard</button>
+	</div>
+</section>
 
 <section>
 	<div class="heading">
@@ -229,13 +239,6 @@ summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 	<p class="muted" style="margin:6px 0 0">Sets which channels the radio may use.</p>
 </section>
 
-<section class="session">
-	<p><strong>2 changes not saved.</strong> The device is running them now. They are lost if you leave.</p>
-	<div class="row">
-		<button>Save</button>
-		<button class="secondary">Discard</button>
-	</div>
-</section>
 </main>
 </body>
 </html>
