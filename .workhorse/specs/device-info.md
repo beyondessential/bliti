@@ -173,9 +173,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `temperature` | `quantity`, `celsius` | `sensor` | each temperature sensor |
 | `fan-speed` | `quantity`, `revolutions/minute` | `fan` | fan speed |
 | `power-source` | `text` | — | where the device's power is coming from |
-| `battery-charge` | `fraction` | — | state of charge |
-| `battery-voltage` | `quantity`, `volts` | — | cell voltage |
-| `battery-direction` | `text` | — | the cell's direction of travel |
+| `battery-charge` | `fraction` | `battery` | state of charge |
+| `battery-voltage` | `quantity`, `volts` | `battery` | cell voltage |
+| `battery-direction` | `text` | `battery` | the cell's direction of travel |
 
 ### Traits
 
@@ -186,10 +186,11 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
 | `fan` | — | which fan |
+| `battery` | `name`, `serial`, `model`, `vendor` | which battery, where a device holds more than one; `name` tells them apart and the rest describe the cell |
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-`route`, `overlay`, `status` and `limits` are descriptive.
+`route`, `overlay`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -243,17 +244,36 @@ A device MUST NOT assert `bypassing-backup` until the voltage has been watched l
 | `discharging` | the cell is carrying the device |
 | `idle` | the cell is doing neither |
 
-A device MUST derive `battery-direction` from the movement of the cell voltage, and MUST keep it consistent with `power-source` where that reading exists: `battery` gives `discharging`, `bypassing-backup` gives `idle`, and `via-backup` gives `charging` or `idle` as the cell is taking charge or is full.
+A device that measures a battery through a backup supply's own gauge MUST derive `battery-direction` from the movement of the cell voltage, and MUST keep it consistent with `power-source` where that reading exists: `battery` gives `discharging`, `bypassing-backup` gives `idle`, and `via-backup` gives `charging` or `idle` as the cell is taking charge or is full.
 
-A device MUST report `battery-direction` as `skipped` until the voltage has been watched long enough to establish it.
+A device that reads a battery reported by its operating system MUST take `battery-direction` from the battery's own charging state as the operating system gives it: taking charge is `charging`, carrying the device is `discharging`, and doing neither is `idle`.
 
-Where a device has both signals and they disagree, it MUST report `power-source` as the hardware gives it, and MUST report `battery-charge` as `warning`, with a reason saying the cell's direction of travel disagrees with the power source.
+Where a device derives `battery-direction` from the cell voltage, it MUST report it as `skipped` until the voltage has been watched long enough to establish it.
+
+Where a device takes `battery-direction` from its operating system and the operating system reports the battery but cannot say which of the three holds, it MUST report `battery-direction` as `skipped`.
+
+A device MUST report `battery-charge`, `battery-voltage` and `battery-direction` once for each battery that powers it, whether fitted inside the device or an external supply carrying it, told apart by the `battery` trait.
+
+A device MUST NOT report a battery that powers a peripheral attached to the device rather than the device itself.
+
+A device MUST name each battery in its `battery` trait, and MUST carry the battery's serial, model and vendor where it holds them.
+
+A device that reports a battery through a backup supply it manages itself MUST supply that battery's name, and MUST name a battery fitted inside the device `built-in`.
+
+A device MUST name each battery it reads from its operating system by the model the operating system reports, and MUST instead use the name the operating system knows the battery as where it reports no model or where two batteries would otherwise share a name.
+
+A device that reads its batteries from its operating system MUST omit `power-source`, since an operating system's report of an external supply cannot tell a device fed through that supply from one fed around it.
+
+Where a battery is fitted but no cell voltage can be read for it, a device MUST report `battery-voltage` as `skipped`, with a reason that no voltage is available.
+
+Where a device has both a backup supply's signal and the movement of the cell voltage, and they disagree, it MUST report `power-source` as the hardware gives it, and MUST report `battery-charge` as `warning`, with a reason saying the cell's direction of travel disagrees with the power source.
 
 > [!NOTE]
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 > The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, while an idle cell's voltage does not move at all and a cell carrying the device drifts down continuously.
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
-> No board reports the cell's direction of travel, so it is always worked out from the voltage. A reading that said so would say it on every device for the device's whole life, which is why the direction is reported plainly and only its absence needs a reason.
+> A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case is what tells it from an external supply the same device might also report.
+> A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
 
 ## Temperature and processor speed
 

@@ -90,7 +90,11 @@ The application MUST headline `network-address` with the address on the interfac
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
 
-The application MUST show `memory-total` in the reveal of `memory-usage`, and `battery-voltage` and `battery-direction` in the reveal of `battery-charge`.
+The application MUST show `memory-total` in the reveal of `memory-usage`.
+
+The application MUST headline `battery-charge` with a single battery, choosing the one named `built-in` where a device reports one and the first by `battery` name otherwise, and MUST show every battery in the reveal.
+
+The application MUST pair each battery's `battery-voltage` and `battery-direction` with its `battery-charge` by the `battery` trait, and MUST show them in that battery's reveal.
 
 The application MUST draw a `fraction` against its own scale, and MUST NOT draw a `quantity` against a scale unless its `limits` trait or its total above gives it one.
 

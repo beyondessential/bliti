@@ -220,6 +220,97 @@ test.describe('history', () => {
 	})
 })
 
+test.describe('batteries', () => {
+	const battery = (name, extra = {}) => ({ name, ...extra })
+	const charge = (about, value) =>
+		reading('battery-charge', { kind: 'fraction', value, traits: { status: { is: 'passed' }, battery: about } })
+	const volts = (about, value) =>
+		reading('battery-voltage', { kind: 'quantity', unit: 'volts', value, traits: { status: { is: 'passed' }, battery: about } })
+	const noVolts = (about) =>
+		reading('battery-voltage', {
+			kind: 'quantity',
+			traits: { status: { is: 'skipped', reason: 'the battery reports no cell voltage' }, battery: about },
+		})
+	const direction = (about, value) =>
+		reading('battery-direction', { kind: 'text', value, traits: { status: { is: 'passed' }, battery: about } })
+
+	// One battery is the ordinary case, and keeps the plain reading tile with its voltage and
+	// direction folded in beneath (VIEW).
+	test('a single battery folds its voltage and direction into the reveal', async ({ page }) => {
+		await openChannel(page)
+		const about = battery('DELL T453X', { model: 'DELL T453X', vendor: 'LGC', serial: '109' })
+		await emit(page, charge(about, 1))
+		await emit(page, volts(about, 12.887))
+		await emit(page, direction(about, 'idle'))
+
+		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('100%')
+		await page.getByRole('button', { name: /Battery/ }).click()
+		await expect(page.getByText('12.89 V')).toBeVisible()
+		await expect(page.getByText('Idle')).toBeVisible()
+	})
+
+	// The built-in cell is the headline whatever else is attached, and every battery is in the
+	// reveal with its own voltage and direction (VIEW).
+	test('the built-in cell headlines and every battery is revealed', async ({ page }) => {
+		await openChannel(page)
+		const internal = battery('built-in', { vendor: 'SupTronics' })
+		const ups = battery('Eaton 3S', { model: 'Eaton 3S', vendor: 'Eaton' })
+		await emit(page, charge(ups, 1))
+		await emit(page, charge(internal, 0.62))
+		await emit(page, volts(internal, 4.156))
+		await emit(page, direction(internal, 'discharging'))
+		await emit(page, noVolts(ups))
+		await emit(page, direction(ups, 'idle'))
+
+		// The UPS arrived first and sorts earlier, and the built-in cell still headlines.
+		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('62%')
+		await page.getByRole('button', { name: /Battery/ }).click()
+		await expect(page.getByText('built-in')).toBeVisible()
+		await expect(page.getByText('Eaton 3S')).toBeVisible()
+		await expect(page.getByText('4.16 V')).toBeVisible()
+		await expect(page.getByText('Discharging', { exact: true })).toBeVisible()
+	})
+
+	// Each battery's voltage belongs to that battery, not to whichever arrived first (VIEW).
+	test('voltage and direction pair with their own battery', async ({ page }) => {
+		await openChannel(page)
+		const first = battery('DELL T453X')
+		const second = battery('Eaton 3S')
+		await emit(page, charge(first, 1))
+		await emit(page, charge(second, 0.5))
+		await emit(page, volts(first, 12.887))
+		await emit(page, noVolts(second))
+		await emit(page, direction(first, 'charging'))
+		await emit(page, direction(second, 'discharging'))
+
+		await page.getByRole('button', { name: /Battery/ }).click()
+		// The skipped voltage says why rather than borrowing the other battery's figure.
+		await expect(page.getByText('the battery reports no cell voltage')).toBeVisible()
+		await expect(page.getByText('12.89 V')).toHaveCount(1)
+		// Exact, because a substring match for "Charging" also finds "Discharging".
+		await expect(page.getByText('Charging', { exact: true })).toBeVisible()
+		await expect(page.getByText('Discharging', { exact: true })).toBeVisible()
+	})
+
+	// With no built-in cell the headline is settled by name rather than by arrival order (VIEW).
+	test('with no built-in cell the first by name headlines', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, charge(battery('Eaton 3S'), 0.5))
+		await emit(page, charge(battery('APC Back-UPS'), 0.9))
+		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('90%')
+	})
+
+	// A battery's serial, model and vendor describe the cell and do not split its history; only its
+	// name says which battery it is (VIEW).
+	test('a changing model does not split one battery into two', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, charge(battery('BAT0', { model: 'DELL T453X' }), 0.5))
+		await emit(page, charge(battery('BAT0', { model: 'DELL T453X (refurbished)' }), 0.9))
+		await expect(page.locator('.tile').filter({ hasText: 'Battery' })).toHaveCount(1)
+		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('90%')
+	})
+})
+
 test.describe('what it does not recognise', () => {
 	// Two unrecognised readings alike but for their traits render distinguishably, with the trait
 	// values as the qualifier rather than dropped (VIEW).
