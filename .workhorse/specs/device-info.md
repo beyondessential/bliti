@@ -157,7 +157,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
-| `wireless-network` | `text` | `security`, `channel` | the wireless network the device is joined to |
+| `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
 | `hotspot` | `text` | `channel` | the network the device's hotspot advertises |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
@@ -220,7 +220,7 @@ A device MUST NOT report loopback or other virtual interfaces.
 
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
 
-A device MUST report the wireless network it is joined to, and MUST omit that entry where it is joined to none.
+A device MUST report the wireless network each of its wireless interfaces is joined to, and MUST omit the entry for an interface joined to none.
 
 A device MUST report its hotspot and the clients joined to it, and MUST omit both entries where it runs no hotspot.
 

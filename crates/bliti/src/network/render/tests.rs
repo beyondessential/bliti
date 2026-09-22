@@ -590,3 +590,33 @@ fn rendering_is_deterministic() {
 	let b = rendered(&doc, &hardware(), &active(&[0, 1, 2]));
 	assert_eq!(a, b);
 }
+
+/// A wireless candidate or hotspot may name the one radio there is, and naming another is refused
+/// rather than carried on the wrong adapter (LINK, HOT).
+#[test]
+fn a_radio_other_than_the_station_is_refused() {
+	let pinned = document(json!({
+		"attachments": [{ "kind": "wireless", "label": "w", "ssid": "Clinic", "interface": "wlan0",
+			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
+	}));
+	assert!(render(&pinned, &hardware(), &active(&[0])).is_ok());
+
+	let elsewhere = document(json!({
+		"attachments": [{ "kind": "wireless", "label": "w", "ssid": "Clinic", "interface": "wlan1",
+			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }]
+	}));
+	let Err(Error::Invalid(invalid)) = render(&elsewhere, &hardware(), &active(&[])) else {
+		panic!("a candidate on another radio is refused")
+	};
+	assert_eq!(invalid.at, "$['attachments'][0]['interface']");
+
+	let hotspot = document(json!({
+		"attachments": [],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+	}));
+	let Err(Error::Invalid(invalid)) = render(&hotspot, &hardware(), &active(&[])) else {
+		panic!("a hotspot on another radio is refused")
+	};
+	assert_eq!(invalid.at, "$['hotspot']['interface']");
+}

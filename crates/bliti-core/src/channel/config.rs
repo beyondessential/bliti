@@ -116,6 +116,8 @@ pub struct Wireless {
 	pub security: Security,
 	/// Whether the network is joined without appearing in a scan.
 	pub hidden: Option<bool>,
+	/// The wireless interface it is joined on. Unset, the device chooses one able to carry it (LINK).
+	pub interface: Option<String>,
 }
 
 /// How a device authenticates to a wireless network (WLAN).
@@ -166,6 +168,8 @@ pub struct Hotspot {
 	pub ssid: String,
 	/// What a client joins with. No default; kept clear of every other value on the device (HOT).
 	pub passphrase: String,
+	/// The wireless interface whose radio runs it. Unset, the device chooses one able to (HOT).
+	pub interface: Option<String>,
 	/// Whether clients reach the device's own network. Enabled where unset (HOT).
 	pub share_upstream: Option<bool>,
 	/// Whether clients are kept from reaching each other. Enabled where unset (HOT).
@@ -389,11 +393,14 @@ impl Wireless {
 			Some(Json::Bool(hidden)) => Some(*hidden),
 			Some(_) => return Err(Invalid::at(at("hidden"), "`hidden` is a boolean")),
 		};
+		let interface = optional_string(candidate, "interface")
+			.map_err(|reason| Invalid::at(at("interface"), reason))?;
 
 		Ok(Self {
 			ssid,
 			security,
 			hidden,
+			interface,
 		})
 	}
 
@@ -402,6 +409,9 @@ impl Wireless {
 		map.insert("security".to_owned(), Json::Object(self.security.to_json()));
 		if let Some(hidden) = self.hidden {
 			map.insert("hidden".to_owned(), Json::Bool(hidden));
+		}
+		if let Some(interface) = &self.interface {
+			map.insert("interface".to_owned(), Json::String(interface.clone()));
 		}
 	}
 }
@@ -470,6 +480,8 @@ impl Hotspot {
 		let passphrase = string(hotspot, "passphrase")
 			.map_err(|reason| Invalid::at(hotspot_at("passphrase"), reason))?
 			.to_owned();
+		let interface = optional_string(hotspot, "interface")
+			.map_err(|reason| Invalid::at(hotspot_at("interface"), reason))?;
 		let share_upstream = bool_member(hotspot, "share-upstream")
 			.map_err(|reason| Invalid::at(hotspot_at("share-upstream"), reason))?;
 		let isolate_clients = bool_member(hotspot, "isolate-clients")
@@ -497,6 +509,7 @@ impl Hotspot {
 		Ok(Self {
 			ssid,
 			passphrase,
+			interface,
 			share_upstream,
 			isolate_clients,
 			dhcp_range,
@@ -513,6 +526,9 @@ impl Hotspot {
 			"passphrase".to_owned(),
 			Json::String(self.passphrase.clone()),
 		);
+		if let Some(interface) = &self.interface {
+			map.insert("interface".to_owned(), Json::String(interface.clone()));
+		}
 		if let Some(share) = self.share_upstream {
 			map.insert("share-upstream".to_owned(), Json::Bool(share));
 		}
@@ -590,6 +606,15 @@ fn string<'a>(map: &'a Map<String, Json>, member: &str) -> Result<&'a str, Strin
 	map.get(member)
 		.and_then(Json::as_str)
 		.ok_or_else(|| format!("a string `{member}`"))
+}
+
+/// An optional string member.
+fn optional_string(map: &Map<String, Json>, member: &str) -> Result<Option<String>, String> {
+	match map.get(member) {
+		None | Some(Json::Null) => Ok(None),
+		Some(Json::String(value)) => Ok(Some(value.clone())),
+		Some(_) => Err(format!("`{member}` is a string")),
+	}
 }
 
 /// An optional array of strings, empty where the member is absent.
@@ -858,5 +883,42 @@ mod tests {
 			"$['attachments'][2]['gateway']"
 		);
 		assert_eq!(path(&[Name("it's\\\n\u{1}")]), r"$['it\'s\\\n\u0001']");
+	}
+
+	/// A wireless candidate and the hotspot may name the interface that carries them, and naming none
+	/// leaves the choice to the device (LINK, HOT).
+	#[test]
+	fn wireless_and_hotspot_name_an_interface_or_leave_it_to_the_device() {
+		let parsed = document(serde_json::json!({
+			"attachments": [
+				{ "kind": "wireless", "label": "uplink", "ssid": "Clinic", "interface": "wlx00c0caa1b2c3",
+				  "security": { "kind": "sae", "passphrase": "a good long passphrase" } },
+				{ "kind": "wireless", "label": "either", "ssid": "Office",
+				  "security": { "kind": "psk", "passphrase": "another passphrase" } }
+			],
+			"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlan0" }
+		}))
+		.unwrap();
+		let interfaces: Vec<_> = parsed
+			.attachments
+			.iter()
+			.map(|a| match &a.kind {
+				AttachmentKind::Wireless(w) => w.interface.as_deref(),
+				_ => panic!("expected wireless candidates"),
+			})
+			.collect();
+		assert_eq!(interfaces, [Some("wlx00c0caa1b2c3"), None]);
+		assert_eq!(
+			parsed.hotspot.as_ref().unwrap().interface.as_deref(),
+			Some("wlan0")
+		);
+		assert_eq!(Document::parse(&parsed.to_json()).unwrap(), parsed);
+
+		let err = document(serde_json::json!({
+			"attachments": [],
+			"hotspot": { "ssid": "s", "passphrase": "p", "interface": 0 }
+		}))
+		.unwrap_err();
+		assert_eq!(err.at, "$['hotspot']['interface']");
 	}
 }

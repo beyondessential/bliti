@@ -18,6 +18,7 @@ A device MUST run a hotspot only where its configuration carries one.
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `ssid` | string | yes | the network the hotspot advertises |
+| `interface` | string | no | the wireless interface whose radio runs the hotspot |
 | `passphrase` | string | yes | what a client joins with |
 | `share-upstream` | boolean | no | whether clients reach the device's own network; enabled where unset |
 | `isolate-clients` | boolean | no | whether clients are kept from reaching each other; enabled where unset |
@@ -36,13 +37,21 @@ A device whose `dhcp-range` is unset MUST use `10.41.0.0/24`, the same range as 
 > The hotspot's passphrase is the one credential here meant to be read aloud and handed to a stranger, so it is kept clear of the chain every other value on the device descends from.
 > A fixed default range is predictable and documentable. It is overridable because it collides with an upstream that happens to use it.
 
+## Choosing a radio
+
+A device MUST run a hotspot naming an `interface` on that interface's radio.
+
+A device MUST run a hotspot naming no `interface` on a radio able to run it, and MUST prefer one carrying no wireless candidate.
+
+A device MUST run a hotspot whose `band`, `channel` or `channel-width` is set only on a radio offering them.
+
 ## Running alongside a wireless client
 
-A device whose radio can run an access point and a wireless client at once MUST report that among its capabilities.
+A device MUST report, for each radio able to run an access point, whether it runs one beside a wireless client at once, only one at a time, or at once only on one channel.
 
-A device whose radio can run only one at a time MUST report that instead, and MUST treat a document carrying both a hotspot and a wireless candidate as invalid.
+A radio that runs only one at a time MUST NOT carry the hotspot and a wireless candidate together, and a device MUST treat as invalid a document whose hotspot and a wireless candidate could be carried only by such a radio.
 
-A device whose radio runs an access point and a wireless client only on one channel MUST report that among its capabilities, MUST omit `band`, `channel` and `channel-width` from its capabilities, and MUST operate its hotspot on the channel its wireless client is using whenever one is associated.
+For a radio that runs an access point and a wireless client only on one channel, a device MUST omit `band`, `channel` and `channel-width` from that radio's capabilities, and MUST operate a hotspot it runs there on the channel of the wireless client that radio carries, whenever one is associated.
 
 > [!NOTE]
 > Reporting the constraint rather than accepting a channel and overriding it is what keeps a setting that appears from being one that silently stops holding, in this case depending on whether a client happened to associate.

@@ -161,6 +161,7 @@ pub fn render(
 	selection: &Selection,
 ) -> Result<Rendered, Error> {
 	let domain = regdom::domain(document)?;
+	radios(document, hardware)?;
 
 	let mut files = iwd::networks(document, hardware)?;
 	let networks = document
@@ -219,6 +220,39 @@ pub fn render(
 
 	files.sort_by(|a, b| a.path.cmp(&b.path));
 	Ok(Rendered { files })
+}
+
+/// Refuse a wireless candidate or hotspot naming a radio other than the one this hardware has.
+///
+/// One radio is all [`Hardware`] describes, so a name that is not its station interface is an adapter
+/// nothing here could drive (LINK, HOT). Carrying it anyway on the one radio there is would run
+/// something other than what was written.
+fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
+	let named = |interface: &str| hardware.station.as_deref() == Some(interface);
+	for (rank, attachment) in document.attachments.iter().enumerate() {
+		if let AttachmentKind::Wireless(wireless) = &attachment.kind
+			&& let Some(interface) = wireless.interface.as_deref()
+			&& !named(interface)
+		{
+			return Err(invalid_in(
+				rank,
+				&[Segment::Name("interface")],
+				format!("{interface:?} is not a wireless interface on this device"),
+			));
+		}
+	}
+	if let Some(interface) = document
+		.hotspot
+		.as_ref()
+		.and_then(|hotspot| hotspot.interface.as_deref())
+		&& !named(interface)
+	{
+		return Err(invalid(
+			&[Segment::Name("hotspot"), Segment::Name("interface")],
+			format!("{interface:?} is not a wireless interface on this device"),
+		));
+	}
+	Ok(())
 }
 
 /// A fault found in the document before anything was applied, at the node `at` names.

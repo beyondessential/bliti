@@ -13,6 +13,7 @@ A `wireless` candidate of [LINK](attachment.md) names a network to join and carr
 | `ssid` | string | yes | the network to join |
 | `security` | object | yes | how the device authenticates to it, as below |
 | `hidden` | boolean | no | whether the network is joined without it appearing in a scan |
+| `interface` | string | no | the wireless interface it is joined on; unset, the device chooses, as [LINK](attachment.md) specifies |
 
 `security` MUST carry a `kind` of `psk`, `sae`, `psk-sae` or `enterprise`.
 
@@ -48,7 +49,7 @@ A device MUST join only a network that authenticates the access point to it.
 
 A device MUST join by WPS on request, by push-button and by PIN.
 
-A device MUST report which WPS methods its radio offers among its capabilities.
+A device MUST report which WPS methods each of its radios offers among its capabilities.
 
 > [!NOTE]
 > A device with no keyboard is one an operator cannot type a passphrase into, and WPS is what a site's existing access point already offers for that.

@@ -92,16 +92,17 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 | --- | --- | --- | --- |
 | `scan` | client | nothing beyond `type` | report the wireless networks it can see |
 | `survey` | client | nothing beyond `type` | report what its radio can see of the occupied and usable spectrum |
-| `wps` | client | `method` | join by WPS, as [WLAN](wireless.md) specifies |
+| `wps` | client | `method`, and `interface` where the client names the wireless interface to join on | join by WPS, as [WLAN](wireless.md) specifies |
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
-A device that cannot survey its spectrum MUST omit `survey` from its capabilities.
+A device none of whose radios can survey its spectrum MUST omit `survey` from its capabilities.
 
-`spectrum` MUST carry a `spectrum` object whose `channels` member is an array with one entry for each channel usable under the regulatory domain in force:
+`spectrum` MUST carry a `spectrum` object whose `channels` member is an array with one entry for each channel usable under the regulatory domain in force, on each radio able to survey:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
+| `interface` | string | yes | the wireless interface whose radio heard it |
 | `band` | string | yes | the band, as [HOT](hotspot.md) names bands |
 | `channel` | number | yes | the channel |
 | `networks` | number | yes | how many access points the radio heard on it |

@@ -123,3 +123,17 @@ Findings from building the renderer, each binding on the applier or on capabilit
 - **`share-upstream: false` needs systemd 256 or later**, where `IPv4Forwarding=` exists. Older systemd ignores the key. Worth confirming against the image's systemd.
 - **The default hotspot range is `10.41.0.0/24`**: the device is `10.41.0.1` and hands out the rest.
 - **Structural rules the renderer enforces that no spec states**: passphrases are 8 to 63 printable ASCII characters, SAE included; two wireless candidates for one SSID with the same kind of key are refused, since iwd keys its files by SSID; enterprise members a method does not use are refused, `phase2` is required for PEAP and TTLS, and `ca-certificate` and `domain` for PEAP, TTLS and TLS.
+
+### Several radios
+
+A wireless candidate and the hotspot may name an `interface`; unset, the device picks (LINK, HOT). Candidates take free radios in order, preferring the one that hears them best, and an unpinned hotspot prefers a radio carrying no wireless candidate. The capabilities proposal keys what differs by radio under `interface`, and carries `radios` keyed by interface with `model`, `bands` and `alongside`.
+
+The document model carries `interface` already, and the renderer refuses any name but its one station interface, since `Hardware` describes one radio. What several radios still need:
+
+- [ ] `Hardware` describing each radio (its station interface, the AP interface bliti creates on it, its `alongside`), and `Selection` saying which radio carries each active wireless candidate and the hotspot
+- [ ] iwd's known networks are global to iwd rather than per interface, so a pin is enforced by bliti connecting that interface's station itself, with every network at `AutoConnect=false`
+- [ ] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
+- [ ] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
+- [ ] `wireless-network` in NFO carries `interface`, distinguishing
+- [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, and `wps` takes an optional `interface`
+- [ ] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`, once the capabilities shape is signed off

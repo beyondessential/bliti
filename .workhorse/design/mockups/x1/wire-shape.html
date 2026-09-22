@@ -112,7 +112,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 </div>
 
 <h2>Capabilities <span class="tag proposed">Proposed</span></h2>
-<p>Three members, each saying something different: <code>document</code> is what a document may carry, <code>radio</code> is what the hardware is, <code>acts</code> is what the device will do on request.</p>
+<p>Three members, each saying something different: <code>document</code> is what a document may carry, <code>radios</code> is what the hardware is, <code>acts</code> is what the device will do on request.</p>
 
 <h3>One rule for <code>document</code>: it mirrors the configuration document</h3>
 <div class="card">
@@ -121,25 +121,27 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<tr><td>nothing</td><td>Not supported. A document carrying it is invalid, and the client does not offer it (NET, NSCR).</td></tr>
 		<tr><td><code>true</code></td><td>Supported, with any value the document itself admits.</td></tr>
 		<tr><td>an array</td><td>Supported, with exactly these values.</td></tr>
-		<tr><td>an object</td><td>Supported, and constrained member by member, recursively. For a member whose values depend on another (a channel on a band), keyed by that other member's value.</td></tr>
+		<tr><td>an object</td><td>Supported, and constrained member by member, recursively.</td></tr>
+		<tr><td>an object keyed by the member's values</td><td>Where what its siblings may carry depends on this member's value, each key is a value it may take, holding the constraints on its siblings under that value. The attachment <code>kind</code>, the security <code>kind</code>, a radio's <code>interface</code> and a hotspot's <code>band</code> all work this way. Left unset, the member is allowed where any key allows what the rest of the document asks.</td></tr>
 	</table>
-	<p style="margin:12px 0 0">Attachment and security kinds are keys, so a kind absent from capabilities cannot be proposed. A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed. For <code>enterprise</code> that means only <code>eap</code>: the credentials each method requires come with the method. A channel keyed by band, with no band set, is allowed where any listed band carries it.</p>
+	<p style="margin:12px 0 0">A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed. For <code>enterprise</code> that means only <code>eap</code>: the credentials each method uses come with the method (WLAN).</p>
 	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the Normalized Path of the first member not covered.</p>
 </div>
 
-<h3><code>radio</code>: what the hardware is</h3>
+<h3><code>radios</code>: what the hardware is, keyed by wireless interface</h3>
 <div class="card">
 	<table>
 		<tr><th>member</th><th>values</th><th>meaning</th></tr>
-		<tr><td><code>bands</code></td><td><code>2.4ghz</code>, <code>5ghz</code>, <code>6ghz</code></td><td>The bands the radio can use at all. Written whenever <code>radio</code> is. A new access point is only any use to the device on one of these.</td></tr>
-		<tr><td><code>alongside</code></td><td><code>independent</code><br><code>shared-channel</code><br><code>one-at-a-time</code></td><td>How the radio runs a hotspot beside a wireless client. Written whenever <code>radio</code> is. <code>shared-channel</code> is why <code>band</code>, <code>channel</code> and <code>channel-width</code> are absent, and is the sentence the client shows in their place. <code>one-at-a-time</code> makes a document with both a hotspot and a wireless candidate invalid.</td></tr>
+		<tr><td><code>model</code></td><td>text</td><td>What the adapter is, so an operator can tell the built-in radio from a USB one without knowing interface names.</td></tr>
+		<tr><td><code>bands</code></td><td><code>2.4ghz</code>, <code>5ghz</code>, <code>6ghz</code></td><td>The bands the radio can use at all. A new access point only helps the device on one of these.</td></tr>
+		<tr><td><code>alongside</code></td><td><code>independent</code><br><code>shared-channel</code><br><code>one-at-a-time</code></td><td>How this radio runs a hotspot beside a wireless client (HOT). Written for every radio able to run an access point; a radio that cannot is absent from <code>document.hotspot.interface</code>. <code>shared-channel</code> is why that radio has no <code>band</code>, and is the sentence the client shows in its place.</td></tr>
 	</table>
-	<p style="margin:12px 0 0">No <code>radio</code> at all means no wireless hardware, and then <code>document</code> carries neither <code>wireless</code> nor <code>hotspot</code>.</p>
+	<p style="margin:12px 0 0">No <code>radios</code> means no wireless hardware, and then <code>document</code> carries neither <code>wireless</code> nor <code>hotspot</code>. Where radios differ, what each can do sits under its key in <code>document</code>; a candidate or hotspot naming no interface is allowed where any radio allows it, and the device picks (LINK, HOT).</p>
 </div>
 
 <h3><code>acts</code>: keyed by message type</h3>
 <div class="card">
-	<p style="margin:0"><code>scan</code> and <code>survey</code> are <code>true</code> where offered; <code>wps</code> is the array of methods the radio offers (WLAN). CFG already requires <code>survey</code> to be absent where the radio cannot survey.</p>
+	<p style="margin:0">Each mirrors its message the way <code>document</code> mirrors the document. <code>scan</code> and <code>survey</code> are <code>true</code> where any radio offers them. <code>wps</code> carries the methods each radio offers, keyed by <code>interface</code> as the <code>wps</code> message may name one (WLAN).</p>
 </div>
 
 <h3>Three devices</h3>
@@ -150,74 +152,97 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   <span class="k">"document"</span>: {
     <span class="k">"attachments"</span>: {
       <span class="k">"wireless"</span>: {
-        <span class="k">"security"</span>: {
-          <span class="k">"psk"</span>: true,
-          <span class="k">"sae"</span>: true,
-          <span class="k">"psk-sae"</span>: true,
-          <span class="k">"enterprise"</span>: {
-            <span class="k">"eap"</span>: ["peap", "ttls", "tls"]
+        <span class="k">"interface"</span>: {
+          <span class="k">"wlan0"</span>: {
+            <span class="k">"security"</span>: {
+              <span class="k">"psk"</span>: true, <span class="k">"sae"</span>: true, <span class="k">"psk-sae"</span>: true,
+              <span class="k">"enterprise"</span>: { <span class="k">"eap"</span>: ["peap", "ttls", "tls", "pwd"] }
+            },
+            <span class="k">"hidden"</span>: true
           }
         },
-        <span class="k">"hidden"</span>: true,
         <span class="k">"nameservers"</span>: true
       },
-      <span class="k">"wired-dynamic"</span>: {
-        <span class="k">"interface"</span>: ["eth0"],
-        <span class="k">"nameservers"</span>: true
-      },
-      <span class="k">"wired-static"</span>: {
-        <span class="k">"interface"</span>: ["eth0"],
-        <span class="k">"nameservers"</span>: true
-      }
+      <span class="k">"wired-dynamic"</span>: { <span class="k">"interface"</span>: ["eth0"], <span class="k">"nameservers"</span>: true },
+      <span class="k">"wired-static"</span>: { <span class="k">"interface"</span>: ["eth0"], <span class="k">"nameservers"</span>: true }
     },
     <span class="k">"hotspot"</span>: {
+      <span class="k">"interface"</span>: { <span class="k">"wlan0"</span>: {} },
       <span class="k">"share-upstream"</span>: true,
       <span class="k">"isolate-clients"</span>: true,
       <span class="k">"dhcp-range"</span>: true
     },
     <span class="k">"regulatory-domain"</span>: true
   },
-  <span class="k">"radio"</span>: {
-    <span class="k">"bands"</span>: ["2.4ghz", "5ghz"],
-    <span class="k">"alongside"</span>: "shared-channel"
+  <span class="k">"radios"</span>: {
+    <span class="k">"wlan0"</span>: {
+      <span class="k">"model"</span>: "Cypress CYW43455",
+      <span class="k">"bands"</span>: ["2.4ghz", "5ghz"],
+      <span class="k">"alongside"</span>: "shared-channel"
+    }
   },
   <span class="k">"acts"</span>: {
     <span class="k">"scan"</span>: true,
-    <span class="k">"wps"</span>: ["push-button", "pin"]
+    <span class="k">"wps"</span>: { <span class="k">"interface"</span>: {
+      <span class="k">"wlan0"</span>: { <span class="k">"method"</span>: ["push-button", "pin"] }
+    } }
   }
 }</pre>
 	</div>
 	<div class="card">
-		<h3>Two radios, independent channels</h3>
+		<h3>The Pi with a USB adapter</h3>
 <pre>{
   <span class="k">"document"</span>: {
-    <span class="k">"attachments"</span>: { <span class="c">…as the Pi…</span> },
+    <span class="k">"attachments"</span>: {
+      <span class="k">"wireless"</span>: {
+        <span class="k">"interface"</span>: {
+          <span class="k">"wlan0"</span>: { <span class="c">…as the Pi…</span> },
+          <span class="k">"wlx00c0caa1b2c3"</span>: {
+            <span class="k">"security"</span>: {
+              <span class="k">"psk"</span>: true, <span class="k">"sae"</span>: true, <span class="k">"psk-sae"</span>: true,
+              <span class="k">"enterprise"</span>: { <span class="k">"eap"</span>: ["peap", "ttls", "tls", "pwd"] }
+            },
+            <span class="k">"hidden"</span>: true
+          }
+        },
+        <span class="k">"nameservers"</span>: true
+      },
+      <span class="c">…wired as the Pi…</span>
+    },
     <span class="k">"hotspot"</span>: {
+      <span class="k">"interface"</span>: {
+        <span class="k">"wlan0"</span>: {},
+        <span class="k">"wlx00c0caa1b2c3"</span>: {
+          <span class="k">"band"</span>: {
+            <span class="k">"2.4ghz"</span>: { <span class="k">"channel"</span>: [1, 6, 11], <span class="k">"channel-width"</span>: [20] },
+            <span class="k">"5ghz"</span>: { <span class="k">"channel"</span>: [36, 40, 44, 48], <span class="k">"channel-width"</span>: [20, 40, 80] }
+          }
+        }
+      },
       <span class="k">"share-upstream"</span>: true,
       <span class="k">"isolate-clients"</span>: true,
-      <span class="k">"dhcp-range"</span>: true,
-      <span class="k">"band"</span>: ["2.4ghz", "5ghz"],
-      <span class="k">"channel"</span>: {
-        <span class="k">"2.4ghz"</span>: [1, 6, 11],
-        <span class="k">"5ghz"</span>: [36, 40, 44, 48]
-      },
-      <span class="k">"channel-width"</span>: {
-        <span class="k">"2.4ghz"</span>: [20],
-        <span class="k">"5ghz"</span>: [20, 40, 80]
-      }
+      <span class="k">"dhcp-range"</span>: true
     },
     <span class="k">"regulatory-domain"</span>: true
   },
-  <span class="k">"radio"</span>: {
-    <span class="k">"bands"</span>: ["2.4ghz", "5ghz"],
-    <span class="k">"alongside"</span>: "independent"
+  <span class="k">"radios"</span>: {
+    <span class="k">"wlan0"</span>: { <span class="c">…as the Pi…</span> },
+    <span class="k">"wlx00c0caa1b2c3"</span>: {
+      <span class="k">"model"</span>: "MediaTek MT7921AU",
+      <span class="k">"bands"</span>: ["2.4ghz", "5ghz", "6ghz"],
+      <span class="k">"alongside"</span>: "independent"
+    }
   },
   <span class="k">"acts"</span>: {
     <span class="k">"scan"</span>: true,
     <span class="k">"survey"</span>: true,
-    <span class="k">"wps"</span>: ["push-button"]
+    <span class="k">"wps"</span>: { <span class="k">"interface"</span>: {
+      <span class="k">"wlan0"</span>: { <span class="k">"method"</span>: ["push-button", "pin"] },
+      <span class="k">"wlx00c0caa1b2c3"</span>: { <span class="k">"method"</span>: ["push-button"] }
+    } }
   }
 }</pre>
+		<p style="margin:12px 0 0" class="c">The hotspot can take its channel only on the adapter. Unpinned, it goes on a radio carrying no wireless candidate, so with the uplink on one radio it takes the other. The adapter hears 6 GHz but cannot serve it.</p>
 	</div>
 	<div class="card">
 		<h3>Wired only, two ports</h3>
@@ -236,7 +261,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   },
   <span class="k">"acts"</span>: {}
 }</pre>
-		<p style="margin:12px 0 0" class="c">No <code>radio</code>, so no wireless, hotspot or regulatory domain, and nothing to scan.</p>
+		<p style="margin:12px 0 0" class="c">No <code>radios</code>, so no wireless, hotspot or regulatory domain, and nothing to scan.</p>
 	</div>
 </div>
 
@@ -315,20 +340,23 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 <pre>{
   <span class="k">"type"</span>: "networks",
   <span class="k">"access-points"</span>: [
-    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:40", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+    { <span class="k">"interface"</span>: "wlan0", <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:40", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
       <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -52 },
-    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:41", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+    { <span class="k">"interface"</span>: "wlx00c0caa1b2c3", <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:40", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+      <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -44 },
+    { <span class="k">"interface"</span>: "wlan0", <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:41", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
       <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 1, <span class="k">"channel-width"</span>: 20, <span class="k">"signal"</span>: -47 },
-    { <span class="k">"bssid"</span>: "a4:2b:b0:3e:90:e0", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+    { <span class="k">"interface"</span>: "wlan0", <span class="k">"bssid"</span>: "a4:2b:b0:3e:90:e0", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
       <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 149, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -78 },
-    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:42", <span class="k">"ssid"</span>: null, <span class="k">"hidden"</span>: true,
+    { <span class="k">"interface"</span>: "wlan0", <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:42", <span class="k">"ssid"</span>: null, <span class="k">"hidden"</span>: true,
       <span class="k">"security"</span>: ["sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -53 },
-    { <span class="k">"bssid"</span>: "5c:a6:e6:02:71:9b", <span class="k">"ssid"</span>: "Guest", <span class="k">"hidden"</span>: false,
+    { <span class="k">"interface"</span>: "wlan0", <span class="k">"bssid"</span>: "5c:a6:e6:02:71:9b", <span class="k">"ssid"</span>: "Guest", <span class="k">"hidden"</span>: false,
       <span class="k">"security"</span>: ["open"], <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6, <span class="k">"channel-width"</span>: 20, <span class="k">"signal"</span>: -61 }
   ]
 }</pre>
 	<table style="margin-top:12px">
 		<tr><th>member</th><th>meaning</th></tr>
+		<tr><td><code>interface</code></td><td>The wireless interface whose radio heard it. An access point heard by two adapters appears once for each, with each one's signal, which is how an operator finds which adapter hears the site better.</td></tr>
 		<tr><td><code>bssid</code></td><td>The access point's radio address, lower case and colon-separated. The one member that tells two access points of one network apart.</td></tr>
 		<tr><td><code>ssid</code></td><td>The network's name, or <code>null</code> where the access point hides it and the device does not know it. A hidden network the device is configured for carries its name.</td></tr>
 		<tr><td><code>hidden</code></td><td>Whether the access point leaves its name out of its beacons. Written every time, since a hidden network whose name the device knows would otherwise look like any other.</td></tr>
@@ -351,12 +379,12 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   <span class="k">"type"</span>: "spectrum",
   <span class="k">"spectrum"</span>: {
     <span class="k">"channels"</span>: [
-      { <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 1, <span class="k">"networks"</span>: 4, <span class="k">"busy"</span>: 0.42 },
-      { <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6, <span class="k">"networks"</span>: 9, <span class="k">"busy"</span>: 0.71 }
+      { <span class="k">"interface"</span>: "wlan0", <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 1, <span class="k">"networks"</span>: 4, <span class="k">"busy"</span>: 0.42 },
+      { <span class="k">"interface"</span>: "wlan0", <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6, <span class="k">"networks"</span>: 9, <span class="k">"busy"</span>: 0.71 }
     ]
   }
 }</pre>
-	<p style="margin:12px 0 0"><code>networks</code> is how many access points the radio heard on the channel. <code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
+	<p style="margin:12px 0 0">Each entry also carries the <code>interface</code> whose radio heard it (CFG). <code>networks</code> is how many access points the radio heard on the channel. <code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
 </div>
 
 <h2>Gaps the specs need closing <span class="tag open">Open</span></h2>

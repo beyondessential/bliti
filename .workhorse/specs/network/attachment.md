@@ -45,10 +45,15 @@ A device MUST treat a `wired-static` candidate carrying no `gateway` as invalid.
 
 A device MUST bring up at most one candidate per interface, and MAY hold candidates on several interfaces up at once.
 
+A device MUST bring up a `wireless` candidate naming an `interface` only on that interface.
+
+A device MUST bring up a `wireless` candidate naming no `interface` on a wireless interface able to carry it and carrying no candidate higher in the ordering, and MUST prefer, among those, the one hearing the network best.
+
 A device MUST take the candidate highest in the ordering among those it has brought up as the one carrying the default route.
 
 > [!NOTE]
 > The ordering decides which attachment carries traffic, not which exists. A device reachable on both a wall port and a wireless network at the same time is easier to find than one reachable on whichever it preferred.
+> A wireless candidate naming no interface means the same on devices whose interfaces are named differently, as a USB adapter's commonly carries its address. Naming one is for an operator who wants a particular adapter to carry a particular network.
 
 ## Verification
 
