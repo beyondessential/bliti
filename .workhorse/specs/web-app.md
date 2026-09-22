@@ -49,6 +49,8 @@ The application MUST be served from the origin the QR code encodes, as [QR](qr-c
 
 The application MUST run without being installed first, and MUST remain usable offline once it has been loaded.
 
+The application MUST also be installable, such that a browser offers to add it to the device's home screen.
+
 > [!NOTE]
 > Running uninstalled is what lets whoever is standing in front of a device provision it.
 > Working offline is what makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).

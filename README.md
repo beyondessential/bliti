@@ -102,8 +102,7 @@ Scanning the QR code with a generic phone camera opens the page with the payload
 which is never sent to a server; an already-open page reads further codes with its own camera.
 It needs a secure context, since neither the camera nor Web Bluetooth is available without one.
 
-Build it with `crates/bliti-web/build.sh`, which needs the `wasm32-unknown-unknown` target and
-`wasm-bindgen`.
+Run `just setup` once to install what a build needs, then `just build` to build it.
 
 The `bliti` binary also carries the client half, for working on a device without a browser:
 

@@ -103,8 +103,7 @@ jobs:
         run: npm ci
         working-directory: crates/bliti-web/app
       - name: Build the static bundle
-        run: npm run build
-        working-directory: crates/bliti-web/app
+        run: just build
 
       # Kept so that hosting it at the QR code's origin is later wiring rather
       # than work.

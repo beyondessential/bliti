@@ -9,7 +9,6 @@
 		"pretest": "just build-wasm",
 		"dev": "vite",
 		"build": "vite build",
-		"postbuild": "node precompress.js",
 		"preview": "vite preview",
 		"test": "playwright test"
 	},
