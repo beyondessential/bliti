@@ -282,9 +282,15 @@ Decisions it makes, which are the parts worth holding on to:
 
 The client supplies its own wording throughout, as VIEW already requires of it: the wire says confirm and discard, the screen says Save and Discard, and the wire's vocabulary never reaches the operator.
 
-**Write the microcopy for a technician.** Whoever opens this screen is configuring a network, and the correct technical term is the clearer one: SSID rather than name, passphrase rather than password, regulatory domain rather than country, DHCP range rather than addresses handed out, isolated rather than kept apart. Plain-language paraphrase reads as friendlier and is vaguer, and vagueness is what costs someone a site visit.
+**Write the microcopy for a technician, but pick the word someone will reach for.** Two rules that mostly agree and sometimes do not.
 
-The same applies to what a candidate's state says. "No gateway", "No lease" and "Out of range" report what the device observed; "not here" and "not offered" are the same information with the diagnosis taken out of it.
+Where a plain paraphrase is vaguer about what the thing *is*, use the technical term: SSID rather than name, passphrase rather than password, DHCP range rather than addresses handed out, isolated rather than kept apart. Plain language reads friendlier and is vaguer, and vagueness is what costs someone a site visit.
+
+Where the plain word is what someone scanning the screen would look for, keep it even though a more precise term exists. "Country" stays, because someone hunting for the regulatory domain setting pattern-matches on the country; "Regulatory domain" is more correct and less findable. "Order tried" stays for the same reason.
+
+The distinction is that the first rule is about a label being ambiguous once you have found it, and the second is about finding it at all. Precision loses to discoverability, and only to discoverability.
+
+The same care applies to what a candidate's state says. "No gateway", "No lease" and "Out of range" report what the device observed; "not here" and "not offered" are the same information with the diagnosis taken out of it.
 
 ## Implementation options
 
