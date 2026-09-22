@@ -127,10 +127,11 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the Normalized Path of the first member not covered.</p>
 </div>
 
-<h3><code>radio</code>: facts HOT requires to be reported</h3>
+<h3><code>radio</code>: what the hardware is</h3>
 <div class="card">
 	<table>
 		<tr><th>member</th><th>values</th><th>meaning</th></tr>
+		<tr><td><code>bands</code></td><td><code>2.4ghz</code>, <code>5ghz</code>, <code>6ghz</code></td><td>The bands the radio can use at all. Written whenever <code>radio</code> is. A new access point is only any use to the device on one of these.</td></tr>
 		<tr><td><code>alongside</code></td><td><code>independent</code><br><code>shared-channel</code><br><code>one-at-a-time</code></td><td>How the radio runs a hotspot beside a wireless client. Written whenever <code>radio</code> is. <code>shared-channel</code> is why <code>band</code>, <code>channel</code> and <code>channel-width</code> are absent, and is the sentence the client shows in their place. <code>one-at-a-time</code> makes a document with both a hotspot and a wireless candidate invalid.</td></tr>
 	</table>
 	<p style="margin:12px 0 0">No <code>radio</code> at all means no wireless hardware, and then <code>document</code> carries neither <code>wireless</code> nor <code>hotspot</code>.</p>
@@ -177,6 +178,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     <span class="k">"regulatory-domain"</span>: true
   },
   <span class="k">"radio"</span>: {
+    <span class="k">"bands"</span>: ["2.4ghz", "5ghz"],
     <span class="k">"alongside"</span>: "shared-channel"
   },
   <span class="k">"acts"</span>: {
@@ -207,6 +209,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     <span class="k">"regulatory-domain"</span>: true
   },
   <span class="k">"radio"</span>: {
+    <span class="k">"bands"</span>: ["2.4ghz", "5ghz"],
     <span class="k">"alongside"</span>: "independent"
   },
   <span class="k">"acts"</span>: {
@@ -302,14 +305,43 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 
 <h3><code>networks</code>, answering <code>scan</code></h3>
 <div class="card">
+	<p>One entry per access point the radio heard, rather than per network. A network is usually several access points, and a single physical access point often carries several BSSIDs, one per band and per SSID. Which one the device hears best is what decides both questions a scan answers:</p>
+	<ul style="margin:0 0 12px; padding-left:20px; max-width:46rem">
+		<li><strong>Joining:</strong> which network to add, and whether the device hears it well enough to be worth adding.</li>
+		<li><strong>Siting a new access point</strong> to improve the device's signal: how well it hears each existing one, and which channels are already taken where the device stands.</li>
+	</ul>
+	<p>Grouping by SSID is left to the client, which is where it is drawn. The device knows no more about which access points form one network than the client does, and two unrelated networks can share a name.</p>
 <pre>{
   <span class="k">"type"</span>: "networks",
-  <span class="k">"networks"</span>: [
-    { <span class="k">"ssid"</span>: "Clinic", <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"signal"</span>: -52, <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36 },
-    { <span class="k">"ssid"</span>: "Guest", <span class="k">"security"</span>: ["open"], <span class="k">"signal"</span>: -61, <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6 }
+  <span class="k">"access-points"</span>: [
+    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:40", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+      <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -52 },
+    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:41", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+      <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 1, <span class="k">"channel-width"</span>: 20, <span class="k">"signal"</span>: -47 },
+    { <span class="k">"bssid"</span>: "a4:2b:b0:3e:90:e0", <span class="k">"ssid"</span>: "Clinic", <span class="k">"hidden"</span>: false,
+      <span class="k">"security"</span>: ["psk", "sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 149, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -78 },
+    { <span class="k">"bssid"</span>: "a4:2b:b0:11:2c:42", <span class="k">"ssid"</span>: null, <span class="k">"hidden"</span>: true,
+      <span class="k">"security"</span>: ["sae"], <span class="k">"band"</span>: "5ghz", <span class="k">"channel"</span>: 36, <span class="k">"channel-width"</span>: 80, <span class="k">"signal"</span>: -53 },
+    { <span class="k">"bssid"</span>: "5c:a6:e6:02:71:9b", <span class="k">"ssid"</span>: "Guest", <span class="k">"hidden"</span>: false,
+      <span class="k">"security"</span>: ["open"], <span class="k">"band"</span>: "2.4ghz", <span class="k">"channel"</span>: 6, <span class="k">"channel-width"</span>: 20, <span class="k">"signal"</span>: -61 }
   ]
 }</pre>
-	<p style="margin:12px 0 0"><code>security</code> is what the access point advertises, from <code>psk</code>, <code>sae</code>, <code>enterprise</code>, <code>open</code>, <code>owe</code> and <code>wep</code>. The device will not join the last three. The client compares it with <code>capabilities.document.attachments.wireless.security</code> to say why <code>Guest</code> cannot be picked. <code>signal</code> is dBm. One entry per SSID and band; a hidden network is not listed.</p>
+	<table style="margin-top:12px">
+		<tr><th>member</th><th>meaning</th></tr>
+		<tr><td><code>bssid</code></td><td>The access point's radio address, lower case and colon-separated. The one member that tells two access points of one network apart.</td></tr>
+		<tr><td><code>ssid</code></td><td>The network's name, or <code>null</code> where the access point hides it and the device does not know it. A hidden network the device is configured for carries its name.</td></tr>
+		<tr><td><code>hidden</code></td><td>Whether the access point leaves its name out of its beacons. Written every time, since a hidden network whose name the device knows would otherwise look like any other.</td></tr>
+		<tr><td><code>security</code></td><td>What the access point advertises, from <code>psk</code>, <code>sae</code>, <code>enterprise</code>, <code>open</code>, <code>owe</code> and <code>wep</code>. Per access point, because one misconfigured access point in a network is exactly what a technician needs to find. The device will not join the last three, and the client compares the rest with <code>capabilities.document.attachments.wireless.security</code>.</td></tr>
+		<tr><td><code>band</code>, <code>channel</code>, <code>channel-width</code></td><td>Where it operates. The width says how much of the band it occupies, which is what siting a new access point beside it has to avoid.</td></tr>
+		<tr><td><code>signal</code></td><td>How strongly the device hears it, in dBm.</td></tr>
+	</table>
+	<p style="margin:12px 0 0">The answer is a fresh scan, not whatever the radio last cached. The device leaves its own hotspot out.</p>
+</div>
+
+<h3>What the client makes of it <span class="tag proposed">Proposed</span></h3>
+<div class="card">
+	<p>Networks are listed by SSID, each showing the strongest signal among its access points and how many there are, with the access points behind it on expanding. Access points with no SSID are left out unless the operator asks to see hidden networks. Picking one prefills a hidden candidate with its security, leaving the SSID to type.</p>
+	<p style="margin:0">Siting wants a second reading of the same answer: every access point by signal, and the channels taken on each band the radio can use. Whether the screen grows a view for it is a separate question, below.</p>
 </div>
 
 <h3><code>spectrum</code>, answering <code>survey</code></h3>
@@ -376,6 +408,11 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 <div class="card q">
 	<h3>8. A public resolver hides the site's own names</h3>
 	<p>LINK queries a candidate's <code>nameservers</code> before the ones the network supplies, and its note says that lets an operator add a public resolver without losing the site's internal names. On resolved it does not: the next server is tried only when one errors, and a public resolver answering "no such name" has not errored. Proposal: the search domains a network supplies become routing domains for that link, so names under the site's domain always go to the site's resolvers, and configured resolvers answer everything else. This holds only where the site hands out its domain, which the note should then say.</p>
+</div>
+
+<div class="card q">
+	<h3>9. A view for siting a new access point</h3>
+	<p>The scan above carries what siting needs, but NSCR draws only the joining use. Proposal: a coverage view reached from the scan, listing access points by signal with their channels, and the channels taken on each band the radio can use, so a technician placing a new access point can see where the device's signal comes from and which channel to put it on.</p>
 </div>
 
 </main>
