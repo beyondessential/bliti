@@ -149,18 +149,34 @@ A device joins WPA2-PSK and WPA3-SAE networks, including the transitional mode m
 It also joins by WPS, both push-button and PIN, which is worth something on a device with no keyboard.
 PIN mode is brute-forceable and WPA3 drops WPS entirely in favour of DPP, and neither is a reason to withhold it here.
 
-The principle that settles this, and others like it: **bliti supports what a network can do, and does not set policy on it.**
-The network belongs to the site.
+Two rules are at work, on two different axes, and keeping them apart is what makes both defensible.
+
+**How a device obtains credentials is the site's business.**
+bliti supports what a network can do and does not set policy on it.
 A device that refused WPS PIN because the mechanism is weak would be making a decision that is not its to make, on a network it is a guest of, and the operator would be left with a device that will not join and no good account of why.
 
-DPP is the WPA3-era replacement, and is its own card.
+**Whether the link authenticates the access point is bliti's business.**
+A device joins only networks that give it some way to establish that the access point is the one it meant to join.
+WPA2-PSK, WPA3-SAE and 802.1X all do: the first two by proving possession of the key, the last by certificate.
 
-The hotspot is the other side of this, and the principle does not carry over: bliti does not implement WPS or DPP *as* an access point.
-Joining by whatever a site's access point offers is supporting what exists; offering a deprecated onboarding mechanism to clients would be a policy choice, and that one is ours to decline.
+Open networks fail the second rule, and so does OWE, the encrypted-open mechanism of [RFC 8110](https://www.rfc-editor.org/rfc/rfc8110.html) that the Wi-Fi Alliance certifies as Enhanced Open.
+OWE was considered on the strength of its encryption: a per-association Diffie-Hellman gives a unique pairwise key, so a passive observer cannot derive traffic keys the way they can on a public-PSK network.
+It was rejected on the strength of what that encryption is worth without authentication.
+RFC 8110 section 7 says plainly that the client "will have no authenticated identity for the access point, and vice versa", that OWE "is susceptible to an active attack in which an adversary impersonates an access point", after which the adversary can "inspect, modify, and forge any data", and that OWE "is not a replacement for any authentication protocol".
+Section 6 goes further and directs that an OWE network not be shown with a lock icon, on the grounds that a user should read it as open.
+A mechanism whose own specification declines to be presented as secure is not one to build a rule around.
 
-A device does not join an open, unencrypted network.
-This is the one place bliti does impose a policy, and it is worth being clear why it is not a contradiction of the principle above: the principle is that bliti does not judge *how* a site authenticates its devices, and this is a requirement that the link be encrypted at all.
-These devices carry health data, and an unencrypted link is not a site decision.
+This matters because application traffic crosses the wifi link directly.
+The overlay carries management rather than the application, so bliti cannot assume anything protects that traffic above the link.
+
+Support would not have been the obstacle: `wpa_supplicant` builds it with `CONFIG_OWE=y`, NetworkManager has carried it since 1.24, and iwd exposes it as the `owe` security type.
+
+> At split time, write this as the positive requirement it is: a device joins only a network that authenticates the access point. Do not write "OWE is not supported" or "open networks are not supported". Those are absences, and the spec rules rule them out.
+
+DPP is the WPA3-era replacement for WPS, and is its own card.
+
+The hotspot is the other side of the first rule, and the rule does not carry over to it: bliti does not implement WPS or DPP *as* an access point.
+Joining by whatever a site's access point offers is supporting what exists; offering a deprecated onboarding mechanism to our own clients would be a policy choice, and that one is ours to decline.
 
 Captive-portal detection was not asked for.
 
@@ -225,7 +241,7 @@ Either the daemon runs privileged, or it holds specific capabilities, or it talk
 
 **Hotspot credentials outside the identity chain.** Everything else about a bliti device descends from its board ID, and deriving the hotspot's SSID and password would have fitted that, made them reproducible from the device alone, and let them be printed beside the QR code. They are operator-set instead, which means a device has no hotspot until someone configures one and a lost password is lost rather than recomputable. What it buys is that the hotspot password, the one credential here meant to be read aloud and handed to strangers, has no relationship to the chain the device's identity hangs off.
 
-**One carve-out in "we do not set policy".** Supporting WPS PIN and refusing open networks sit oddly beside each other until the line is drawn in the right place: bliti does not judge how a site authenticates, but does require that the link be encrypted. That line is defensible and it is also the only one. Every further "this network is not good enough" would need the same argument made again, and the answer should usually be no.
+**Authentication, not encryption, is the line.** Drawing it at encryption looked equivalent and was not: OWE encrypts and authenticates nothing, so an encryption rule would have admitted a link on which a rogue access point reads and rewrites everything. Drawing it at authentication also stops the rule fighting with the one above it, because obtaining credentials and authenticating a link are different axes: WPS PIN is a weak way of getting a key for a link that does authenticate, which is why supporting it costs nothing here. The cost of the line is real, though: a device cannot be deployed at a site that runs an open guest network and nothing else, and no amount of the operator insisting will change that.
 
 **The device keeps no history.** Reverting to the last confirmed configuration, and never persisting a provisional one, means the device holds exactly one configuration on disk and needs no unwind stack, no window that must survive a reboot, and no reconciliation after a power cut. The cost moves to the client, which has to hold the attempt and re-offer it, and to the failure report, which has to be specific enough for that re-offer to be worth anything.
 
@@ -235,6 +251,8 @@ Either the daemon runs privileged, or it holds specific capabilities, or it talk
 
 - The BLE session survives a client connection change, a switch into AP mode, and AP+STA coming up together, on real target hardware.
 - A device that joins each supported security type: WPA2-PSK, WPA3-SAE, transitional, enterprise, WPS push-button, WPS PIN.
+- An open network and an OWE network are both refused, with a reason an operator can act on rather than a bare failure.
+- An access point in OWE transition mode, which broadcasts an open BSS beside the OWE one, is refused on both.
 - A second client opening a configuration session while one is open is refused, with a reason.
 - A document asking for AP+STA on hardware that cannot do it is rejected, naming the conflict.
 - A session abandoned without confirming (stream closed, channel dropped, device powered off) leaves the last confirmed configuration in force.
