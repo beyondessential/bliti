@@ -13,18 +13,20 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## The configuration session
 
-- [ ] Opening a session returns the configuration in force together with the device's capabilities. Verifies spec: CFG
-- [ ] A second client opening a session while one is open is told the device is busy. Verifies spec: CFG
-- [ ] Reading the configuration and writing it back unmodified changes nothing. Verifies spec: NET
-- [ ] A proposal is applied to the running system and written nowhere. Verifies spec: CFG
-- [ ] Confirming a proposal makes it the recorded configuration. Verifies spec: CFG
-- [ ] Discard during verification aborts the attempt and leaves the recorded configuration in force. Verifies spec: CFG
-- [ ] Discard after a proposal is applied reverts to the recorded configuration. Verifies spec: CFG
-- [ ] A session abandoned without confirming leaves the recorded configuration in force, by stream close, channel drop, and device power-off alike. Verifies spec: CFG
-- [ ] A proposal is never timed out while its session is open. Verifies spec: CFG
-- [ ] A device retains nothing of a proposal after reverting. Verifies spec: CFG
-- [ ] A failure carries the part of the document at fault, a reason in the device's words, and the verification stage reached. Verifies spec: CFG
+- [x] Opening a session returns the configuration in force together with the device's capabilities. Verifies spec: CFG
+- [x] A second client opening a session while one is open is told the device is busy. Verifies spec: CFG
+- [x] Reading the configuration and writing it back unmodified changes nothing. Verifies spec: NET
+- [x] A proposal is applied to the running system and written nowhere. Verifies spec: CFG
+- [x] Confirming a proposal makes it the recorded configuration. Verifies spec: CFG
+- [x] Discard during verification aborts the attempt and leaves the recorded configuration in force. Verifies spec: CFG
+- [x] Discard after a proposal is applied reverts to the recorded configuration. Verifies spec: CFG
+- [x] A session abandoned without confirming leaves the recorded configuration in force, by stream close, channel drop, and device power-off alike. Verifies spec: CFG
+- [x] A proposal is never timed out while its session is open. Verifies spec: CFG
+- [x] A device retains nothing of a proposal after reverting. Verifies spec: CFG
+- [x] A failure carries the part of the document at fault, a reason in the device's words, and the verification stage reached. Verifies spec: CFG
 - [ ] A configuration that cannot work, by wrong passphrase and by absent SSID, is reported with the stage it failed at. Verifies spec: CFG
+- [x] A session the daemon drops when its client unsubscribes ends its configuration session, so the next client is not told the device is busy. Verifies spec: CFG
+- [ ] A client that walks away with a proposal applied and its feed closed leaves the device back on its recorded configuration, on real hardware. Verifies spec: CFG
 
 ## Attachment and selection
 
