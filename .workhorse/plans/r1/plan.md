@@ -484,17 +484,24 @@ It also costs the deployment peer nothing. The phone carried at most 17.9 KiB/s 
 range, so a 40 KiB ceiling never binds there; it governs only a peer quick enough to be driven into
 the unreliable region.
 
-Still to do, none of it blocking the spec change:
+Build steps:
 
-- **`device.rs` follows the spec.** `NOTIFY_BYTES_A_SECOND` and `NOTIFY_PACKETS_A_SECOND` become one
-  payload-byte budget. This also completes the cleanup L1 left behind, where the spec dropped the
-  byte ceiling but the code kept both.
-- **`NOTIFY_CHUNK` is worth 2.4x to 3x**, and is a bigger win than the ceiling. It is 20 B, against a
+- [x] **`device.rs` follows the spec.** `NOTIFY_BYTES_A_SECOND` is now a 40 KiB payload budget and
+  `NOTIFY_PACKETS_A_SECOND` is gone, which also completes the cleanup L1 left behind, where the spec
+  dropped the byte ceiling but the code kept both.
+- [x] **Paced rather than windowed.** The old limiter cleared a counter each second, which lets one
+  second's allowance land at its end and the next at its start, putting twice the ceiling on the air
+  across the boundary and straight into the region the ceiling exists to avoid. A `Pacer` now spends
+  the allowance by payload size, with a few milliseconds of slack so that pacing a 20 B notification
+  does not round up to the timer's granularity and throttle far below the ceiling.
+- [x] **Tests for the pacer**, covering the sliding-window property, the allowance taking a second to
+  spend, a lull not being banked as credit, and the ceiling not moving with payload size.
+- [ ] **`NOTIFY_CHUNK` is worth 2.4x to 3x**, and is a bigger win than the ceiling. It is 20 B, against a
   negotiated ATT_MTU of 517. Throughput rises steeply to about 250 B and then falls back at 500 B
   once the error rate is non-trivial, so the target is a chunk that fits inside one link-layer
   packet, near 180 to 240 B. The optimum inside that range is unmeasured: the sweep tested 20, 100,
   250 and 500 B only.
-- **Adaptive pacing** is a separate design, needing a message type on the client's feed and a rule
+- [ ] **Adaptive pacing** is a separate design, needing a message type on the client's feed and a rule
   for how a device paces against it. Two signals, one mechanism: a client reports the rate it is
   actually receiving, which diverges 2x to 4x from the offered rate on a phone long before anything
   goes wrong; and a client whose link was lost reports, after reconnecting, the rate that lost it,
