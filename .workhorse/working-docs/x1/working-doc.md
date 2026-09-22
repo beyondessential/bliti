@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 ---
 
 # Network configuration module with wifi and hotspot

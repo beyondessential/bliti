@@ -157,6 +157,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
+| `wireless-network` | `text` | `security`, `channel` | the wireless network the device is joined to |
+| `hotspot` | `text` | `channel` | the network the device's hotspot advertises |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
@@ -170,6 +172,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `memory-usage` | `fraction` | — | memory in use |
 | `filesystem-usage` | `fraction` | `filesystem` | how full each filesystem is |
 | `network-throughput` | `quantity`, `bytes/second` | `interface`, `direction` | throughput per interface and direction |
+| `hotspot-clients` | `quantity`, `clients` | — | how many clients are joined to the hotspot |
 | `temperature` | `quantity`, `celsius` | `sensor` | each temperature sensor |
 | `fan-speed` | `quantity`, `revolutions/minute` | `fan` | fan speed |
 | `power-source` | `text` | — | where the device's power is coming from |
@@ -182,6 +185,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | trait | members | what it names |
 | --- | --- | --- |
 | `interface` | `name`, `route`, `overlay` | a network interface; `route` is `default` on the one carrying the default route, and `overlay` names the overlay where it is one |
+| `security` | — | how a wireless link is secured |
+| `channel` | `number`, `band`, `width` | the channel a wireless link is on |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
@@ -190,7 +195,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-`route`, `overlay`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
+`route`, `overlay`, `security`, `channel`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -214,6 +219,14 @@ A device MUST report physical interfaces, wired and wireless, and the overlay th
 A device MUST NOT report loopback or other virtual interfaces.
 
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
+
+A device MUST report the wireless network it is joined to, and MUST omit that entry where it is joined to none.
+
+A device MUST report its hotspot and the clients joined to it, and MUST omit both entries where it runs no hotspot.
+
+A device MUST report the channel of its hotspot and of its wireless link both.
+
+What a device joins, and the hotspot it runs, are configured under [NET](network/overview.md).
 
 > [!NOTE]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.

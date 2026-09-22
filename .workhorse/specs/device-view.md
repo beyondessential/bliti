@@ -30,7 +30,7 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
-| tiles | `network-address`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
+| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction` |
 | appended | everything it does not recognise |
 
