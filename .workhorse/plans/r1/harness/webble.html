@@ -39,6 +39,8 @@
   <div class="card" id="gapCard"><div class="k">Gap events</div><div class="v" id="gaps">0</div></div>
   <div class="card"><div class="k">Elapsed</div><div class="v" id="elapsed">0s</div></div>
   <div class="card"><div class="k">Peak /s</div><div class="v" id="peak">0</div></div>
+  <div class="card"><div class="k">Payload B</div><div class="v" id="size">0</div></div>
+  <div class="card"><div class="k">KiB/s</div><div class="v" id="kibs">0</div></div>
   <div class="card wide"><div class="k">Link</div><div class="v" id="link">idle</div></div>
 </div>
 
@@ -51,6 +53,7 @@ const DEVICE_TX = 'a7aabad6-3fc2-4c9b-953b-03a70a193ec4';
 let count = 0, lost = 0, gaps = 0, lastSeq = null;
 let t0 = null, tLast = null, perSec = [], secBase = null, secCount = 0;
 let peak = 0, dev = null, timer = null, done = false;
+let lastSize = 0, perSecSize = [], secBytes = 0, kibs = 0, wakeLock = null;
 const lines = [];
 
 const $ = id => document.getElementById(id);
@@ -60,6 +63,8 @@ function onNotify(e) {
   const dv = e.target.value;
   if (dv.byteLength < 4) return;
   const seq = dv.getUint32(0, false);
+  lastSize = dv.byteLength;
+  secBytes += dv.byteLength;
   const now = performance.now();
   if (t0 === null) { t0 = now; secBase = now; }
   tLast = now;
@@ -72,9 +77,11 @@ function onNotify(e) {
   secCount++;
   if (now - secBase >= 1000) {
     perSec.push(secCount);
+    perSecSize.push(lastSize);
     if (secCount > peak) peak = secCount;
+    kibs = secBytes / 1024;
     $('rate').textContent = secCount;
-    secCount = 0; secBase = now;
+    secCount = 0; secBytes = 0; secBase = now;
   }
 }
 
@@ -83,6 +90,8 @@ function paint() {
   $('lost').textContent = lost;
   $('gaps').textContent = gaps;
   $('peak').textContent = peak;
+  $('size').textContent = lastSize;
+  $('kibs').textContent = kibs.toFixed(1);
   $('elapsed').textContent = (t0 ? ((performance.now() - t0) / 1000).toFixed(0) : 0) + 's';
   $('lostCard').className = 'card' + (lost ? ' bad' : '');
   $('gapCard').className = 'card' + (gaps ? ' bad' : '');
@@ -98,17 +107,25 @@ function finalise(why) {
   log(`${why} after ${held}s of notifications`);
   log(`total ${count}, lost ${lost}, gap events ${gaps}, peak ${peak}/s`);
   log(`per second: ${perSec.join(', ')}`);
+  log(`payload B per second: ${perSecSize.join(', ')}`);
   $('go').disabled = false; $('stop').disabled = true;
 }
 
 function onDisconnect() { finalise('link dropped'); }
+
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { log('wake lock unavailable'); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !done) keepAwake();
+});
 
 $('go').onclick = async () => {
   if (!navigator.bluetooth) { log('Web Bluetooth unavailable. Use Chrome over HTTPS.'); return; }
   try {
     $('go').disabled = true;
     count = lost = gaps = 0; lastSeq = null; t0 = tLast = null; perSec = []; secCount = 0;
-    peak = 0; done = false;
+    peak = 0; done = false; lastSize = 0; perSecSize = []; secBytes = 0; kibs = 0;
     log('requesting device');
     dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }] });
     dev.addEventListener('gattserverdisconnected', onDisconnect);
@@ -122,6 +139,7 @@ $('go').onclick = async () => {
     log('subscribed, counting');
     // The phone may never disconnect, so results must be reachable while running.
     $('copy').disabled = false; $('stop').disabled = false;
+    keepAwake();
     timer = setInterval(paint, 250);
   } catch (err) {
     log('error: ' + err);
@@ -135,7 +153,7 @@ $('stop').onclick = () => {
 };
 
 $('copy').onclick = () => {
-  const out = JSON.stringify({ count, lost, gaps, peak, perSec,
+  const out = JSON.stringify({ count, lost, gaps, peak, perSec, perSecSize,
     heldSeconds: t0 ? (tLast - t0) / 1000 : 0 }, null, 2);
   navigator.clipboard?.writeText(out);
   log('results copied');

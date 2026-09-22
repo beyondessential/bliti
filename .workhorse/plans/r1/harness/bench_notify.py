@@ -230,15 +230,41 @@ def send_packets(sink, target_rate, duration, size, seq_start):
     }
 
 
+def save():
+    """Write results after every step: a long unattended run must survive a link loss."""
+    with open(args.out, "w") as fh:
+        json.dump({"args": vars(args), "result": result}, fh, indent=2)
+
+
 def run_sweep(sink):
     seq = 0
     try:
-        if args.mode == "blast":
+        if args.program_file:
+            program = json.load(open(args.program_file))
+            print(f"[program] {len(program)} phases, sink={sink.kind}", flush=True)
+            for n, ph in enumerate(program, 1):
+                rate, size = ph["rate"], ph["size"]
+                hold, gap = ph.get("hold", 15), ph.get("gap", 8)
+                label = ph.get("label", f"phase{n}")
+                print(f"[step] {label}: {rate}/s for {hold}s, payload {size}B", flush=True)
+                step = send_packets(sink, rate, hold, size, seq)
+                step.update(target_rate=rate, size=size, label=label)
+                seq = step["seq_end"]
+                result["steps"].append(step)
+                save()
+                print(f"[step] {json.dumps(step)}", flush=True)
+                if "error" in step:
+                    print("[step] link failed; stopping program", flush=True)
+                    break
+                if gap:
+                    time.sleep(gap)
+        elif args.mode == "blast":
             print(f"[blast] {args.duration}s, payload {args.size}B, no pacing, sink={sink.kind}", flush=True)
             step = send_packets(sink, None, args.duration, args.size, seq)
             step["target_rate"] = None
             step["size"] = args.size
             result["steps"].append(step)
+            save()
             print(f"[blast] {json.dumps(step)}", flush=True)
         else:
             for rate in args.rates:
@@ -248,6 +274,7 @@ def run_sweep(sink):
                 step["size"] = args.size
                 seq = step["seq_end"]
                 result["steps"].append(step)
+                save()
                 print(f"[step] {json.dumps(step)}", flush=True)
                 if "error" in step:
                     print("[step] link failed; stopping ladder", flush=True)
@@ -256,8 +283,7 @@ def run_sweep(sink):
     finally:
         result["sink"] = sink.kind
         result["finished_at"] = time.time()
-        with open(args.out, "w") as fh:
-            json.dump({"args": vars(args), "result": result}, fh, indent=2)
+        save()
         print(f"[done] wrote {args.out}", flush=True)
         GLib.idle_add(lambda: (loop.quit(), False)[1])
 
@@ -272,6 +298,8 @@ def main():
     ap.add_argument("--size", type=int, default=20, help="notification payload bytes")
     ap.add_argument("--rates", type=int, nargs="+",
                     default=[100, 200, 400, 800, 1600, 3200, 6400])
+    ap.add_argument("--program-file", default=None,
+                    help="JSON list of {rate,size,hold,gap} phases, run in order on subscribe")
     ap.add_argument("--path", choices=["auto", "signal"], default="auto",
                     help="auto allows the AcquireNotify socket; signal forces PropertiesChanged")
     ap.add_argument("--adapter", default="hci0")
