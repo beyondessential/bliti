@@ -364,3 +364,43 @@ job a fixed number can do.
 This is a design proposal, not a measurement. The feedback loop has not been built or tested, and
 its own stability, how often the client reports and how the device damps a noisy measurement, would
 need working through: per-second delivery at range swung between 2 and 793.
+
+### Correction: the cliff belonged to the test harness, not to BlueZ
+
+Desktop Chrome on Linux does support Web Bluetooth once
+`--enable-experimental-web-platform-features` is set, and running the same ladder through it
+overturns the earlier reading.
+
+| | bluer/Python receiver | desktop Chrome |
+| --- | --- | --- |
+| connection interval | 45 ms | 45 ms |
+| supervision timeout | 420 ms | 420 ms |
+| ATT_MTU | 517 | 517 |
+| notification PDU | Multiple Value (0x23) | Multiple Value (0x23) |
+| outcome | link lost at 2,800/s | 3,200/s clean |
+
+Chrome delivered **145,200 of 145,200 with zero loss and zero gaps**, and `heldSeconds` of 112.0
+matched the programmed 112 s exactly, so it kept up in real time with no backlog at any step,
+including 3,200/s sustained at 3,087 to 3,360 per second.
+
+The link parameters are identical, so they were never what killed the earlier sessions. What differs
+is the client's ability to drain what arrives: a receiver that stops reading stalls its controller,
+the peripheral's retransmissions go unacknowledged, and the link times out. The Python receiver was
+the bottleneck, which was visible from the start, when it spent 43 s draining a 15 s blast.
+
+So the **61 to 66 KiB/s cliff is a property of that harness, not of BlueZ-backed centrals**, and the
+"fragile peer" it implied does not exist among the clients measured. Every real client tested, on
+Android and on the desktop, delivered everything without dropping a link:
+
+| client | coalesces | ceiling seen | behaviour when over-offered |
+| --- | --- | --- | --- |
+| desktop Chrome, Linux | yes | >3,200/s, >75 KiB/s, not reached | kept up in real time |
+| Android Chrome | no | ~1,000/s, 17.9 KiB/s close | queues and drains, no loss |
+| Python test receiver | n/a | died above 2,600/s | link lost |
+
+Desktop Chrome's true ceiling is unknown: 3,200/s was the top of the ladder and it was not strained.
+
+This does not mean link death is imaginary. The card records a crash at roughly 3,400 notifications
+at once, observed against the real stack, and a slow client demonstrably can still take a link down.
+It means the failure belongs to a client that cannot keep up, rather than to a rate the air cannot
+carry, and no client shipped to date has been shown to fail that way.
