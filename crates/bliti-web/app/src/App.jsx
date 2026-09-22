@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import Network from './Network.jsx'
 import Readings from './Readings.jsx'
 import { createClient } from './client.js'
 import { entryOf, identityKey, pushHistory } from './readings.js'
@@ -29,6 +30,8 @@ export default function App() {
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
 	const [device, setDevice] = useState(null)
+	// Which screen of a connected device is showing: its readings, or its network configuration.
+	const [screen, setScreen] = useState('device')
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
 	// the device; a graph fills forward from connection.
@@ -88,6 +91,13 @@ export default function App() {
 		[note, notice],
 	)
 
+	// The configuration session's messages go to the log as the feed's do. Only the log: the screen
+	// reads them itself.
+	const noteSession = useCallback(
+		(event) => note('in', event.kind === 'message' ? describe(event.message) : `${event.kind}  ${event.detail}`),
+		[note],
+	)
+
 	const readFrom = useCallback(
 		async (text) => {
 			try {
@@ -144,6 +154,7 @@ export default function App() {
 					note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
 					setConnected(false)
 					setConnecting(false)
+					setScreen('device')
 					setConnectStatus(
 						why ? `The connection to the device failed: ${why}` : 'The device disconnected.',
 					)
@@ -163,6 +174,7 @@ export default function App() {
 	function disconnect() {
 		client.disconnect()
 		setConnected(false)
+		setScreen('device')
 		setConnecting(false)
 		setConnectStatus('')
 		setEntries(new Map())
@@ -204,6 +216,15 @@ export default function App() {
 					<h2>Not available</h2>
 					<p className="bad">{unsupported}</p>
 				</section>
+			</main>
+		)
+	}
+
+	if (connected && screen === 'network') {
+		return (
+			<main>
+				<Network client={client} onActivity={note} onEvent={noteSession} onBack={() => setScreen('device')} />
+				<Activity log={log} />
 			</main>
 		)
 	}
@@ -259,9 +280,14 @@ export default function App() {
 				<>
 					<div className="heading">
 						<h2>Device</h2>
-						<button className="secondary small" onClick={disconnect}>
-							Disconnect
-						</button>
+						<div className="actions">
+							<button className="secondary small" onClick={() => setScreen('network')}>
+								Network settings
+							</button>
+							<button className="secondary small" onClick={disconnect}>
+								Disconnect
+							</button>
+						</div>
 					</div>
 					{device && (
 						<p className="muted software">
@@ -277,21 +303,26 @@ export default function App() {
 				</>
 			)}
 
-			{log.length > 0 && (
-				<section>
-					<h2>Activity</h2>
-					<div className="log">
-						{log.map((line, index) => (
-							<p key={index} className={`line ${line.direction}`}>
-								<time>{clock(line.at)}</time>
-								<span className="arrow">{ARROWS[line.direction]}</span>
-								<span className="said">{line.text}</span>
-							</p>
-						))}
-					</div>
-				</section>
-			)}
+			<Activity log={log} />
 		</main>
+	)
+}
+
+function Activity({ log }) {
+	if (log.length === 0) return null
+	return (
+		<section>
+			<h2>Activity</h2>
+			<div className="log">
+				{log.map((line, index) => (
+					<p key={index} className={`line ${line.direction}`}>
+						<time>{clock(line.at)}</time>
+						<span className="arrow">{ARROWS[line.direction]}</span>
+						<span className="said">{line.text}</span>
+					</p>
+				))}
+			</div>
+		</section>
 	)
 }
 

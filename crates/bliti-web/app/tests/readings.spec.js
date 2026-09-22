@@ -162,7 +162,7 @@ test.describe('aggregation', () => {
 		}
 
 		await expect(page.locator('.tile').filter({ hasText: 'Network' }).locator('.value').first()).toHaveText('1.28 MB/s')
-		await page.getByRole('button', { name: /Network/ }).click()
+		await page.getByRole('button', { name: /^Network \d/ }).click()
 		await expect(page.locator('.mirror')).toBeVisible()
 		await expect(page.getByText(/peak 1.2 MB\/s/)).toBeVisible()
 		await expect(page.getByText(/peak 84 kB\/s/)).toBeVisible()
@@ -177,7 +177,7 @@ test.describe('aggregation', () => {
 		await emit(page, throughput('end0', 'out', { value: 2000 }))
 		await emit(page, throughput('wlan0', 'out', { traits: { status: { is: 'broken', reason: 'no counters while associating' }, interface: { name: 'wlan0' }, direction: 'out' } }))
 
-		await page.getByRole('button', { name: /Network/ }).click()
+		await page.getByRole('button', { name: /^Network \d/ }).click()
 		await expect(page.getByText('no counters while associating')).toBeVisible()
 	})
 
