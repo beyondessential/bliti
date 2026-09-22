@@ -21,14 +21,16 @@ A device MUST run a hotspot only where its configuration carries one.
 | `passphrase` | string | yes | what a client joins with |
 | `share-upstream` | boolean | no | whether clients reach the device's own network; enabled where unset |
 | `isolate-clients` | boolean | no | whether clients are kept from reaching each other; enabled where unset |
-| `dhcp-range` | string | no | the addresses handed to clients |
+| `dhcp-range` | string | no | the subnet clients are addressed from |
 | `band` | string | no | the band the hotspot operates on |
 | `channel` | number | no | the channel it operates on |
 | `channel-width` | number | no | the width of that channel |
 
 A device MUST derive neither `ssid` nor `passphrase` from anything it holds, and MUST NOT supply a default for either.
 
-A device whose `dhcp-range` is unset MUST use the same range as every other bliti device.
+`dhcp-range` MUST be one IPv4 subnet in CIDR notation.
+A device MUST hold the subnet's first host address itself, and MUST hand out the rest to clients.
+A device whose `dhcp-range` is unset MUST use `10.41.0.0/24`, the same range as every other bliti device.
 
 > [!NOTE]
 > The hotspot's passphrase is the one credential here meant to be read aloud and handed to a stranger, so it is kept clear of the chain every other value on the device descends from.

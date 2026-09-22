@@ -288,9 +288,9 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 			<td>Megahertz.</td>
 		</tr>
 		<tr>
-			<td><code>dhcp-range</code></td>
-			<td>a subnet, <code>"10.41.0.0/24"</code></td>
-			<td>The device takes the first host and hands out the rest. One subnet rather than a start and an end, because the device needs a subnet for itself anyway and a range outside it is meaningless. The fixed default is chosen with the renderer.</td>
+			<td><code>dhcp-range</code> <span class="tag pinned">Pinned</span></td>
+			<td>one subnet, <code>"10.41.0.0/24"</code></td>
+			<td>The device takes the first host and hands out the rest. Unset is <code>10.41.0.0/24</code>. Settled and written into HOT.</td>
 		</tr>
 		<tr>
 			<td>enterprise <code>security</code></td>
