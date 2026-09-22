@@ -36,7 +36,7 @@ const LIVE_LAG: usize = 64;
 /// A source of readings the sampler ticks. The gathering here reads the kernel's files directly and
 /// can take as long as a syscall on a stalled filesystem does, so the sampler runs it off the async
 /// runtime: a source that has blocked holds a blocking-pool thread, never the worker carrying the
-/// BLE session and the connection to the system bus (NFO).
+/// BLE session and the connection to the system bus.
 pub(crate) trait Source: Send + 'static {
 	/// Gather one tick's readings. `slow` asks for the readings taken every fifth tick as well as the
 	/// fast ones. Runs off the runtime, so it may block for as long as the kernel takes to answer.
@@ -232,7 +232,7 @@ mod tests {
 
 	/// The failure this guards against: a source taking its time must not occupy the runtime worker the
 	/// session runs on, or a device whose storage is in trouble loses the Bluetooth link to the very
-	/// operator diagnosing it (NFO). With the gather off the runtime, an async timer still fires and
+	/// operator diagnosing it. With the gather off the runtime, an async timer still fires and
 	/// the session count still moves while a source sits blocked mid-sample.
 	#[tokio::test]
 	async fn a_blocking_source_does_not_stall_sampling_or_the_session() {
