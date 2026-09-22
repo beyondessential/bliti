@@ -7,10 +7,11 @@
 //! As soon as the handshake completes the device opens two streams unprompted (MSG): a hello stream
 //! naming itself, and a feed serving the `default` topic. A client declines the feed by closing it,
 //! and resumes with a `subscribe` for `default`. A topic is served on at most one stream, so a
-//! `subscribe` for one already being served is skipped. It never answers a message on the wire: one
-//! it does not recognise is passed over, one carrying something critical it does not know is refused,
-//! one it knows but has nothing to do about is a no-op, and one that breaks the protocol closes the
-//! stream it arrived on.
+//! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
+//! handed to the configuration session of [`crate::network::session`]. Beyond that it never answers a
+//! message on the wire: one it does not recognise is passed over, one carrying something critical it
+//! does not know is refused, one it knows but has nothing to do about is a no-op, and one that breaks
+//! the protocol closes the stream it arrived on.
 
 use std::{
 	collections::HashSet,
@@ -31,7 +32,14 @@ use bliti_core::{
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::{facts, sampler::Sampler};
+use crate::{
+	facts,
+	network::{
+		self,
+		session::{Backend, Configurator},
+	},
+	sampler::Sampler,
+};
 
 /// How often to look for a change in the facts the device reports about itself.
 const FACTS_POLL: Duration = Duration::from_secs(2);
@@ -54,13 +62,15 @@ const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
 type Served = Arc<Mutex<HashSet<String>>>;
 
 /// Run a session to completion over a transport, as the device.
-pub async fn run<S>(
+pub async fn run<S, B>(
 	transport: S,
 	secret: &PresenceToken,
 	sampler: Sampler,
+	configurator: Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+	B: Backend,
 {
 	let encrypted = accept_responder(transport, secret)
 		.await
@@ -82,7 +92,7 @@ where
 	// sampling again the moment somebody connects (NFO).
 	let _session = sampler.session();
 
-	let result = converse(&mut streams, &sampler).await;
+	let result = converse(&mut streams, &sampler, &configurator).await;
 
 	// Hand the connection to the driver to close rather than abort it, so the client reads the clean
 	// ending this is. Bounded, because a client already out of range never takes the closing frames.
@@ -99,7 +109,11 @@ where
 
 /// The device's half of the conversation: name itself and push the `default` feed, both unprompted,
 /// and serve whatever streams the client opens.
-async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), SessionError> {
+async fn converse<B: Backend>(
+	streams: &mut Streams,
+	sampler: &Sampler,
+	configurator: &Configurator<B>,
+) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
 
 	// The device names itself on a stream of its own, so declining the feed does not cost the client
@@ -139,8 +153,9 @@ async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), Sessio
 		};
 		let sampler = sampler.clone();
 		let served = served.clone();
+		let configurator = configurator.clone();
 		tokio::spawn(async move {
-			if let Err(err) = serve_stream(&mut stream, &sampler, &served).await {
+			if let Err(err) = serve_stream(&mut stream, &sampler, &served, &configurator).await {
 				tracing::debug!(%err, "stream ended");
 			}
 		});
@@ -149,13 +164,15 @@ async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), Sessio
 
 /// Serve one stream a client opened, until it ends. Whatever happens here leaves the other streams
 /// and the connection alive.
-async fn serve_stream<S>(
+async fn serve_stream<S, B>(
 	stream: &mut S,
 	sampler: &Sampler,
 	served: &Served,
+	configurator: &Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
+	B: Backend,
 {
 	loop {
 		let raw = match read_message(stream).await {
@@ -187,19 +204,20 @@ where
 				// nothing to do about it, which MSG makes a no-op rather than a fault.
 				tracing::debug!("a fact or reading from the client; nothing to do about it");
 			}
+			Ok(Reading::Message(Message::Configure)) => {
+				return network::session::serve(stream, configurator).await;
+			}
 			Ok(Reading::Message(
-				Message::Configure
-				| Message::Configuration { .. }
+				Message::Configuration { .. }
 				| Message::Confirm
 				| Message::Discard
 				| Message::Scan
 				| Message::Survey
 				| Message::Wps { .. },
 			)) => {
-				// A client driving a configuration session (CFG). The handler that answers it is a
-				// pending build-order item; until it lands the stream is left open and unanswered, which
-				// is what a device older than its client looks like and fails nothing (MSG).
-				tracing::info!("a configuration-session message; not yet served");
+				// A configuration-session message on a stream that opened no session. Nothing to act
+				// on, which MSG makes a no-op rather than a fault.
+				tracing::debug!("a configuration-session message outside a session; nothing to do");
 			}
 			Ok(Reading::Message(
 				Message::Applied
@@ -398,17 +416,37 @@ mod tests {
 	use tokio_util::compat::TokioAsyncReadCompatExt;
 
 	use super::*;
+	use crate::network::session::{Inert, Store};
 
 	fn secret(byte: u8) -> PresenceToken {
 		PresenceToken::from_bytes([byte; 32])
+	}
+
+	/// A configurator that configures nothing, over a recorded configuration nothing here writes.
+	async fn inert() -> Configurator<Inert> {
+		let path = std::env::temp_dir().join("bliti-session-tests-never-written/network.json");
+		let fallback = serde_json::json!({"attachments": []})
+			.as_object()
+			.cloned()
+			.unwrap();
+		Configurator::start(Inert, Store::new(path), fallback)
+			.await
+			.unwrap()
 	}
 
 	/// Open a client against a device session over an in-memory duplex, with no BLE involved.
 	async fn paired(psk: &PresenceToken) -> Streams {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device_psk = psk.clone();
+		let configurator = inert().await;
 		tokio::spawn(async move {
-			let _ = run(device_side.compat(), &device_psk, Sampler::start()).await;
+			let _ = run(
+				device_side.compat(),
+				&device_psk,
+				Sampler::start(),
+				configurator,
+			)
+			.await;
 		});
 
 		let encrypted = connect_initiator(client_side.compat(), psk).await.unwrap();
@@ -619,8 +657,15 @@ mod tests {
 	#[tokio::test]
 	async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		let configurator = inert().await;
 		let device = tokio::spawn(async move {
-			run(device_side.compat(), &secret(0x01), Sampler::start()).await
+			run(
+				device_side.compat(),
+				&secret(0x01),
+				Sampler::start(),
+				configurator,
+			)
+			.await
 		});
 
 		assert!(
@@ -632,5 +677,44 @@ mod tests {
 			device.await.unwrap(),
 			Err(SessionError::Handshake(_))
 		));
+	}
+	/// A stream opened with `configure` is served a configuration session, and a second one while it
+	/// is open is told the device is busy (CFG).
+	#[tokio::test]
+	async fn configure_opens_a_session_and_a_second_is_busy() {
+		let mut streams = paired(&secret(0x42)).await;
+		let _a = streams.accept().await.unwrap();
+
+		let mut first = streams.open().await.unwrap();
+		write_message(&mut first, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let opened = read::<Message>(&read_message(&mut first).await.unwrap().unwrap()).unwrap();
+		let Reading::Message(Message::Configuration {
+			document,
+			capabilities: Some(capabilities),
+		}) = opened
+		else {
+			panic!("a session opens with the configuration and capabilities, got {opened:?}");
+		};
+		assert_eq!(
+			document,
+			serde_json::json!({"attachments": []})
+				.as_object()
+				.cloned()
+				.unwrap()
+		);
+		assert!(capabilities.is_empty(), "this build states no capabilities");
+
+		let mut second = streams.open().await.unwrap();
+		write_message(&mut second, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let answer = read::<Message>(&read_message(&mut second).await.unwrap().unwrap()).unwrap();
+		assert_eq!(answer, Reading::Message(Message::Busy));
+		assert!(
+			matches!(read_message(&mut second).await, Ok(None) | Err(_)),
+			"the busy stream is closed"
+		);
 	}
 }

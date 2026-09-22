@@ -4,4 +4,4 @@
 //! into the files iwd, hostapd and systemd-networkd read, which bliti owns outright.
 
 mod render;
-mod session;
+pub mod session;

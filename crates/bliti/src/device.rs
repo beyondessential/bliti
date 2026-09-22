@@ -23,11 +23,13 @@ use futures::{FutureExt, StreamExt};
 use crate::{
 	SALT_ROTATION,
 	gatt::{GattTransport, InboundSink},
-	identity, session,
+	identity,
+	network::session::{Configurator, Inert, Store},
+	session,
 };
 
 /// Run the daemon until interrupted.
-pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
+pub async fn run(cache: &Path, network: &Path, adapter_name: Option<&str>) -> Result<()> {
 	// Establish identity before touching Bluetooth: a board whose QR code is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
@@ -37,6 +39,13 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 		tracing::info!(source = %identity.kind, "presence token is cached");
 	}
 	let secret = Arc::new(identity.secret);
+
+	// The recorded network configuration goes in force before anything else, since nothing provisional
+	// survives a restart (CFG). One configurator serves every connection, so at most one configuration
+	// session is open device-wide.
+	let configurator = Configurator::start(Inert, Store::new(network), out_of_the_box_network())
+		.await
+		.context("putting the recorded network configuration in force")?;
 
 	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
@@ -63,6 +72,7 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 			secret.clone(),
 			readvertise.clone(),
 			sampler.clone(),
+			configurator,
 		))
 		.await
 		.context("registering the GATT application")?;
@@ -129,6 +139,19 @@ pub async fn run(cache: &Path, adapter_name: Option<&str>) -> Result<()> {
 		drop(registered);
 		tokio::time::sleep(ADVERTISE_SETTLE).await;
 	}
+}
+
+/// What a device that has never had a network configuration confirmed holds as its recorded one.
+///
+/// Provisional: no candidates at all, which under a backend that owns the network outright would take
+/// down whatever the image brought up. What an out-of-the-box device should hold is not yet decided.
+fn out_of_the_box_network() -> serde_json::Map<String, serde_json::Value> {
+	let mut document = serde_json::Map::new();
+	document.insert(
+		"attachments".to_owned(),
+		serde_json::Value::Array(Vec::new()),
+	);
+	document
 }
 
 /// Resolve when the daemon is asked to stop, by either of the signals that mean it.
@@ -257,6 +280,7 @@ fn application(
 	secret: Arc<PresenceToken>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
+	configurator: Configurator<Inert>,
 ) -> Application {
 	let write_sink = sink.clone();
 	let notify_sink = sink.clone();
@@ -294,6 +318,7 @@ fn application(
 							let secret = secret.clone();
 							let readvertise = readvertise.clone();
 							let sampler = sampler.clone();
+							let configurator = configurator.clone();
 							async move {
 								tracing::info!("client subscribed; opening a session");
 								let (transport, mut outbound) = GattTransport::open(&sink);
@@ -338,7 +363,7 @@ fn application(
 								// A failed handshake is an ordinary outcome: anyone in range can
 								// connect and try, and the device stays reachable afterwards.
 								tokio::select! {
-									result = session::run(transport, &secret, sampler) => match result {
+									result = session::run(transport, &secret, sampler, configurator) => match result {
 										Ok(()) => tracing::info!("session ended"),
 										Err(err) => tracing::info!(%err, "session ended"),
 									},

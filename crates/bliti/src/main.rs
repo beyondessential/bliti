@@ -46,6 +46,10 @@ enum Command {
 		/// Bluetooth adapter to use. Defaults to the system's first.
 		#[arg(long)]
 		adapter: Option<String>,
+
+		/// Where the recorded network configuration is kept.
+		#[arg(long, default_value_os_t = network::session::default_path())]
+		network: PathBuf,
 	},
 
 	/// Print the QR code for the board this runs on.
@@ -105,7 +109,9 @@ async fn run(cli: Cli) -> Result<()> {
 	match cli.command {
 		Command::BoardId => board_id(),
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
-		Command::Daemon { adapter } => daemon(&cli.cache, adapter.as_deref()).await,
+		Command::Daemon { adapter, network } => {
+			daemon(&cli.cache, &network, adapter.as_deref()).await
+		}
 		Command::Scan {
 			code,
 			seconds,
@@ -161,8 +167,12 @@ fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-async fn daemon(cache: &std::path::Path, adapter: Option<&str>) -> Result<()> {
-	device::run(cache, adapter).await
+async fn daemon(
+	cache: &std::path::Path,
+	network: &std::path::Path,
+	adapter: Option<&str>,
+) -> Result<()> {
+	device::run(cache, network, adapter).await
 }
 
 /// Read a QR code however it was given: the URL a code encodes, its fragment alone, or the
@@ -197,6 +207,10 @@ async fn scan(_code: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> 
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn daemon(_cache: &std::path::Path, _adapter: Option<&str>) -> Result<()> {
+async fn daemon(
+	_cache: &std::path::Path,
+	_network: &std::path::Path,
+	_adapter: Option<&str>,
+) -> Result<()> {
 	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")
 }
