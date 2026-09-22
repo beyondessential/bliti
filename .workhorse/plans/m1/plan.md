@@ -12,6 +12,7 @@ Add an OS-battery fallback so a machine without the X120x Maxim gauge (a laptop,
 - **The fallback engages on unreachable, never on empty.** upower answering with no batteries is an authoritative answer and is reported as no batteries. Only a failure to reach upower at all falls through. Rescanning after a valid empty answer would report a peripheral cell on a machine upower had correctly said has no battery.
 - **The fallback needs its own peripheral filter.** `PowerSupply` is an upower property with no sysfs equivalent, so the sysfs path excludes `scope` = `Device` instead, and keeps `type` = `Battery` with `scope` = `System` or no `scope` at all. On this laptop that keeps `BAT0` and drops `hidpp_battery_0`.
 - **I2C stays primary.** Either OS path is reached only when the I2C gauge is absent (`i2c::Error::NoDevice`). Where the gauge answers, nothing changes.
+- **Reaching the gauge had to be widened first (not planned, found by running it).** Only a missing bus node counted as "no gauge", so an ordinary laptop — which carries a dozen root-only I2C buses for its display connectors — failed to open `/dev/i2c-1` with a permission error, reported `battery-charge` as `broken`, and never reached the OS path at all. The whole card was dead on its target machine. A bus that will not open (missing or forbidden) and an address nothing acknowledges (`ENXIO`, `EREMOTEIO`) now both mean no gauge is reachable. A gauge that answered and then failed is still `broken`, so a dead gauge on a Pi is not hidden.
 
 ## Source-to-wire mapping (upower property → reading)
 
@@ -34,13 +35,21 @@ On the sysfs fallback the same three readings come from `capacity` (or `energy_n
 
 ## Checklist
 
-- [ ] `upower.rs`: enumerate devices; filter to Type battery/UPS with PowerSupply true
-- [ ] `upower.rs`: build the three battery readings with the `battery` trait, per battery
-- [ ] `upower.rs`: name by model, falling back to the object-path basename on no model or a name collision
-- [ ] `upower.rs`: charge / voltage / direction mapping incl. skipped/broken cases and timeout handling
-- [ ] `sysfs.rs`: fallback reader (type=Battery, exclude scope=Device) with the same three readings
-- [ ] `power.rs`: dispatch gauge → upower → sysfs, falling through only when upower is unreachable
-- [ ] `power.rs`: add `battery` trait (`name` `built-in`, `vendor` `SupTronics`) to the I2C-path battery readings
-- [ ] VIEW client: headline `battery-charge` with `built-in` where present else the first by name; pair voltage/direction by `battery` trait in the reveal
-- [ ] Tests: upower filter (mouse excluded via PowerSupply, BAT0 and UPS kept, line-power excluded), sysfs filter (mouse excluded via scope), each state mapping, no-voltage skip, multiple batteries distinguished, no `power-source` on either OS path, and no fall-through on a valid empty answer
-- [ ] `cargo fmt`, `cargo test`, run on this laptop and check both BAT0 and the Eaton 3S are reported
+- [x] `i2c.rs`: a bus that will not open, and an address nothing acknowledges, mean no gauge rather than a fault
+- [x] `upower.rs`: enumerate devices; filter to Type battery/UPS with PowerSupply true
+- [x] `upower.rs`: build the three battery readings with the `battery` trait, per battery
+- [x] `upower.rs`: name by model, falling back to the object-path basename on no model or a name collision
+- [x] `upower.rs`: charge / voltage / direction mapping incl. skipped/broken cases and timeout handling
+- [x] `sysfs.rs`: fallback reader (type=Battery, exclude scope=Device) with the same three readings
+- [x] `power.rs`: dispatch gauge → upower → sysfs, falling through only when upower is unreachable
+- [x] `power.rs`: add `battery` trait (`name` `built-in`, `vendor` `SupTronics`) to the I2C-path battery readings
+- [x] VIEW client: headline `battery-charge` with `built-in` where present else the first by name; pair voltage/direction by `battery` trait in the reveal
+- [x] Tests: upower filter (mouse excluded via PowerSupply, BAT0 and UPS kept, line-power excluded), sysfs filter (mouse excluded via scope), each state mapping, no-voltage skip, multiple batteries distinguished, no `power-source` on either OS path, and no fall-through on a valid empty answer
+- [x] `cargo fmt`, `cargo test`, run on this laptop and check both BAT0 and the Eaton 3S are reported
+
+## Verified on the dev laptop
+
+Both paths were run against real hardware, with the Eaton 3S attached.
+
+- upower path: `DELL T453X` at 100% / 12.887 V / idle, and `Eaton 3S` at 100% / voltage skipped / idle. The wireless mouse is absent, the placeholder serial is dropped, and no `power-source` is reported.
+- sysfs fallback, forced by pointing `DBUS_SYSTEM_BUS_ADDRESS` at a bogus socket: `DELL T453X` reported identically, and the Eaton correctly absent, since sysfs cannot see it.

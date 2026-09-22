@@ -212,9 +212,13 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status` and `limits` traits, and `route` and `overlay` within `interface`.
+// `status` and `limits` traits, and the members named here within the traits that hold them. A
+// battery's serial, model and vendor describe the cell; only its name says which battery it is.
 const DESCRIPTIVE = new Set(['status', 'limits'])
-const DESCRIPTIVE_INTERFACE_MEMBERS = new Set(['route', 'overlay'])
+const DESCRIPTIVE_MEMBERS = {
+	interface: new Set(['route', 'overlay']),
+	battery: new Set(['serial', 'model', 'vendor']),
+}
 
 /// The key a reading's history is held under: its name and its distinguishing traits, canonicalised
 /// so member order does not matter.
@@ -228,16 +232,17 @@ export function identityKey(entry) {
 	return `${entry.fact ? 'fact' : 'reading'}\u001f${seriesKey(entry)}`
 }
 
-/// The traits with the descriptive ones stripped: the whole `status` and `limits`, and `route` and
-/// `overlay` from within `interface`.
+/// The traits with the descriptive ones stripped: the whole `status` and `limits`, and the
+/// descriptive members of any trait that holds some.
 function distinguishing(traits) {
 	const kept = {}
 	for (const [name, value] of Object.entries(traits ?? {})) {
 		if (DESCRIPTIVE.has(name)) continue
-		if (name === 'interface' && value && typeof value === 'object' && !Array.isArray(value)) {
+		const descriptive = DESCRIPTIVE_MEMBERS[name]
+		if (descriptive && value && typeof value === 'object' && !Array.isArray(value)) {
 			const trimmed = {}
 			for (const [member, inner] of Object.entries(value)) {
-				if (!DESCRIPTIVE_INTERFACE_MEMBERS.has(member)) trimmed[member] = inner
+				if (!descriptive.has(member)) trimmed[member] = inner
 			}
 			kept[name] = trimmed
 		} else {

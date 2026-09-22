@@ -13,6 +13,11 @@
 //! The distinction is in the movement and not the level. An idle cell does not move at all; a cell
 //! carrying the device drifts down a few millivolts every ten seconds. State of charge is no use
 //! here, taking about eighty seconds to move where the voltage is unambiguous within twenty or thirty.
+//!
+//! Where no gauge answers there is no backup board, and the battery comes from the operating system
+//! instead: upower where it can be reached, and `/sys/class/power_supply` where it cannot. That path
+//! reports no `power-source`, because an operating system cannot tell a device fed through an
+//! external supply from one fed around it (NFO).
 
 use std::{
 	collections::VecDeque,
@@ -20,9 +25,13 @@ use std::{
 };
 
 use bliti_core::channel::readings::{Entry, kind};
+use serde_json::{Map, Value as Json};
 
+mod battery;
 mod gpio;
 mod i2c;
+mod sysfs;
+mod upower;
 
 /// Where the gauge sits: bus 1, address 0x36, across the whole X120x family.
 const I2C_BUS: &str = "/dev/i2c-1";
@@ -38,6 +47,13 @@ const VCELL_STEP_MV: f64 = 1.25;
 /// it on the pin header. Resolved by name because the header is `gpiochip0` on some kernels and
 /// `gpiochip4` on others.
 const POWER_LINE: &str = "GPIO6";
+
+/// The backup board's own cell, which nothing reports a name for, so the device supplies one. Named
+/// for sitting inside the case rather than for the board managing it, which is what tells it from an
+/// external supply (NFO). The cell itself is from an unknowable third party, so only the board's
+/// maker is carried.
+const BUILT_IN: &str = "built-in";
+const BOARD_VENDOR: &str = "SupTronics";
 
 /// How far back the cell voltage is watched to tell a drifting cell from a still one.
 const WATCH: Duration = Duration::from_secs(45);
@@ -82,47 +98,58 @@ impl Source {
 }
 
 impl Watch {
-	/// The power-source and battery readings, or nothing where no backup board is fitted (NFO).
+	/// The power-source and battery readings.
 	///
-	/// Everything here is gated on the gauge answering. The power line is never read otherwise: it has
-	/// a pull-up on a Pi, so an unconnected pin reads as external power present, and a machine with no
-	/// backup board would report itself confidently running on mains.
+	/// The gauge is the device we ship and comes first. Where it does not answer there is no backup
+	/// board, and the battery is whatever the operating system reports instead; where neither has one,
+	/// nothing is reported, because an operator standing at the device can see no battery is fitted
+	/// (NFO).
+	///
+	/// The power line is read only once the gauge has answered. It has a pull-up on a Pi, so an
+	/// unconnected pin reads as external power present, and a machine with no backup board would
+	/// otherwise report itself confidently running on mains.
 	pub fn readings(&mut self, at: u64) -> Vec<Entry> {
 		let gauge = match self.gauge() {
 			Ok(gauge) => gauge,
-			// No gauge means no backup board. An operator standing at the device can see that, so it
-			// is left out rather than reported (NFO).
 			Err(i2c::Error::NoDevice) => {
 				self.seen.clear();
-				return Vec::new();
+				return battery::entries(at, &os_batteries());
 			}
 			// The bus is there and the gauge did not answer: a fault nobody can see from outside.
 			Err(err) => {
-				return vec![Entry::broken(
-					at,
-					"battery-charge",
-					kind::FRACTION,
-					format!("the gauge at {GAUGE:#04x} did not answer: {err}"),
-				)];
+				return vec![
+					Entry::broken(
+						at,
+						"battery-charge",
+						kind::FRACTION,
+						format!("the gauge at {GAUGE:#04x} did not answer: {err}"),
+					)
+					.with_trait("battery", built_in()),
+				];
 			}
 		};
 
 		self.remember(gauge.volts);
 		let external = gpio::read_by_name(POWER_LINE).ok();
 		let source = self.source(external);
+		let about = built_in();
 
 		let mut readings = Vec::new();
 		if let Some(source) = source {
 			readings.push(self.power_source(at, source));
 		}
-		readings.push(self.battery_charge(at, gauge, source));
-		readings.push(Entry::quantity(
-			at,
-			"battery-voltage",
-			"volts",
-			round(gauge.volts, 3),
-		));
-		readings.push(self.battery_direction(at, gauge, source));
+		readings.push(
+			self.battery_charge(at, gauge, source)
+				.with_trait("battery", about.clone()),
+		);
+		readings.push(
+			Entry::quantity(at, "battery-voltage", "volts", round(gauge.volts, 3))
+				.with_trait("battery", about.clone()),
+		);
+		readings.push(
+			self.battery_direction(at, gauge, source)
+				.with_trait("battery", about),
+		);
 		readings
 	}
 
@@ -234,6 +261,29 @@ impl Watch {
 		};
 		Entry::text(at, "battery-direction", value)
 	}
+}
+
+/// The batteries the operating system reports.
+///
+/// upower answering with none is an answer: this machine has no battery. Only a failure to reach
+/// upower at all falls through to sysfs, which cannot see a USB UPS and so is a fallback rather than
+/// a second opinion.
+fn os_batteries() -> Vec<battery::Battery> {
+	match upower::batteries() {
+		Ok(batteries) => batteries,
+		Err(err) => {
+			tracing::debug!(%err, "upower could not be reached; reading power supplies directly");
+			sysfs::batteries()
+		}
+	}
+}
+
+/// The `battery` trait for the backup board's own cell.
+fn built_in() -> Json {
+	let mut object = Map::new();
+	object.insert("name".to_owned(), Json::String(BUILT_IN.to_owned()));
+	object.insert("vendor".to_owned(), Json::String(BOARD_VENDOR.to_owned()));
+	Json::Object(object)
 }
 
 fn round(value: f64, places: i32) -> f64 {
@@ -367,6 +417,19 @@ mod tests {
 		let idle = watch(&[4.199; 12], Duration::from_secs(3));
 		assert_eq!(loaded.source(Some(false)), Some(Source::Battery));
 		assert_eq!(idle.source(Some(false)), Some(Source::Bypassed));
+	}
+
+	/// The backup board's cell is named by the device, since nothing reports a name for it, and is the
+	/// only battery called `built-in` (NFO).
+	#[test]
+	fn the_backup_boards_cell_names_itself() {
+		let about = built_in();
+		assert_eq!(about.get("name").unwrap().as_str(), Some("built-in"));
+		assert_eq!(about.get("vendor").unwrap().as_str(), Some("SupTronics"));
+		assert!(
+			about.get("serial").is_none() && about.get("model").is_none(),
+			"the cell is from an unknowable third party"
+		);
 	}
 
 	#[test]

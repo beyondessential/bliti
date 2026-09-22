@@ -123,11 +123,12 @@ function renderTile(name, byName, history) {
 			)
 		case 'battery-charge':
 			return (
-				<SimpleTile
+				<BatteryTile
 					key={name}
-					entry={group[0]}
+					charges={group}
+					voltages={byName.get('battery-voltage') ?? []}
+					directions={byName.get('battery-direction') ?? []}
 					history={history}
-					reveal={[byName.get('battery-voltage')?.[0], byName.get('battery-direction')?.[0]]}
 				/>
 			)
 		default:
@@ -216,14 +217,81 @@ function Reveal({ entry, scale, series }) {
 /// An entry folded into another's reveal: a labelled figure, e.g. the memory total or the cell
 /// voltage. It carries no tile of its own (VIEW).
 function Folded({ entry }) {
-	const value = hasValue(entry) ? formatValue(entry) : (reasonOf(entry) ?? '—')
 	return (
 		<div className="revealed">
 			<dl>
 				<dt>{labelOf(entry.name)}</dt>
-				<dd>{value}</dd>
+				<dd>{foldedValue(entry)}</dd>
 			</dl>
 		</div>
+	)
+}
+
+/// A folded entry's figure, or its reason where it has no value: a skipped voltage says why it is
+/// not there rather than showing a bare dash (VIEW).
+function foldedValue(entry) {
+	return hasValue(entry) ? formatValue(entry) : (reasonOf(entry) ?? '—')
+}
+
+/// Which battery a reading is about.
+function batteryName(entry) {
+	return entry.traits?.battery?.name ?? ''
+}
+
+/// Battery: headline the cell named `built-in` where the device reports one and the first by name
+/// otherwise, pair each battery's voltage and direction with its own charge, and show every battery
+/// in the reveal (VIEW).
+///
+/// A device with one battery is the ordinary case and keeps the plain reading tile: its scale, its
+/// history, and the voltage and direction folded in beneath.
+function BatteryTile({ charges, voltages, directions, history }) {
+	const ordered = [...charges].sort((a, b) => batteryName(a).localeCompare(batteryName(b)))
+	const headlined = ordered.find((entry) => batteryName(entry) === 'built-in') ?? ordered[0]
+	if (!headlined) return null
+
+	const partner = (entries, battery) =>
+		entries.find((entry) => batteryName(entry) === batteryName(battery))
+
+	if (ordered.length === 1) {
+		return (
+			<SimpleTile
+				entry={headlined}
+				history={history}
+				reveal={[partner(voltages, headlined), partner(directions, headlined)]}
+			/>
+		)
+	}
+
+	return (
+		<Tile
+			label={labelOf('battery-charge')}
+			more
+			tone={tone(headlined)}
+			face={headline(headlined)}
+		>
+			{ordered.map((entry) => {
+				const volts = partner(voltages, entry)
+				const way = partner(directions, entry)
+				const scale = scaleOf(entry)
+				return (
+					<div className="revealed" key={batteryName(entry)}>
+						<dl>
+							<Line
+								label={batteryName(entry)}
+								value={hasValue(entry) ? formatValue(entry) : headline(entry)}
+							/>
+							{volts && <Line label={labelOf(volts.name)} value={foldedValue(volts)} />}
+							{way && <Line label={labelOf(way.name)} value={foldedValue(way)} />}
+						</dl>
+						{scale !== null && (
+							<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+								<span style={{ width: `${scale * 100}%` }} />
+							</div>
+						)}
+					</div>
+				)
+			})}
+		</Tile>
 	)
 }
 
