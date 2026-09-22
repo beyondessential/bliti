@@ -236,3 +236,30 @@ Web Bluetooth exposes no delivery or loss accounting: `characteristicvaluechange
 arrived and nothing about what did not. The page derives loss only because the harness numbers its
 payloads. It read zero throughout, on the peer that queued as well as on the one that died, which
 is the same answer the Linux central gave.
+
+### Chunk size is the larger lever on the deployment target
+
+Sequenced run against Android Chrome: four payload sizes offered just above their ceiling, then an
+eight-minute soak. 364,500 notifications, **zero lost, zero gaps**, no mid-run disconnect, and the
+air capture matches exactly (347,000 PDUs of 22 B, 8,000 of 102 B, 5,500 of 252 B, 4,000 of 502 B,
+all single Handle Value Notification).
+
+| payload | notifications/s | KiB/s | bytes per connection event | relative |
+| --- | --- | --- | --- | --- |
+| 20 B | 917 | 17.9 | 158 | 1.0x |
+| 100 B | 444 | 43.4 | 343 | 2.4x |
+| 250 B | 212 | 51.6 | 401 | 2.9x |
+| 500 B | 118 | 57.4 | 444 | 3.2x |
+
+`NOTIFY_CHUNK` in `gatt.rs` is 20, so on a peer that does not coalesce the link spends a whole PDU
+and its per-PDU overhead to move 20 bytes. Raising it is worth **about 3.2x the throughput** on the
+peer that matters, which is a larger gain than anything available from moving the rate ceiling.
+
+The return diminishes sharply: 2.4x of the 3.2x arrives by 100 bytes, because bytes carried per
+connection event saturate near 450. A chunk around 250 B captures most of the benefit without
+depending on a large negotiated MTU, which matters because the chunk must also be safe on a peer
+that negotiates the 23-byte minimum.
+
+The phone soak confirmed a sustainable figure on that peer: 336,000 notifications at 700/s over
+480 s, zero loss, link alive throughout. Delivered rate ran at ~900/s for the first 23 s while it
+caught up on the backlog left by the 500 B phase, then settled to exactly the offered 700/s.
