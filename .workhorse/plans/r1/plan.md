@@ -434,3 +434,35 @@ rate is safe; it is one sample. Three consequences:
 This also shows the send path's blindness plainly. After the link was gone the sender wrote 38,400,
 47,998, 59,999 and 77,998 notifications across the following steps, every one reported as having
 succeeded, because a `PropertiesChanged` notification has nothing to fail against.
+
+### The regime above 3,000/s is unstable, not merely borderline
+
+A third desktop Chrome run adds the sample that makes the picture coherent. Client-side data only:
+`btmon` was not capturing, so none of this run is corroborated on air.
+
+Reconstructed from the sender log, 38,400 + 11,108 = 49,508 received exactly, so the 3,200/s step
+**completed its full 12 s** and the link died about 2.8 s into the 4,000/s step. Samples at 3,200/s
+now stand at two survivals and one death.
+
+Two things in this run had not appeared before.
+
+**Real loss: 35 notifications, one gap.** Every previous run across every peer and condition had
+zero. It arrived while the device was offering 4,000/s into a link carrying about 3,500/s, which is
+the same overrun that made BlueZ discard about 91% in the unpaced blasts, so a sender-side queue
+drop is the likely cause. Without the air capture that is inference, not measurement.
+
+**Delivery collapsed and recovered within a session**: 3,507, then **358**, then 3,512 in
+consecutive seconds, with the link surviving another nine seconds afterwards.
+
+So the region above roughly 3,000/s is not a clean edge with a sharp drop behind it. It is a regime
+where delivery becomes erratic, loss becomes possible, and the link eventually times out, with the
+timing varying run to run at a fixed rate. Below about 2,600/s the same link is perfectly steady:
+2,000/s held ten minutes at exactly 2,000/s with zero loss.
+
+That is the practically useful shape. There is a stable regime and an unstable one, the boundary sits
+somewhere around 2,600 to 3,200/s or 61 to 75 KiB/s, and it cannot be pinned more tightly because the
+behaviour there is not repeatable. A ceiling fitted close to the boundary would be fitted to noise.
+
+Note a flaw in the measuring page: `perSec` only records a second in which at least one notification
+arrived, so silent seconds are omitted and the array is shorter than the elapsed time. This run shows
+15 entries against 22.5 s held. Counts and loss are unaffected; only the timeline is.
