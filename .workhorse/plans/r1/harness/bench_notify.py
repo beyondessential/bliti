@@ -25,6 +25,8 @@ HEADER = struct.Struct(">IQ")
 
 args = None
 result = {"steps": [], "acquired": None}
+CHAR = None
+RUN = 1
 
 
 class Characteristic(dbus.service.Object):
@@ -131,6 +133,8 @@ class Service(dbus.service.Object):
         self.path = f"{APP_PATH}/service0"
         super().__init__(bus, self.path)
         self.char = Characteristic(bus, 0, self.path)
+        global CHAR
+        CHAR = self.char
 
     def props(self):
         return {"UUID": SERVICE_UUID, "Primary": dbus.Boolean(True)}
@@ -230,13 +234,19 @@ def send_packets(sink, target_rate, duration, size, seq_start):
     }
 
 
+def out_path():
+    base, _, ext = args.out.rpartition(".")
+    return f"{base}_run{RUN}.{ext}" if base else f"{args.out}.run{RUN}"
+
+
 def save():
     """Write results after every step: a long unattended run must survive a link loss."""
-    with open(args.out, "w") as fh:
-        json.dump({"args": vars(args), "result": result}, fh, indent=2)
+    with open(out_path(), "w") as fh:
+        json.dump({"args": vars(args), "run": RUN, "result": result}, fh, indent=2)
 
 
 def run_sweep(sink):
+    global RUN, result
     seq = 0
     try:
         if args.program_file:
@@ -284,8 +294,17 @@ def run_sweep(sink):
         result["sink"] = sink.kind
         result["finished_at"] = time.time()
         save()
-        print(f"[done] wrote {args.out}", flush=True)
-        GLib.idle_add(lambda: (loop.quit(), False)[1])
+        print(f"[done] run {RUN} wrote {out_path()}", flush=True)
+        if args.repeat:
+            # Re-arm for another run: the next subscription starts the program again.
+            RUN += 1
+            result = {"steps": [], "acquired": None}
+            if CHAR is not None:
+                CHAR.notifying = False
+                CHAR.sock = None
+            print(f"[ready] waiting for a central to subscribe (run {RUN})", flush=True)
+        else:
+            GLib.idle_add(lambda: (loop.quit(), False)[1])
 
 
 def main():
@@ -298,6 +317,8 @@ def main():
     ap.add_argument("--size", type=int, default=20, help="notification payload bytes")
     ap.add_argument("--rates", type=int, nargs="+",
                     default=[100, 200, 400, 800, 1600, 3200, 6400])
+    ap.add_argument("--repeat", action="store_true",
+                    help="re-arm after each program so several runs can be done back to back")
     ap.add_argument("--program-file", default=None,
                     help="JSON list of {rate,size,hold,gap} phases, run in order on subscribe")
     ap.add_argument("--path", choices=["auto", "signal"], default="auto",
