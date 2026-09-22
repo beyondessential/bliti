@@ -113,3 +113,26 @@ drop-rate signal appears early enough to back off on.
 - One peer and one adapter only. Connection interval (45 ms) and supervision timeout (420 ms) are
   peer-negotiated, and both bear directly on the ceiling, so a phone may land elsewhere. The
   Web Bluetooth run on Chrome is the outstanding check.
+
+### The `Io` socket path does not give usable flow control
+
+Measured directly, since it was the promising candidate for replacing the number with a live signal:
+`CharacteristicNotifyMethod::Io` (`AcquireNotify`), unpaced, 20-byte payloads, 60 s requested.
+
+| | signal (`Fun`) | socket (`Io`) |
+| --- | --- | --- |
+| accepted by the sender | 40,267/s | 78,594/s |
+| would-blocks | 0 | 5,066 (13.4 s of 15.5 s blocked) |
+| carried on air | ~3,585/s | ~3,459/s (163.6 PDU/s, 80.5 KiB/s) |
+| delivered / accepted | ~9% | ~4.4% |
+| outcome | `Connection Timeout (0x08)` | `Connection Timeout (0x08)`, socket reset at 15.5 s |
+
+The socket does push back, but nowhere near the link: it accepted 1,218,578 writes in 15.5 s while
+the air carried 53,130 of them, so it let through about **22× the link's capacity** before the
+connection was lost anyway. BlueZ drains the socket into its own queue far faster than the air
+retires it, and discards the excess, so a write that blocks is reporting on that queue rather than
+on the connection.
+
+So `Io` buys a partial signal, not flow control. It does not remove the need for a ceiling, and
+swapping the device onto it would not by itself make the device adaptive. Saturation kills the link
+in roughly 15 s on either path, while half of saturation (2,000/s at 20 B, 47 KiB/s) ran clean.
