@@ -48,6 +48,9 @@ export const HEADER = ['hostname', 'board', 'board-revision', 'os', 'kernel']
 
 export const TILE_ORDER = [
 	'network-address',
+	'wireless-network',
+	'hotspot',
+	'hotspot-clients',
 	'cpu-usage',
 	'memory-usage',
 	'filesystem-usage',
@@ -72,6 +75,9 @@ export const IN_REVEAL = new Set([
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
 const LABELS = {
 	'network-address': 'Address',
+	'wireless-network': 'Wireless',
+	hotspot: 'Hotspot',
+	'hotspot-clients': 'Hotspot clients',
 	'cpu-usage': 'Processor',
 	'memory-usage': 'Memory',
 	'filesystem-usage': 'Storage',
@@ -146,6 +152,8 @@ function formatQuantity(number, unit) {
 			return `${trim(number)} V`
 		case 'revolutions/minute':
 			return `${Math.round(number)} rpm`
+		case 'clients':
+			return number === 1 ? '1 client' : `${trim(number)} clients`
 		default:
 			return `${trim(number)} ${unit}`
 	}
@@ -212,9 +220,11 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status` and `limits` traits, and the members named here within the traits that hold them. A
-// battery's serial, model and vendor describe the cell; only its name says which battery it is.
-const DESCRIPTIVE = new Set(['status', 'limits'])
+// `status`, `limits`, `security` and `channel` traits, and the members named here within the traits
+// that hold them. A battery's serial, model and vendor describe the cell; only its name says which
+// battery it is. A wireless link's channel moves whenever a shared-channel hotspot follows the client
+// onto a new one, and that is the same link, not a second.
+const DESCRIPTIVE = new Set(['status', 'limits', 'security', 'channel'])
 const DESCRIPTIVE_MEMBERS = {
 	interface: new Set(['route', 'overlay']),
 	battery: new Set(['serial', 'model', 'vendor']),

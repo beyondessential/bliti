@@ -23,6 +23,7 @@ import {
 	seriesKey,
 	statusOf,
 } from './readings.js'
+import { channelText, securityName } from './wireless.js'
 
 export default function Readings({ entries, history }) {
 	if (entries.length === 0) {
@@ -102,6 +103,9 @@ function renderTile(name, byName, history) {
 			return <NetworkTile key={name} throughputs={group} history={history} />
 		case 'temperature':
 			return <TemperatureTile key={name} sensors={group} history={history} />
+		case 'wireless-network':
+		case 'hotspot':
+			return <LinkTile key={name} entry={group[0]} />
 		case 'memory-usage':
 			return (
 				<SimpleTile
@@ -332,6 +336,26 @@ function AddressTile({ addresses }) {
 function interfaceName(entry) {
 	const iface = entry.traits?.interface
 	return typeof iface === 'object' ? (iface?.name ?? '') : String(iface ?? '')
+}
+
+/// A wireless network joined, or the hotspot run: headline the SSID, and reveal how it is secured and
+/// the channel it is on. Both traits are descriptive, so a channel that moves changes this tile rather
+/// than adding another (NFO, VIEW).
+function LinkTile({ entry }) {
+	const security = entry.traits?.security
+	const channel = entry.traits?.channel
+	const more = Boolean(reasonOf(entry) || security || channel)
+	return (
+		<Tile label={labelOf(entry.name)} wide={isLong(headline(entry))} more={more} tone={tone(entry)} face={headline(entry)}>
+			<Reveal entry={entry} scale={null} series={null} />
+			<div className="revealed">
+				<dl>
+					{security && <Line label="Security" value={securityName(security)} />}
+					{channel && <Line label="Channel" value={channelText(channel)} />}
+				</dl>
+			</div>
+		</Tile>
+	)
 }
 
 /// Storage: headline the fullest filesystem that is not a boot partition, and show each filesystem in
