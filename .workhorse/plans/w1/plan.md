@@ -133,15 +133,24 @@ Its second channel tracks the 5 V supply at a ratio near two, but the ratio shif
 
 ## Detecting a bypassed backup
 
-A bypass is already reported: `power-source` carries `bypassing-backup`, and the raw signals it keys on were seen behaving correctly through this session, the power line low and the cell static to 1.3 mV.
-It is established by the hardware power line together with the cell's stillness, and it will not assert until the cell has been watched for twenty-five seconds.
+A bypass is already reported: `power-source` carries `bypassing-backup`, established from the hardware power line together with the cell's stillness, and it will not assert until the cell has been watched for twenty-five seconds.
+Until then a bypassed device reports `battery`, which reads as a power cut in progress when nothing of the sort is happening.
 
-The two readings above measure the same thing directly rather than inferring it.
-The backup board regulates its output, sagging 9.6 mV per watt drawn, where the same load on a supply feeding the Pi directly sags 69.0 mV per watt.
-The idle levels differ too, 5.2350 V against 5.1085 V, but that gap is a property of the particular supply rather than of being bypassed, where the sevenfold difference in stiffness is a property of whether a regulator sits in the path.
+The supply voltage does separate the states, and sharply.
+Fitting the backup board's own output from samples where mains is present gives `EXT5V = 5.2420 - 0.01006 x watts`, and against that model a bypassed supply sits 210 mV low where a backup-fed one sits within 6.4 mV, classifying 1729 samples with no error either way.
 
-Reading stiffness needs the load to vary and so is derived across samples, as the cell watch already is.
-Whether to fold it into how `power-source` is established is not settled, and is a change to that reading rather than to these.
+It is not used, because the model has to be learnt and nothing guarantees the device ever observes the state it must be learnt from.
+A device that has only ever run bypassed either never learns a model at all, and falls back to the same stillness heuristic, or learns one from the wrong supply where mains reaches both inputs.
+The case the detection most needs to catch is the case that poisons it.
+
+No direct signal for power arriving at the board's own socket was found: not among the named GPIO lines, of which only the one already used relates to the backup board, and not in any power supply or USB-C class, which the kernel does not populate on this board.
+
+The firmware records its own boot-time determination of the supply under `/proc/device-tree/chosen/power`, as a maximum current, a flag for whether the higher USB current is enabled, and the USB power delivery objects it negotiated.
+Fed through the backup board these read 5000, 1, and all zeros, with nothing overriding them in the boot configuration.
+A board fed through its header cannot negotiate over USB-C at all, so these may separate the states directly, with nothing learnt.
+They are recorded at boot, which suits the case that matters, a device that has always run bypassed, and misses a supply moved while running.
+
+Whether they separate is unestablished: they were not read during the bypassed session.
 
 ## What this settles for P1
 
@@ -158,6 +167,9 @@ Undervoltage becomes neither a reading of its own with no value nor a state on a
 - [ ] Tests
 
 ## Open
+
+Whether the firmware's boot-time record of the supply separates a bypassed boot from a backup-fed one, which decides whether `power-source` can be established by measurement rather than inferred.
+Reading `/proc/device-tree/chosen/power` on a bypassed boot settles it.
 
 Whether the throttle word's current-condition bits assert under thermal throttling.
 They were never seen set, but the board was never made hot, so only the undervoltage path has been ruled out.
