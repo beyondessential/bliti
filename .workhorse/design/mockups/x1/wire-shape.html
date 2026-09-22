@@ -354,12 +354,23 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 
 <div class="card q">
 	<h3>4. What a device runs before anything is confirmed</h3>
-	<p>A device out of the box has no recorded configuration. <code>{"attachments": []}</code> attaches to nothing, not even the wall port. Proposal: an unconfigured device records one <code>wired-dynamic</code> candidate per wired interface, labelled by the interface, and runs no hotspot, so a device plugged into a network with DHCP is reachable before anyone configures it.</p>
+	<p>A device out of the box has no recorded configuration. <code>{"attachments": []}</code> attaches to nothing, not even the wall port, and once bliti owns the network outright, restoring it at boot takes down whatever the image brought up. Proposal: an unconfigured device records one <code>wired-dynamic</code> candidate per wired interface, labelled by the interface, and runs no hotspot, so a device plugged into a network with DHCP is reachable before anyone configures it.</p>
 </div>
 
 <div class="card q">
 	<h3>5. SAE held to SAE</h3>
 	<p>A candidate of kind <code>sae</code> should not quietly join a WPA2-only access point of the same name. Whether iwd can hold one network to SAE is being checked alongside the renderer. If it cannot, the device should verify the negotiated key management after association and fail the candidate at <code>association</code>, rather than drop <code>sae</code> from its capabilities.</p>
+</div>
+
+<div class="card q">
+	<h3>6. WPS by PIN has nowhere to put the PIN</h3>
+	<p>WLAN requires joining by PIN, but <code>wps</code> carries only <code>method</code>, and nothing comes back. As the joining party the device generates the PIN, and the operator types it into the access point. Proposal: the device answers <code>wps</code> by PIN with <code>pin</code> carrying the digits, before the <code>configuration</code> and <code>applied</code> of gap 2.</p>
+<pre>{ <span class="k">"type"</span>: "pin", <span class="k">"pin"</span>: "12345670" }</pre>
+</div>
+
+<div class="card q">
+	<h3>7. A proposal interrupted before it is answered</h3>
+	<p>CFG is silent on a <code>discard</code>, or a new proposal, arriving while one is still being verified. Proposal, as built: every proposal gets exactly one answer, so an interrupted one is answered <code>invalid</code> at <code>$</code> with no <code>reached</code>, and the client pairs answers with proposals by counting. <code>discard</code> itself is not answered.</p>
 </div>
 
 </main>
