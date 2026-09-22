@@ -31,6 +31,7 @@ use bliti_core::{
 	key_schedule::PresenceToken,
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::task::{AbortHandle, JoinSet};
 
 use crate::{
 	facts,
@@ -87,6 +88,9 @@ where
 			}
 		}
 	});
+	// A session can be dropped from outside, as the daemon does when its client unsubscribes, and the
+	// connection must end with it rather than keep serving streams nobody reads.
+	let _driving = AbortOnDrop(driving.abort_handle());
 
 	// Holds sampling open for as long as this session lasts, so a device that had gone quiet starts
 	// sampling again the moment somebody connects (NFO).
@@ -115,6 +119,9 @@ async fn converse<B: Backend>(
 	configurator: &Configurator<B>,
 ) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
+	// Every stream this session serves, so that dropping the session ends them all. A configuration
+	// session left running would keep the device's one session busy and its proposal applied (CFG).
+	let mut tasks = JoinSet::new();
 
 	// The device names itself on a stream of its own, so declining the feed does not cost the client
 	// the device's identity and version (MSG).
@@ -138,7 +145,7 @@ async fn converse<B: Backend>(
 	{
 		let sampler = sampler.clone();
 		let served = served.clone();
-		tokio::spawn(async move {
+		tasks.spawn(async move {
 			let mut feed = feed;
 			if let Err(err) = serve_default(&mut feed, &sampler, &served).await {
 				tracing::debug!(%err, "the pushed feed ended");
@@ -147,18 +154,32 @@ async fn converse<B: Backend>(
 	}
 
 	loop {
-		let Some(mut stream) = streams.accept().await else {
+		let accepted = tokio::select! {
+			accepted = streams.accept() => accepted,
+			// Reaped as they finish, so a long session does not accumulate them.
+			Some(_) = tasks.join_next(), if !tasks.is_empty() => continue,
+		};
+		let Some(mut stream) = accepted else {
 			tracing::info!("client disconnected");
 			return Ok(());
 		};
 		let sampler = sampler.clone();
 		let served = served.clone();
 		let configurator = configurator.clone();
-		tokio::spawn(async move {
+		tasks.spawn(async move {
 			if let Err(err) = serve_stream(&mut stream, &sampler, &served, &configurator).await {
 				tracing::debug!(%err, "stream ended");
 			}
 		});
+	}
+}
+
+/// Aborts a task when dropped.
+struct AbortOnDrop(AbortHandle);
+
+impl Drop for AbortOnDrop {
+	fn drop(&mut self) {
+		self.0.abort();
 	}
 }
 
@@ -715,6 +736,69 @@ mod tests {
 		assert!(
 			matches!(read_message(&mut second).await, Ok(None) | Err(_)),
 			"the busy stream is closed"
+		);
+	}
+
+	/// A session dropped from outside, as the daemon drops one whose client unsubscribed, takes the
+	/// streams it was serving with it, so a configuration session it held ends and the next client is
+	/// not told the device is busy (CFG). The transport is left healthy throughout, so nothing but the
+	/// drop can end it.
+	#[tokio::test]
+	async fn dropping_a_session_ends_the_configuration_session_it_held() {
+		let psk = secret(0x42);
+		let configurator = inert().await;
+
+		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		let device = {
+			let psk = psk.clone();
+			let configurator = configurator.clone();
+			tokio::spawn(async move {
+				let _ = run(device_side.compat(), &psk, Sampler::start(), configurator).await;
+			})
+		};
+		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+		tokio::spawn(async move {
+			let _ = driver.await;
+		});
+		let _hello = streams.accept().await.unwrap();
+
+		let mut held = streams.open().await.unwrap();
+		write_message(&mut held, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		read_message(&mut held).await.unwrap().unwrap();
+
+		device.abort();
+		let _ = device.await;
+
+		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		tokio::spawn({
+			let psk = psk.clone();
+			async move {
+				let _ = run(device_side.compat(), &psk, Sampler::start(), configurator).await;
+			}
+		});
+		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+		tokio::spawn(async move {
+			let _ = driver.await;
+		});
+		let mut next = streams.open().await.unwrap();
+		write_message(&mut next, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let answer = tokio::time::timeout(Duration::from_secs(5), read_message(&mut next))
+			.await
+			.expect("the device answers")
+			.unwrap()
+			.unwrap();
+		assert!(
+			matches!(
+				read::<Message>(&answer).unwrap(),
+				Reading::Message(Message::Configuration { .. })
+			),
+			"the next client opens a session rather than being told the device is busy"
 		);
 	}
 }
