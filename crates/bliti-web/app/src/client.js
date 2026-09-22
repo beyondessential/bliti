@@ -184,6 +184,41 @@ export function createClient() {
 			else feed = wrapped
 		},
 
+		// Open a configuration session (BLI-CFG): one stream carrying the configuration in force, each
+		// proposal, what became of it, and the confirmation. Every message the device sends on it
+		// reaches onEvent as a feed's messages do; onClosed is called once the stream ends. Closing the
+		// returned session ends it, which the device reads as abandoning whatever was not confirmed.
+		async configure({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('configure')
+			const handle = await channel.configure(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			const sending = (text, send) => {
+				if (closed) throw new Error('The configuration session has ended.')
+				say(text)
+				send()
+			}
+			return {
+				propose: (document) => sending('configuration  document', () => handle.propose(document)),
+				confirm: () => sending('confirm', () => handle.confirm()),
+				discard: () => sending('discard', () => handle.discard()),
+				scan: () => sending('scan', () => handle.scan()),
+				survey: () => sending('survey', () => handle.survey()),
+				wps: (method) => sending(`wps  method ${method}`, () => handle.wps(method)),
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the configuration session')
+					handle.close()
+					handle.free()
+				},
+			}
+		},
+
 		disconnect() {
 			if (device?.gatt?.connected) device.gatt.disconnect()
 			device = null

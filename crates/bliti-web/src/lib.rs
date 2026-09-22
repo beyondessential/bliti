@@ -25,11 +25,11 @@ use bliti_core::{
 	qr::QrPayload,
 };
 use futures::{
-	AsyncWriteExt,
+	AsyncRead, AsyncReadExt, AsyncWriteExt, StreamExt,
 	channel::{mpsc, oneshot},
 	future::{self, Either},
 };
-use js_sys::{Function, Promise};
+use js_sys::{Function, JSON, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
@@ -303,6 +303,129 @@ impl Channel {
 			}))
 		})
 	}
+
+	/// Open a configuration session: a stream whose first message is `configure` (CFG).
+	///
+	/// Everything the device sends on the session is passed to `on_message` exactly as a subscription's
+	/// messages are, and `on_closed` is called once the stream ends. The handle this resolves to sends
+	/// the client's half of the exchange on the same stream, and closing it ends the session, which a
+	/// device reads as abandoning any proposal not confirmed.
+	pub fn configure(&self, on_message: Function, on_closed: Function) -> Promise {
+		let inner = self.inner.clone();
+		future_to_promise(async move {
+			let opener = inner
+				.opener
+				.borrow()
+				.clone()
+				.ok_or_else(|| JsError::new("this channel is not connected"))?;
+			let mut stream = opener
+				.open()
+				.await
+				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
+			write_message(&mut stream, &Message::Configure.to_json())
+				.await
+				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
+
+			// The session is read and written at once, so the stream is split: a read is pending
+			// essentially always, and a write must not wait on it.
+			let (mut reader, mut writer) = AsyncReadExt::split(stream);
+			let (outbound, mut queued) = mpsc::unbounded::<Vec<u8>>();
+			spawn_local(async move {
+				while let Some(message) = queued.next().await {
+					if write_message(&mut writer, &message).await.is_err() {
+						break;
+					}
+				}
+				let _ = writer.close().await;
+			});
+
+			let (closer, closing) = oneshot::channel();
+			let ending = outbound.clone();
+			spawn_local(async move {
+				let ended = report(&mut reader, closing, &on_message).await;
+				// However the read ended, the session has, so the write half closes too.
+				ending.close_channel();
+				call_closed(&on_closed, ended);
+			});
+
+			Ok(JsValue::from(ConfigurationHandle {
+				outbound: RefCell::new(Some(outbound)),
+				closer: RefCell::new(Some(closer)),
+			}))
+		})
+	}
+}
+
+/// One open configuration session, which lasts exactly as long as its stream (CFG).
+#[wasm_bindgen]
+pub struct ConfigurationHandle {
+	outbound: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
+	closer: RefCell<Option<oneshot::Sender<()>>>,
+}
+
+#[wasm_bindgen]
+impl ConfigurationHandle {
+	/// Propose a document: the whole configuration the client wants in force, as a plain object.
+	pub fn propose(&self, document: JsValue) -> Result<(), JsError> {
+		let json = JSON::stringify(&document)
+			.map_err(|_| JsError::new("the document cannot be written as JSON"))?;
+		let message = proposal(&String::from(json)).map_err(|why| JsError::new(&why))?;
+		self.send(message)
+	}
+
+	/// Make the applied proposal durable.
+	pub fn confirm(&self) -> Result<(), JsError> {
+		self.send(Message::Confirm.to_json())
+	}
+
+	/// Abandon the proposal, whether it is still being verified or already applied.
+	pub fn discard(&self) -> Result<(), JsError> {
+		self.send(Message::Discard.to_json())
+	}
+
+	/// Ask for the wireless networks the device can see.
+	pub fn scan(&self) -> Result<(), JsError> {
+		self.send(Message::Scan.to_json())
+	}
+
+	/// Ask for what the device's radio can see of the spectrum.
+	pub fn survey(&self) -> Result<(), JsError> {
+		self.send(Message::Survey.to_json())
+	}
+
+	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN).
+	pub fn wps(&self, method: String) -> Result<(), JsError> {
+		self.send(Message::Wps { method }.to_json())
+	}
+
+	/// End the session. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.
+	pub fn close(&self) {
+		self.outbound.borrow_mut().take();
+		if let Some(closer) = self.closer.borrow_mut().take() {
+			let _ = closer.send(());
+		}
+	}
+
+	fn send(&self, message: Vec<u8>) -> Result<(), JsError> {
+		self.outbound
+			.borrow()
+			.as_ref()
+			.and_then(|outbound| outbound.unbounded_send(message).ok())
+			.ok_or_else(|| JsError::new("this configuration session has ended"))
+	}
+}
+
+/// The `configuration` message proposing a document, from the document as JSON text.
+fn proposal(json: &str) -> Result<Vec<u8>, String> {
+	match serde_json::from_str(json) {
+		Ok(serde_json::Value::Object(document)) => Ok(Message::Configuration {
+			document,
+			capabilities: None,
+		}
+		.to_json()),
+		Ok(_) => Err("a document is an object".to_owned()),
+		Err(err) => Err(format!("the document is not JSON: {err}")),
+	}
 }
 
 /// One open subscription, which lasts exactly as long as its stream.
@@ -331,22 +454,33 @@ impl SubscriptionHandle {
 }
 
 /// Pass everything a stream carries to the application, until it ends or the application asks to
-/// close it.
-///
-/// Each message is described rather than handed over raw, so the application is told which of the
-/// outcomes of MSG it is looking at and can render accordingly. A fault is the exception: the
-/// receiver closes the stream a fault arrived on (MSG), so it ends the read here rather than
-/// being reported and read past, which would let a peer that has completed the handshake stream
-/// malformed messages indefinitely.
+/// close it, then close it.
 async fn report_until_closed(
 	mut stream: Stream,
 	closing: oneshot::Receiver<()>,
 	on_message: Function,
 	on_closed: Function,
 ) {
-	let mut closing = closing;
-	let ended = loop {
-		let read = read_message(&mut stream);
+	let ended = report(&mut stream, closing, &on_message).await;
+	let _ = stream.close().await;
+	call_closed(&on_closed, ended);
+}
+
+/// Pass everything a stream carries to the application, until it ends or the application asks to
+/// stop, returning why it ended where that was not the ordinary way.
+///
+/// Each message is described rather than handed over raw, so the application is told which of the
+/// outcomes of MSG it is looking at and can render accordingly. A fault is the exception: the
+/// receiver closes the stream a fault arrived on (MSG), so it ends the read here rather than
+/// being reported and read past, which would let a peer that has completed the handshake stream
+/// malformed messages indefinitely.
+async fn report<R: AsyncRead + Unpin>(
+	reader: &mut R,
+	mut closing: oneshot::Receiver<()>,
+	on_message: &Function,
+) -> Option<String> {
+	loop {
+		let read = read_message(reader);
 		futures::pin_mut!(read);
 		match future::select(read, &mut closing).await {
 			Either::Left((Ok(Some(raw)), _)) => {
@@ -361,9 +495,10 @@ async fn report_until_closed(
 			// The application has unsubscribed, or is going away.
 			Either::Right(_) => break None,
 		}
-	};
+	}
+}
 
-	let _ = stream.close().await;
+fn call_closed(on_closed: &Function, ended: Option<String>) {
 	let _ = on_closed.call1(
 		&JsValue::NULL,
 		&match ended {
@@ -397,5 +532,41 @@ fn describe(raw: &[u8]) -> (String, Option<String>) {
 			serde_json::json!({ "kind": "fault", "detail": fault.to_string() }).to_string(),
 			Some(fault.to_string()),
 		),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use bliti_core::channel::envelope::{Reading, read};
+
+	use super::*;
+
+	/// A proposal is a `configuration` carrying the document whole and no capabilities, with the
+	/// document critical on the wire so a device that cannot read it does not act on it (CFG).
+	#[test]
+	fn a_proposal_carries_the_document_critical() {
+		let bytes =
+			proposal(r#"{"attachments":[],"regulatory-domain":"VU","later":{"kept":1}}"#).unwrap();
+		let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+		assert_eq!(wire["type"], "configuration");
+		assert_eq!(wire["DOCUMENT"]["regulatory-domain"], "VU");
+		assert!(wire.get("capabilities").is_none());
+
+		let Ok(Reading::Message(Message::Configuration {
+			document,
+			capabilities,
+		})) = read(&bytes)
+		else {
+			panic!("a proposal reads back as a configuration");
+		};
+		assert_eq!(capabilities, None);
+		// A member this build does not know is sent as the operator's document carried it.
+		assert_eq!(document["later"]["kept"], 1);
+	}
+
+	#[test]
+	fn a_proposal_is_an_object() {
+		assert!(proposal("[]").is_err());
+		assert!(proposal("not json").is_err());
 	}
 }
