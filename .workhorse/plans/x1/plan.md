@@ -105,6 +105,8 @@ The capabilities shape and the vocabularies the specs leave open are drafted in 
 
 The mockup also lists five gaps needing spec edits once settled: a `state` message for per-candidate state (NSCR needs it and no CFG message carries it), what `wps` is answered with, capabilities that change with the country, the recorded configuration of an unconfigured device, and holding an `sae` candidate to SAE.
 
+`networks` reports one entry per access point (BSSID), hidden ones included with a null `ssid`, and `radio` carries the bands the radio can use, so a scan serves siting a new access point as well as joining. Following sign-off, the code catches up: `Message::Networks` carries `access-points` rather than `networks`, and the web screen's scan list groups by SSID and hides access points with no SSID by default.
+
 The device session handler, the iwd/hostapd/networkd renderers, and the web screen are being built in parallel on local branches `x1-session`, `x1-render` and `x1-web`, and are cherry-picked onto the card branch as each lands. The web screen keeps all knowledge of the capabilities shape in one module so a change from review stays contained.
 
 ### What the renderer found about the stack
