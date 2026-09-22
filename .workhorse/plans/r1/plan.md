@@ -40,3 +40,76 @@ The device sends via `CharacteristicNotifyMethod::Fun` + `notifier.notify(chunk)
 ## Deliverable
 
 Written-up measurements, then the CHN "Send rate" section and the `device.rs` constants updated to match. Note: this branch's `device.rs` still carries both `NOTIFY_BYTES_A_SECOND` and `NOTIFY_PACKETS_A_SECOND`, though L1 already removed the byte ceiling from the CHN spec as redundant — R1's code change subsumes that cleanup.
+
+## Measurements (2026-09-22)
+
+Pi 4 prototype (Cypress controller, BlueZ 5.85) as peripheral, Linux/Intel central (BlueZ 5.87) as
+receiver, same room. Negotiated ATT_MTU 517, connection interval 45 ms, supervision timeout 420 ms.
+Raw notifications on the real `DEVICE_TX` characteristic, no Noise/zlib/yamux, throttle bypassed.
+
+### The notify path has no backpressure
+
+`device.rs` uses `CharacteristicNotifyMethod::Fun`. In bluer 0.17 that is served under `StartNotify`
+and each notification is a fire-and-forget `PropertiesChanged` D-Bus message; for a notification
+(as against an indication) there is no confirmation to await. The alternative,
+`CharacteristicNotifyMethod::Io`, is served under `AcquireNotify` and gets a SEQPACKET socket that
+does push back.
+
+Measured, blasting unpaced for 10 s at 20-byte payloads:
+
+- **Signal path (what the device uses):** 402,675 writes accepted, 40,267/s, **zero** would-block,
+  **zero** seconds spent blocked. The sender believed every send succeeded while ~91% of it was
+  being discarded downstream.
+- **Socket path (`Io`):** 1,180,576 writes, 4,914 would-blocks, **13.0 of 15 s spent blocked**.
+
+So the device today cannot detect overrun from its own send path, which is why a fixed ceiling was
+needed at all. A live signal is available, but only on the `Io` path.
+
+### Notifications are coalesced, so the count is not what the link spends
+
+Every notification on air arrived inside an ATT **Handle Multiple Value Notification (0x23)** PDU.
+At ATT_MTU 517 a PDU holds 504 bytes, and a 20-byte notification costs 24 bytes in it
+(2 handle + 2 length + 20 value), so ~21 notifications ride in one PDU.
+
+| payload | notifications per PDU | PDUs/s | notifications/s | KiB/s |
+| --- | --- | --- | --- | --- |
+| 20 B | ~21 | 170.7 | 3,585 | 84.0 |
+| 500 B | 1 | 161.7 | 162 | 79.6 |
+
+PDUs per second and bytes per second are near-constant across a 25× change in payload, while the
+notification rate moves by 22×. **The notification count is the one quantity that does not hold
+still**, which is what makes a fixed notification ceiling the wrong shape.
+
+### Where it breaks: a cliff, not a knee
+
+Stepped hold, 8 s per step at 20-byte payloads, sender alive throughout:
+
+| offered | delivered | lost | on air |
+| --- | --- | --- | --- |
+| 200/s | 100.0% | 0 | 4.7 KiB/s |
+| 500/s | 100.0% | 0 | 11.7 KiB/s |
+| 1000/s | 100.0% | 0 | 23.4 KiB/s |
+| 2000/s | 100.0% | 0 | 46.7 KiB/s |
+| 3000/s | 81.1% | 4,533 | 70 KiB/s, link lost 6.5 s in |
+
+Delivery tracked the offered rate exactly, with no loss and no rising latency, right up to the point
+the link went down. Every failure was `HCI Disconnect Complete, Reason: Connection Timeout (0x08)` —
+a supervision timeout, not a graceful close. So it falls over rather than degrading, and no
+drop-rate signal appears early enough to back off on.
+
+### What this says about CHN's 200/s
+
+- At the 20-byte chunk the device actually sends, the link carried **2,000/s losslessly**: the
+  ceiling is about **10× conservative**.
+- At maximum payload the link sustained only ~**162/s**, so the permitted 200/s is *above* what the
+  link held. The single number is wrong in both directions depending on payload.
+- The quantities that stayed put were ~162–171 PDU/s and ~80–84 KiB/s. The byte ceiling L1 removed
+  as redundant was closer to the real invariant than the notification count that replaced it.
+
+### Caveats
+
+- Longest clean hold at 2,000/s was 8 s. That is not a sustained-safety proof; a long soak at the
+  candidate number is still owed.
+- One peer and one adapter only. Connection interval (45 ms) and supervision timeout (420 ms) are
+  peer-negotiated, and both bear directly on the ceiling, so a phone may land elsewhere. The
+  Web Bluetooth run on Chrome is the outstanding check.
