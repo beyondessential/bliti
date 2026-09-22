@@ -84,15 +84,26 @@ The separation is not a fixed threshold, because 5.1077 V is this particular sup
 A supply that happened to deliver what the backup board delivers would not be distinguishable this way.
 The voltage corroborates a bypass and is worth reporting as a number; it does not replace the hardware signal and the cell's movement as the means of establishing one.
 
-## The undervoltage bits assert
+## What the undervoltage signals actually do
 
-In the bypassed state the throttle word read `0x50000` steadily, with bit 16 and bit 18 set, while the current-condition bits stayed clear and `in0_lcrit_alarm` stayed at zero.
+Three signals were watched through a sustained marginal supply: the board bypassed, loaded to about 5.6 A, with `EXT5V_V` between 4.764 V and 4.824 V across 173 samples.
 
-The bit positions are now observed on hardware rather than taken from documentation.
-Their meaning is not independently proven: it is consistent with the documented layout and with the circumstances, a supply 137 mV low that browned out during boot.
+The throttle word read `0x50000` for the entire session, from boot to the end of the load, with bit 16 and bit 18 set and never changing.
+Those positions are now observed on hardware rather than taken from documentation, though their meaning is only consistent with the documented layout and the circumstances rather than independently proven.
+They are a latch: already set by the time anything could look, because the device browned out during boot, and they never cleared.
+They say a brownout happened at some unknown point, and cannot distinguish one three weeks ago from one happening now.
 
-This is the case the sticky history exists for.
-The device had already passed through an undervoltage by the time anything could look, the current-condition bits said nothing was wrong, and no other signal the device reports would have shown it.
+The throttle word's current-condition bits never asserted at all, through the whole of a sustained undervoltage.
+
+`in0_lcrit_alarm` asserted in 16 of the 173 samples, flipping six times.
+The supply voltage while it was asserted ranged 4.7691 V to 4.8240 V, and while it was clear, 4.7637 V to 4.8240 V.
+The two ranges overlap completely, so the bit did not separate any condition the voltage could distinguish.
+
+The voltage held a mean of 4.7933 V across the same window, in a range of 60 mV.
+
+This is the card's argument, observed.
+The condition was unchanging for ninety seconds, the number said so steadily, and the bit reported it sixteen times with six transitions.
+A reading driven off the instantaneous bit would move between `warning` and `passed` six times while nothing about the supply changed.
 
 ## Throttling detection is dead on this hardware
 
@@ -103,19 +114,43 @@ The mailbox is the only route to that word on this board, so fixing this falls o
 
 ## Decisions
 
-Undervoltage state comes from the throttle word over the mailbox rather than the `rpi_volt` `in0_lcrit_alarm` bit.
-The word carries both the current condition and a sticky "has occurred" history, which is worth having on a device nobody was watching, and it is needed regardless to fix the defect above.
+A supply voltage is reported from `EXT5V_V` as a quantity in volts, and the number rather than any bit is the signal.
+It carries no notion of being in difficulty, so it is always `passed`, which NFO permits: a device reports `warning` or `failed` only where the measurement has such a notion.
+
+It is its own catalogue entry rather than an instance of a rail dimension.
+NFO's trait rule holds that measurements which merely resemble each other are separate entries, and the 5 V input and the SoC core rail are not instances of one measurement.
 
 A core current reading is reported from `VDD_CORE_A`.
 
-Where a supply voltage is reported it is its own catalogue entry rather than an instance of a rail dimension.
-NFO's trait rule holds that measurements which merely resemble each other are separate entries, and the 5 V input and the SoC core rail are not instances of one measurement.
+The throttle word's sticky history is carried on the supply voltage as a descriptive trait saying a brownout has occurred since boot.
+It does not set the status, because it is a latch that never clears and would otherwise leave a device in standing difficulty for the rest of its uptime after one bad boot.
+
+Neither undervoltage bit drives a state.
+The word's current-condition bits do not assert, and the alarm bit chatters against an unchanging supply, so a status driven from either would move without the supply moving.
 
 The `rp1_adc` hwmon is not used, despite costing a plain file read.
-Its second channel tracks the 5 V supply at a ratio near two, but the ratio moves under load, so treating it as a voltage means inventing a calibration constant.
-The mailbox is needed for the throttle word in any case.
+Its second channel tracks the 5 V supply at a ratio near two, but the ratio shifts by 1.28% between power states, so treating it as a voltage means inventing a calibration constant.
+
+The mailbox is used regardless, because it is the only route to the throttle word and so to the defect above.
+
+## What this settles for P1
+
+The catalogue gains no `boolean` kind.
+Undervoltage does not become a reading of its own with no value, and it does not become a state or a state reason either; the supply voltage is a real number, and the brownout history is a trait on it.
+
+## Build
+
+- [ ] A mailbox property client: open `/dev/vcio`, one ioctl, the gencmd tag, and a parse of the single-line rail response
+- [ ] `supply-voltage` from `EXT5V_V`, in volts, carrying no status of its own
+- [ ] The brownout-since-boot trait on it, from the throttle word's sticky bits
+- [ ] A core current reading from `VDD_CORE_A`
+- [ ] Read the throttle word over the mailbox in `compute.rs`, replacing the sysfs path that does not exist on this board
+- [ ] NFO gains the two catalogue entries and the trait
+- [ ] Tests
 
 ## Open
 
-Whether the current-condition undervoltage bits and `in0_lcrit_alarm` assert under load while bypassed, which would establish the remaining bit positions.
-Only the sticky history bits have been seen set.
+What the supply voltage entry, the core current entry, and the brownout trait are called.
+
+Whether the throttle word's current-condition bits assert under thermal throttling.
+They were never seen set, but the board was never made hot, so only the undervoltage path has been ruled out.
