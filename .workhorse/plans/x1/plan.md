@@ -73,10 +73,21 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [ ] Apply and revert against the chosen backend, with nothing provisional written to disk
 - [ ] Wireless joining: PSK, SAE, transitional, enterprise, WPS push-button and PIN
 - [ ] Hotspot: bring-up, upstream sharing, client isolation, DHCP range
-- [ ] The new NFO entries and their traits, in the sampler
+- [ ] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
+- [ ] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`
 - [ ] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md)
 - [ ] Privileges: whichever of the three options above is chosen
 
 ## Notes
 
 The version marker of [VER](../../specs/version.md) covers the message encoding and envelope of [MSG](../../specs/messages.md), not the message types a feature adds. This module adds a stream role and message types without changing anything the marker covers, so the marker does not move.
+
+### The client's descriptive-trait list is not automatic
+
+`readings.js` holds the descriptive traits as two hardcoded tables: `DESCRIPTIVE` for wholly descriptive traits, and `DESCRIPTIVE_MEMBERS` for traits only some of whose members describe. Both `security` and `channel` are wholly descriptive under [NFO](../../specs/device-info.md), so both belong in the first.
+
+This matters more than it looks. `identityKey` keys the tile grid as well as the history, and it is built from the distinguishing traits, so a trait the client does not know to be descriptive becomes part of an entry's identity. A `wireless-network` fact whose channel changed would key differently and appear as a second tile beside the first rather than replacing it, which is exactly what the shared-channel behaviour of [HOT](../../specs/network/hotspot.md) causes whenever the hotspot follows a client onto a new channel.
+
+### Large responses are paced, not dropped
+
+[CHN](../../specs/channel.md) caps notification payload at a byte ceiling per second and requires a device that reaches it to hold the remainder rather than discard it. A scan across a busy site, or a spectrum survey, can be large enough to meet that ceiling. Nothing is lost, but a client waiting on `networks` or `spectrum` may wait longer than the device took to gather it, and must not read the delay as a failure.
