@@ -466,3 +466,38 @@ behaviour there is not repeatable. A ceiling fitted close to the boundary would 
 Note a flaw in the measuring page: `perSec` only records a second in which at least one notification
 arrived, so silent seconds are omitted and the array is shorter than the elapsed time. This run shows
 15 entries against 22.5 s held. Counts and loss are unaffected; only the timeline is.
+
+## The spec change, and what is left over
+
+[CHN](../../specs/channel.md) "Send rate" now reads as a payload-byte ceiling of 40 KiB in any
+one-second window, in place of 200 notifications, with the note rewritten: its previous reasoning,
+that the count is what overruns a controller, is contradicted by the coalescing measurements.
+
+Why 40 KiB of payload. The soak that held ten minutes with zero loss was 2,000 notifications a
+second of 20 B, which is 39 KiB of payload a second and 47 KiB on air once the per-notification
+framing is counted. The unreliable region begins around 51 to 62 KiB of payload a second, so the
+ceiling keeps roughly a third in hand. It is not set close to the boundary on purpose: the boundary
+is not repeatable, and a figure fitted to the last rate that happened to survive would be fitted to
+noise.
+
+It also costs the deployment peer nothing. The phone carried at most 17.9 KiB/s close up and 3.4 at
+range, so a 40 KiB ceiling never binds there; it governs only a peer quick enough to be driven into
+the unreliable region.
+
+Still to do, none of it blocking the spec change:
+
+- **`device.rs` follows the spec.** `NOTIFY_BYTES_A_SECOND` and `NOTIFY_PACKETS_A_SECOND` become one
+  payload-byte budget. This also completes the cleanup L1 left behind, where the spec dropped the
+  byte ceiling but the code kept both.
+- **`NOTIFY_CHUNK` is worth 2.4x to 3x**, and is a bigger win than the ceiling. It is 20 B, against a
+  negotiated ATT_MTU of 517. Throughput rises steeply to about 250 B and then falls back at 500 B
+  once the error rate is non-trivial, so the target is a chunk that fits inside one link-layer
+  packet, near 180 to 240 B. The optimum inside that range is unmeasured: the sweep tested 20, 100,
+  250 and 500 B only.
+- **Adaptive pacing** is a separate design, needing a message type on the client's feed and a rule
+  for how a device paces against it. Two signals, one mechanism: a client reports the rate it is
+  actually receiving, which diverges 2x to 4x from the offered rate on a phone long before anything
+  goes wrong; and a client whose link was lost reports, after reconnecting, the rate that lost it,
+  which is the only warning a fast peer gives. A reconnect is a fresh handshake and a fresh
+  compression context, so the client has to carry that figure across sessions and restate it.
+  With both, the fixed ceiling stays only as a backstop.
