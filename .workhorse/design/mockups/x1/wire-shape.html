@@ -295,7 +295,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<tr>
 			<td>enterprise <code>security</code></td>
 			<td><code>eap</code>, <code>identity</code>, <code>anonymous-identity</code>, <code>password</code>, <code>phase2</code>, <code>ca-certificate</code>, <code>domain</code>, <code>client-certificate</code>, <code>client-key</code>, <code>client-key-passphrase</code></td>
-			<td>Certificates and keys inline as PEM. <code>ca-certificate</code> is required, and <code>domain</code> where the method allows it: without them the access point is not authenticated, which WLAN forbids joining.</td>
+			<td>Certificates and keys inline as PEM. <code>ca-certificate</code> is required, and <code>domain</code> where the method allows it: without them the access point is not authenticated, which WLAN forbids joining. <code>phase2</code> is required for PEAP and TTLS, and members a method does not use are refused.</td>
 		</tr>
 	</table>
 </div>
@@ -371,6 +371,11 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 <div class="card q">
 	<h3>7. A proposal interrupted before it is answered</h3>
 	<p>CFG is silent on a <code>discard</code>, or a new proposal, arriving while one is still being verified. Proposal, as built: every proposal gets exactly one answer, so an interrupted one is answered <code>invalid</code> at <code>$</code> with no <code>reached</code>, and the client pairs answers with proposals by counting. <code>discard</code> itself is not answered.</p>
+</div>
+
+<div class="card q">
+	<h3>8. A public resolver hides the site's own names</h3>
+	<p>LINK queries a candidate's <code>nameservers</code> before the ones the network supplies, and its note says that lets an operator add a public resolver without losing the site's internal names. On resolved it does not: the next server is tried only when one errors, and a public resolver answering "no such name" has not errored. Proposal: the search domains a network supplies become routing domains for that link, so names under the site's domain always go to the site's resolvers, and configured resolvers answer everything else. This holds only where the site hands out its domain, which the note should then say.</p>
 </div>
 
 </main>
