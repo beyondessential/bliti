@@ -18,6 +18,7 @@
 //! the web application to Web Bluetooth; the pieces themselves neither know nor care which.
 
 pub mod compress;
+pub mod config;
 pub mod envelope;
 pub mod framing;
 #[cfg(feature = "generate")]

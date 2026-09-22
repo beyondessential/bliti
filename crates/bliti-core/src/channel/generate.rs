@@ -126,6 +126,36 @@ pub fn message() -> impl Strategy<Value = Message> {
 		"[a-z-]{1,10}".prop_map(|topic| Message::Subscribe { topic }),
 		entry().prop_map(Message::Fact),
 		entry().prop_map(Message::Reading),
+		// The configuration session of CFG. The document, capabilities and act-answer payloads ride as
+		// raw JSON, so they are generated over the same conforming-JSON strategy as everything else.
+		Just(Message::Configure),
+		(object_of(json()), prop::option::of(object_of(json()))).prop_map(
+			|(document, capabilities)| Message::Configuration {
+				document,
+				capabilities,
+			}
+		),
+		Just(Message::Applied),
+		(
+			"[a-z][a-z.0-9-]{0,16}",
+			"[a-z ]{1,20}",
+			prop::option::of("[a-z ]{1,16}"),
+		)
+			.prop_map(|(at, reason, reached)| Message::Invalid {
+				at,
+				reason,
+				reached
+			}),
+		Just(Message::Confirm),
+		Just(Message::Discard),
+		Just(Message::Busy),
+		Just(Message::Scan),
+		Just(Message::Survey),
+		prop::sample::select(vec!["push-button", "pin"]).prop_map(|method| Message::Wps {
+			method: method.to_owned()
+		}),
+		prop::collection::vec(json(), 0..3).prop_map(|networks| Message::Networks { networks }),
+		object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
 	]
 }
 

@@ -305,6 +305,24 @@ pub async fn connect(
 					Ok(Reading::Message(Message::Subscribe { topic })) => {
 						println!("subscribe: {topic}");
 					}
+					// The configuration session of CFG. This diagnostic client opens none, so these are
+					// noted but not acted on.
+					Ok(Reading::Message(
+						Message::Configure
+						| Message::Configuration { .. }
+						| Message::Applied
+						| Message::Invalid { .. }
+						| Message::Confirm
+						| Message::Discard
+						| Message::Busy
+						| Message::Scan
+						| Message::Survey
+						| Message::Wps { .. }
+						| Message::Networks { .. }
+						| Message::Spectrum { .. },
+					)) => {
+						println!("config:   a configuration-session message");
+					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
 					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),

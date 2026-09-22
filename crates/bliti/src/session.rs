@@ -187,6 +187,31 @@ where
 				// nothing to do about it, which MSG makes a no-op rather than a fault.
 				tracing::debug!("a fact or reading from the client; nothing to do about it");
 			}
+			Ok(Reading::Message(
+				Message::Configure
+				| Message::Configuration { .. }
+				| Message::Confirm
+				| Message::Discard
+				| Message::Scan
+				| Message::Survey
+				| Message::Wps { .. },
+			)) => {
+				// A client driving a configuration session (CFG). The handler that answers it is a
+				// pending build-order item; until it lands the stream is left open and unanswered, which
+				// is what a device older than its client looks like and fails nothing (MSG).
+				tracing::info!("a configuration-session message; not yet served");
+			}
+			Ok(Reading::Message(
+				Message::Applied
+				| Message::Invalid { .. }
+				| Message::Busy
+				| Message::Networks { .. }
+				| Message::Spectrum { .. },
+			)) => {
+				// Answers only a device sends. A client sending one has nothing for this device to do
+				// about it, a no-op rather than a fault (MSG).
+				tracing::debug!("a device-only message from the client; nothing to do about it");
+			}
 			Ok(Reading::Skipped(skip)) => tracing::debug!(%skip, "message passed over"),
 			Ok(Reading::Refused(refusal)) => {
 				tracing::warn!(%refusal, "message refused");

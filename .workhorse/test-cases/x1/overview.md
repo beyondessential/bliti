@@ -33,7 +33,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] A candidate holding a lease on a network that does not route fails at the gateway stage. Verifies spec: LINK
 - [ ] A candidate on a network with no route beyond the gateway is established, not failed. Verifies spec: LINK
 - [ ] A device holding two static candidates on different subnets picks the right one at each site, unattended and with no client connected. Verifies spec: LINK
-- [ ] A static candidate carrying no gateway is rejected as invalid. Verifies spec: LINK
+- [x] A static candidate carrying no gateway is rejected as invalid. Verifies spec: LINK
+- [x] A second dynamic candidate on an interface that already has one is rejected as invalid. Verifies spec: LINK
 - [ ] A wired and a wireless candidate up at once leave the device reachable on both, with the default route following the ordering. Verifies spec: LINK
 - [ ] The default route moves when a candidate above the one in force becomes available. Verifies spec: LINK
 - [ ] A site that changes around a device whose cable never moved is noticed, and the device selects again. Verifies spec: LINK

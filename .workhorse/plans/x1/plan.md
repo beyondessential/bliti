@@ -6,10 +6,10 @@ The reasoning that produced them is in the working doc at `.workhorse/working-do
 
 ## Open decisions
 
-Two decisions are deliberately not in the specs, because neither constrains anything an operator can observe. Both want settling before the device half is built.
+Two decisions are deliberately not in the specs, because neither constrains anything an operator can observe. Both are now settled.
 
-- [ ] **Which backend configures the network.** Candidates below.
-- [ ] **Whether bliti owns the backend's configuration files outright, or merges with what the image already ships.**
+- [x] **Which backend configures the network.** Settled: **iwd** for the wireless client, **hostapd** for the hotspot, **systemd-networkd** for addressing, per-link DNS and the hotspot's DHCP server. iwd carries the strongest WPA3-SAE, transitional and 802.1X-enterprise support of the three and offers WPS, over a clean D-Bus API; its AP mode is the weak one, so hostapd runs the hotspot, and networkd (which iwd already leans on for addressing) carries the wired candidates and the DHCP server. On shared-channel single-radio hardware the STA vif is iwd's and the AP vif hostapd's, both addressed by networkd. Not installed on the prototype image today, but images are rebuilt as part of this work; the Pi image is expected to ship with bliti. A revisable backend detail: the [NET](../../specs/network/overview.md) document is the contract, not the backend.
+- [x] **Whether bliti owns the backend's configuration files outright, or merges with what the image already ships.** Settled: **own outright.** bliti writes the iwd/hostapd/networkd configuration wholesale from the document, so what a device runs always equals what was accepted.
 
 ## What configures the network underneath
 
@@ -63,11 +63,11 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 
 ## Build order
 
-- [ ] Settle the backend choice and the file-ownership question above
-- [ ] Model the configuration document and its serialisation in `bliti-core`
-- [ ] Capability probing on the device: AP+STA, shared channel, WPS methods, survey support
-- [ ] The session stream role and its message types, in `bliti-core` alongside the existing channel messages
-- [ ] Wire compatibility: the new message types go through `bliti-wire-compat`, and any critical member is recorded in `wire-breaks.toml` with a reason
+- [x] Settle the backend choice and the file-ownership question above
+- [x] Model the configuration document and its serialisation in `bliti-core` — `channel/config.rs`: `Document`, `Attachment` (wireless/wired-dynamic/wired-static), `Wireless`, `Security`, `Hotspot`, with `from_json`/`to_json` and the structural validation LINK/WLAN/HOT pin (required members, security kinds, a wired-static without a gateway rejected, at most one wired-dynamic per interface). Capability-dependent validation is left for the device layer, which owns the capabilities shape
+- [ ] Capability probing on the device: AP+STA, shared channel, WPS methods, survey support. **This layer owns the capabilities wire shape** — the specs pin what must be reported (concurrency case, WPS methods, survey) but not the member names. Decide it here, and type it in `bliti-core` so the client's pre-proposal validation of NSCR shares it
+- [x] The session stream role and its message types, in `bliti-core` alongside the existing channel messages — `configure`, `configuration`, `applied`, `invalid`, `confirm`, `discard`, `busy`, and the acts `scan`, `survey`, `wps` with their answers `networks`, `spectrum`. The document, capabilities and act-answer payloads ride as raw JSON so they survive the envelope round trip and stay forward-compatible, mirroring how `Entry` carries `traits`
+- [x] Wire compatibility: the new message types go through `bliti-wire-compat` (generator arms added), and `configuration`'s critical `DOCUMENT` is recorded in `wire-breaks.toml` with a reason
 - [ ] Candidate selection and the four verification stages on the device
 - [ ] Event-driven reselection on carrier, failure and a higher candidate returning
 - [ ] Apply and revert against the chosen backend, with nothing provisional written to disk
