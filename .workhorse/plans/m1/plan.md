@@ -4,32 +4,42 @@ Add an OS-battery fallback so a machine without the X120x Maxim gauge (a laptop,
 
 ## Decisions (the "how" kept out of the spec)
 
-- **Source: sysfs `/sys/class/power_supply`, read directly.** Not upower. sysfs already exposes `manufacturer` / `model_name` / `serial_number` (the metadata upower was wanted for), needs no daemon, and adds no dependency — matching the facts.rs house pattern of reading `/proc` and `/sys` directly. upower would drag in a D-Bus client (`zbus` async runtime, or `dbus`/libdbus which the cross-build avoids) and a running `upowerd` that field SBCs often lack.
-- **Which entries count as a battery powering the device.** Keep `type` = `Battery` (the machine's own cell) and `type` = `UPS` (an external supply carrying it); exclude everything else (`Mains`, `USB`). Then exclude `scope` = `Device`, which is what marks a peripheral's cell (wireless mice, keyboards, controllers). Everything left — `scope` = `System` or no `scope` file at all — is reported.
-- **No `scope` tier fallback.** Preferring `System` and falling back to no-`scope` only makes sense when picking one battery; reporting every battery, it would drop a no-`scope` UPS whenever some other entry declared `System`. Plain exclusion of `Device` is the rule. On the dev laptop this is visible: `BAT0` has no `scope` file at all, while `hidpp_battery_0` (the mouse) is `scope=Device`.
-- **UPS attributes are patchier than a laptop's.** A UPS entry often carries `capacity` and `status` but no `voltage_now`, which is exactly the `skipped` voltage case. Kernel-visible UPSes only; a UPS reachable solely through a userspace daemon is not in `/sys/class/power_supply` and is out of scope here.
-- **I2C stays primary.** The OS path is reached only when the I2C gauge is absent (`i2c::Error::NoDevice`). Where the gauge answers, nothing changes.
+- **Source: upower over D-Bus.** Not sysfs. An external UPS is invisible to sysfs: the Eaton 3S on the dev laptop creates no `/sys/class/power_supply` entry at all, because the kernel's usbhid driver does not expose HID Power Device class hardware as a power supply. upower does see it (`ups_hiddev5`), reading `/dev/usb/hiddev5` directly — a root-only node, which upowerd already has the privilege for and we would otherwise have to acquire.
+- **The D-Bus cost is already paid.** `dbus` 0.9.12 is already a direct Linux dependency of this crate, carried so the `vendored-dbus` feature can reach bluer's copy, and it is not yet used by any of our own code. Talking to upower adds no new dependency and no new cross-build burden. The crate likewise already requires a system daemon, since bluer is built with `bluetoothd`.
+- **Which entries count as a battery powering the device.** Take upower devices whose `Type` is battery or UPS *and* whose `PowerSupply` is true. `PowerSupply` is upower's own answer to "does this power the machine", and it is exactly the peripheral distinction: the laptop cell and the UPS are both true, the wireless mouse is false. upower goes as far as annotating the mouse's own percentage "should be ignored".
+- **Battery naming.** `name` is the basename of the upower object path (`BAT0`, `hiddev5`), which is unique within a running system and so can distinguish. It is not stable across a replug into another port; the operator-facing identity is `vendor`/`model`/`serial`, which are descriptive and carried alongside.
+- **sysfs is the fallback, not the source.** Where upower cannot be reached at all, fall back to `/sys/class/power_supply`, so a headless machine with an internal cell and no upowerd still reports it. The fallback covers `type` = `Battery` only: a HID UPS is not in sysfs under any filter, so there is nothing there to find.
+- **The fallback engages on unreachable, never on empty.** upower answering with no batteries is an authoritative answer and is reported as no batteries. Only a failure to reach upower at all falls through. Rescanning after a valid empty answer would report a peripheral cell on a machine upower had correctly said has no battery.
+- **The fallback needs its own peripheral filter.** `PowerSupply` is an upower property with no sysfs equivalent, so the sysfs path excludes `scope` = `Device` instead, and keeps `type` = `Battery` with `scope` = `System` or no `scope` at all. On this laptop that keeps `BAT0` and drops `hidpp_battery_0`.
+- **I2C stays primary.** Either OS path is reached only when the I2C gauge is absent (`i2c::Error::NoDevice`). Where the gauge answers, nothing changes.
 
-## Source-to-wire mapping (sysfs → reading)
+## Source-to-wire mapping (upower property → reading)
 
-- `battery-charge` ← `capacity` (0–100) as a fraction. Where `capacity` is absent, derive from `energy_now`/`energy_full` or `charge_now`/`charge_full`; where none give a number, `broken`.
-- `battery-voltage` ← `voltage_now` (µV → volts, rounded to 3 places). Absent, zero or unreadable → `skipped` with a reason that no voltage is available.
-- `battery-direction` ← `status`: `Charging` → `charging`, `Discharging` → `discharging`, `Full`/`Not charging` → `idle`, `Unknown`/absent → `skipped`.
-- `battery` trait ← `{ name: <dir name, e.g. BAT0>, serial: serial_number, model: model_name, vendor: manufacturer }`, carrying only the members present. `name` distinguishes; the rest describe.
-- No `power-source` on this path (no backup-supply GPIO signal), matching NFO's omit-where-no-signal rule.
+- `battery-charge` ← `Percentage` (0–100) as a fraction.
+- `battery-voltage` ← `Voltage`, where the device reports one. The Eaton reports none, which is the specced `skipped` case; the laptop reports 12.889 V.
+- `battery-direction` ← `State`: charging → `charging`, discharging → `discharging`, fully-charged / pending-charge / pending-discharge / empty → `idle`, unknown → `skipped`.
+- `battery` trait ← `{ name: <object path basename>, serial: Serial, model: Model, vendor: Vendor }`, carrying only the members that hold a value. Drop placeholder serials: the Eaton reports the literal string `Blank`.
+- No `power-source` on either OS path, per NFO.
+
+On the sysfs fallback the same three readings come from `capacity` (or `energy_now`/`energy_full`), `voltage_now` (µV → volts) and `status` (`Charging`/`Discharging`/`Full`/`Not charging`/`Unknown`), with the `battery` trait built from the directory name plus `serial_number`, `model_name` and `manufacturer`.
 
 ## Code shape
 
-- New `crates/bliti/src/facts/power/os.rs`: enumerate `/sys/class/power_supply`, apply the filter above, and build one `(battery-charge, battery-voltage, battery-direction)` triple per battery, each carrying the `battery` trait. Stateless — direction comes from the OS, so no voltage `Watch` history is needed here.
-- Restructure `power.rs::Watch::readings`: on `i2c::Error::NoDevice`, clear the voltage window and return `os::readings(at)` instead of an empty vec. All I2C-path readings (including the existing single battery) gain the `battery` trait, supplied by us rather than read: `name` is `built-in` (the cell sits inside the case, so naming it for that leaves `external`-style names free for a UPS someone might attach later) and `vendor` is `SupTronics`, the X120x's maker. The cell itself is from an unknowable third party, so no `serial` or `model` is carried.
-- Keep `power.rs` under 1000 lines; the sysfs reading is its own module.
+- New `crates/bliti/src/facts/power/upower.rs`: one system-bus connection, `EnumerateDevices` on `org.freedesktop.UPower`, then `GetAll` on `org.freedesktop.UPower.Device` per device; filter as above and build one `(battery-charge, battery-voltage, battery-direction)` triple per battery, each carrying the `battery` trait. Stateless — direction comes from upower, so no voltage `Watch` history is needed here.
+- Use the `dbus` crate's blocking API with a short timeout. `Facts::sample` is synchronous and currently does only fast file reads; a D-Bus round trip that hung on a wedged upowerd would stall the sampler, so the call carries a timeout and a timeout is reported as `broken` rather than waited on.
+- New `crates/bliti/src/facts/power/sysfs.rs`: the fallback, reading `/sys/class/power_supply` with the filter above. Reached only when the upower call fails to connect or times out, never when it succeeds.
+- Where neither source answers, report nothing rather than erroring: a machine with no battery and no upower is not a machine with a broken battery.
+- Restructure `power.rs::Watch::readings`: on `i2c::Error::NoDevice`, clear the voltage window and return `upower::readings(at)` instead of an empty vec. All I2C-path readings (including the existing single battery) gain the `battery` trait, supplied by us rather than read: `name` is `built-in` (the cell sits inside the case, so naming it for that leaves external names free for a UPS someone might attach later) and `vendor` is `SupTronics`, the X120x's maker. The cell itself is from an unknowable third party, so no `serial` or `model` is carried.
+- Keep `power.rs` under 1000 lines; each OS source is its own module, with `power.rs` holding only the dispatch between gauge, upower and sysfs.
 
 ## Checklist
 
-- [ ] `os.rs`: enumerate + filter power supplies (type Battery or UPS, exclude scope=Device)
-- [ ] `os.rs`: build the three battery readings with the `battery` trait, per battery
-- [ ] `os.rs`: charge / voltage / direction mapping incl. skipped/broken cases
-- [ ] `power.rs`: route to `os::readings` on `NoDevice`; add `battery` trait (`name` `built-in`, `vendor` `SupTronics`) to the I2C-path battery readings
+- [ ] `upower.rs`: enumerate devices; filter to Type battery/UPS with PowerSupply true
+- [ ] `upower.rs`: build the three battery readings with the `battery` trait, per battery
+- [ ] `upower.rs`: charge / voltage / direction mapping incl. skipped/broken cases and timeout handling
+- [ ] `sysfs.rs`: fallback reader (type=Battery, exclude scope=Device) with the same three readings
+- [ ] `power.rs`: dispatch gauge → upower → sysfs, falling through only when upower is unreachable
+- [ ] `power.rs`: add `battery` trait (`name` `built-in`, `vendor` `SupTronics`) to the I2C-path battery readings
 - [ ] VIEW client: headline `battery-charge` with `built-in` where present else the first by name; pair voltage/direction by `battery` trait in the reveal
-- [ ] Tests: filter (mouse excluded, BAT0 and UPS kept, Mains/USB excluded), each status mapping, no-voltage skip, multiple batteries distinguished, no `power-source` on the OS path
-- [ ] `cargo fmt`, `cargo test`, run on this laptop and eyeball the emitted readings
+- [ ] Tests: upower filter (mouse excluded via PowerSupply, BAT0 and UPS kept, line-power excluded), sysfs filter (mouse excluded via scope), each state mapping, no-voltage skip, multiple batteries distinguished, no `power-source` on either OS path, and no fall-through on a valid empty answer
+- [ ] `cargo fmt`, `cargo test`, run on this laptop and check both BAT0 and the Eaton 3S are reported

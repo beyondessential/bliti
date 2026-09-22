@@ -10,14 +10,17 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 
 ## Which battery counts
 
-- [ ] A peripheral battery (mouse: type=Battery, scope=Device) is not reported (verifies spec: NFO)
-- [ ] The machine's own battery (BAT0, no scope file) is reported (verifies spec: NFO)
+- [ ] A peripheral battery (the wireless mouse, which upower marks as not a power supply) is not reported (verifies spec: NFO)
+- [ ] The machine's own battery (BAT0) is reported (verifies spec: NFO)
 - [ ] Where several batteries qualify, each is reported once and told apart by the `battery` trait (verifies spec: NFO)
 - [ ] A machine with only peripheral batteries reports no device battery (verifies spec: NFO)
 - [ ] An external UPS carrying the device is reported as a battery (verifies spec: NFO)
-- [ ] Mains and USB power supplies are not reported as batteries (verifies spec: NFO)
+- [ ] Line-power devices (mains, USB-C source) are not reported as batteries (verifies spec: NFO)
 - [ ] A machine with both a built-in cell and a UPS reports both, named apart (verifies spec: NFO)
-- [ ] A UPS declaring no scope is still reported when another entry declares scope=System (verifies spec: NFO)
+- [ ] A UPS invisible to /sys/class/power_supply is still reported (verifies spec: NFO)
+- [ ] Where upower is unreachable, the sysfs fallback reports the internal battery (verifies spec: NFO)
+- [ ] Where upower answers with no batteries, the sysfs fallback is not consulted (verifies spec: NFO)
+- [ ] The sysfs fallback excludes a peripheral battery by its scope (verifies spec: NFO)
 
 ## Reading values
 
@@ -29,6 +32,7 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 - [ ] The `battery` trait carries name, and serial/model/vendor where held (verifies spec: NFO)
 - [ ] The I2C battery is named `built-in` with vendor `SupTronics` (verifies spec: NFO)
 - [ ] A UPS reporting charge but no voltage yields a `skipped` `battery-voltage` alongside a present charge (verifies spec: NFO)
+- [ ] A placeholder serial is not carried in the `battery` trait (verifies spec: NFO)
 
 ## Interaction with power-source
 
@@ -44,3 +48,6 @@ Scenarios that verify a machine without the I2C gauge reports a battery. Spec: N
 ## On this hardware
 
 - [ ] Run on the dev laptop: BAT0 reported with a plausible charge, voltage and direction; the wireless mouse's battery is absent
+- [ ] Run on the dev laptop with the Eaton 3S attached: it is reported as a second battery, with charge and direction but no voltage
+- [ ] With upower not running, BAT0 is still reported via the sysfs fallback
+- [ ] With upower not running, the Eaton 3S is absent, since sysfs cannot see it
