@@ -37,10 +37,14 @@ The security properties this upholds, and their limits, are specified in [SEC](s
 
 ## Send rate
 
-A device MUST NOT send more than 200 notifications in any one-second window.
+A device MUST NOT put more than 40 KiB of notification payload on the air in any one-second window.
+
+A device that reaches the ceiling MUST hold the remainder until the window allows it, and MUST NOT discard it.
 
 > [!NOTE]
-> The ceiling counts notifications rather than bytes because it is the count that overruns a controller's buffers, and overrunning them takes the connection down rather than slowing it.
+> The ceiling counts payload bytes rather than notifications because the notification count is not what the link spends. A peer may coalesce many notifications into one ATT protocol data unit, so at the same count a device can occupy the air anywhere from one unit to dozens depending on how large each notification is and on whether the peer coalesces at all, neither of which the device is told. Bytes track the air time the device is asking for, across peers that differ in both.
+> Past roughly 60 KiB a second a peer stops being reliable rather than merely slow: delivery becomes erratic, notifications begin to go missing, and the connection is eventually lost to a supervision timeout. Where that happens varies between connections at a fixed rate, so the ceiling sits far enough below it to stay out of that region rather than close enough to be efficient near it. Below it a link runs steadily for as long as it is asked to.
+> The ceiling does not bind in ordinary operation. A peer slower than this paces the device by taking notifications more slowly, and the device clears its backlog at whatever rate that peer allows. What the ceiling governs is a peer fast enough to be driven into the unreliable region, which is the only case where sending harder ends the session instead of filling it.
 > A device with a backlog therefore clears it more slowly, because a slow reading beats a dropped session.
 
 ## Transport
