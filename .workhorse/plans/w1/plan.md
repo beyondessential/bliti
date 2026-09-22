@@ -114,43 +114,53 @@ The mailbox is the only route to that word on this board, so fixing this falls o
 
 ## Decisions
 
-A supply voltage is reported from `EXT5V_V` as a quantity in volts, and the number rather than any bit is the signal.
+`supply-voltage` is reported from `EXT5V_V` as a quantity in volts.
 It carries no notion of being in difficulty, so it is always `passed`, which NFO permits: a device reports `warning` or `failed` only where the measurement has such a notion.
 
-It is its own catalogue entry rather than an instance of a rail dimension.
+`cpu-power` is reported as a quantity in watts, the product of the core rail's voltage and current.
+Measured across both sessions it runs 0.45 W idle to 5.03 W loaded, a range of about eleven to one, which is far more legible than the 40 mV the supply voltage moves over the same swing.
+
+Each is its own catalogue entry rather than an instance of a rail dimension.
 NFO's trait rule holds that measurements which merely resemble each other are separate entries, and the 5 V input and the SoC core rail are not instances of one measurement.
 
-A core current reading is reported from `VDD_CORE_A`.
+No brownout is reported.
+Neither undervoltage bit can drive a live state: the throttle word's current-condition bits do not assert, and the alarm bit chatters against an unchanging supply, while the word's sticky history is a latch that never clears and cannot say when.
 
-The throttle word's sticky history is carried on the supply voltage as a descriptive trait saying a brownout has occurred since boot.
-It does not set the status, because it is a latch that never clears and would otherwise leave a device in standing difficulty for the rest of its uptime after one bad boot.
-
-Neither undervoltage bit drives a state.
-The word's current-condition bits do not assert, and the alarm bit chatters against an unchanging supply, so a status driven from either would move without the supply moving.
+The throttle word is still read, because it is what `cpu-frequency` needs and the sysfs path it currently reads does not exist on this board.
 
 The `rp1_adc` hwmon is not used, despite costing a plain file read.
 Its second channel tracks the 5 V supply at a ratio near two, but the ratio shifts by 1.28% between power states, so treating it as a voltage means inventing a calibration constant.
 
-The mailbox is used regardless, because it is the only route to the throttle word and so to the defect above.
+## Detecting a bypassed backup
+
+A bypass is already reported: `power-source` carries `bypassing-backup`, and the raw signals it keys on were seen behaving correctly through this session, the power line low and the cell static to 1.3 mV.
+It is established by the hardware power line together with the cell's stillness, and it will not assert until the cell has been watched for twenty-five seconds.
+
+The two readings above measure the same thing directly rather than inferring it.
+The backup board regulates its output, sagging 9.6 mV per watt drawn, where the same load on a supply feeding the Pi directly sags 69.0 mV per watt.
+The idle levels differ too, 5.2350 V against 5.1085 V, but that gap is a property of the particular supply rather than of being bypassed, where the sevenfold difference in stiffness is a property of whether a regulator sits in the path.
+
+Reading stiffness needs the load to vary and so is derived across samples, as the cell watch already is.
+Whether to fold it into how `power-source` is established is not settled, and is a change to that reading rather than to these.
 
 ## What this settles for P1
 
 The catalogue gains no `boolean` kind.
-Undervoltage does not become a reading of its own with no value, and it does not become a state or a state reason either; the supply voltage is a real number, and the brownout history is a trait on it.
+Undervoltage becomes neither a reading of its own with no value nor a state on another, because no bit on this board can carry one.
 
 ## Build
 
 - [ ] A mailbox property client: open `/dev/vcio`, one ioctl, the gencmd tag, and a parse of the single-line rail response
 - [ ] `supply-voltage` from `EXT5V_V`, in volts, carrying no status of its own
-- [ ] The brownout-since-boot trait on it, from the throttle word's sticky bits
-- [ ] A core current reading from `VDD_CORE_A`
+- [ ] `cpu-power` in watts, from the core rail's voltage and current
 - [ ] Read the throttle word over the mailbox in `compute.rs`, replacing the sysfs path that does not exist on this board
-- [ ] NFO gains the two catalogue entries and the trait
+- [ ] NFO gains the two catalogue entries
 - [ ] Tests
 
 ## Open
 
-What the supply voltage entry, the core current entry, and the brownout trait are called.
-
 Whether the throttle word's current-condition bits assert under thermal throttling.
 They were never seen set, but the board was never made hot, so only the undervoltage path has been ruled out.
+
+Whether the daemon's own `power-source` output was correct while bypassed.
+The signals it derives that from were watched and behaved as expected, but what the daemon reported was not read back.
