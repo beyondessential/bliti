@@ -4,7 +4,7 @@ use super::*;
 
 async fn state(client: &mut Client) -> Vec<Json> {
 	match recv(client).await {
-		Message::State { attachments } => attachments,
+		Message::State { attachments, .. } => attachments,
 		other => panic!("expected the state of each candidate, got {other:?}"),
 	}
 }
@@ -76,4 +76,42 @@ async fn a_backend_observing_nothing_sends_no_state() {
 		Message::Applied { capabilities: None }
 	);
 	assert!(quiet(&mut client).await);
+}
+
+/// Returning to the recorded configuration can change the capabilities back, and the next `state`
+/// carries them where no answer would (CFG).
+#[tokio::test]
+async fn state_carries_the_capabilities_a_revert_changed_back() {
+	let device = Device::observing().await;
+	let (mut client, _task, _) = device.opened().await;
+	assert_eq!(state(&mut client).await, observed(1));
+
+	let original = capabilities();
+	let mut widened = original.clone();
+	widened["document"]
+		.as_object_mut()
+		.unwrap()
+		.insert("hotspot".to_owned(), json!(true));
+	device.log.after_apply(widened.clone());
+	propose(&mut client, proposal()).await;
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied {
+			capabilities: Some(widened)
+		}
+	);
+	let Message::State { capabilities, .. } = recv(&mut client).await else {
+		panic!("expected the state of each candidate")
+	};
+	assert_eq!(capabilities, None, "applied already said so");
+
+	device.log.capabilities(original.clone());
+	send(&mut client, Message::Discard).await;
+	assert_eq!(
+		recv(&mut client).await,
+		Message::State {
+			attachments: observed(1),
+			capabilities: Some(original),
+		}
+	);
 }

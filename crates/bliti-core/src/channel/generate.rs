@@ -140,8 +140,14 @@ pub fn message() -> impl Strategy<Value = Message> {
 		),
 		1 => prop::option::of(object_of(json()))
 			.prop_map(|capabilities| Message::Applied { capabilities }),
-		1 => prop::collection::vec(json(), 0..3)
-			.prop_map(|attachments| Message::State { attachments }),
+		1 => (
+			prop::collection::vec(json(), 0..3),
+			prop::option::of(object_of(json()))
+		)
+			.prop_map(|(attachments, capabilities)| Message::State {
+				attachments,
+				capabilities
+			}),
 		1 => "[0-9]{4,8}".prop_map(|pin| Message::Pin { pin }),
 		1 => (
 			"[a-z][a-z.0-9-]{0,16}",

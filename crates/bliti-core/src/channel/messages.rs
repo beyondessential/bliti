@@ -75,6 +75,8 @@ pub enum Message {
 	State {
 		/// One entry per attachment, kept raw as the document is.
 		attachments: Vec<Json>,
+		/// The device's capabilities, where returning to the recorded configuration changed them.
+		capabilities: Option<Map<String, Json>>,
 	},
 
 	/// The PIN a device joining by WPS generated, for the operator to enter at the access point (CFG).
@@ -192,9 +194,18 @@ impl Message {
 					);
 				}
 			}
-			Self::State { attachments } => {
+			Self::State {
+				attachments,
+				capabilities,
+			} => {
 				map.insert("type".to_owned(), "state".into());
 				map.insert("attachments".to_owned(), Json::Array(attachments.clone()));
+				if let Some(capabilities) = capabilities {
+					map.insert(
+						"capabilities".to_owned(),
+						Json::Object(capabilities.clone()),
+					);
+				}
 			}
 			Self::Pin { pin } => {
 				map.insert("type".to_owned(), "pin".into());
@@ -312,6 +323,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			}),
 			"state" => Ok(Message::State {
 				attachments: array(&map, "attachments")?,
+				capabilities: optional_object(&map, "capabilities")?,
 			}),
 			"pin" => Ok(Message::Pin {
 				pin: string(&map, "pin")?,

@@ -28,7 +28,9 @@ A device MUST answer every proposal exactly once, and MUST answer one interrupte
 
 A device MUST NOT answer `discard`.
 
-A device MUST carry `capabilities` on `applied` where applying the proposal changed them, as a new regulatory domain changes the usable channels, and a client MUST check what it proposes next against those.
+A device MUST carry `capabilities` on `applied` where applying the proposal changed them, as a new regulatory domain changes the usable channels, and on the `state` it sends next where returning to its recorded configuration changed them back.
+
+A client MUST check what it proposes next against the capabilities it was last sent.
 
 A device MUST serve at most one configuration session at a time, and MUST answer `configure` on a second stream with `busy` while one is open.
 
@@ -42,7 +44,7 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
 | `configuration` | either end | `document`, and `capabilities` on the first from a device |
-| `state` | device | `attachments` |
+| `state` | device | `attachments`, and `capabilities` where returning to the recorded configuration changed them |
 | `applied` | device | `capabilities` where the proposal changed them |
 | `invalid` | device | `at`, `reason`, and `reached` where a proposal was applied and then failed |
 | `confirm` | client | nothing beyond `type` |
@@ -75,6 +77,8 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 ## The state of each candidate
 
 A device MUST send `state` after the first `configuration` it sends in a session, and again whenever the state of a candidate changes.
+
+A device MUST NOT send `state` while a proposal is being verified, and MUST send it once the proposal is answered.
 
 `state` MUST carry `attachments`, an array matching position for position the attachments of the configuration running, which is a proposal once one is applied, each entry carrying:
 

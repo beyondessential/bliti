@@ -445,16 +445,24 @@ impl<B: Backend> Open<B> {
 			);
 			return Ok(());
 		}
-		if self.sent.as_ref() == Some(&entries) {
+		// Returning to the recorded configuration can change the capabilities back, as a regulatory
+		// domain does, and `state` is what says so where no answer would (CFG).
+		let now = self.state().backend.capabilities();
+		let changed = (now != self.told).then_some(now);
+		if changed.is_none() && self.sent.as_ref() == Some(&entries) {
 			return Ok(());
 		}
 		send(
 			writer,
 			&Message::State {
 				attachments: entries.clone(),
+				capabilities: changed.clone(),
 			},
 		)
 		.await?;
+		if let Some(now) = changed {
+			self.told = now;
+		}
 		self.sent = Some(entries);
 		Ok(())
 	}
