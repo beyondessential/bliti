@@ -150,3 +150,16 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
 - [ ] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
 - [ ] The screen: a WPS adapter choice, a survey adapter choice, and the siting view counting every channel a wide access point spans (NSCR)
+
+### What the prototype showed
+
+Probed on `tamanu-iti-v4-prototype` (Raspberry Pi 5, Ubuntu 26.04, kernel 7.0.0-1017-raspi, systemd 259.5) on 23 September 2026, read-only apart from setting and restoring the regulatory domain on its unused radio.
+
+- **Interface names are `end0` and `wld0`**, not `eth0` and `wlan0`. Nothing in bliti assumes either; hardware descriptions come from the probe and `/sys/class/net`.
+- **The CYW43455 (`brcmfmac (SDIO 02d0:4345)`) is shared-channel**, as expected: its station-plus-AP combination has one channel.
+- **It does WPA3-SAE by external authentication**: `NL80211_FEATURE_SAE` with only `CMD_CONNECT`, no `SAE_OFFLOAD`, CCMP-128 and BIP-CMAC present. iwd runs this (the FullMAC case of `wiphy_can_connect_sae`), so the probe counts it. Not yet joined in practice.
+- **The regulatory domain does take effect on brcmfmac**, through cfg80211 applying the global domain to its channel flags, though `phy#0` keeps reporting its own `country 99`. Setting NZ opened channel 13, dropped 14, and cleared the 5 GHz no-IR flags with the radar channels still marked.
+- **Before anything sets a domain, the radio is unrestricted.** Straight after boot every channel read no-IR false, radar false, where the world domain should have held 5 GHz passive and 52 to 144 as radar; after an explicit `iw reg set 00` the flags were right. So an unset `regulatory-domain` has to be applied as `00` explicitly, never left to boot, which is what the applier does.
+- **The channel widths the probe derives look too wide**: channel 36 read 160 MHz under NZ, whose 5150 to 5250 MHz range allows 80. Harmless while the hotspot never renders past 80, but the derivation from the no-80 and no-160 flags wants checking.
+- **The image is not owned outright yet.** netplan renders `/run/systemd/network/10-netplan-all-en.network`, which sorts ahead of bliti's `50-bliti-*` and would win for `end0`, and wpa_supplicant is running. The image has to drop both when bliti takes the network over. iwd is not installed.
+- **The management path is Tailscale over `end0`**, so experiments on the device stay on `wld0` until bliti is trusted to run `end0`.

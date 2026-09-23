@@ -40,6 +40,12 @@ one failure at a time.
   (`/etc/systemd/dns-delegate.d`), which is what keeps the site's own names
   going to the site's resolvers, and delegates first appear in 258.
 
+An image that bliti's network configuration runs on ships no netplan
+configuration and no wpa_supplicant service. netplan renders into
+`/run/systemd/network` ahead of bliti's files (`10-netplan-*` sorts before
+`50-bliti-*`, and networkd takes the first file that matches), and
+wpa_supplicant would contend with iwd for the radio.
+
 The wireless client, wired addressing and the resolvers are all supplied by
 whichever backend gets chosen, so their packages are listed under that choice
 below rather than here.
