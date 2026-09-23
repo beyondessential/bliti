@@ -1,0 +1,133 @@
+//! What the radios heard and found busy, over nl80211: `NL80211_CMD_GET_SCAN` and
+//! `NL80211_CMD_GET_SURVEY`, both dumps that read what the kernel holds and change nothing.
+
+use std::{fs, io};
+
+use futures::{TryStreamExt as _, future::BoxFuture};
+use wl_nl80211::{Nl80211Attr, Nl80211BssInfo, Nl80211Handle, Nl80211Survey, Nl80211SurveyInfo};
+
+use super::{Surveyed, bss::AccessPoint};
+use crate::network::probe::{Nl80211, RadioInfo};
+
+/// The radios, over nl80211.
+pub(super) struct Air {
+	probe: Nl80211,
+	handle: Nl80211Handle,
+}
+
+impl Air {
+	/// Open the connections, driven by tasks on the current tokio runtime.
+	pub(super) fn connect() -> io::Result<Self> {
+		let (connection, handle, _) = wl_nl80211::new_connection()?;
+		tokio::spawn(connection);
+		Ok(Self {
+			probe: Nl80211::connect()?,
+			handle,
+		})
+	}
+}
+
+fn index(interface: &str) -> Result<u32, String> {
+	fs::read_to_string(format!("/sys/class/net/{interface}/ifindex"))
+		.map_err(|error| format!("{interface}: {error}"))?
+		.trim()
+		.parse()
+		.map_err(|error| format!("{interface}: {error}"))
+}
+
+/// An access point from one entry of a scan dump.
+fn access_point(info: &[Nl80211BssInfo]) -> Option<AccessPoint> {
+	let (mut bssid, mut frequency, mut signal, mut capability) = (None, None, 0, 0);
+	let (mut elements, mut probe, mut beacon) = (None, None, None);
+	for item in info {
+		match item {
+			Nl80211BssInfo::Bssid(value) => bssid = Some(*value),
+			Nl80211BssInfo::Frequency(value) => frequency = Some(*value),
+			Nl80211BssInfo::SignalMbm(value) => signal = *value,
+			Nl80211BssInfo::Capability(value) => capability = value.bits(),
+			Nl80211BssInfo::RawInformationElements(value) => elements = Some(value),
+			Nl80211BssInfo::RawProbeResponseInformationElements(value) => probe = Some(value),
+			Nl80211BssInfo::RawBeaconInformationElements(value) => beacon = Some(value),
+			_ => {}
+		}
+	}
+	let elements = elements.or(probe).or(beacon).map_or(&[][..], Vec::as_slice);
+	Some(AccessPoint::read(
+		bssid?, frequency?, signal, capability, elements,
+	))
+}
+
+impl super::Air for Air {
+	fn radios(&self) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
+		let probe = self.probe.clone();
+		Box::pin(async move { probe.radios().await })
+	}
+
+	fn access_points(&self, station: &str) -> BoxFuture<'static, Result<Vec<AccessPoint>, String>> {
+		let handle = self.handle.clone();
+		let station = station.to_owned();
+		Box::pin(async move {
+			let index = index(&station)?;
+			let messages: Vec<_> = handle
+				.scan()
+				.dump(index)
+				.execute()
+				.await
+				.try_collect()
+				.await
+				.map_err(|error| error.to_string())?;
+			Ok(messages
+				.iter()
+				.flat_map(|message| &message.payload.attributes)
+				.filter_map(|attribute| match attribute {
+					Nl80211Attr::Bss(info) => access_point(info),
+					_ => None,
+				})
+				.collect())
+		})
+	}
+
+	fn survey(&self, station: &str) -> BoxFuture<'static, Result<Vec<Surveyed>, String>> {
+		let handle = self.handle.clone();
+		let station = station.to_owned();
+		Box::pin(async move {
+			let index = index(&station)?;
+			let messages: Vec<_> = handle
+				.survey()
+				.dump(Nl80211Survey::new(index).build())
+				.execute()
+				.await
+				.try_collect()
+				.await
+				.map_err(|error| error.to_string())?;
+			Ok(messages
+				.iter()
+				.flat_map(|message| &message.payload.attributes)
+				.filter_map(|attribute| {
+					let Nl80211Attr::SurveyInfo(info) = attribute else {
+						return None;
+					};
+					let (mut frequency, mut active, mut busy) = (None, 0, 0);
+					for item in info {
+						match item {
+							Nl80211SurveyInfo::Frequency(value) => frequency = Some(*value),
+							Nl80211SurveyInfo::ActiveTime(value) => active = *value,
+							Nl80211SurveyInfo::BusyTime(value) => busy = *value,
+							_ => {}
+						}
+					}
+					Some(Surveyed {
+						frequency: frequency?,
+						active,
+						busy,
+					})
+				})
+				.collect())
+		})
+	}
+
+	fn address(&self, interface: &str) -> Option<String> {
+		let text = fs::read_to_string(format!("/sys/class/net/{interface}/address")).ok()?;
+		Some(text.trim().to_ascii_lowercase())
+	}
+}

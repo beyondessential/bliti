@@ -6,11 +6,6 @@
 //! interfaces and what the stack above them offers into the capabilities object of NET, and
 //! [`select_hardware`] and [`render_hardware`] into what selection and rendering run on.
 
-#![cfg_attr(
-	not(test),
-	expect(dead_code, reason = "wired in by the backend that applies selections")
-)]
-
 use std::collections::BTreeMap;
 
 use super::{
@@ -102,6 +97,20 @@ impl Channel {
 	/// transmitter.
 	pub fn can_start_ap(&self) -> bool {
 		!self.no_ir && !self.radar
+	}
+}
+
+/// The channel number of a centre frequency on a band.
+pub fn number(band: Band, mhz: u32) -> Option<u32> {
+	match band {
+		Band::TwoPointFour if mhz == 2484 => Some(14),
+		Band::TwoPointFour if (2412..=2472).contains(&mhz) => Some((mhz - 2407) / 5),
+		// 4.9 GHz public-safety channels are numbered from 4000 MHz.
+		Band::Five if (4910..5000).contains(&mhz) => Some((mhz - 4000) / 5),
+		Band::Five if (5000..5950).contains(&mhz) => Some((mhz - 5000) / 5),
+		Band::Six if mhz == 5935 => Some(2),
+		Band::Six if (5955..=7115).contains(&mhz) => Some((mhz - 5950) / 5),
+		_ => None,
 	}
 }
 

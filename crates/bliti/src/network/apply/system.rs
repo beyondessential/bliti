@@ -38,7 +38,6 @@ pub struct Linux {
 	bus: Connection,
 }
 
-#[expect(dead_code, reason = "wired in by the backend that applies selections")]
 impl Linux {
 	/// Connect to the system bus.
 	pub fn new() -> anyhow::Result<Self> {

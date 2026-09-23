@@ -110,7 +110,7 @@ fn psk(passphrase: &str, rank: usize) -> Result<String, Invalid> {
 
 /// The name iwd gives an SSID's file: the SSID itself where it holds only alphanumerics, spaces,
 /// underscores and hyphens, else `=` and the SSID's bytes in lower-case hex.
-fn encode_ssid(ssid: &str) -> String {
+pub(super) fn encode_ssid(ssid: &str) -> String {
 	if ssid
 		.bytes()
 		.all(|b| b.is_ascii_alphanumeric() || matches!(b, b' ' | b'_' | b'-'))
@@ -142,6 +142,47 @@ fn escape(value: &str) -> String {
 	out
 }
 
+/// The passphrase in a pre-shared-key network file, as ell reads it back: iwd writes one there
+/// when WPS hands it a passphrase rather than a raw key.
+pub(super) fn passphrase(contents: &str) -> Option<String> {
+	let mut section = "";
+	for line in contents.lines() {
+		let line = line.trim_end();
+		if let Some(name) = line
+			.strip_prefix('[')
+			.and_then(|rest| rest.strip_suffix(']'))
+		{
+			section = name;
+		} else if section == "Security"
+			&& let Some(value) = line.strip_prefix("Passphrase=")
+		{
+			return Some(unescape(value));
+		}
+	}
+	None
+}
+
+/// The inverse of [`escape`].
+fn unescape(value: &str) -> String {
+	let mut out = String::with_capacity(value.len());
+	let mut chars = value.chars();
+	while let Some(c) = chars.next() {
+		if c != '\\' {
+			out.push(c);
+			continue;
+		}
+		match chars.next() {
+			Some('s') => out.push(' '),
+			Some('t') => out.push('\t'),
+			Some('n') => out.push('\n'),
+			Some('r') => out.push('\r'),
+			Some(other) => out.push(other),
+			None => out.push('\\'),
+		}
+	}
+	out
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -159,6 +200,16 @@ mod tests {
 	fn values_escape_as_ell_reads_them() {
 		assert_eq!(escape("  a b\\c\nd"), "\\s\\sa b\\\\c\\nd");
 		assert_eq!(escape("plain"), "plain");
+	}
+
+	/// What iwd wrote after WPS reads back as the passphrase it holds.
+	#[test]
+	fn a_passphrase_reads_back_unescaped() {
+		let file = "[Settings]\nAutoConnect=true\n\n[Security]\nPreSharedKey=00ff\nPassphrase=\\s\\sa b\\\\c\n";
+		assert_eq!(passphrase(file).as_deref(), Some("  a b\\c"));
+		assert_eq!(passphrase("[Security]\nPreSharedKey=00ff\n"), None);
+		assert_eq!(passphrase(&escape("  x\\y")), None, "outside [Security]");
+		assert_eq!(unescape(&escape(" \tw\\x\ny")), " \tw\\x\ny");
 	}
 
 	/// Network files are bliti's whatever their SSID; iwd's own hidden files are not.

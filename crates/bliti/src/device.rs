@@ -21,18 +21,24 @@ use bluer::{
 use futures::{FutureExt, StreamExt};
 
 use crate::{
-	SALT_ROTATION,
+	NetworkBackend, SALT_ROTATION,
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
 		session::{Configurator, Inert, Store},
+		stack::{Chosen, Stack},
 		wired,
 	},
 	session,
 };
 
 /// Run the daemon until interrupted.
-pub async fn run(cache: &Path, network: &Path, adapter_name: Option<&str>) -> Result<()> {
+pub async fn run(
+	cache: &Path,
+	network: &Path,
+	backend: NetworkBackend,
+	adapter_name: Option<&str>,
+) -> Result<()> {
 	// Establish identity before touching Bluetooth: a board whose QR code is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
@@ -46,10 +52,19 @@ pub async fn run(cache: &Path, network: &Path, adapter_name: Option<&str>) -> Re
 	// The recorded network configuration goes in force before anything else, since nothing provisional
 	// survives a restart (CFG). One configurator serves every connection, so at most one configuration
 	// session is open device-wide.
+	let sys_class_net = Path::new(wired::SYS_CLASS_NET);
+	let backend = match backend {
+		NetworkBackend::Inert => Chosen::Inert(Inert),
+		NetworkBackend::Stack => Chosen::Stack(Box::new(
+			Stack::linux(wired::interfaces(sys_class_net))
+				.await
+				.context("starting the network backend")?,
+		)),
+	};
 	let configurator = Configurator::start(
-		Inert,
+		backend,
 		Store::new(network),
-		wired::unconfigured(Path::new(wired::SYS_CLASS_NET)),
+		wired::unconfigured(sys_class_net),
 	)
 	.await
 	.context("putting the recorded network configuration in force")?;
@@ -274,7 +289,7 @@ fn application(
 	secret: Arc<PresenceToken>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
-	configurator: Configurator<Inert>,
+	configurator: Configurator<Chosen>,
 ) -> Application {
 	let write_sink = sink.clone();
 	let notify_sink = sink.clone();

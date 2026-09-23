@@ -39,6 +39,15 @@ struct Cli {
 	cache: PathBuf,
 }
 
+/// What configures the network beneath a configuration session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum NetworkBackend {
+	/// Configure nothing.
+	Inert,
+	/// iwd, hostapd and systemd-networkd.
+	Stack,
+}
+
 #[derive(Debug, Subcommand)]
 enum Command {
 	/// Advertise over BLE and serve provisioning sessions.
@@ -50,6 +59,11 @@ enum Command {
 		/// Where the recorded network configuration is kept.
 		#[arg(long, default_value_os_t = network::session::default_path())]
 		network: PathBuf,
+
+		/// What configures the network: `inert` leaves it as the image brought it up and refuses every
+		/// proposal, `stack` drives iwd, hostapd and systemd-networkd.
+		#[arg(long, value_enum, default_value_t = NetworkBackend::Inert)]
+		network_backend: NetworkBackend,
 	},
 
 	/// Print the QR code for the board this runs on.
@@ -114,9 +128,11 @@ async fn run(cli: Cli) -> Result<()> {
 		Command::BoardId => board_id(),
 		Command::Probe => probe().await,
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
-		Command::Daemon { adapter, network } => {
-			daemon(&cli.cache, &network, adapter.as_deref()).await
-		}
+		Command::Daemon {
+			adapter,
+			network,
+			network_backend,
+		} => daemon(&cli.cache, &network, network_backend, adapter.as_deref()).await,
 		Command::Scan {
 			code,
 			seconds,
@@ -195,9 +211,10 @@ fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 async fn daemon(
 	cache: &std::path::Path,
 	network: &std::path::Path,
+	backend: NetworkBackend,
 	adapter: Option<&str>,
 ) -> Result<()> {
-	device::run(cache, network, adapter).await
+	device::run(cache, network, backend, adapter).await
 }
 
 /// Read a QR code however it was given: the URL a code encodes, its fragment alone, or the
@@ -235,6 +252,7 @@ async fn scan(_code: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> 
 async fn daemon(
 	_cache: &std::path::Path,
 	_network: &std::path::Path,
+	_backend: NetworkBackend,
 	_adapter: Option<&str>,
 ) -> Result<()> {
 	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")

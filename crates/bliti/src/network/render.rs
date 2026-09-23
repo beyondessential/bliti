@@ -5,11 +5,6 @@
 //! bliti owns for that state. bliti owns these outright, so an applier writes every [`File`] rendered
 //! and deletes every file [`Paths::owns`] claims that was not.
 
-#![cfg_attr(
-	not(test),
-	expect(dead_code, reason = "wired in by the backend that applies it")
-)]
-
 use std::{
 	ffi::OsStr,
 	path::{Path, PathBuf},
@@ -289,6 +284,19 @@ fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 /// renderer would then refuse.
 pub(super) fn hotspot_channel(band: &str, channel: u32) -> bool {
 	hostapd::band(band).is_ok_and(|band| hostapd::exists(band, channel))
+}
+
+/// Where iwd keeps the pre-shared-key network `ssid`, as a WPS join leaves it.
+pub fn known_psk(paths: &Paths, ssid: &str) -> PathBuf {
+	paths
+		.iwd_state
+		.join(format!("{}.psk", iwd::encode_ssid(ssid)))
+}
+
+/// The passphrase a pre-shared-key network file holds, where it holds one rather than only a raw
+/// key.
+pub fn known_passphrase(contents: &str) -> Option<String> {
+	iwd::passphrase(contents)
 }
 
 /// A fault found in the document before anything was applied, at the node `at` names.

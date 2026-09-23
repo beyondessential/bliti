@@ -35,14 +35,9 @@ mod system;
 mod tests;
 
 #[cfg(target_os = "linux")]
-#[expect(
-	unused_imports,
-	reason = "wired in by the backend that applies selections"
-)]
 pub use system::Linux;
 
 /// Where a device keeps the record of what bliti last put in place.
-#[expect(dead_code, reason = "wired in by the backend that applies selections")]
 pub const STATE: &str = "/run/bliti/network";
 
 /// A daemon whose files bliti renders, in the order [`apply`] has them pick changes up.
@@ -129,7 +124,10 @@ impl Changes {
 	/// Whether nothing changed.
 	#[cfg_attr(
 		not(test),
-		expect(dead_code, reason = "wired in by the backend that applies selections")
+		expect(
+			dead_code,
+			reason = "the backend asks only whether the regulatory domain changed"
+		)
 	)]
 	pub fn is_empty(&self) -> bool {
 		Backend::ORDER
@@ -237,10 +235,6 @@ pub enum Error {
 ///
 /// Returns exactly the files that changed. Where nothing did, nothing is written and `system` is not
 /// called.
-#[cfg_attr(
-	not(test),
-	expect(dead_code, reason = "wired in by the backend that applies selections")
-)]
 pub fn apply(
 	rendered: &Rendered,
 	hardware: &Hardware,
