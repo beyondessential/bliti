@@ -175,13 +175,29 @@ impl Sampler {
 	}
 }
 
+/// The traits NFO makes wholly descriptive, and the members of others that describe.
+const DESCRIPTIVE: [&str; 4] = [STATUS, LIMITS, "security", "channel"];
+const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
+	("interface", &["route", "overlay"]),
+	("battery", &["serial", "model", "vendor"]),
+];
+
 /// A stable identity for one reading instance: its name and its distinguishing traits, leaving out
-/// the descriptive `status` and `limits` that change while the thing measured stays the same. This is
-/// only the device's own snapshot key; how a reader groups readings is its own business (NFO).
+/// the descriptive ones that change while the thing measured stays the same, as a hotspot's channel
+/// does when it follows its station. This is only the device's own snapshot key; how a reader groups
+/// readings is its own business (NFO).
 fn identity_key(entry: &Entry) -> String {
 	let mut traits = entry.traits.clone();
-	traits.remove(STATUS);
-	traits.remove(LIMITS);
+	for name in DESCRIPTIVE {
+		traits.remove(name);
+	}
+	for (name, members) in DESCRIPTIVE_MEMBERS {
+		if let Some(serde_json::Value::Object(object)) = traits.get_mut(name) {
+			for member in members {
+				object.remove(*member);
+			}
+		}
+	}
 	// serde_json sorts object keys, so member order does not change the key.
 	format!("{}\u{1f}{}", entry.name, serde_json::Value::Object(traits))
 }
@@ -324,6 +340,23 @@ mod tests {
 			.with_trait("direction", serde_json::Value::String("in".to_owned()))
 			.warning("busy");
 		assert_eq!(identity_key(&a), identity_key(&later));
+
+		// Nor do descriptive traits and members: a network on a new channel, an interface taking the
+		// default route.
+		let joined = |channel: u32, route: bool| {
+			let mut interface = json!({ "name": "wld0" });
+			if route {
+				interface["route"] = json!("default");
+			}
+			Entry::text(1, "wireless-network", "clinic")
+				.with_trait("interface", interface)
+				.with_trait("security", json!("psk"))
+				.with_trait("channel", json!({ "number": channel, "band": "2.4ghz" }))
+		};
+		assert_eq!(
+			identity_key(&joined(1, false)),
+			identity_key(&joined(11, true))
+		);
 	}
 
 	#[tokio::test(start_paused = true)]
