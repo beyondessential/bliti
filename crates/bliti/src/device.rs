@@ -24,7 +24,10 @@ use crate::{
 	SALT_ROTATION,
 	gatt::{GattTransport, InboundSink},
 	identity,
-	network::session::{Configurator, Inert, Store},
+	network::{
+		session::{Configurator, Inert, Store},
+		wired,
+	},
 	session,
 };
 
@@ -43,9 +46,13 @@ pub async fn run(cache: &Path, network: &Path, adapter_name: Option<&str>) -> Re
 	// The recorded network configuration goes in force before anything else, since nothing provisional
 	// survives a restart (CFG). One configurator serves every connection, so at most one configuration
 	// session is open device-wide.
-	let configurator = Configurator::start(Inert, Store::new(network), out_of_the_box_network())
-		.await
-		.context("putting the recorded network configuration in force")?;
+	let configurator = Configurator::start(
+		Inert,
+		Store::new(network),
+		wired::unconfigured(Path::new(wired::SYS_CLASS_NET)),
+	)
+	.await
+	.context("putting the recorded network configuration in force")?;
 
 	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
@@ -139,19 +146,6 @@ pub async fn run(cache: &Path, network: &Path, adapter_name: Option<&str>) -> Re
 		drop(registered);
 		tokio::time::sleep(ADVERTISE_SETTLE).await;
 	}
-}
-
-/// What a device that has never had a network configuration confirmed holds as its recorded one.
-///
-/// Provisional: no candidates at all, which under a backend that owns the network outright would take
-/// down whatever the image brought up. What an out-of-the-box device should hold is not yet decided.
-fn out_of_the_box_network() -> serde_json::Map<String, serde_json::Value> {
-	let mut document = serde_json::Map::new();
-	document.insert(
-		"attachments".to_owned(),
-		serde_json::Value::Array(Vec::new()),
-	);
-	document
 }
 
 /// Resolve when the daemon is asked to stop, by either of the signals that mean it.

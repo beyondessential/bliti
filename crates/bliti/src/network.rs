@@ -10,3 +10,4 @@ mod probe;
 mod render;
 mod select;
 pub mod session;
+pub mod wired;
