@@ -90,7 +90,7 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [x] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`, with the wireless and hotspot tiles placed where VIEW puts them
 - [x] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md): `Channel::configure` in the wasm crate, `Network.jsx` for the four stages, and `capabilities.js` as the only module that reads the capabilities shape
   - [x] The settled shapes on screen: the shared checker through wasm, adapter pickers, `state`, `pin`, capabilities on `applied` and `state`, scanning by SSID with hidden ones on request, one-adapter scans and the siting view
-- [ ] Privileges: whichever of the three options above is chosen
+- [x] Privileges: the daemon already runs as root (`services/bliti.service`, for its board-ID sources), which covers writing under `/run`, the D-Bus calls to systemd, networkd and resolved, and nl80211. Narrowing it to capabilities (`CAP_NET_ADMIN` plus polkit rules for the unit calls) is possible later and not needed for this card
 
 ## Notes
 
