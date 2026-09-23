@@ -107,7 +107,7 @@ jobs:
 
       # Kept so that hosting it at the QR code's origin is later wiring rather
       # than work.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bliti-web
           path: crates/bliti-web/app/dist
