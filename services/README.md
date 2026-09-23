@@ -1,8 +1,10 @@
 # Device-side requirements
 
-What a bliti device needs beyond the `bliti` binary: the systemd unit, and the
-bluetoothd configuration BLI-CHN's peripheral-only requirement calls for. Each
-file in this directory says where it installs and why it exists.
+What a bliti device needs beyond the `bliti` binary: the systemd unit, the
+bluetoothd configuration BLI-CHN's peripheral-only requirement calls for, and
+for the network configuration module the hostapd unit bliti drives and the iwd
+drop-in keeping iwd off the hotspot's interface. Each file in this directory
+says where it installs and why it exists.
 
 This file records the packages a device needs at runtime. Nothing installs them
 yet, and deployment is by hand. It is written down so that a Debian package,
@@ -26,6 +28,11 @@ one failure at a time.
   behaviour an unset domain is specified to fall back to rather than something
   to rely on. `crda` is obsolete on any kernel this targets and is not wanted:
   the kernel reads `/lib/firmware/regulatory.db` itself.
+- **`iw`** for the settings bliti makes on the radio at runtime: the regulatory
+  domain (`iw reg set`), since the modprobe file only takes effect when cfg80211
+  loads, and creating and deleting the hotspot's access point interface. bliti
+  runs it rather than speaking nl80211 itself, until a netlink crate is chosen.
+  It is a dependency for as long as that holds.
 
 The wireless client, wired addressing and the resolvers are all supplied by
 whichever backend gets chosen, so their packages are listed under that choice
@@ -72,6 +79,5 @@ an image is believed to carry it.
 masked so it does not start on its own, since the network module is meant to
 drive it rather than have it come up from a unit file of its own.
 
-`iw` is listed because the image has it and the spike used it, not because the
-daemon is known to need it. Whether bliti shells out to it or speaks nl80211
-over netlink itself is undecided, and it is only a dependency in the first case.
+The daemon runs `iw` for now, which is why it is listed among the packages
+above; it stops being a dependency if bliti comes to speak nl80211 itself.
