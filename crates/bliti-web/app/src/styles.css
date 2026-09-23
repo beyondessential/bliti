@@ -269,8 +269,27 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .network .absent { margin: 12px 0 0; }
 .network .survey { margin-top: 12px; }
 
-.networks, .spectrum { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.85rem; }
-.networks li, .spectrum li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.networks, .spectrum, .points { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.85rem; }
+.networks li, .spectrum li, .points li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; }
+
+/* A scan, read by network or for siting. A network's row opens onto the access points behind it,
+   which sit indented beneath it so they read as its own. */
+.scan { margin-top: 12px; }
+.scan .views { gap: 6px; }
+.scan .views > * { flex: 0 1 auto; }
+.scan .views button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.networks li.network-row { display: block; border-top: 1px solid var(--line); }
+.networks li.network-row:first-child { border-top: 0; }
+.network-row .line { display: flex; align-items: baseline; gap: 8px; }
+.network-row .line > .muted { flex: 1 1 auto; }
+.network-row .points { margin: 4px 0 4px 12px; }
+.points li > :first-child { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.points li > :last-child { text-align: right; }
+.points .code { font-size: 0.8rem; }
+.scan .check { margin-top: 10px; }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+.siting h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 0; }
+.bar-state .pin { font-family: ui-monospace, monospace; font-size: 1.1rem; letter-spacing: 0.08em; }
 
 /* The action bar. It says which stage the operator is in and offers only what that stage allows,
    because the four are easy to confuse: a change being edited, a change being checked, a change that

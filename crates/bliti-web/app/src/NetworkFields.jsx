@@ -7,20 +7,24 @@ import { useEffect, useId, useState } from 'react'
 import {
 	absent,
 	acts,
+	adapterName,
+	adapters,
 	bands,
 	channels,
 	countries,
 	eapMethods,
 	interfaces,
-	joinWith,
 	offersHotspotSetting,
 	offersMember,
+	radios,
+	scanners,
 	securityKinds,
 	widths,
 } from './capabilities.js'
 import { countryOptions } from './countries.js'
 import { generatePassphrase, same } from './network.js'
 import { pathOf, within } from './path.js'
+import { ScanResults } from './Scan.jsx'
 import { bandName, securityName, widthName } from './wireless.js'
 
 // Field primitives
@@ -116,7 +120,7 @@ function Check({ label, checked, onChange }) {
 }
 
 /// A member set, or removed where the value is undefined.
-function withMember(object, member, value) {
+export function withMember(object, member, value) {
 	const next = { ...object }
 	if (value === undefined || value === '') delete next[member]
 	else next[member] = value
@@ -144,9 +148,44 @@ export function blankCandidate(kind, capabilities) {
 	}
 }
 
-function blankSecurity(kind, capabilities) {
-	if (kind === 'enterprise') return { kind, eap: eapMethods(capabilities)?.[0] ?? 'peap' }
+export function blankSecurity(kind, capabilities, candidate = {}) {
+	if (kind === 'enterprise') return { kind, eap: eapMethods(capabilities, candidate)?.[0] ?? 'peap' }
 	return { kind, passphrase: '' }
+}
+
+/// A wireless candidate with what its adapter does not carry taken out, and what it does carry and
+/// would mean something by its absence written in. Security moves to the nearest kind offered,
+/// keeping a passphrase where the new kind takes one.
+function fitWireless(candidate, capabilities) {
+	let next = candidate
+	const kinds = securityKinds(capabilities, next)
+	const current = next.security?.kind
+	if (current && !kinds.includes(current)) {
+		const replacement = kinds.find((kind) => (kind === 'enterprise') === (current === 'enterprise')) ?? kinds[0]
+		const keeps = replacement && replacement !== 'enterprise' && current !== 'enterprise'
+		next = { ...next, security: keeps ? { ...next.security, kind: replacement } : blankSecurity(replacement ?? current, capabilities, next) }
+	} else if (current === 'enterprise') {
+		const methods = eapMethods(capabilities, next)
+		if (methods && methods.length > 0 && !methods.includes(next.security.eap)) {
+			next = { ...next, security: { ...next.security, eap: methods[0] } }
+		}
+	}
+	if (!offersMember(capabilities, 'wireless', 'hidden', next)) next = withMember(next, 'hidden', undefined)
+	else if (next.hidden === undefined) next = { ...next, hidden: false }
+	if (!offersMember(capabilities, 'wireless', 'nameservers', next)) next = withMember(next, 'nameservers', undefined)
+	return next
+}
+
+/// Which adapter a wireless candidate or the hotspot runs on, where the device has more than one:
+/// named by what each adapter is, and left to the device where none is picked.
+function AdapterField({ part, value, path, capabilities, marks, onChange }) {
+	const names = adapters(capabilities, part)
+	if (names.length === 0) return null
+	const options = [
+		{ value: '', label: 'Device chooses' },
+		...[...new Set([...names, value].filter(Boolean))].map((name) => ({ value: name, label: adapterName(capabilities, name) })),
+	]
+	return <SelectField label="Adapter" path={path} value={value ?? ''} options={options} onChange={(name) => onChange(name || undefined)} marks={marks} />
 }
 
 const KIND_NAMES = { wireless: 'Wireless', 'wired-dynamic': 'Wired, DHCP', 'wired-static': 'Wired, static' }
@@ -176,7 +215,7 @@ export function CandidateFields({ candidate, index, change, capabilities, marks,
 					<TextField label="Gateway" path={at('gateway')} value={candidate.gateway} onChange={set('gateway')} marks={marks} placeholder="192.168.1.1" />
 				</>
 			)}
-			{offersMember(capabilities, kind, 'nameservers') && (
+			{offersMember(capabilities, kind, 'nameservers', candidate) && (
 				<ListField
 					label="Resolvers"
 					path={at('nameservers')}
@@ -224,9 +263,9 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 	const security = candidate.security ?? {}
 	const setSecurity = (member) => (value) =>
 		change((held) => ({ ...held, security: withMember(held.security ?? {}, member, value) }))
-	const offered = securityKinds(capabilities)
+	const offered = securityKinds(capabilities, candidate)
 	const kinds = [...new Set([...offered, security.kind].filter(Boolean))]
-	const methods = eapMethods(capabilities) ?? ['peap', 'ttls', 'tls']
+	const methods = eapMethods(capabilities, candidate) ?? ['peap', 'ttls', 'tls']
 	const eapFields = security.eap === 'tls' ? EAP_FIELDS.tls : EAP_FIELDS.tunnelled
 
 	// The name follows the SSID until the operator gives it one of its own.
@@ -236,6 +275,14 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 	return (
 		<>
 			<SsidField candidate={candidate} at={at} onChange={setSsid} change={change} capabilities={capabilities} marks={marks} scan={scan} />
+			<AdapterField
+				part="wireless"
+				value={candidate.interface}
+				path={at('interface')}
+				capabilities={capabilities}
+				marks={marks}
+				onChange={(name) => change((held) => fitWireless(withMember(held, 'interface', name), capabilities))}
+			/>
 			<SelectField
 				label="Security"
 				path={at('security', 'kind')}
@@ -246,7 +293,7 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 						...held,
 						security:
 							kind === 'enterprise' || held.security?.kind === 'enterprise'
-								? blankSecurity(kind, capabilities)
+								? blankSecurity(kind, capabilities, held)
 								: { ...held.security, kind },
 					}))
 				}
@@ -273,19 +320,19 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 					))}
 				</>
 			)}
-			{offersMember(capabilities, 'wireless', 'hidden') && (
+			{offersMember(capabilities, 'wireless', 'hidden', candidate) && (
 				<Check label="Hidden network" checked={candidate.hidden} onChange={(hidden) => change((held) => ({ ...held, hidden }))} />
 			)}
 		</>
 	)
 }
 
-const UNJOINABLE = { open: 'Open', owe: 'OWE', wep: 'WEP' }
-
 function SsidField({ candidate, at, onChange, change, capabilities, marks, scan }) {
 	const id = useId()
+	const [adapter, setAdapter] = useState('')
 	const path = at('ssid')
 	const scanning = scan && acts(capabilities).scan
+	const able = scanning ? scanners(capabilities) : []
 	return (
 		<>
 			<label htmlFor={id}>SSID</label>
@@ -301,43 +348,23 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan 
 					spellCheck="false"
 				/>
 				{scanning && (
-					<button type="button" className="secondary" onClick={scan.start} disabled={scan.busy}>
+					<button type="button" className="secondary" onClick={() => scan.start(adapter || undefined)} disabled={scan.busy}>
 						{scan.busy ? 'Scanning' : 'Scan'}
 					</button>
 				)}
 			</div>
 			<Marked path={path} marks={marks} />
-			{scanning && scan.networks && (
-				<ul className="networks">
-					{scan.networks.length === 0 && <li className="muted">No networks in range.</li>}
-					{scan.networks.map((network) => {
-						const kind = joinWith(capabilities, network.security)
-						const pick = () =>
-							change((held) => ({
-								...held,
-								ssid: network.ssid,
-								label: !held.label || held.label === held.ssid ? network.ssid : held.label,
-								security:
-									kind === held.security?.kind
-										? held.security
-										: blankSecurity(kind, capabilities),
-							}))
-						return (
-							<li key={`${network.ssid}-${network.band}`}>
-								<button type="button" className="secondary small" onClick={pick} disabled={!kind}>
-									{network.ssid}
-								</button>
-								<span className="muted">
-									{kind
-										? securityName(kind)
-										: `Cannot join: ${(network.security ?? []).map((each) => UNJOINABLE[each] ?? securityName(each)).join(', ')}`}
-									{network.signal !== undefined && ` · ${network.signal} dBm`}
-								</span>
-							</li>
-						)
-					})}
-				</ul>
+			{able.length > 1 && (
+				<SelectField
+					label="Scan with"
+					value={adapter}
+					options={[{ value: '', label: 'All adapters' }, ...able.map((name) => ({ value: name, label: adapterName(capabilities, name) }))]}
+					onChange={setAdapter}
+					marks={marks}
+				/>
 			)}
+			{scanning && scan.failure && <p className="why">{scan.failure.reason}</p>}
+			{scanning && scan.points && <ScanResults points={scan.points} candidate={candidate} change={change} capabilities={capabilities} />}
 		</>
 	)
 }
@@ -355,10 +382,10 @@ const HOTSPOT_NAMES = {
 
 /// The sentences said in place of the hotspot settings the device did not offer. Settings absent for
 /// one reason share its sentence; those it did not report at all are named.
-function hotspotAbsences(capabilities, members) {
+function hotspotAbsences(capabilities, document, members) {
 	const sentences = new Map()
 	for (const member of members) {
-		const why = absent(capabilities, `hotspot.${member}`)
+		const why = absent(capabilities, `hotspot.${member}`, document)
 		if (!why) continue
 		if (!sentences.has(why.sentence)) sentences.set(why.sentence, { why, members: [] })
 		sentences.get(why.sentence).members.push(member)
@@ -374,32 +401,43 @@ function capitalise(text) {
 	return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-export function HotspotFields({ hotspot, change, capabilities, marks, survey }) {
+/// A hotspot with what its adapter and band do not carry taken out: an adapter carries its own bands,
+/// and a band its own channels and widths. Sharing and isolation are on where unset, so an adapter
+/// offering them has them written on.
+function fitHotspot(hotspot, capabilities) {
+	let next = hotspot
+	const keeps = (member, values) => next[member] === undefined || values === null || values.includes(next[member])
+	if (!keeps('band', bands(capabilities, next))) next = withMember(next, 'band', undefined)
+	if (!keeps('channel', channels(capabilities, next))) next = withMember(next, 'channel', undefined)
+	if (!keeps('channel-width', widths(capabilities, next))) next = withMember(next, 'channel-width', undefined)
+	for (const member of ['share-upstream', 'isolate-clients', 'dhcp-range']) {
+		if (!offersHotspotSetting(capabilities, member, next)) next = withMember(next, member, undefined)
+		else if (member !== 'dhcp-range' && next[member] === undefined) next = { ...next, [member]: true }
+	}
+	return next
+}
+
+export function HotspotFields({ document, change, capabilities, marks, survey }) {
+	const hotspot = document.hotspot
 	const at = (member) => pathOf(['hotspot', member])
 	const set = (member) => (value) => change((held) => withMember(held, member, value))
-	const offers = (member) => offersHotspotSetting(capabilities, member)
+	const offers = (member) => offersHotspotSetting(capabilities, member, hotspot)
 	const radio = ['band', 'channel', 'channel-width'].filter(offers)
-	const usableBands = bands(capabilities)
-	const usableChannels = channels(capabilities, hotspot.band)
-	const usableWidths = widths(capabilities, hotspot.band)
-	const absences = hotspotAbsences(capabilities, ['share-upstream', 'isolate-clients', 'band', 'channel', 'channel-width', 'dhcp-range'])
+	const usableBands = bands(capabilities, hotspot)
+	const usableChannels = channels(capabilities, hotspot)
+	const usableWidths = widths(capabilities, hotspot)
+	const absences = hotspotAbsences(capabilities, document, ['share-upstream', 'isolate-clients', 'band', 'channel', 'channel-width', 'dhcp-range'])
 	const picks = (values, name) => [{ value: '', label: 'Device picks' }, ...(values ?? []).map((value) => ({ value: String(value), label: name(value) }))]
 
-	// A band carries its own channels and widths, so moving to another drops the ones it does not.
-	const setBand = (band) =>
-		change((held) => {
-			let next = withMember(held, 'band', band || undefined)
-			const keeps = (member, values) => values === null || values.includes(next[member])
-			if (!keeps('channel', channels(capabilities, next.band))) next = withMember(next, 'channel', undefined)
-			if (!keeps('channel-width', widths(capabilities, next.band))) next = withMember(next, 'channel-width', undefined)
-			return next
-		})
+	const setBand = (band) => change((held) => fitHotspot(withMember(held, 'band', band || undefined), capabilities))
+	const setAdapter = (name) => change((held) => fitHotspot(withMember(held, 'interface', name), capabilities))
 	const setNumber = (member) => (value) => set(member)(value === '' ? undefined : Number(value))
 
 	return (
 		<>
 			<TextField label="SSID" path={at('ssid')} value={hotspot.ssid} onChange={set('ssid')} marks={marks} />
 			<PassphraseField value={hotspot.passphrase} path={at('passphrase')} onChange={set('passphrase')} marks={marks} />
+			<AdapterField part="hotspot" value={hotspot.interface} path={at('interface')} capabilities={capabilities} marks={marks} onChange={setAdapter} />
 			{offers('share-upstream') && (
 				<Check label="Share upstream connection" checked={hotspot['share-upstream']} onChange={set('share-upstream')} />
 			)}
@@ -441,7 +479,7 @@ export function HotspotFields({ hotspot, change, capabilities, marks, survey }) 
 						{sentence}
 					</p>
 				))}
-				{survey && radio.includes('channel') && <Survey survey={survey} />}
+				{survey && radio.includes('channel') && <Survey survey={survey} capabilities={capabilities} />}
 				{offers('dhcp-range') && (
 					<TextField label="DHCP range" path={at('dhcp-range')} value={hotspot['dhcp-range']} onChange={set('dhcp-range')} marks={marks} placeholder="10.42.0.0/24" />
 				)}
@@ -475,8 +513,9 @@ function PassphraseField({ value, path, onChange, marks }) {
 	)
 }
 
-function Survey({ survey }) {
+function Survey({ survey, capabilities }) {
 	const channels = survey.spectrum?.channels
+	const several = radios(capabilities).length > 1
 	return (
 		<>
 			<button type="button" className="secondary small survey" onClick={survey.start} disabled={survey.busy}>
@@ -486,9 +525,10 @@ function Survey({ survey }) {
 			{Array.isArray(channels) && (
 				<ul className="spectrum">
 					{channels.map((each) => (
-						<li key={`${each.band}-${each.channel}`}>
+						<li key={`${each.interface}-${each.band}-${each.channel}`}>
 							<span>
 								{each.channel} · {bandName(each.band)}
+								{several && each.interface && ` · ${adapterName(capabilities, each.interface)}`}
 							</span>
 							<span className="muted">
 								{each.networks} {each.networks === 1 ? 'network' : 'networks'}

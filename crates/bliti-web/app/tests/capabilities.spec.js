@@ -1,43 +1,107 @@
 // The pre-proposal check of NSCR and the paths it names, as plain functions: no page, because none of
 // it touches one.
 
+import { readFileSync } from 'node:fs'
+
 import { expect, test } from '@playwright/test'
 
-import { absent, check, joinWith } from '../src/capabilities.js'
+import {
+	absent,
+	adapterName,
+	adapters,
+	acts,
+	bands,
+	channels,
+	check,
+	eapMethods,
+	joinWith,
+	offersMember,
+	radioBands,
+	radios,
+	scanners,
+	securityKinds,
+	surveyors,
+	widths,
+	wpsMethods,
+} from '../src/capabilities.js'
 import { stagesOf, validate } from '../src/network.js'
-import { pathOf } from '../src/path.js'
+import { pathOf, segmentsOf } from '../src/path.js'
+import { initSync } from '../src/wasm/bliti_web.js'
 
+// The pre-proposal check is the core's own, through wasm, so the module is loaded as the page loads it.
+initSync({ module: readFileSync(new URL('../src/wasm/bliti_web_bg.wasm', import.meta.url)) })
+
+const SECURITY = { kind: { psk: {}, sae: {}, 'psk-sae': {}, enterprise: { eap: ['peap', 'ttls', 'tls'] } } }
+const WIRED = {
+	'wired-dynamic': { interface: ['eth0'], nameservers: true },
+	'wired-static': { interface: ['eth0'], nameservers: true },
+}
+
+// A Raspberry Pi 5 as NET shapes it: one shared-channel radio, one wall port.
 const PI = {
 	document: {
 		attachments: {
-			wireless: {
-				security: { psk: true, sae: true, 'psk-sae': true, enterprise: { eap: ['peap', 'ttls', 'tls'] } },
-				hidden: true,
-				nameservers: true,
+			kind: {
+				wireless: { interface: { wlan0: { security: SECURITY, hidden: true } }, nameservers: true },
+				...WIRED,
 			},
-			'wired-dynamic': { interface: ['eth0'], nameservers: true },
-			'wired-static': { interface: ['eth0'], nameservers: true },
 		},
-		hotspot: { 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
+		hotspot: { interface: { wlan0: {} }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
 		'regulatory-domain': true,
 	},
-	radio: { alongside: 'shared-channel' },
-	acts: { scan: true, wps: ['push-button', 'pin'] },
+	radios: { wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' } },
+	acts: {
+		scan: { interface: { wlan0: {} } },
+		wps: { interface: { wlan0: { method: ['push-button', 'pin'] } } },
+	},
 }
 
+const BAND = {
+	band: {
+		'2.4ghz': { channel: [1, 6, 11], 'channel-width': [20] },
+		'5ghz': { channel: [36, 40, 44, 48], 'channel-width': [20, 40, 80] },
+	},
+}
+
+// One radio running a hotspot on a channel of its own.
 const INDEPENDENT = {
 	document: {
 		attachments: PI.document.attachments,
-		hotspot: {
-			band: ['2.4ghz', '5ghz'],
-			channel: { '2.4ghz': [1, 6, 11], '5ghz': [36, 40, 44, 48] },
-			'channel-width': { '2.4ghz': [20], '5ghz': [20, 40, 80] },
-		},
+		hotspot: { interface: { wlan0: BAND } },
 	},
-	radio: { alongside: 'independent' },
+	radios: { wlan0: { model: 'MediaTek MT7921AU', bands: ['2.4ghz', '5ghz'], alongside: 'independent' } },
+	acts: {},
 }
 
-const ONE_AT_A_TIME = { ...PI, radio: { alongside: 'one-at-a-time' } }
+const ONE_AT_A_TIME = { ...PI, radios: { wlan0: { ...PI.radios.wlan0, alongside: 'one-at-a-time' } } }
+
+// The Pi with a USB adapter: the adapter joins enterprise networks and gives the hotspot a channel.
+const TWO_RADIOS = {
+	document: {
+		attachments: {
+			kind: {
+				wireless: {
+					interface: {
+						wlan0: { security: { kind: { psk: {}, sae: {}, 'psk-sae': {} } } },
+						wlx00c0caa1b2c3: { security: { kind: { psk: {}, sae: {}, 'psk-sae': {}, enterprise: { eap: ['peap', 'tls'] } } }, hidden: true },
+					},
+					nameservers: true,
+				},
+				...WIRED,
+			},
+		},
+		hotspot: { interface: { wlan0: {}, wlx00c0caa1b2c3: BAND }, 'share-upstream': true },
+	},
+	radios: {
+		wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' },
+		wlx00c0caa1b2c3: { model: 'MediaTek MT7921AU', bands: ['2.4ghz', '5ghz', '6ghz'], alongside: 'independent' },
+	},
+	acts: {
+		scan: { interface: { wlan0: {}, wlx00c0caa1b2c3: {} } },
+		survey: { interface: { wlx00c0caa1b2c3: {} } },
+		wps: { interface: { wlan0: { method: ['push-button', 'pin'] }, wlx00c0caa1b2c3: { method: ['push-button'] } } },
+	},
+}
 
 const wireless = {
 	kind: 'wireless',
@@ -59,6 +123,13 @@ test.describe('paths', () => {
 			"$['it\\'s']['a\\\\b']['tab\\there']['\\u0001']['\\b\\f\\n\\r']",
 		)
 	})
+
+	test('read back into the segments they were written from', () => {
+		const segments = ['attachments', 1, "it's", 'a\\b', 'tab\there', '\u0001']
+		expect(segmentsOf(pathOf(segments))).toEqual(segments)
+		expect(segmentsOf('$')).toEqual([])
+		expect(segmentsOf('$.attachments')).toBeNull()
+	})
 })
 
 test.describe('check', () => {
@@ -67,32 +138,36 @@ test.describe('check', () => {
 	})
 
 	test('names a kind of candidate the device does not take', () => {
-		const wiredOnly = { document: { attachments: { 'wired-dynamic': true } } }
+		const wiredOnly = { document: { attachments: { kind: { 'wired-dynamic': {} } } } }
 		expect(check({ attachments: [wireless] }, wiredOnly)).toEqual({
 			at: "$['attachments'][0]['kind']",
 			reason: 'This device does not take a connection of this kind.',
 		})
 	})
 
-	test('names a value outside the listed ones', () => {
-		expect(check({ attachments: [{ ...staticPort, interface: 'eth1' }] }, PI)?.at).toBe("$['attachments'][0]['interface']")
+	test('names a value outside the listed ones, in our words', () => {
+		expect(check({ attachments: [{ ...staticPort, interface: 'eth1' }] }, PI)).toEqual({
+			at: "$['attachments'][0]['interface']",
+			reason: 'This device does not support eth1.',
+		})
 	})
 
 	test('names an optional member the capabilities do not carry', () => {
 		const noHidden = structuredClone(PI)
-		delete noHidden.document.attachments.wireless.hidden
+		delete noHidden.document.attachments.kind.wireless.interface.wlan0.hidden
 		expect(check({ attachments: [wireless] }, noHidden)?.at).toBe("$['attachments'][0]['hidden']")
 	})
 
 	test('takes the required members of an offered kind without their being listed', () => {
-		expect(check({ attachments: [staticPort] }, { document: { attachments: { 'wired-static': {} } } })).toBeNull()
+		expect(check({ attachments: [staticPort] }, { document: { attachments: { kind: { 'wired-static': {} } } } })).toBeNull()
 	})
 
 	test('names a security kind the device cannot join', () => {
-		const saeOnly = { document: { attachments: { wireless: { security: { sae: true } } } } }
-		expect(check({ attachments: [{ kind: 'wireless', label: 'a', ssid: 'a', security: { kind: 'psk', passphrase: '12345678' } }] }, saeOnly)?.at).toBe(
-			"$['attachments'][0]['security']['kind']",
-		)
+		const saeOnly = { document: { attachments: { kind: { wireless: { security: { kind: { sae: {} } } } } } } }
+		expect(check({ attachments: [{ kind: 'wireless', label: 'a', ssid: 'a', security: { kind: 'psk', passphrase: '12345678' } }] }, saeOnly)).toEqual({
+			at: "$['attachments'][0]['security']['kind']",
+			reason: 'This device cannot join a network secured this way.',
+		})
 	})
 
 	test('holds an EAP method to the listed ones, and takes the credentials that method carries', () => {
@@ -106,6 +181,15 @@ test.describe('check', () => {
 		expect(check({ attachments: [enterprise('fast')] }, PI)?.at).toBe("$['attachments'][0]['security']['eap']")
 	})
 
+	test('holds a candidate pinned to an adapter to what that adapter offers', () => {
+		const { hidden: _, ...unhidden } = wireless
+		const staff = { ...unhidden, security: { kind: 'enterprise', eap: 'tls', identity: 'tech', 'ca-certificate': 'PEM' } }
+		expect(check({ attachments: [{ ...staff, interface: 'wlx00c0caa1b2c3' }] }, TWO_RADIOS)).toBeNull()
+		expect(check({ attachments: [{ ...staff, interface: 'wlan0' }] }, TWO_RADIOS)?.at).toBe("$['attachments'][0]['security']['kind']")
+		// Unpinned, it passes where any adapter admits it.
+		expect(check({ attachments: [staff] }, TWO_RADIOS)).toBeNull()
+	})
+
 	test('rules out band, channel and width on a shared-channel radio', () => {
 		expect(check({ attachments: [], hotspot: { ...hotspot, band: '5ghz' } }, PI)?.at).toBe("$['hotspot']['band']")
 		expect(check({ attachments: [], hotspot: { ...hotspot, channel: 6 } }, PI)?.at).toBe("$['hotspot']['channel']")
@@ -115,17 +199,18 @@ test.describe('check', () => {
 		const base = { ssid: 'a', passphrase: '12345678' }
 		expect(check({ attachments: [], hotspot: { ...base, band: '5ghz', channel: 40, 'channel-width': 80 } }, INDEPENDENT)).toBeNull()
 		expect(check({ attachments: [], hotspot: { ...base, band: '2.4ghz', channel: 40 } }, INDEPENDENT)?.at).toBe("$['hotspot']['channel']")
-		expect(check({ attachments: [], hotspot: { ...base, band: '2.4ghz', 'channel-width': 40 } }, INDEPENDENT)?.at).toBe(
-			"$['hotspot']['channel-width']",
-		)
+		expect(check({ attachments: [], hotspot: { ...base, band: '2.4ghz', 'channel-width': 40 } }, INDEPENDENT)).toEqual({
+			at: "$['hotspot']['channel-width']",
+			reason: 'This device does not support 40 MHz here.',
+		})
 		// With no band set, a channel usable on some band is one the device can pick a band for.
 		expect(check({ attachments: [], hotspot: { ...base, channel: 11 } }, INDEPENDENT)).toBeNull()
 		expect(check({ attachments: [], hotspot: { ...base, channel: 13 } }, INDEPENDENT)?.at).toBe("$['hotspot']['channel']")
 	})
 
 	test('names a setting absent from the capabilities at the top of the document', () => {
-		expect(check({ attachments: [], 'regulatory-domain': 'VU' }, { document: { attachments: {} } })?.at).toBe("$['regulatory-domain']")
-		expect(check({ attachments: [], hotspot }, { document: { attachments: {} } })?.at).toBe("$['hotspot']")
+		expect(check({ attachments: [], 'regulatory-domain': 'VU' }, { document: { attachments: { kind: {} } } })?.at).toBe("$['regulatory-domain']")
+		expect(check({ attachments: [], hotspot }, { document: { attachments: { kind: {} } } })?.at).toBe("$['hotspot']")
 	})
 
 	test('rules out a hotspot beside a wireless network on a radio that runs one at a time', () => {
@@ -135,6 +220,60 @@ test.describe('check', () => {
 		})
 		expect(check({ attachments: [staticPort], hotspot }, ONE_AT_A_TIME)).toBeNull()
 	})
+
+	test('lets a radio that runs one at a time carry the hotspot where another carries the network', () => {
+		const both = structuredClone(TWO_RADIOS)
+		both.radios.wlan0.alongside = 'one-at-a-time'
+		both.radios.wlx00c0caa1b2c3.alongside = 'one-at-a-time'
+		const { hidden: _, ...network } = wireless
+		expect(check({ attachments: [network], hotspot }, both)).toBeNull()
+		expect(check({ attachments: [{ ...network, interface: 'wlan0' }], hotspot: { ...hotspot, interface: 'wlan0' } }, both)?.at).toBe(
+			"$['hotspot']['interface']",
+		)
+	})
+})
+
+test.describe('reading capabilities', () => {
+	test('radios are listed with their models, and named by model', () => {
+		expect(radios(TWO_RADIOS).map((radio) => radio.interface)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
+		expect(adapterName(TWO_RADIOS, 'wlx00c0caa1b2c3')).toBe('MediaTek MT7921AU')
+		const twins = { radios: { wlan0: { model: 'X', bands: [] }, wlan1: { model: 'X', bands: [] } } }
+		expect(adapterName(twins, 'wlan1')).toBe('X (wlan1)')
+		expect(radioBands(TWO_RADIOS)).toEqual(['2.4ghz', '5ghz', '6ghz'])
+	})
+
+	test('an adapter is offered only where there is more than one', () => {
+		expect(adapters(PI, 'wireless')).toEqual([])
+		expect(adapters(TWO_RADIOS, 'wireless')).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
+		expect(adapters(TWO_RADIOS, 'hotspot')).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
+	})
+
+	test('what a candidate is offered follows its adapter, and is everything any offers where unset', () => {
+		expect(securityKinds(TWO_RADIOS, { interface: 'wlan0' })).toEqual(['psk-sae', 'sae', 'psk'])
+		expect(securityKinds(TWO_RADIOS, { interface: 'wlx00c0caa1b2c3' })).toEqual(['psk-sae', 'sae', 'psk', 'enterprise'])
+		expect(securityKinds(TWO_RADIOS, {})).toEqual(['psk-sae', 'sae', 'psk', 'enterprise'])
+		expect(eapMethods(TWO_RADIOS, { interface: 'wlx00c0caa1b2c3' })).toEqual(['peap', 'tls'])
+		expect(offersMember(TWO_RADIOS, 'wireless', 'hidden', { interface: 'wlan0' })).toBe(false)
+		expect(offersMember(TWO_RADIOS, 'wireless', 'hidden', {})).toBe(true)
+		expect(offersMember(TWO_RADIOS, 'wireless', 'nameservers', { interface: 'wlan0' })).toBe(true)
+	})
+
+	test('the hotspot is offered what its adapter and band carry', () => {
+		expect(bands(TWO_RADIOS, { interface: 'wlan0' })).toEqual([])
+		expect(bands(TWO_RADIOS, {})).toEqual(['2.4ghz', '5ghz'])
+		expect(channels(TWO_RADIOS, { band: '2.4ghz' })).toEqual([1, 6, 11])
+		expect(channels(TWO_RADIOS, {})).toEqual([1, 6, 11, 36, 40, 44, 48])
+		expect(widths(TWO_RADIOS, { interface: 'wlx00c0caa1b2c3', band: '5ghz' })).toEqual([20, 40, 80])
+		expect(channels(TWO_RADIOS, { interface: 'wlan0' })).toEqual([])
+	})
+
+	test('acts name the radios that do each, and the WPS methods each offers', () => {
+		expect(acts(TWO_RADIOS)).toEqual({ scan: true, survey: true, wps: ['push-button', 'pin'] })
+		expect(acts(PI).survey).toBe(false)
+		expect(scanners(TWO_RADIOS)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
+		expect(surveyors(TWO_RADIOS)).toEqual(['wlx00c0caa1b2c3'])
+		expect(wpsMethods(TWO_RADIOS, 'wlx00c0caa1b2c3')).toEqual(['push-button'])
+	})
 })
 
 test.describe('absent', () => {
@@ -142,10 +281,20 @@ test.describe('absent', () => {
 		expect(absent(PI, 'hotspot.channel')?.reason).toBe('shared-channel')
 		expect(absent(INDEPENDENT, 'hotspot.channel')).toBeNull()
 		expect(absent(INDEPENDENT, 'hotspot.dhcp-range')?.reason).toBe('unreported')
-		expect(absent({ document: { attachments: {} } }, 'hotspot')?.reason).toBe('no-radio')
+		expect(absent({ document: { attachments: { kind: {} } } }, 'hotspot')?.reason).toBe('no-radio')
 		expect(absent(ONE_AT_A_TIME, 'hotspot', { attachments: [wireless] })?.reason).toBe('one-at-a-time')
 		expect(absent(ONE_AT_A_TIME, 'hotspot', { attachments: [staticPort] })).toBeNull()
+		expect(absent(ONE_AT_A_TIME, 'wireless', { attachments: [], hotspot })?.reason).toBe('one-at-a-time')
 		expect(absent(PI, 'survey')?.reason).toBe('unreported')
+	})
+
+	test('a shared-channel adapter says why it has no band, by its model', () => {
+		const onBuiltIn = { attachments: [], hotspot: { ...hotspot, interface: 'wlan0' } }
+		expect(absent(TWO_RADIOS, 'hotspot.band', onBuiltIn)).toEqual({
+			reason: 'shared-channel',
+			sentence: 'The Cypress CYW43455 runs the hotspot on the same channel as its wireless connection.',
+		})
+		expect(absent(TWO_RADIOS, 'hotspot.band', { attachments: [], hotspot })).toBeNull()
 	})
 })
 
@@ -154,7 +303,8 @@ test.describe('joining a scanned network', () => {
 		expect(joinWith(PI, ['psk', 'sae'])).toBe('psk-sae')
 		expect(joinWith(PI, ['psk'])).toBe('psk')
 		expect(joinWith(PI, ['open'])).toBeNull()
-		expect(joinWith({ document: { attachments: { wireless: { security: { psk: true } } } } }, ['psk', 'sae'])).toBe('psk')
+		expect(joinWith({ document: { attachments: { kind: { wireless: { security: { kind: { psk: {} } } } } } } }, ['psk', 'sae'])).toBe('psk')
+		expect(joinWith(TWO_RADIOS, ['enterprise'], { interface: 'wlan0' })).toBeNull()
 	})
 })
 

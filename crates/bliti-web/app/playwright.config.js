@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// The harness fakes at the message layer: decoded messages are fed to the application with no wasm
+// The harness fakes at the message layer: decoded messages are fed to the application with no channel
 // and no Bluetooth in the loop. Nothing here pretends to be a Bluetooth stack, and protocol and
 // transport coverage stays in the Rust tests.
 export default defineConfig({

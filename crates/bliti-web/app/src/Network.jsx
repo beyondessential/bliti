@@ -4,7 +4,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { absent, acts, attachmentKinds, check, countries } from './capabilities.js'
+import { absent, acts, attachmentKinds, check, countries, surveyors } from './capabilities.js'
 import {
 	candidateAt,
 	changes,
@@ -33,6 +33,7 @@ import {
 	kindName,
 } from './NetworkFields.jsx'
 import { pathOf, within } from './path.js'
+import { loadProtocol } from './protocol.js'
 
 export default function Network({ client, onActivity, onEvent, onBack }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
@@ -40,19 +41,23 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 	const session = useRef(null)
 
 	// The session lasts as long as the screen: leaving it closes the stream, which the device reads as
-	// abandoning whatever was not confirmed (BLI-CFG).
+	// abandoning whatever was not confirmed (BLI-CFG). It opens once the checker a document is held to
+	// before it is proposed is loaded, so nothing can be applied unchecked.
 	useEffect(() => {
 		let live = true
 		let opened = null
-		client
-			.configure({
-				onEvent: (event) => {
-					if (!live) return
-					onEvent?.(event)
-					dispatch({ type: 'event', event })
-				},
-				onClosed: (why) => live && dispatch({ type: 'closed', why }),
-				onActivity,
+		loadProtocol()
+			.then(() => {
+				if (!live) throw new Error('left')
+				return client.configure({
+					onEvent: (event) => {
+						if (!live) return
+						onEvent?.(event)
+						dispatch({ type: 'event', event })
+					},
+					onClosed: (why) => live && dispatch({ type: 'closed', why }),
+					onActivity,
+				})
 			})
 			.then((handle) => {
 				if (live) session.current = opened = handle
@@ -80,6 +85,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 	const change = (edit) => dispatch({ type: 'edit', change: edit })
 	const readOnly = !writable(state)
 	const caps = state.capabilities
+	const surveyWith = state.edit.document.hotspot?.interface
 
 	function apply() {
 		const document = state.edit.document
@@ -166,6 +172,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 				change={change}
 				select={(key) => dispatch({ type: 'select', key })}
 				failure={failureElsewhere ? failure : null}
+				wpsFailure={state.act?.type === 'wps' ? state.act.failure : null}
 				joinByWps={(method) => {
 					if (send((handle) => handle.wps(method))) dispatch({ type: 'wps', method })
 				}}
@@ -181,10 +188,11 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 					marks={marks}
 					failure={failedKey === state.selected ? failure : null}
 					scan={{
-						busy: state.act?.type === 'scan',
-						networks: state.networks,
-						start: () => {
-							if (send((handle) => handle.scan())) dispatch({ type: 'act', act: 'scan' })
+						busy: state.act?.type === 'scan' && !state.act.failure,
+						failure: state.act?.type === 'scan' ? state.act.failure : null,
+						points: state.networks,
+						start: (name) => {
+							if (send((handle) => handle.scan(name))) dispatch({ type: 'act', act: 'scan', interface: name })
 						},
 					}}
 					onRemove={() => change((edit) => removeCandidate(edit, state.selected))}
@@ -203,8 +211,10 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 								busy: state.act?.type === 'survey' && !state.act.failure,
 								failure: state.act?.type === 'survey' ? state.act.failure : null,
 								spectrum: state.spectrum,
+								// A hotspot pinned to an adapter able to survey is surveyed there, sparing the rest.
 								start: () => {
-									if (send((handle) => handle.survey())) dispatch({ type: 'act', act: 'survey' })
+									const name = surveyors(caps).includes(surveyWith) ? surveyWith : undefined
+									if (send((handle) => handle.survey(name))) dispatch({ type: 'act', act: 'survey', interface: name })
 								},
 							}
 						: null
@@ -253,7 +263,15 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 		said = state.wps ? (
 			<>
 				<strong>Joining by WPS.</strong>{' '}
-				{state.wps === 'pin' ? 'Enter the PIN on the access point.' : 'Press the WPS button on the access point.'}
+				{state.wps !== 'pin' ? (
+					'Press the WPS button on the access point.'
+				) : state.pin ? (
+					<>
+						Enter <span className="pin">{state.pin}</span> on the access point.
+					</>
+				) : (
+					'Waiting for the PIN.'
+				)}
 			</>
 		) : (
 			<>
@@ -339,7 +357,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 
 /// The ordering of LINK as a list the operator rearranges, each candidate with the state the device
 /// reports of it.
-function Order({ state, readOnly, change, select, failure, joinByWps }) {
+function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps }) {
 	const [adding, setAdding] = useState(false)
 	const list = useRef(null)
 	const dragging = useRef(null)
@@ -389,6 +407,12 @@ function Order({ state, readOnly, change, select, failure, joinByWps }) {
 				</button>
 			</div>
 			{failure && <Failure failure={failure} />}
+			{wpsFailure && (
+				<>
+					<p className="notice fault">Could not join by WPS.</p>
+					<p className="why reason">{wpsFailure.reason}</p>
+				</>
+			)}
 			{adding && !readOnly && (
 				<div className="row adding">
 					{kinds.map((kind) => (
@@ -514,7 +538,7 @@ function Hotspot({ state, readOnly, change, marks, failure, survey }) {
 			{hotspot && (
 				<fieldset disabled={readOnly}>
 					<HotspotFields
-						hotspot={hotspot}
+						document={state.edit.document}
 						change={(update) => change((edit) => setMember(edit, 'hotspot', update(edit.document.hotspot)))}
 						capabilities={caps}
 						marks={marks}

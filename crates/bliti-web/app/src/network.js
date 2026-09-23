@@ -130,7 +130,9 @@ export function opening() {
 		failure: null,
 		problem: null,
 		confirming: false,
+		awaiting: 0,
 		wps: null,
+		pin: null,
 		states: null,
 		networks: null,
 		spectrum: null,
@@ -160,6 +162,7 @@ function editing(state) {
 		problem: null,
 		confirming: false,
 		wps: null,
+		pin: null,
 		selected: null,
 	}
 }
@@ -189,15 +192,32 @@ export function reduce(state, action) {
 				selected: candidateAt(action.problem.at, state.edit.keys) ?? state.selected,
 			}
 		case 'proposed':
-			return { ...state, stage: 'applying', proposed: clone(state.edit), failure: null, problem: null }
+			return {
+				...state,
+				stage: 'applying',
+				proposed: clone(state.edit),
+				awaiting: state.awaiting + 1,
+				failure: null,
+				problem: null,
+			}
 		case 'wps':
-			return { ...state, stage: 'applying', proposed: null, failure: null, problem: null, wps: action.method }
+			return {
+				...state,
+				stage: 'applying',
+				proposed: null,
+				awaiting: state.awaiting + 1,
+				failure: null,
+				problem: null,
+				wps: action.method,
+				pin: null,
+				act: null,
+			}
 		case 'cancelled':
 			return editing(state)
 		case 'confirming':
 			return state.stage === 'applied' ? { ...state, confirming: true } : state
 		case 'act':
-			return { ...state, act: { type: action.act, failure: null } }
+			return { ...state, act: { type: action.act, interface: action.interface ?? null, failure: null } }
 		case 'closed':
 			return { ...state, status: state.status === 'busy' ? 'busy' : 'closed', why: action.why ?? null }
 		default:
@@ -220,27 +240,60 @@ function fromDevice(state, event) {
 		case 'configuration':
 			return configuration(state, message)
 		case 'applied':
-			if (state.stage !== 'applying') return state
-			return { ...state, stage: 'applied', runningKeys: state.proposed?.keys ?? state.edit.keys }
 		case 'invalid':
-			return invalid(state, message)
+			return answer(state, message)
 		case 'busy':
 			return { ...state, status: 'busy' }
+		case 'pin':
+			return state.stage === 'applying' && state.wps === 'pin' ? { ...state, pin: String(message.pin) } : state
 		case 'networks':
-			return { ...state, networks: Array.isArray(message.networks) ? message.networks : [], act: null }
+			return { ...state, networks: Array.isArray(message['access-points']) ? message['access-points'] : [], act: null }
 		case 'spectrum':
 			return { ...state, spectrum: message.spectrum ?? null, act: null }
+		// Returning to the recorded configuration can change what the device supports back, and the state
+		// after it says so (BLI-CFG).
 		case 'state':
-			return { ...state, states: readState(message) }
+			return { ...state, states: readState(message), capabilities: message.capabilities ?? state.capabilities }
 		default:
 			return state
 	}
 }
 
+/// An `applied` or an `invalid`. A device answers every proposal exactly once and in order, one
+/// interrupted by a discard or a newer proposal with `invalid` at `$` (BLI-CFG), so answers are paired
+/// with proposals by counting, and only the answer to the latest counts, and only while it is still
+/// wanted. An `invalid` with no proposal awaiting answers an act.
+///
+/// Whatever it answers, capabilities an `applied` carries are the latest the device sent, and the next
+/// proposal is checked against those.
+function answer(received, message) {
+	const state = { ...received, capabilities: message.capabilities ?? received.capabilities }
+	if (state.awaiting === 0) return message.type === 'invalid' ? actFailed(state, message) : state
+	const awaiting = state.awaiting - 1
+	if (awaiting > 0 || state.stage !== 'applying') return { ...state, awaiting }
+	if (message.type === 'invalid') return invalid({ ...state, awaiting }, message)
+	return {
+		...state,
+		awaiting,
+		stage: 'applied',
+		runningKeys: state.proposed?.keys ?? state.edit.keys,
+	}
+}
+
+function failureOf(message) {
+	return { at: message.at, reason: message.reason, reached: message.reached ?? null }
+}
+
+/// An act refused outside a proposal: a survey or a scan the device could not carry out.
+function actFailed(state, message) {
+	return state.act ? { ...state, act: { ...state.act, failure: failureOf(message) } } : state
+}
+
 function configuration(state, message) {
-	const capabilities = message.capabilities ?? state.capabilities
 	// The first answer opens the session, and the answer to a confirm is what is now in force. Either
-	// way the operator starts again from the configuration in force.
+	// way the operator starts again from the configuration in force, and what the device supports is
+	// what it said of the configuration it runs.
+	const capabilities = message.capabilities ?? state.capabilities
 	if (state.status === 'opening' || state.confirming) {
 		return editing({ ...state, status: 'open', inForce: message.document, capabilities, states: null })
 	}
@@ -258,11 +311,7 @@ function configuration(state, message) {
 }
 
 function invalid(state, message) {
-	const failure = { at: message.at, reason: message.reason, reached: message.reached ?? null }
-	if (state.stage !== 'applying') {
-		// An act refused outside a proposal: a survey or a scan the device could not carry out.
-		return state.act ? { ...state, act: { ...state.act, failure } } : state
-	}
+	const failure = failureOf(message)
 	if (!state.proposed) {
 		// Joining by WPS failed before the device had a network to propose.
 		return { ...editing(state), act: { type: 'wps', failure } }
@@ -278,16 +327,22 @@ function invalid(state, message) {
 	}
 }
 
+const STATES = new Set(['default-route', 'up', 'verifying', 'standby', 'unavailable'])
+
 /// A `state` message: what the device observes of each candidate, matched by position to the
-/// attachments of the configuration it is running. Not yet part of the session (the wire shape's first
-/// open gap), so read here alone, where its shape is easy to change.
+/// attachments of the configuration it is running (BLI-CFG). An entry whose `is` this build does not
+/// know is kept in its place, so the rest still line up, and left unsaid.
 export function readState(message) {
 	if (!Array.isArray(message.attachments)) return null
-	return message.attachments.map((each) =>
-		each && typeof each === 'object'
-			? { is: each.is ?? null, reached: each.reached ?? null, reason: each.reason ?? null }
-			: { is: null, reached: null, reason: null },
-	)
+	return message.attachments.map((each) => {
+		const is = STATES.has(each?.is) ? each.is : null
+		const unavailable = is === 'unavailable'
+		return {
+			is,
+			reached: unavailable && typeof each.reached === 'string' ? each.reached : null,
+			reason: unavailable && typeof each.reason === 'string' ? each.reason : null,
+		}
+	})
 }
 
 /// The state the device reports of the candidate held under `key`, or null.
@@ -307,6 +362,8 @@ export function stateWording(observed, kind) {
 			return { text: 'Default route', tone: 'good' }
 		case 'up':
 			return { text: 'Up', tone: 'good' }
+		case 'verifying':
+			return { text: 'Checking', tone: 'muted' }
 		case 'standby':
 			return { text: 'Standby', tone: 'muted' }
 		case 'unavailable':

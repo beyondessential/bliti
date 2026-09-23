@@ -6,38 +6,15 @@
 // same one the prototype drew.
 //
 // The interface below is also the seam the test harness fakes at: a fake client feeds the interface
-// decoded messages with no wasm and no Bluetooth in the loop, which is what lets the view and the
+// decoded messages with no channel and no Bluetooth in the loop, which is what lets the view and the
 // subscription lifecycle be tested without pretending to be a Bluetooth stack.
 
-import init, {
-	Channel,
-	QrCode,
-	client_tx_uuid,
-	device_tx_uuid,
-	service_uuid,
-	start,
-} from './wasm/bliti_web.js'
-import wasmUrl from './wasm/bliti_web_bg.wasm?url'
+import { Channel, QrCode, client_tx_uuid, device_tx_uuid, service_uuid } from './wasm/bliti_web.js'
+import { loadProtocol as protocol } from './protocol.js'
 
 /// What this client calls itself to a device. Opaque to the device, which logs it (BLI-MSG).
 export const CLIENT_NAME = 'bliti-web'
 export const CLIENT_VERSION = __APP_VERSION__
-
-let loaded
-async function protocol() {
-	// The failure is not cached along with the success: a wasm fetch that fails once, on a flaky
-	// network before the service worker has cached it, would otherwise leave every later call
-	// rethrowing the same stale error with no way back short of a reload.
-	loaded ??= init({ module_or_path: wasmUrl })
-		.then(() => {
-			start()
-		})
-		.catch((error) => {
-			loaded = undefined
-			throw error
-		})
-	await loaded
-}
 
 export function createClient() {
 	let device = null

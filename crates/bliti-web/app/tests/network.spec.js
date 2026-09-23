@@ -1,81 +1,12 @@
-// The network configuration screen of NSCR, driven through a fake device session with no wasm and no
-// Bluetooth in the loop. What the page sends is recorded, so "nothing is proposed" is asserted on the
-// wire rather than inferred from the screen.
+// The network configuration screen of NSCR, driven through a fake device session with no channel and
+// no Bluetooth in the loop; the checker a document is held to before proposing is the real one. What
+// the page sends is recorded, so "nothing is proposed" is asserted on the wire rather than inferred
+// from the screen.
 
 import { expect, test } from '@playwright/test'
 
 import { answer, message, openChannel, openNetwork, say, sent } from './fake-client.js'
-
-// A Raspberry Pi 5 as the wire shape proposes it: a shared-channel radio, one wall port.
-const PI = {
-	document: {
-		attachments: {
-			wireless: {
-				security: { psk: true, sae: true, 'psk-sae': true, enterprise: { eap: ['peap', 'ttls', 'tls'] } },
-				hidden: true,
-				nameservers: true,
-			},
-			'wired-dynamic': { interface: ['eth0'], nameservers: true },
-			'wired-static': { interface: ['eth0'], nameservers: true },
-		},
-		hotspot: { 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
-		'regulatory-domain': true,
-	},
-	radio: { alongside: 'shared-channel' },
-	acts: { scan: true, wps: ['push-button', 'pin'] },
-}
-
-// Two radios on independent channels.
-const INDEPENDENT = {
-	...PI,
-	document: {
-		...PI.document,
-		hotspot: {
-			'share-upstream': true,
-			'isolate-clients': true,
-			band: ['2.4ghz', '5ghz'],
-			channel: { '2.4ghz': [1, 6, 11], '5ghz': [36, 40, 44, 48] },
-			'channel-width': { '2.4ghz': [20], '5ghz': [20, 40, 80] },
-		},
-	},
-	radio: { alongside: 'independent' },
-	acts: { scan: true, survey: true, wps: ['push-button'] },
-}
-
-const WIRED_ONLY = {
-	document: {
-		attachments: {
-			'wired-dynamic': { interface: ['eth0', 'eth1'], nameservers: true },
-			'wired-static': { interface: ['eth0', 'eth1'], nameservers: true },
-		},
-	},
-	acts: {},
-}
-
-const IN_FORCE = {
-	attachments: [
-		{ kind: 'wired-static', label: 'Clinic wall port', interface: 'eth0', addresses: ['10.4.2.20/24'], gateway: '10.4.2.1' },
-		{ kind: 'wired-static', label: 'North site', interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1', nameservers: ['192.168.60.1'] },
-		{ kind: 'wired-dynamic', label: 'eth0 automatic', interface: 'eth0' },
-		{ kind: 'wireless', label: 'Clinic-Staff', ssid: 'Clinic-Staff', security: { kind: 'sae', passphrase: 'correct horse battery' } },
-		{ kind: 'wireless', label: 'BackupLink', ssid: 'BackupLink', security: { kind: 'psk', passphrase: 'backup-link-77' } },
-	],
-	hotspot: { ssid: 'Clinic-Field-04', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true, 'isolate-clients': true },
-	'regulatory-domain': 'VU',
-}
-
-const STATES = [
-	{ is: 'default-route' },
-	{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.1 did not answer' },
-	{ is: 'unavailable', reached: 'addressing', reason: 'no DHCP offer on eth0' },
-	{ is: 'up' },
-	{ is: 'unavailable', reached: 'carrier', reason: 'BackupLink is not in range' },
-]
-
-const bar = (page) => page.locator('.bar-state')
-const row = (page, name) => page.locator('.order li').filter({ hasText: name })
-const open = (page, name) => row(page, name).locator('.what').click()
-const proposals = async (page) => (await sent(page)).filter((each) => each.type === 'configuration')
+import { IN_FORCE, INDEPENDENT, PI, STATES, TWO_RADIOS, WIRED_ONLY, addWireless, ap, bar, open, proposals, row } from './network-fixtures.js'
 
 test.describe('editing is the application\'s own', () => {
 	// The session sees a proposal only when the operator asks for one (NSCR).
@@ -364,15 +295,14 @@ test.describe('the ordering', () => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await answer(page, 'scan', message({
 			type: 'networks',
-			networks: [
-				{ ssid: 'Clinic', security: ['psk', 'sae'], signal: -52, band: '5ghz', channel: 36 },
-				{ ssid: 'Guest', security: ['open'], signal: -61, band: '2.4ghz', channel: 6 },
+			'access-points': [
+				ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', security: ['psk', 'sae'], signal: -52 }),
+				ap({ bssid: '5c:a6:e6:02:71:9b', ssid: 'Guest', security: ['open'], signal: -61, band: '2.4ghz', channel: 6 }),
 			],
 		}))
-		await page.getByRole('button', { name: 'Add' }).click()
-		await page.getByRole('button', { name: 'Wireless', exact: true }).click()
+		await addWireless(page)
 		await page.getByRole('button', { name: 'Scan' }).click()
-		await expect(page.getByRole('button', { name: 'Guest' })).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Guest', exact: true })).toBeDisabled()
 		await page.getByRole('button', { name: 'Clinic', exact: true }).click()
 		await expect(page.locator('.candidate').getByLabel('SSID')).toHaveValue('Clinic')
 		await expect(page.getByLabel('Security')).toHaveValue('psk-sae')
@@ -407,5 +337,145 @@ test.describe('the state of the session', () => {
 		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', '$[']) {
 			expect(shown.toLowerCase()).not.toContain(word)
 		}
+	})
+})
+
+test.describe('adapters', () => {
+	const options = (locator) => locator.locator('option')
+
+	// NET: a candidate naming no interface is within capabilities where any radio admits it, and one
+	// naming an interface is held to that radio's own.
+	test('a wireless candidate is offered only what its adapter supports, and everything where unset', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: TWO_RADIOS })
+		await addWireless(page)
+		const candidate = page.locator('.candidate')
+		await expect(options(candidate.getByLabel('Adapter'))).toHaveText(['Device chooses', 'Cypress CYW43455', 'MediaTek MT7921AU'])
+		await expect(candidate.getByLabel('Adapter')).toHaveValue('')
+		await expect(options(candidate.getByLabel('Security'))).toHaveText(['WPA2/WPA3', 'WPA3', 'WPA2', 'Enterprise'])
+		await expect(candidate.getByLabel('Hidden network')).toBeVisible()
+
+		await candidate.getByLabel('Security').selectOption('enterprise')
+		await candidate.getByLabel('Adapter').selectOption('wlan0')
+		await expect(options(candidate.getByLabel('Security'))).toHaveText(['WPA2/WPA3', 'WPA3', 'WPA2'])
+		// Moving to an adapter that cannot join enterprise networks moves the candidate off it.
+		await expect(candidate.getByLabel('Security')).toHaveValue('psk-sae')
+		await expect(candidate.getByLabel('Hidden network')).toHaveCount(0)
+
+		await candidate.getByLabel('SSID').fill('Clinic')
+		await candidate.getByLabel('Passphrase').fill('correct horse battery')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.document.attachments[5]).toEqual({
+			kind: 'wireless',
+			label: 'Clinic',
+			ssid: 'Clinic',
+			interface: 'wlan0',
+			security: { kind: 'psk-sae', passphrase: 'correct horse battery' },
+		})
+	})
+
+	test('the hotspot is offered the bands and channels of its adapter, and says why one has none', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: TWO_RADIOS })
+		const hotspot = page.locator('.hotspot')
+		await hotspot.getByText('Radio and addressing').click()
+		await expect(options(hotspot.getByLabel('Band'))).toHaveText(['Device picks', '2.4 GHz', '5 GHz'])
+
+		await hotspot.getByLabel('Band').selectOption('5ghz')
+		await hotspot.getByLabel('Adapter').selectOption('wlan0')
+		await expect(hotspot.getByLabel('Band')).toHaveCount(0)
+		await expect(hotspot.getByLabel('Channel')).toHaveCount(0)
+		await expect(hotspot).toContainText('The Cypress CYW43455 runs the hotspot on the same channel as its wireless connection.')
+
+		await hotspot.getByLabel('Adapter').selectOption('wlx00c0caa1b2c3')
+		await hotspot.getByLabel('Band').selectOption('2.4ghz')
+		await expect(options(hotspot.getByLabel('Channel'))).toHaveText(['Device picks', '1', '6', '11'])
+		await hotspot.getByLabel('Channel').selectOption('6')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.document.hotspot).toMatchObject({ interface: 'wlx00c0caa1b2c3', band: '2.4ghz', channel: 6 })
+	})
+
+	test('a single radio offers no adapter to choose', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await addWireless(page)
+		await expect(page.getByLabel('Adapter')).toHaveCount(0)
+	})
+})
+
+test.describe('the session as the device speaks it', () => {
+	test('the state of each candidate is read as the device sends it, checking included', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await say(page, message({
+			type: 'state',
+			attachments: [
+				{ is: 'verifying' },
+				{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.1 did not answer' },
+				{ is: 'standby' },
+				{ is: 'hibernating' },
+				{ is: 'default-route' },
+			],
+		}))
+		await expect(row(page, 'Clinic wall port').locator('.state')).toHaveText('Checking')
+		await expect(row(page, 'North site').locator('.state')).toHaveText('No gateway')
+		await expect(row(page, 'eth0 automatic').locator('.state')).toHaveText('Standby')
+		// A state this build does not know is left unsaid, and the rest still line up.
+		await expect(row(page, 'Clinic-Staff').locator('.state')).toHaveCount(0)
+		await expect(row(page, 'BackupLink').locator('.state')).toHaveText('Default route')
+	})
+
+	test('joining by PIN shows the PIN the device generated', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByRole('button', { name: 'Add' }).click()
+		await page.getByRole('button', { name: 'WPS PIN' }).click()
+		expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin' })
+		await expect(bar(page)).toContainText('Waiting for the PIN.')
+		await say(page, message({ type: 'pin', pin: '12345670' }))
+		await expect(bar(page).locator('.pin')).toHaveText('12345670')
+		await expect(bar(page)).toContainText('Enter 12345670 on the access point.')
+	})
+
+	// CFG: capabilities a proposal changed come on `applied`, those a return to the recorded
+	// configuration changed back on the next `state`, and the next proposal is checked against the
+	// latest.
+	test('capabilities are refreshed from applied, and from the state after a revert', async ({ page }) => {
+		const narrowed = structuredClone(INDEPENDENT)
+		narrowed.document.hotspot.interface.wlan0.band['5ghz'].channel = [36, 40]
+		await openNetwork(page, { document: IN_FORCE, capabilities: INDEPENDENT })
+		await answer(page, 'configuration', message({ type: 'applied', capabilities: narrowed }))
+		const hotspot = page.locator('.hotspot')
+		await hotspot.getByText('Radio and addressing').click()
+		await hotspot.getByLabel('Band').selectOption('5ghz')
+		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40', '44', '48'])
+
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40'])
+		await bar(page).getByRole('button', { name: 'Cancel' }).click()
+		// The device said nothing of them since, so the narrowed set still holds.
+		await hotspot.getByLabel('Band').selectOption('5ghz')
+		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40'])
+
+		await say(page, message({ type: 'state', attachments: [], capabilities: INDEPENDENT }))
+		await hotspot.getByLabel('Band').selectOption('5ghz')
+		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40', '44', '48'])
+	})
+
+	// CFG: every proposal is answered once, an interrupted one with `invalid` at `$`, so the answer to
+	// an abandoned proposal is not read as the answer to the next.
+	test('the answer to an abandoned proposal is not taken for the next one', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await bar(page).getByRole('button', { name: 'Cancel' }).click()
+		await page.getByLabel('Country').selectOption('WS')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+
+		await say(page, message({ type: 'invalid', at: '$', reason: 'discarded before it was verified' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await say(page, message({ type: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard', 'configuration'])
 	})
 })

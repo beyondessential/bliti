@@ -19,6 +19,27 @@ export function within(at, path) {
 	return at === path || at.startsWith(`${path}[`)
 }
 
+const SEGMENT = /\[(\d+)\]|\['((?:[^'\\]|\\(?:u[0-9a-f]{4}|.))*)'\]/gy
+const UNESCAPES = { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', "'": "'", '\\': '\\' }
+
+/// The segments of a Normalized Path, as `pathOf` takes them: the inverse of `pathOf`. Null where `at`
+/// is not a Normalized Path.
+export function segmentsOf(at) {
+	if (typeof at !== 'string' || !at.startsWith('$')) return null
+	const segments = []
+	SEGMENT.lastIndex = 1
+	while (SEGMENT.lastIndex < at.length) {
+		const match = SEGMENT.exec(at)
+		if (!match) return null
+		segments.push(
+			match[1] !== undefined
+				? Number(match[1])
+				: match[2].replace(/\\(u[0-9a-f]{4}|.)/g, (_, c) => (c.length > 1 ? String.fromCharCode(parseInt(c.slice(1), 16)) : UNESCAPES[c])),
+		)
+	}
+	return segments
+}
+
 const ESCAPES = { '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t', "'": "\\'", '\\': '\\\\' }
 
 function escape(name) {
