@@ -53,6 +53,8 @@ bluer = { version = "0.17.4", features = ["bluetoothd"] }
 # Also bluer's, which is what lets the vendored-dbus feature reach it. Used directly by the network
 # applier, for systemd and networkd.
 dbus = { version = "0.9.12", default-features = false }
+# nl80211: what each radio can do, and the regulatory domain and hotspot interface the applier sets.
+wl-nl80211 = "0.7.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
