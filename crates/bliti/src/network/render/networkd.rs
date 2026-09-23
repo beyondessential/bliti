@@ -106,6 +106,23 @@ pub(super) fn candidate(
 	Ok(files)
 }
 
+/// A wired interface whose candidates are none of them brought up: up, so its carrier can be seen,
+/// and configured with nothing. networkd leaves a link no file matches alone, and a link left down
+/// never reports carrier, so without this no candidate on it could ever become available (LINK).
+pub(super) fn idle(interface: &str, paths: &Paths) -> File {
+	let mut contents = header(&super::path(&[Segment::Name("attachments")]));
+	let _ = write!(
+		contents,
+		"\n[Match]\nName={interface}\n\n[Link]\nRequiredForOnline=no\n\n\
+		 [Network]\nDHCP=no\nIPv6AcceptRA=no\nLinkLocalAddressing=no\n"
+	);
+	File {
+		path: path(paths, interface),
+		contents,
+		mode: PUBLIC,
+	}
+}
+
 /// The DNS delegate carrying a dynamic link's own resolvers.
 ///
 /// resolved routes a query to a link and then uses that link's servers in turn, falling through only

@@ -25,6 +25,8 @@ use std::{
 
 use bliti_core::channel::readings::Entry;
 
+use crate::network::stack::Report;
+
 mod board;
 mod compute;
 mod network;
@@ -56,12 +58,18 @@ pub struct Facts {
 	// idle is whether its voltage moves, which no single reading can say.
 	power: power::Watch,
 	taken: Option<Instant>,
+	/// What the network backend joined and runs, where it configures the network.
+	wireless: Option<Report>,
 }
 
 impl Facts {
-	/// A fresh source, holding no baseline yet.
-	pub fn new() -> Self {
-		Self::default()
+	/// A fresh source, holding no baseline yet, reporting too what the network backend joined and
+	/// runs where it has one (NFO).
+	pub fn new(wireless: Option<Report>) -> Self {
+		Self {
+			wireless,
+			..Self::default()
+		}
 	}
 
 	/// Milliseconds since the device booted. Boot-relative because a device in the field may have no
@@ -93,6 +101,14 @@ impl Facts {
 			readings.extend(thermal::fan(at));
 			readings.extend(self.power.readings(at));
 		}
+		// The wireless network and hotspot are facts and change slowly; the client count is a
+		// reading and is taken every time.
+		if let Some(wireless) = &self.wireless {
+			let route = network::default_route();
+			readings.extend(wireless.entries(at, slow, |name| {
+				network::interface_trait(name, route.as_deref())
+			}));
+		}
 		readings
 	}
 }
@@ -103,7 +119,7 @@ impl crate::sampler::Source for Facts {
 	}
 
 	fn reset(&mut self) {
-		*self = Self::new();
+		*self = Self::new(self.wireless.take());
 	}
 }
 
@@ -157,7 +173,7 @@ mod tests {
 			assert!(entry.status().is_some(), "{entry:?}");
 			assert!(!entry.name.is_empty());
 		}
-		let mut source = Facts::new();
+		let mut source = Facts::new(None);
 		for _ in 0..2 {
 			for entry in source.sample(1, true) {
 				assert!(entry.status().is_some(), "{entry:?}");
@@ -170,7 +186,7 @@ mod tests {
 	/// reports no rate (NFO).
 	#[test]
 	fn the_first_sample_reports_no_rate() {
-		let mut source = Facts::new();
+		let mut source = Facts::new(None);
 		let first = source.sample(1, true);
 		assert!(
 			!first.iter().any(|e| e.name == "cpu-usage"),

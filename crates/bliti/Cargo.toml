@@ -43,7 +43,7 @@ rustix = { version = "1.1.5", default-features = false, features = ["fs"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
@@ -51,8 +51,17 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
 # Also bluer's, which is what lets the vendored-dbus feature reach it. Used directly by the network
-# applier, for systemd and networkd.
-dbus = { version = "0.9.12", default-features = false }
+# applier, for systemd and networkd, and by the network backend for iwd, asynchronously.
+dbus = { version = "0.9.12", default-features = false, features = ["futures"] }
+# iwd over the system bus, on the tokio runtime: association, range, scanning and WPS.
+dbus-tokio = "0.7.6"
+# sockaddr_ll, for the ARP probe of a link's IPv4 gateway.
+libc = "0.2.189"
+# rtnetlink: carrier, addresses and default routes, as they change.
+netlink-packet-route = "0.33.0"
+rtnetlink = "0.23.0"
+# The raw sockets the gateway probe sends ARP and ICMPv6 echo on.
+socket2 = { version = "0.6.5", features = ["all"] }
 # nl80211: what each radio can do, and the regulatory domain and hotspot interface the applier sets.
 wl-nl80211 = "0.7.0"
 

@@ -81,10 +81,6 @@ pub trait Backend: Send + 'static {
 /// A candidate's state as an entry of `state` (CFG).
 ///
 /// `verifying` carries no stage on the wire: the stage it waits on is the selector's to track.
-#[cfg_attr(
-	not(test),
-	expect(dead_code, reason = "wired in by the backend that applies selections")
-)]
 pub fn entry(state: &State) -> Json {
 	match state {
 		State::DefaultRoute => json!({"is": "default-route"}),

@@ -124,7 +124,10 @@ impl Changes {
 	/// Whether nothing changed.
 	#[cfg_attr(
 		not(test),
-		expect(dead_code, reason = "wired in by the backend that applies selections")
+		expect(
+			dead_code,
+			reason = "the backend asks only whether the regulatory domain changed"
+		)
 	)]
 	pub fn is_empty(&self) -> bool {
 		Backend::ORDER

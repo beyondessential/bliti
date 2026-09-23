@@ -37,7 +37,7 @@ fn is_reportable_interface(name: &str) -> bool {
 /// The `interface` trait: its name, and the route and overlay that describe it. `route` is `default`
 /// on the interface carrying the default route; `overlay` names the overlay where it is one. Both are
 /// descriptive: they move without changing which interface is being measured (NFO).
-fn interface_trait(name: &str, route: Option<&str>) -> Json {
+pub(super) fn interface_trait(name: &str, route: Option<&str>) -> Json {
 	let mut object = serde_json::Map::new();
 	object.insert("name".to_owned(), Json::String(name.to_owned()));
 	if Some(name) == route {
@@ -87,7 +87,7 @@ fn by_interface() -> BTreeMap<String, Vec<IpAddr>> {
 }
 
 /// The interface carrying the default route, which is the one most likely to reach this device.
-fn default_route() -> Option<String> {
+pub(super) fn default_route() -> Option<String> {
 	let raw = fs::read_to_string("/proc/net/route").ok()?;
 	raw.lines().skip(1).find_map(|line| {
 		let mut fields = line.split_whitespace();

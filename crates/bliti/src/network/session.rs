@@ -39,7 +39,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard, oneshot, watch};
 use crate::session::SessionError;
 
 pub use self::{
-	backend::{Backend, Inert},
+	backend::{Backend, Inert, entry},
 	store::{Store, default_path},
 };
 

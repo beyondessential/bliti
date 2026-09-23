@@ -121,11 +121,20 @@ fn two_statics_on_one_interface() {
 	assert!(network.contains("[Route]\nGateway=10.2.0.1\nMetric=101\n"));
 	assert!(!network.contains("10.1.0"));
 
+	// With neither brought up, the link is only brought up, so its carrier can be seen.
 	let nothing = rendered(&doc, &hardware(), &active(&[]));
+	let idle = &file(&nothing, "network/50-bliti-eth0.network").contents;
+	assert!(idle.contains("[Match]\nName=eth0\n"), "{idle}");
+	assert!(
+		idle.contains("DHCP=no\nIPv6AcceptRA=no\nLinkLocalAddressing=no\n"),
+		"{idle}"
+	);
+	assert!(!idle.contains("Address="), "{idle}");
 	assert!(
 		!paths(&nothing)
 			.iter()
-			.any(|path| path.ends_with("50-bliti-eth0.network"))
+			.any(|path| path.ends_with("50-bliti-eth1.network")),
+		"an interface no candidate names is left alone"
 	);
 
 	assert!(matches!(

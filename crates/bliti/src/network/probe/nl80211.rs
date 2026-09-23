@@ -5,11 +5,6 @@
 //! `NL80211_CMD_NEW_INTERFACE` and `NL80211_CMD_DEL_INTERFACE`, which are what `iw reg set`,
 //! `iw dev … interface add` and `iw dev … del` send.
 
-#![cfg_attr(
-	test,
-	expect(dead_code, reason = "speaks to the kernel, so tests leave it alone")
-)]
-
 use std::{collections::BTreeMap, io, path::Path};
 
 use anyhow::{Context as _, bail};
@@ -24,6 +19,10 @@ use wl_nl80211::{
 use super::{RadioInfo, model::Sysfs, wiphy};
 
 /// `NL80211_ATTR_REG_ALPHA2`, which wl-nl80211 does not name.
+#[expect(
+	dead_code,
+	reason = "the applier sets this through iw until its System speaks nl80211"
+)]
 const REG_ALPHA2: u16 = 33;
 
 /// `EOPNOTSUPP`, which a driver with no survey to give answers `NL80211_CMD_GET_SURVEY` with.
@@ -83,6 +82,10 @@ impl Nl80211 {
 	}
 
 	/// Put every radio under `domain`, `00` being the world domain.
+	#[expect(
+		dead_code,
+		reason = "the applier sets this through iw until its System speaks nl80211"
+	)]
 	pub async fn set_regulatory_domain(&self, domain: &str) -> anyhow::Result<()> {
 		let valid =
 			domain == "00" || domain.len() == 2 && domain.bytes().all(|b| b.is_ascii_uppercase());
@@ -101,6 +104,10 @@ impl Nl80211 {
 
 	/// Create the access point interface `interface` on the radio whose station interface is
 	/// `radio`, doing nothing where it exists as an access point already.
+	#[expect(
+		dead_code,
+		reason = "the applier sets this through iw until its System speaks nl80211"
+	)]
 	pub async fn create_access_point(&self, radio: &str, interface: &str) -> anyhow::Result<()> {
 		let interfaces = self.interfaces().await?;
 		if let Some(existing) = interfaces
@@ -131,6 +138,10 @@ impl Nl80211 {
 	}
 
 	/// Delete the interface `interface`, doing nothing where it does not exist.
+	#[expect(
+		dead_code,
+		reason = "the applier sets this through iw until its System speaks nl80211"
+	)]
 	pub async fn delete_access_point(&self, interface: &str) -> anyhow::Result<()> {
 		let interfaces = self.interfaces().await?;
 		let Some(existing) = interfaces
@@ -235,6 +246,10 @@ impl Nl80211 {
 	}
 
 	/// Send `message` and wait for the kernel to acknowledge it.
+	#[expect(
+		dead_code,
+		reason = "the applier sets this through iw until its System speaks nl80211"
+	)]
 	async fn acknowledged(&self, message: Nl80211Message) -> anyhow::Result<()> {
 		let mut request = NetlinkMessage::from(GenlMessage::from_payload(message));
 		request.header.flags = NLM_F_REQUEST | NLM_F_ACK;

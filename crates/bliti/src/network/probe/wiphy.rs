@@ -18,7 +18,7 @@ use wl_nl80211::{
 	Nl80211InterfaceType,
 };
 
-use super::{Band, BandInfo, Channel, RadioInfo, model::Sysfs};
+use super::{Band, BandInfo, Channel, RadioInfo, model::Sysfs, number};
 use crate::network::{render::SAE_DISABLED, select::Alongside};
 
 /// What the radio whose wiphy carries `attributes` can do.
@@ -175,20 +175,6 @@ fn channel(band: Band, info: &[Nl80211FrequencyInfo]) -> Option<Channel> {
 		no_ir,
 		radar,
 	})
-}
-
-/// The channel number of a centre frequency on a band.
-fn number(band: Band, mhz: u32) -> Option<u32> {
-	match band {
-		Band::TwoPointFour if mhz == 2484 => Some(14),
-		Band::TwoPointFour if (2412..=2472).contains(&mhz) => Some((mhz - 2407) / 5),
-		// 4.9 GHz public-safety channels are numbered from 4000 MHz.
-		Band::Five if (4910..5000).contains(&mhz) => Some((mhz - 4000) / 5),
-		Band::Five if (5000..5950).contains(&mhz) => Some((mhz - 5000) / 5),
-		Band::Six if mhz == 5935 => Some(2),
-		Band::Six if (5955..=7115).contains(&mhz) => Some((mhz - 5950) / 5),
-		_ => None,
-	}
 }
 
 /// How the radio runs an access point beside a wireless client, from its interface combinations.

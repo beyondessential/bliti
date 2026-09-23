@@ -10,11 +10,6 @@
 //! [`Stage`]s and reports back against the attempt, so a report from an attempt already superseded,
 //! by carrier dropping and returning say, is recognised as stale and ignored.
 
-#![cfg_attr(
-	not(test),
-	expect(dead_code, reason = "wired in by the backend that applies selections")
-)]
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use bliti_core::channel::config::{Attachment, AttachmentKind, Document, Hotspot, Invalid};
@@ -100,6 +95,14 @@ impl Stage {
 /// One candidate brought up on one interface, which the caller verifies and reports back against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Attempt(u64);
+
+#[cfg(test)]
+impl Attempt {
+	/// An attempt made up by a test that needs one without a selector.
+	pub fn test(n: u64) -> Self {
+		Self(n)
+	}
+}
 
 /// Something observed on the running system. Each is a reason to select again (LINK).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,6 +257,13 @@ pub enum Change {
 #[derive(Debug)]
 pub struct Update<'a> {
 	/// What should be up now.
+	#[cfg_attr(
+		not(test),
+		expect(
+			dead_code,
+			reason = "the backend reads the decision from the selector once it has followed the changes"
+		)
+	)]
 	pub decision: &'a Decision,
 	/// What differs from the decision before, in the order links, hotspot, default route, states.
 	pub changes: Vec<Change>,

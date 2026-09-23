@@ -466,7 +466,7 @@ mod tests {
 			let _ = run(
 				device_side.compat(),
 				&device_psk,
-				Sampler::start(),
+				Sampler::start(None),
 				configurator,
 			)
 			.await;
@@ -685,7 +685,7 @@ mod tests {
 			run(
 				device_side.compat(),
 				&secret(0x01),
-				Sampler::start(),
+				Sampler::start(None),
 				configurator,
 			)
 			.await
@@ -759,7 +759,13 @@ mod tests {
 			let psk = psk.clone();
 			let configurator = configurator.clone();
 			tokio::spawn(async move {
-				let _ = run(device_side.compat(), &psk, Sampler::start(), configurator).await;
+				let _ = run(
+					device_side.compat(),
+					&psk,
+					Sampler::start(None),
+					configurator,
+				)
+				.await;
 			})
 		};
 		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
@@ -782,7 +788,13 @@ mod tests {
 		tokio::spawn({
 			let psk = psk.clone();
 			async move {
-				let _ = run(device_side.compat(), &psk, Sampler::start(), configurator).await;
+				let _ = run(
+					device_side.compat(),
+					&psk,
+					Sampler::start(None),
+					configurator,
+				)
+				.await;
 			}
 		});
 		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();

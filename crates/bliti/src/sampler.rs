@@ -57,8 +57,10 @@ pub struct Sampler {
 impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
-	pub fn start() -> Self {
-		Self::start_with(Box::new(Facts::new()))
+	///
+	/// `wireless` is what the network backend joined and runs, where it configures the network.
+	pub fn start(wireless: Option<crate::network::stack::Report>) -> Self {
+		Self::start_with(Box::new(Facts::new(wireless)))
 	}
 
 	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
@@ -157,6 +159,11 @@ impl Sampler {
 					.current
 					.lock()
 					.expect("the snapshot is never held across a panic");
+				// A slow tick takes every reading, so what it does not take is no longer there, as a
+				// hotspot that has stopped is not (NFO).
+				if slow {
+					current.clear();
+				}
 				for reading in &readings {
 					current.insert(identity_key(reading), reading.clone());
 				}
@@ -175,13 +182,29 @@ impl Sampler {
 	}
 }
 
+/// The traits NFO makes wholly descriptive, and the members of others that describe.
+const DESCRIPTIVE: [&str; 4] = [STATUS, LIMITS, "security", "channel"];
+const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
+	("interface", &["route", "overlay"]),
+	("battery", &["serial", "model", "vendor"]),
+];
+
 /// A stable identity for one reading instance: its name and its distinguishing traits, leaving out
-/// the descriptive `status` and `limits` that change while the thing measured stays the same. This is
-/// only the device's own snapshot key; how a reader groups readings is its own business (NFO).
+/// the descriptive ones that change while the thing measured stays the same, as a hotspot's channel
+/// does when it follows its station. This is only the device's own snapshot key; how a reader groups
+/// readings is its own business (NFO).
 fn identity_key(entry: &Entry) -> String {
 	let mut traits = entry.traits.clone();
-	traits.remove(STATUS);
-	traits.remove(LIMITS);
+	for name in DESCRIPTIVE {
+		traits.remove(name);
+	}
+	for (name, members) in DESCRIPTIVE_MEMBERS {
+		if let Some(serde_json::Value::Object(object)) = traits.get_mut(name) {
+			for member in members {
+				object.remove(*member);
+			}
+		}
+	}
 	// serde_json sorts object keys, so member order does not change the key.
 	format!("{}\u{1f}{}", entry.name, serde_json::Value::Object(traits))
 }
@@ -324,11 +347,28 @@ mod tests {
 			.with_trait("direction", serde_json::Value::String("in".to_owned()))
 			.warning("busy");
 		assert_eq!(identity_key(&a), identity_key(&later));
+
+		// Nor do descriptive traits and members: a network on a new channel, an interface taking the
+		// default route.
+		let joined = |channel: u32, route: bool| {
+			let mut interface = json!({ "name": "wld0" });
+			if route {
+				interface["route"] = json!("default");
+			}
+			Entry::text(1, "wireless-network", "clinic")
+				.with_trait("interface", interface)
+				.with_trait("security", json!("psk"))
+				.with_trait("channel", json!({ "number": channel, "band": "2.4ghz" }))
+		};
+		assert_eq!(
+			identity_key(&joined(1, false)),
+			identity_key(&joined(11, true))
+		);
 	}
 
 	#[tokio::test(start_paused = true)]
 	async fn a_subscriber_receives_readings_as_they_are_taken() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		let mut live = sampler.live();
 
@@ -341,7 +381,7 @@ mod tests {
 	/// set at once.
 	#[tokio::test(start_paused = true)]
 	async fn the_snapshot_merges_across_fast_and_slow_ticks() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		tokio::time::sleep(FAST * 7).await;
 
@@ -350,5 +390,39 @@ mod tests {
 		// pass in virtual time, so the kernel's jiffy counters need not have advanced, and processor
 		// use correctly reports nothing when they have not.
 		assert!(names.iter().any(|n| n == "memory-usage"), "{names:?}");
+	}
+
+	/// A source reporting a hotspot for its first slow tick and not after.
+	struct Stopping {
+		slow_ticks: u32,
+	}
+
+	impl Source for Stopping {
+		fn gather(&mut self, slow: bool) -> Vec<Entry> {
+			let mut readings = vec![Entry::quantity(1, "memory-usage", "fraction", 0.5)];
+			if slow {
+				self.slow_ticks += 1;
+				if self.slow_ticks == 1 {
+					readings.push(Entry::text(1, "hotspot", "bliti"));
+				}
+			}
+			readings
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// What stops being there leaves the snapshot at the next slow tick (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn the_snapshot_forgets_what_a_slow_tick_no_longer_takes() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let names = |sampler: &Sampler| -> Vec<String> {
+			sampler.current().iter().map(|e| e.name.clone()).collect()
+		};
+		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
+		assert!(names(&sampler).contains(&"hotspot".to_owned()));
+		tokio::time::sleep(FAST * SLOW_EVERY).await;
+		assert_eq!(names(&sampler), ["memory-usage"]);
 	}
 }
