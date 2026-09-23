@@ -1,9 +1,6 @@
 //! The configuration session of CFG, driven over an in-memory stream against a fake backend.
 
-use std::{
-	sync::{Arc, Mutex as SyncMutex},
-	time::Duration,
-};
+use std::time::Duration;
 
 use bliti_core::channel::{
 	config::{Document, Invalid, Segment, path},
@@ -18,171 +15,16 @@ use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 
 use crate::network::select::Stage;
 
+use self::fake::{Applying, Call, Fake, Log, capabilities, fake, fake_observing, observed};
 use super::{
-	Backend, Configurator, Store, serve,
+	Configurator, Store, serve,
 	store::tests::{Scratch, object},
 };
 
-/// What the fake backend was asked to do, in order.
-#[derive(Debug, Clone, PartialEq)]
-enum Call {
-	Apply(Document),
-	/// An apply whose future was dropped before it finished.
-	Aborted,
-	Restore(Document),
-	Wps(String, Option<String>),
-}
-
-/// How the fake answers `apply`.
-#[derive(Debug, Clone)]
-enum Applying {
-	Succeed,
-	Fail(Invalid),
-	/// Never finishes, as a verification still under way.
-	Hang,
-}
-
-struct Shared {
-	calls: Vec<Call>,
-	applying: Applying,
-	refuse: Option<Invalid>,
-	survey: Option<Map<String, Json>>,
-	joined: Result<Map<String, Json>, Invalid>,
-}
-
-/// A backend standing in for the running system, recording what it is asked to do.
-struct Fake(Arc<SyncMutex<Shared>>);
-
-/// The test's view of a [`Fake`].
-#[derive(Clone)]
-struct Log(Arc<SyncMutex<Shared>>);
-
-impl Log {
-	fn calls(&self) -> Vec<Call> {
-		self.0.lock().unwrap().calls.clone()
-	}
-
-	fn clear(&self) {
-		self.0.lock().unwrap().calls.clear();
-	}
-
-	fn set(&self, applying: Applying) {
-		self.0.lock().unwrap().applying = applying;
-	}
-
-	fn refuse(&self, invalid: Invalid) {
-		self.0.lock().unwrap().refuse = Some(invalid);
-	}
-
-	fn surveys(&self, spectrum: Map<String, Json>) {
-		self.0.lock().unwrap().survey = Some(spectrum);
-	}
-
-	fn joins(&self, joined: Result<Map<String, Json>, Invalid>) {
-		self.0.lock().unwrap().joined = joined;
-	}
-
-	/// Wait for the backend to have been asked to do something, as a session ends on a task.
-	async fn until(&self, predicate: impl Fn(&[Call]) -> bool) -> Vec<Call> {
-		for _ in 0..200 {
-			let calls = self.calls();
-			if predicate(&calls) {
-				return calls;
-			}
-			tokio::time::sleep(Duration::from_millis(5)).await;
-		}
-		panic!("the backend was never asked; it saw {:?}", self.calls());
-	}
-}
-
-fn fake() -> (Fake, Log) {
-	let shared = Arc::new(SyncMutex::new(Shared {
-		calls: Vec::new(),
-		applying: Applying::Succeed,
-		refuse: None,
-		survey: None,
-		joined: Err(Invalid {
-			at: path(&[]),
-			reason: "no access point is offering WPS".to_owned(),
-			reached: None,
-		}),
-	}));
-	(Fake(shared.clone()), Log(shared))
-}
-
-/// Records that an apply was dropped before it finished.
-struct OnAbort(Arc<SyncMutex<Shared>>);
-
-impl Drop for OnAbort {
-	fn drop(&mut self) {
-		self.0.lock().unwrap().calls.push(Call::Aborted);
-	}
-}
-
-impl Backend for Fake {
-	fn capabilities(&self) -> Map<String, Json> {
-		object(json!({"wps": ["push-button"], "x-shape-under-review": true}))
-	}
-
-	fn check(&self, _document: &Document) -> Result<(), Invalid> {
-		match &self.0.lock().unwrap().refuse {
-			Some(invalid) => Err(invalid.clone()),
-			None => Ok(()),
-		}
-	}
-
-	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
-		let applying = {
-			let mut shared = self.0.lock().unwrap();
-			shared.calls.push(Call::Apply(document.clone()));
-			shared.applying.clone()
-		};
-		match applying {
-			Applying::Succeed => Ok(()),
-			Applying::Fail(invalid) => Err(invalid),
-			Applying::Hang => {
-				let _abort = OnAbort(self.0.clone());
-				std::future::pending().await
-			}
-		}
-	}
-
-	async fn restore(&mut self, document: &Document) -> anyhow::Result<()> {
-		self.0
-			.lock()
-			.unwrap()
-			.calls
-			.push(Call::Restore(document.clone()));
-		Ok(())
-	}
-
-	async fn scan(&mut self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
-		Ok(vec![
-			json!({"interface": interface.unwrap_or("wlan0"), "ssid": "Clinic", "signal": -61}),
-		])
-	}
-
-	async fn survey(
-		&mut self,
-		_interface: Option<&str>,
-	) -> Result<Option<Map<String, Json>>, Invalid> {
-		Ok(self.0.lock().unwrap().survey.clone())
-	}
-
-	async fn wps(
-		&mut self,
-		method: &str,
-		interface: Option<&str>,
-		_base: &Map<String, Json>,
-	) -> Result<Map<String, Json>, Invalid> {
-		let mut shared = self.0.lock().unwrap();
-		shared.calls.push(Call::Wps(
-			method.to_owned(),
-			interface.map(ToOwned::to_owned),
-		));
-		shared.joined.clone()
-	}
-}
+mod capabilities;
+mod fake;
+mod state;
+mod wps;
 
 /// The recorded configuration the tests start from: a wall port, and a member a newer client added.
 fn recorded() -> Map<String, Json> {
@@ -229,9 +71,18 @@ struct Device {
 
 impl Device {
 	async fn new() -> Self {
+		Self::build(false).await
+	}
+
+	/// A device whose backend publishes the state of its candidates.
+	async fn observing() -> Self {
+		Self::build(true).await
+	}
+
+	async fn build(observing: bool) -> Self {
 		let scratch = Scratch::new();
 		scratch.store().record(recorded()).await.unwrap();
-		let (backend, log) = fake();
+		let (backend, log) = fake_observing(observing);
 		let configurator =
 			Configurator::start(backend, scratch.store(), object(json!({"attachments": []})))
 				.await
@@ -333,9 +184,7 @@ async fn opening_a_session_returns_the_configuration_in_force_and_the_capabiliti
 		recv(&mut client).await,
 		Message::Configuration {
 			document: recorded(),
-			capabilities: Some(object(
-				json!({"wps": ["push-button"], "x-shape-under-review": true})
-			)),
+			capabilities: Some(capabilities()),
 		},
 		"the recorded document is echoed raw, with the member this build does not know"
 	);
@@ -897,65 +746,6 @@ async fn survey_is_answered_with_the_spectrum_or_invalid_where_unsupported() {
 	device.log.surveys(spectrum.clone());
 	send(&mut client, Message::Survey { interface: None }).await;
 	assert_eq!(recv(&mut client).await, Message::Spectrum { spectrum });
-}
-
-#[tokio::test]
-async fn wps_proposes_what_it_joined_for_the_client_to_confirm() {
-	let device = Device::new().await;
-	let (mut client, _task, _) = device.opened().await;
-	device.log.joins(Ok(proposal()));
-	send(
-		&mut client,
-		Message::Wps {
-			method: "push-button".to_owned(),
-			interface: None,
-		},
-	)
-	.await;
-	assert_eq!(
-		recv(&mut client).await,
-		Message::Configuration {
-			document: proposal(),
-			capabilities: None,
-		}
-	);
-	assert_eq!(
-		recv(&mut client).await,
-		Message::Applied { capabilities: None }
-	);
-	assert_eq!(device.store().load().unwrap(), Some(recorded()));
-
-	assert_eq!(confirmed(&mut client).await, proposal());
-	assert_eq!(device.store().load().unwrap(), Some(proposal()));
-	assert_eq!(
-		device.log.calls(),
-		[Call::Wps("push-button".to_owned(), None)]
-	);
-}
-
-#[tokio::test]
-async fn wps_that_fails_is_invalid_and_restores() {
-	let device = Device::new().await;
-	let (mut client, _task, _) = device.opened().await;
-	send(
-		&mut client,
-		Message::Wps {
-			method: "pin".to_owned(),
-			interface: Some("wlan0".to_owned()),
-		},
-	)
-	.await;
-	assert!(matches!(
-		recv(&mut client).await,
-		Message::Invalid { at, .. } if at == "$"
-	));
-	assert_eq!(
-		device.log.calls(),
-		[
-			Call::Wps("pin".to_owned(), Some("wlan0".to_owned())),
-			Call::Restore(parsed(&recorded())),
-		]
-	);
 }
 
 #[tokio::test]

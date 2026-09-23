@@ -13,10 +13,20 @@
 //! a newer proposal interrupts it at once; anything else waits for the proposal's answer. Every
 //! proposal is answered exactly once, an interrupted one with `invalid`, so a client can pair each
 //! answer with the proposal it answers by counting.
+//!
+//! Nothing reaches the backend that the capabilities do not cover: a proposal is held to the mirror of
+//! `capabilities.document` and an act to `capabilities.acts` (NET), with [`bliti_core`]'s checker, the
+//! one a client checks with. The backend's own [`Backend::check`] is left what the mirror cannot say.
+//!
+//! The backend publishes the state of each candidate, and the session passes it on as `state`: after
+//! the opening `configuration`, whenever it changes, and each time the configuration running changes,
+//! which is at an answer to a proposal and at a `discard`. While a proposal is being verified the
+//! running configuration is neither the old nor the new, so states wait for its answer.
 
 use std::{collections::VecDeque, future::Future, io, pin::pin, sync::Arc};
 
 use bliti_core::channel::{
+	capabilities,
 	config::{Document, Invalid, path},
 	envelope::{Reading, read},
 	messages::Message,
@@ -24,7 +34,7 @@ use bliti_core::channel::{
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Stream, StreamExt, stream};
 use serde_json::{Map, Value as Json};
-use tokio::sync::{Mutex, OwnedMutexGuard};
+use tokio::sync::{Mutex, OwnedMutexGuard, oneshot, watch};
 
 use crate::session::SessionError;
 
@@ -153,10 +163,15 @@ where
 	};
 	tracing::info!("configuration session opened");
 
+	let states = state.backend.states();
 	let mut session = Open {
 		state: Some(state),
 		applied: None,
 		provisional: false,
+		told: Map::new(),
+		states,
+		observing: true,
+		sent: None,
 	};
 	let result = session.converse(stream).await;
 	session.revert().await;
@@ -174,6 +189,14 @@ struct Open<B: Backend> {
 	/// Whether the running system may differ from the recorded configuration: a proposal is applied,
 	/// or an attempt at one was started.
 	provisional: bool,
+	/// The capabilities the client was last told of, against which `applied` says whether they changed.
+	told: Map<String, Json>,
+	/// The state of each candidate, as the backend publishes it.
+	states: watch::Receiver<Option<Vec<Json>>>,
+	/// Whether the backend may still publish a change of state.
+	observing: bool,
+	/// The states last sent for the configuration running, cleared when that changes.
+	sent: Option<Vec<Json>>,
 }
 
 /// What a session does to the running system, which a `discard` or a newer one interrupts.
@@ -194,6 +217,12 @@ enum Outcome<T> {
 enum Step {
 	Carry,
 	Ended,
+}
+
+/// What the session waits on between messages.
+enum Woken {
+	Message(Option<Message>),
+	States(bool),
 }
 
 /// The messages of a stream, read so that a read in progress survives the reader being raced against
@@ -276,8 +305,13 @@ fn interrupted(reason: &str) -> Invalid {
 
 /// Race an attempt against the stream. A `discard` or a newer proposal interrupts it, dropping the
 /// attempt, which aborts it; anything else waits in `deferred` for the attempt's answer.
+///
+/// A PIN the attempt generates is sent the moment it arrives, since the operator enters it while the
+/// join goes on, and always before the attempt's answer (CFG).
 async fn verify<T>(
 	attempt: impl Future<Output = T>,
+	mut generated: Option<oneshot::Receiver<String>>,
+	writer: &mut (impl AsyncWrite + Unpin),
 	incoming: &mut impl Incoming,
 	deferred: &mut VecDeque<Message>,
 ) -> Result<Outcome<T>, SessionError> {
@@ -285,6 +319,18 @@ async fn verify<T>(
 	loop {
 		tokio::select! {
 			biased;
+
+			generated_pin = async {
+				match &mut generated {
+					Some(receiver) => receiver.await,
+					None => std::future::pending().await,
+				}
+			} => {
+				generated = None;
+				if let Ok(pin) = generated_pin {
+					send_pin(writer, pin).await?;
+				}
+			},
 
 			message = next(incoming) => match message? {
 				None => return Ok(Outcome::Ended),
@@ -298,9 +344,60 @@ async fn verify<T>(
 				Some(other) => deferred.push_back(other),
 			},
 
-			result = &mut attempt => return Ok(Outcome::Finished(result)),
+			result = &mut attempt => {
+				if let Some(Ok(pin)) = generated.map(|mut receiver| receiver.try_recv()) {
+					send_pin(writer, pin).await?;
+				}
+				return Ok(Outcome::Finished(result));
+			}
 		}
 	}
+}
+
+async fn send_pin<W: AsyncWrite + Unpin>(writer: &mut W, pin: String) -> Result<(), SessionError> {
+	tracing::info!("passing on the WPS PIN");
+	send(writer, &Message::Pin { pin }).await
+}
+
+/// Refuse an act the capabilities do not offer, at the act's own message (NET, CFG): `$` for an act
+/// not offered at all, and the member at fault for one offered but not so.
+fn offered(
+	capabilities: &Map<String, Json>,
+	act: &str,
+	members: &[(&str, Option<&str>)],
+) -> Result<(), Invalid> {
+	let message: Map<String, Json> = members
+		.iter()
+		.filter_map(|(name, value)| value.map(|value| ((*name).to_owned(), Json::from(value))))
+		.collect();
+	match capabilities
+		.get("acts")
+		.and_then(Json::as_object)
+		.and_then(|acts| acts.get(act))
+	{
+		Some(Json::Bool(true)) => Ok(()),
+		Some(Json::Object(mirror)) => capabilities::check(&message, mirror),
+		_ => Err(Invalid {
+			at: path(&[]),
+			reason: format!("this device does not offer `{act}`"),
+			reached: None,
+		}),
+	}
+}
+
+/// Refuse a document asking for anything `capabilities.document` does not cover (NET).
+fn within(capabilities: &Map<String, Json>, document: &Map<String, Json>) -> Result<(), Invalid> {
+	let empty = Map::new();
+	let mirror = capabilities
+		.get("document")
+		.and_then(Json::as_object)
+		.unwrap_or(&empty);
+	capabilities::check(document, mirror)
+}
+
+/// How many candidates a document carries, which is how many entries its `state` has.
+fn candidates(proposal: &Proposal) -> usize {
+	proposal.document.attachments.len()
 }
 
 impl<B: Backend> Open<B> {
@@ -310,11 +407,74 @@ impl<B: Backend> Open<B> {
 			.expect("held until the session is dropped")
 	}
 
-	/// The document the running system is meant to match: the applied proposal, or the recorded one.
-	fn in_force(&mut self) -> Map<String, Json> {
+	/// The configuration the running system is meant to match: the applied proposal, or the recorded
+	/// one.
+	fn running(&self) -> &Proposal {
 		match &self.applied {
-			Some(proposal) => proposal.raw.clone(),
-			None => self.state().recorded.raw.clone(),
+			Some(proposal) => proposal,
+			None => {
+				&self
+					.state
+					.as_ref()
+					.expect("held until the session is dropped")
+					.recorded
+			}
+		}
+	}
+
+	fn in_force(&self) -> Map<String, Json> {
+		self.running().raw.clone()
+	}
+
+	/// Send the state of each candidate where it is known, matches the configuration running, and
+	/// differs from what was last sent for it (CFG).
+	async fn send_state(
+		&mut self,
+		writer: &mut (impl AsyncWrite + Unpin),
+	) -> Result<(), SessionError> {
+		let Some(entries) = self.states.borrow_and_update().clone() else {
+			return Ok(());
+		};
+		let running = candidates(self.running());
+		if entries.len() != running {
+			// Published for a configuration the running one has since replaced, or not yet caught up.
+			tracing::debug!(
+				entries = entries.len(),
+				running,
+				"candidate states do not match the configuration running; held back"
+			);
+			return Ok(());
+		}
+		if self.sent.as_ref() == Some(&entries) {
+			return Ok(());
+		}
+		send(
+			writer,
+			&Message::State {
+				attachments: entries.clone(),
+			},
+		)
+		.await?;
+		self.sent = Some(entries);
+		Ok(())
+	}
+
+	/// Wait for the next message, sending each change of state that arrives meanwhile.
+	async fn wait(
+		&mut self,
+		writer: &mut (impl AsyncWrite + Unpin),
+		incoming: &mut impl Incoming,
+	) -> Result<Option<Message>, SessionError> {
+		loop {
+			let woken = tokio::select! {
+				message = next(incoming) => Woken::Message(message?),
+				changed = self.states.changed(), if self.observing => Woken::States(changed.is_ok()),
+			};
+			match woken {
+				Woken::Message(message) => return Ok(message),
+				Woken::States(true) => self.send_state(writer).await?,
+				Woken::States(false) => self.observing = false,
+			}
 		}
 	}
 
@@ -327,10 +487,11 @@ impl<B: Backend> Open<B> {
 		let mut deferred = VecDeque::new();
 
 		self.answer_configure(&mut writer).await?;
+		self.send_state(&mut writer).await?;
 		loop {
 			let message = match deferred.pop_front() {
 				Some(message) => message,
-				None => match next(&mut incoming).await? {
+				None => match self.wait(&mut writer, &mut incoming).await? {
 					Some(message) => message,
 					None => return Ok(()),
 				},
@@ -367,8 +528,18 @@ impl<B: Backend> Open<B> {
 			Message::Discard => {
 				tracing::info!("proposal discarded");
 				self.revert().await;
+				self.send_state(writer).await?;
 			}
 			Message::Scan { interface } => {
+				let capabilities = self.state().backend.capabilities();
+				if let Err(invalid) = offered(
+					&capabilities,
+					"scan",
+					&[("interface", interface.as_deref())],
+				) {
+					send_invalid(writer, invalid).await?;
+					return Ok(Step::Carry);
+				}
 				match self.state().backend.scan(interface.as_deref()).await {
 					Ok(networks) => {
 						send(
@@ -383,6 +554,15 @@ impl<B: Backend> Open<B> {
 				}
 			}
 			Message::Survey { interface } => {
+				let capabilities = self.state().backend.capabilities();
+				if let Err(invalid) = offered(
+					&capabilities,
+					"survey",
+					&[("interface", interface.as_deref())],
+				) {
+					send_invalid(writer, invalid).await?;
+					return Ok(Step::Carry);
+				}
 				match self.state().backend.survey(interface.as_deref()).await {
 					Ok(Some(spectrum)) => send(writer, &Message::Spectrum { spectrum }).await?,
 					Ok(None) => {
@@ -427,6 +607,7 @@ impl<B: Backend> Open<B> {
 	) -> Result<(), SessionError> {
 		let document = self.in_force();
 		let capabilities = self.state().backend.capabilities();
+		self.told = capabilities.clone();
 		send(
 			writer,
 			&Message::Configuration {
@@ -450,20 +631,23 @@ impl<B: Backend> Open<B> {
 			let outcome = match attempt {
 				Attempt::Propose(raw) => {
 					let proposal = match Proposal::parse(raw).and_then(|proposal| {
-						self.state().backend.check(&proposal.document)?;
+						let backend = &self.state().backend;
+						within(&backend.capabilities(), &proposal.raw)?;
+						backend.check(&proposal.document)?;
 						Ok(proposal)
 					}) {
 						Ok(proposal) => proposal,
 						Err(invalid) => {
-							send_invalid(writer, before_applying(invalid)).await?;
+							self.refuse(writer, before_applying(invalid)).await?;
 							continue;
 						}
 					};
 					tracing::info!("applying a proposal");
 					self.applied = None;
 					self.provisional = true;
+					self.sent = None;
 					let applying = self.state().backend.apply(&proposal.document);
-					match verify(applying, incoming, deferred).await? {
+					match verify(applying, None, writer, incoming, deferred).await? {
 						Outcome::Finished(Ok(())) => Outcome::Finished(Ok((proposal, false))),
 						Outcome::Finished(Err(invalid)) => Outcome::Finished(Err(invalid)),
 						Outcome::Discarded => Outcome::Discarded,
@@ -472,15 +656,29 @@ impl<B: Backend> Open<B> {
 					}
 				}
 				Attempt::Wps(method, interface) => {
+					let capabilities = self.state().backend.capabilities();
+					if let Err(invalid) = offered(
+						&capabilities,
+						"wps",
+						&[
+							("method", Some(&method)),
+							("interface", interface.as_deref()),
+						],
+					) {
+						self.refuse(writer, invalid).await?;
+						continue;
+					}
 					tracing::info!(%method, ?interface, "joining by WPS");
 					let base = self.in_force();
 					self.applied = None;
 					self.provisional = true;
-					let joining = self
-						.state()
-						.backend
-						.wps(&method, interface.as_deref(), &base);
-					match verify(joining, incoming, deferred).await? {
+					self.sent = None;
+					let (pin, generated) = oneshot::channel();
+					let joining =
+						self.state()
+							.backend
+							.wps(&method, interface.as_deref(), &base, pin);
+					match verify(joining, Some(generated), writer, incoming, deferred).await? {
 						Outcome::Finished(Ok(raw)) => {
 							Outcome::Finished(Proposal::parse(raw).map(|proposal| (proposal, true)))
 						}
@@ -508,16 +706,30 @@ impl<B: Backend> Open<B> {
 					}
 					self.applied = Some(proposal);
 					tracing::info!("proposal applied");
-					send(writer, &Message::Applied { capabilities: None }).await?;
+					// What applying changed of the capabilities is what the client checks its next
+					// proposal against, and what this session checks it against (CFG).
+					let now = self.state().backend.capabilities();
+					let changed = (now != self.told).then(|| now.clone());
+					self.told = now;
+					send(
+						writer,
+						&Message::Applied {
+							capabilities: changed,
+						},
+					)
+					.await?;
+					self.send_state(writer).await?;
 				}
 				Outcome::Finished(Err(invalid)) => {
 					self.revert().await;
 					send_invalid(writer, invalid).await?;
+					self.send_state(writer).await?;
 				}
 				Outcome::Discarded => {
 					tracing::info!("proposal discarded while being verified");
 					self.revert().await;
 					send_invalid(writer, interrupted("discarded before it was verified")).await?;
+					self.send_state(writer).await?;
 				}
 				Outcome::Superseded(attempt) => {
 					tracing::info!("proposal superseded while being verified");
@@ -532,6 +744,22 @@ impl<B: Backend> Open<B> {
 			}
 		}
 		Ok(Step::Carry)
+	}
+
+	/// Refuse an attempt before anything of it is applied. Where it superseded one still being
+	/// verified, what that one left running is neither applied nor recorded, so the recorded
+	/// configuration is restored.
+	async fn refuse(
+		&mut self,
+		writer: &mut (impl AsyncWrite + Unpin),
+		invalid: Invalid,
+	) -> Result<(), SessionError> {
+		send_invalid(writer, invalid).await?;
+		if self.applied.is_none() && self.provisional {
+			self.revert().await;
+			self.send_state(writer).await?;
+		}
+		Ok(())
 	}
 
 	/// Record the applied proposal and answer with what is now in force (CFG). With nothing applied,
@@ -585,7 +813,9 @@ impl<B: Backend> Open<B> {
 
 	/// Return to the recorded configuration, keeping nothing of the proposal (CFG).
 	async fn revert(&mut self) {
-		self.applied = None;
+		if self.applied.take().is_some() || self.provisional {
+			self.sent = None;
+		}
 		if self.provisional {
 			tracing::info!("restoring the recorded network configuration");
 			self.state().restore().await;

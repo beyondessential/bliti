@@ -727,7 +727,11 @@ mod tests {
 				.cloned()
 				.unwrap()
 		);
-		assert!(capabilities.is_empty(), "this build states no capabilities");
+		assert_eq!(
+			serde_json::Value::Object(capabilities),
+			serde_json::json!({"document": {}, "acts": {}}),
+			"this build offers no member and no act"
+		);
 
 		let mut second = streams.open().await.unwrap();
 		write_message(&mut second, &Message::Configure.to_json())
