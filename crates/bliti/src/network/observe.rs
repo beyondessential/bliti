@@ -200,6 +200,21 @@ pub trait Air: Send + Sync + 'static {
 
 	/// The radio address of `interface`, lower case and colon-separated, where it has one.
 	fn address(&self, interface: &str) -> Option<String>;
+
+	/// The channel `interface` operates on now, where it is on one.
+	fn operating(&self, interface: &str) -> BoxFuture<'static, Result<Option<Operating>, String>>;
+
+	/// How many clients are joined to the access point on `interface`.
+	fn clients(&self, interface: &str) -> BoxFuture<'static, Result<usize, String>>;
+}
+
+/// The channel an interface operates on, as nl80211 reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Operating {
+	/// The primary channel's centre frequency, in MHz.
+	pub frequency: u32,
+	/// The width, in MHz, where nl80211 names one.
+	pub width: Option<u32>,
 }
 
 /// How busy one channel was, as a radio's survey says.

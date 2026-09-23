@@ -85,6 +85,8 @@ enum Internal {
 		taken: u64,
 		/// The attempts it brought up.
 		attempts: Vec<Attempt>,
+		/// The hotspot it brought up, by SSID.
+		hotspot: Option<String>,
 	},
 	Reprobed(anyhow::Result<Vec<RadioInfo>>),
 	Scanned {
@@ -357,6 +359,13 @@ impl Driver {
 
 	fn station(&mut self, interface: String, station: Station) {
 		self.stations.insert(interface.clone(), station.clone());
+		match &station {
+			Station::Connected(joined) => {
+				self.shared.report.station(&interface, Some(joined.clone()))
+			}
+			Station::Disconnected => self.shared.report.station(&interface, None),
+			Station::Busy => {}
+		}
 		if self.held.contains(&interface) {
 			return;
 		}
@@ -397,11 +406,13 @@ impl Driver {
 				result,
 				taken,
 				attempts,
+				hotspot,
 			} => {
 				self.system = Some(system);
 				self.done = taken;
 				match result {
 					Ok(changes) => {
+						self.shared.report.hotspot(hotspot);
 						if !changes.regdom.is_empty() {
 							self.reprobe();
 						}
@@ -600,6 +611,7 @@ impl Driver {
 			}
 			Ok(joined) => {
 				check.at = Some(Stage::Addressing);
+				self.shared.report.station(&interface, Some(joined.clone()));
 				self.feed(Event::Passed {
 					attempt,
 					stage: Stage::Association,
@@ -865,6 +877,17 @@ impl Driver {
 			.map(|link| link.attempt)
 			.collect();
 		let hardware = self.shared.render.clone();
+		let hotspot = rendered
+			.files
+			.iter()
+			.any(|file| file.path == hardware.paths.hostapd)
+			.then(|| {
+				self.document
+					.hotspot
+					.as_ref()
+					.map(|hotspot| hotspot.ssid.clone())
+			})
+			.flatten();
 		let state = self.shared.config.state.clone();
 		let internal = self.internal.clone();
 		tokio::task::spawn_blocking(move || {
@@ -874,6 +897,7 @@ impl Driver {
 				result,
 				taken,
 				attempts,
+				hotspot,
 			});
 		});
 	}

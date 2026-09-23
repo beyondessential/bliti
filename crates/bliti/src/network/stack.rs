@@ -30,8 +30,11 @@ use super::{
 	session::{Backend, Inert},
 };
 
+pub use self::report::Report;
+
 mod acts;
 mod driver;
+mod report;
 #[cfg(test)]
 mod tests;
 mod verify;
@@ -77,6 +80,8 @@ struct Shared {
 	render: render::Hardware,
 	/// The radio driven, as last probed, and the capabilities stated from it.
 	probed: Mutex<Probed>,
+	/// What is joined and run, for NFO.
+	report: Report,
 }
 
 struct Probed {
@@ -142,6 +147,7 @@ impl Stack {
 			config.paths.clone(),
 		);
 		let capabilities = probe::capabilities(&radios, &config.wired, &probe::Backend::stack());
+		let report = Report::new(platform.air.clone(), config.access_point.clone());
 		let shared = Arc::new(Shared {
 			config,
 			platform,
@@ -151,6 +157,7 @@ impl Stack {
 				radios,
 				capabilities,
 			}),
+			report,
 		});
 		let (states_tx, states) = watch::channel(None);
 		let (commands, receiver) = mpsc::unbounded_channel();
@@ -181,6 +188,11 @@ impl Stack {
 			access_point: ACCESS_POINT.into(),
 		};
 		Self::start(config, platform, Box::new(system), observations).await
+	}
+
+	/// What the backend knows of the wireless networks joined and the hotspot run, for NFO.
+	pub fn report(&self) -> Report {
+		self.shared.report.clone()
 	}
 
 	/// Send the task a command and wait for its answer.
@@ -261,6 +273,16 @@ pub enum Chosen {
 	Inert(Inert),
 	/// Configuring the network.
 	Stack(Box<Stack>),
+}
+
+impl Chosen {
+	/// What the backend reports for NFO, where it configures anything to report on.
+	pub fn report(&self) -> Option<Report> {
+		match self {
+			Self::Inert(_) => None,
+			Self::Stack(stack) => Some(stack.report()),
+		}
+	}
 }
 
 impl Backend for Chosen {

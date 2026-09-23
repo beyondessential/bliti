@@ -57,8 +57,10 @@ pub struct Sampler {
 impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
-	pub fn start() -> Self {
-		Self::start_with(Box::new(Facts::new()))
+	///
+	/// `wireless` is what the network backend joined and runs, where it configures the network.
+	pub fn start(wireless: Option<crate::network::stack::Report>) -> Self {
+		Self::start_with(Box::new(Facts::new(wireless)))
 	}
 
 	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
@@ -361,7 +363,7 @@ mod tests {
 
 	#[tokio::test(start_paused = true)]
 	async fn a_subscriber_receives_readings_as_they_are_taken() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		let mut live = sampler.live();
 
@@ -374,7 +376,7 @@ mod tests {
 	/// set at once.
 	#[tokio::test(start_paused = true)]
 	async fn the_snapshot_merges_across_fast_and_slow_ticks() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		tokio::time::sleep(FAST * 7).await;
 

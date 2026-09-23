@@ -1,12 +1,16 @@
-//! What the radios heard and found busy, over nl80211: `NL80211_CMD_GET_SCAN` and
-//! `NL80211_CMD_GET_SURVEY`, both dumps that read what the kernel holds and change nothing.
+//! What the radios heard, found busy and are doing, over nl80211: `NL80211_CMD_GET_SCAN`,
+//! `NL80211_CMD_GET_SURVEY`, `NL80211_CMD_GET_INTERFACE` and `NL80211_CMD_GET_STATION`, all dumps
+//! that read what the kernel holds and change nothing.
 
 use std::{fs, io};
 
 use futures::{TryStreamExt as _, future::BoxFuture};
-use wl_nl80211::{Nl80211Attr, Nl80211BssInfo, Nl80211Handle, Nl80211Survey, Nl80211SurveyInfo};
+use wl_nl80211::{
+	Nl80211Attr, Nl80211BssInfo, Nl80211ChannelWidth, Nl80211Handle, Nl80211Survey,
+	Nl80211SurveyInfo,
+};
 
-use super::{Surveyed, bss::AccessPoint};
+use super::{Operating, Surveyed, bss::AccessPoint};
 use crate::network::probe::{Nl80211, RadioInfo};
 
 /// The radios, over nl80211.
@@ -129,5 +133,62 @@ impl super::Air for Air {
 	fn address(&self, interface: &str) -> Option<String> {
 		let text = fs::read_to_string(format!("/sys/class/net/{interface}/address")).ok()?;
 		Some(text.trim().to_ascii_lowercase())
+	}
+
+	fn operating(&self, interface: &str) -> BoxFuture<'static, Result<Option<Operating>, String>> {
+		let handle = self.handle.clone();
+		let interface = interface.to_owned();
+		Box::pin(async move {
+			let messages: Vec<_> = handle
+				.interface()
+				.get(Vec::new())
+				.execute()
+				.await
+				.try_collect()
+				.await
+				.map_err(|error| error.to_string())?;
+			for message in messages {
+				let attributes = &message.payload.attributes;
+				let named = attributes.iter().any(
+					|attribute| matches!(attribute, Nl80211Attr::IfName(name) if *name == interface),
+				);
+				if !named {
+					continue;
+				}
+				let (mut frequency, mut width) = (None, None);
+				for attribute in attributes {
+					match attribute {
+						Nl80211Attr::WiphyFreq(value) => frequency = Some(*value),
+						Nl80211Attr::ChannelWidth(Nl80211ChannelWidth::NoHt20) => width = Some(20),
+						Nl80211Attr::ChannelWidth(Nl80211ChannelWidth::Mhz(value)) => {
+							width = Some(*value);
+						}
+						Nl80211Attr::ChannelWidth(Nl80211ChannelWidth::Mhz80Plus80) => {
+							width = Some(160);
+						}
+						_ => {}
+					}
+				}
+				return Ok(frequency.map(|frequency| Operating { frequency, width }));
+			}
+			Ok(None)
+		})
+	}
+
+	fn clients(&self, interface: &str) -> BoxFuture<'static, Result<usize, String>> {
+		let handle = self.handle.clone();
+		let interface = interface.to_owned();
+		Box::pin(async move {
+			let index = index(&interface)?;
+			let stations: Vec<_> = handle
+				.station()
+				.dump(index)
+				.execute()
+				.await
+				.try_collect()
+				.await
+				.map_err(|error| error.to_string())?;
+			Ok(stations.len())
+		})
 	}
 }

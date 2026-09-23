@@ -14,7 +14,9 @@ use tokio::sync::{mpsc, oneshot};
 use super::*;
 use crate::network::{
 	apply::Hostapd,
-	observe::{Joined, Observation, Station, Surveyed, Target, WpsFailed, bss::AccessPoint},
+	observe::{
+		Joined, Observation, Operating, Station, Surveyed, Target, WpsFailed, bss::AccessPoint,
+	},
 	probe::{Band, BandInfo, Channel},
 	select::{Alongside, State},
 };
@@ -178,6 +180,8 @@ struct FakeAir {
 	heard: Vec<AccessPoint>,
 	surveyed: Vec<Surveyed>,
 	addresses: BTreeMap<String, String>,
+	operating: BTreeMap<String, Operating>,
+	clients: usize,
 }
 
 impl crate::network::observe::Air for FakeAir {
@@ -201,6 +205,16 @@ impl crate::network::observe::Air for FakeAir {
 
 	fn address(&self, interface: &str) -> Option<String> {
 		self.addresses.get(interface).cloned()
+	}
+
+	fn operating(&self, interface: &str) -> BoxFuture<'static, Result<Option<Operating>, String>> {
+		let operating = self.operating.get(interface).copied();
+		Box::pin(async move { Ok(operating) })
+	}
+
+	fn clients(&self, _interface: &str) -> BoxFuture<'static, Result<usize, String>> {
+		let clients = self.clients;
+		Box::pin(async move { Ok(clients) })
 	}
 }
 
@@ -911,4 +925,70 @@ async fn a_failed_candidate_is_tried_again_where_nothing_else_is_up() {
 	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])
 		.await;
 	assert_eq!(rig.states(), [json!({"is": "default-route"})]);
+}
+
+/// What is joined and run is reported as NFO has it, channels as the radio is on them (NFO).
+#[tokio::test(start_paused = true)]
+async fn what_is_joined_and_run_is_reported() {
+	let on = |frequency| Operating {
+		frequency,
+		width: Some(20),
+	};
+	let mut rig = Rig::new(FakeAir {
+		radios: vec![radio()],
+		operating: BTreeMap::from([("wld0".into(), on(2412)), ("ap0".into(), on(2412))]),
+		clients: 2,
+		..FakeAir::default()
+	})
+	.await;
+	rig.answers("192.0.2.1");
+	rig.iwd.heard.lock().unwrap().insert("clinic".into(), -55);
+	rig.iwd
+		.joins
+		.lock()
+		.unwrap()
+		.insert("clinic".into(), Ok(joined("clinic", 2412)));
+	let report = rig.stack.report();
+	let entries = |slow| {
+		let report = report.clone();
+		tokio::task::spawn_blocking(move || report.entries(7, slow, |name| json!({"name": name})))
+	};
+	assert!(
+		entries(true).await.unwrap().is_empty(),
+		"nothing joined or run"
+	);
+
+	let answer = applying(
+		&mut rig,
+		document(json!({
+			"attachments": [clinic()],
+			"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		})),
+	);
+	idle().await;
+	rig.see([leased("wld0", "192.0.2.10"), routed("wld0", "192.0.2.1")])
+		.await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+
+	let entries_now: Vec<(String, Json, Map<String, Json>)> = entries(true)
+		.await
+		.unwrap()
+		.into_iter()
+		.map(|entry| (entry.name, entry.value.unwrap_or_default(), entry.traits))
+		.collect();
+	let channel = json!({"number": 1, "band": "2.4ghz", "width": 20});
+	assert_eq!(entries_now[0].0, "wireless-network");
+	assert_eq!(entries_now[0].1, "clinic");
+	assert_eq!(entries_now[0].2["interface"], json!({"name": "wld0"}));
+	assert_eq!(entries_now[0].2["security"], "psk");
+	assert_eq!(entries_now[0].2["channel"], channel);
+	assert_eq!(entries_now[1].0, "hotspot");
+	assert_eq!(entries_now[1].1, "bliti");
+	assert_eq!(entries_now[1].2["channel"], channel);
+	assert_eq!(entries_now[2].0, "hotspot-clients");
+	assert_eq!(entries_now[2].1, json!(2.0));
+
+	let fast = entries(false).await.unwrap();
+	assert_eq!(fast.len(), 1, "only the client count is taken every tick");
+	assert_eq!(fast[0].name, "hotspot-clients");
 }

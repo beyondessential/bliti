@@ -61,6 +61,7 @@ pub async fn run(
 				.context("starting the network backend")?,
 		)),
 	};
+	let wireless = backend.report();
 	let configurator = Configurator::start(
 		backend,
 		Store::new(network),
@@ -87,7 +88,7 @@ pub async fn run(
 
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
-	let sampler = crate::sampler::Sampler::start();
+	let sampler = crate::sampler::Sampler::start(wireless);
 	let _application = adapter
 		.serve_gatt_application(application(
 			&sink,
