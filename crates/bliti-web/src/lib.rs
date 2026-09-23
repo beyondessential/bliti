@@ -18,6 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 use bliti_core::{
 	advertisement::Advertised,
 	channel::{
+		capabilities,
 		envelope::{Reading, read},
 		messages::Message,
 		stream::{Mode, Opener, Stream, connect_initiator, multiplex, read_message, write_message},
@@ -62,6 +63,47 @@ pub fn client_tx_uuid() -> String {
 #[wasm_bindgen]
 pub fn device_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
+}
+
+/// Whether a document stays within a device's `capabilities.document`, checked before it is proposed
+/// (NSCR) with the checker the device rejects with (NET), so the two cannot disagree.
+///
+/// Both are plain objects. Null where the document is within them, or `{ at, reason }` naming the
+/// first member they do not cover. The reason is the checker's, for logs; a screen words its own.
+#[wasm_bindgen]
+pub fn check_capabilities(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	let text = |value: &JsValue, what: &str| {
+		JSON::stringify(value)
+			.map(String::from)
+			.map_err(|_| JsError::new(&format!("the {what} cannot be written as JSON")))
+	};
+	let fault = capability_fault(
+		&text(&document, "document")?,
+		&text(&capabilities, "capabilities")?,
+	)
+	.map_err(|why| JsError::new(&why))?;
+	match fault {
+		Some(fault) => JSON::parse(&fault.to_string())
+			.map_err(|_| JsError::new("the fault cannot be read back as JSON")),
+		None => Ok(JsValue::NULL),
+	}
+}
+
+/// The fault [`check_capabilities`] reports, from the document and capabilities as JSON text.
+fn capability_fault(
+	document: &str,
+	capabilities: &str,
+) -> Result<Option<serde_json::Value>, String> {
+	let object = |json: &str, what: &str| match serde_json::from_str(json) {
+		Ok(serde_json::Value::Object(map)) => Ok(map),
+		Ok(_) => Err(format!("the {what} is an object")),
+		Err(err) => Err(format!("the {what} is not JSON: {err}")),
+	};
+	let document = object(document, "document")?;
+	let capabilities = object(capabilities, "capabilities")?;
+	Ok(capabilities::check(&document, &capabilities)
+		.err()
+		.map(|invalid| serde_json::json!({ "at": invalid.at, "reason": invalid.reason })))
 }
 
 /// A QR code the application has read, by either of the paths in WEB.
@@ -565,6 +607,28 @@ mod tests {
 		assert_eq!(capabilities, None);
 		// A member this build does not know is sent as the operator's document carried it.
 		assert_eq!(document["later"]["kept"], 1);
+	}
+
+	/// The pre-proposal check is the core's, naming the first member capabilities do not cover.
+	#[test]
+	fn the_capability_check_names_what_is_not_covered() {
+		let capabilities = r#"{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}"#;
+		assert_eq!(
+			capability_fault(
+				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","interface":"eth0"}]}"#,
+				capabilities
+			),
+			Ok(None)
+		);
+		let fault = capability_fault(
+			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","interface":"eth1"}]}"#,
+			capabilities,
+		)
+		.unwrap()
+		.unwrap();
+		assert_eq!(fault["at"], "$['attachments'][0]['interface']");
+		assert!(fault["reason"].is_string());
+		assert!(capability_fault("[]", capabilities).is_err());
 	}
 
 	#[test]
