@@ -1,8 +1,8 @@
 //! The record of what bliti last put in place, which is what a render is compared with.
 //!
-//! It holds each file's rendered contents rather than a digest of them, which needs no hash and
-//! cannot collide. Those contents carry the same secrets as the files themselves, so the record is
-//! kept with the mode of a secret.
+//! It holds a digest of each file's rendered contents, not the contents: the files carry secrets,
+//! and a second copy of every one in the runtime directory is a copy nothing needs. The record is
+//! still kept with the mode of a secret, since which files exist says something about the device.
 
 use std::{
 	collections::BTreeMap,
@@ -29,8 +29,14 @@ pub(super) struct Record {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Entry {
-	contents: String,
+	/// The BLAKE3 digest of the rendered contents, in hex.
+	digest: String,
 	mode: u32,
+}
+
+/// The digest a file's rendered contents are recorded by.
+fn digest(contents: &str) -> String {
+	blake3::hash(contents.as_bytes()).to_hex().to_string()
 }
 
 impl Record {
@@ -78,7 +84,7 @@ impl Record {
 	pub(super) fn holds(&self, file: &File) -> bool {
 		self.files
 			.get(&file.path)
-			.is_some_and(|entry| entry.contents == file.contents && entry.mode == file.mode)
+			.is_some_and(|entry| entry.digest == digest(&file.contents) && entry.mode == file.mode)
 	}
 
 	pub(super) fn contains(&self, path: &Path) -> bool {
@@ -97,7 +103,7 @@ impl Record {
 		self.files.insert(
 			file.path.clone(),
 			Entry {
-				contents: file.contents.clone(),
+				digest: digest(&file.contents),
 				mode: file.mode,
 			},
 		);

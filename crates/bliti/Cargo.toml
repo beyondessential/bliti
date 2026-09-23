@@ -29,6 +29,7 @@ vendored-dbus = ["dbus/vendored"]
 
 [dependencies]
 anyhow = "1.0.104"
+blake3 = { version = "1.8.7", default-features = false }
 bliti-core = { version = "0.0.0", path = "../bliti-core" }
 clap = { workspace = true }
 futures = { workspace = true }
@@ -49,7 +50,8 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
-# Not used directly; depended on so the vendored-dbus feature can reach bluer's copy.
+# Also bluer's, which is what lets the vendored-dbus feature reach it. Used directly by the network
+# applier, for systemd and networkd.
 dbus = { version = "0.9.12", default-features = false }
 
 [dev-dependencies]

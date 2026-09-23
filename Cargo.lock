@@ -203,6 +203,7 @@ name = "bliti"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "blake3",
  "bliti-core 0.0.0",
  "bluer",
  "clap",
