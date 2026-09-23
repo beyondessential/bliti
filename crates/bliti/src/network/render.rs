@@ -56,6 +56,8 @@ pub struct Paths {
 	pub hostapd: PathBuf,
 	/// The modprobe configuration carrying the kernel's regulatory domain.
 	pub modprobe: PathBuf,
+	/// The directory systemd-resolved reads DNS delegates from.
+	pub resolved: PathBuf,
 }
 
 impl Paths {
@@ -67,6 +69,7 @@ impl Paths {
 			iwd_config: "/etc/iwd/main.conf".into(),
 			hostapd: "/etc/hostapd/bliti.conf".into(),
 			modprobe: "/etc/modprobe.d/bliti-regdom.conf".into(),
+			resolved: "/etc/systemd/dns-delegate.d".into(),
 		}
 	}
 
@@ -83,7 +86,9 @@ impl Paths {
 		else {
 			return false;
 		};
-		(dir == self.networkd && networkd::owns(name)) || (dir == self.iwd_state && iwd::owns(name))
+		(dir == self.networkd && networkd::owns(name))
+			|| (dir == self.iwd_state && iwd::owns(name))
+			|| (dir == self.resolved && networkd::owns_delegate(name))
 	}
 }
 
@@ -208,7 +213,7 @@ pub fn render(
 			)));
 		}
 		interfaces.push(interface);
-		files.push(networks[index].clone());
+		files.extend(networks[index].iter().cloned());
 	}
 
 	if hardware.station.is_some() {

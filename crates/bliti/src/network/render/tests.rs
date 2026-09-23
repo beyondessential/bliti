@@ -23,6 +23,7 @@ fn hardware() -> Hardware {
 			iwd_config: "/tmp/bliti-test/iwd.conf".into(),
 			hostapd: "/tmp/bliti-test/hostapd.conf".into(),
 			modprobe: "/tmp/bliti-test/regdom.conf".into(),
+			resolved: "/tmp/bliti-test/dns-delegate.d".into(),
 		},
 	}
 }
@@ -88,8 +89,9 @@ fn wired_dynamic_only() {
 	let network = &file(&out, "network/50-bliti-eth0.network").contents;
 	assert!(network.contains("[Match]\nName=eth0\n"));
 	assert!(network.contains("DHCP=ipv4\nIPv6AcceptRA=yes\n"));
-	assert!(network.contains("[DHCPv4]\nUseDNS=yes\nRouteMetric=100\n"));
-	assert!(network.contains("[IPv6AcceptRA]\nUseDNS=yes\nRouteMetric=100\n"));
+	assert!(network.contains("DNSDefaultRoute=yes\n"));
+	assert!(network.contains("[DHCPv4]\nUseDNS=yes\nUseDomains=route\nRouteMetric=100\n"));
+	assert!(network.contains("[IPv6AcceptRA]\nUseDNS=yes\nUseDomains=route\nRouteMetric=100\n"));
 	assert!(!network.contains("DNS=1"));
 	assert_eq!(
 		paths(&out),
@@ -171,7 +173,9 @@ fn wireless_and_wired_order_by_metric() {
 	assert!(!wired.contains("IgnoreCarrierLoss"));
 }
 
-/// A candidate's resolvers are listed in order ahead of whatever the link supplies, which stays on.
+/// A dynamic candidate's own resolvers answer from a delegate bound to its link, leaving the link
+/// the resolvers its network supplies and the site's domains routed to them. A static candidate has
+/// nothing supplied, so its resolvers sit on the link (LINK).
 #[test]
 fn per_link_nameservers() {
 	let doc = document(json!({
@@ -184,8 +188,17 @@ fn per_link_nameservers() {
 	}));
 	let out = rendered(&doc, &hardware(), &active(&[0, 1]));
 	let dynamic = &file(&out, "network/50-bliti-eth0.network").contents;
-	assert!(dynamic.contains("DNS=10.0.9.53\nDNS=2606:4700:4700::1111\n"));
-	assert!(dynamic.contains("[DHCPv4]\nUseDNS=yes\n"));
+	assert!(!dynamic.contains("DNS=10.0.9.53"));
+	assert!(dynamic.contains("DNSDefaultRoute=no\n"));
+	assert!(dynamic.contains("[DHCPv4]\nUseDNS=yes\nUseDomains=route\n"));
+	let delegate = &file(&out, "dns-delegate.d/50-bliti-eth0.dns-delegate");
+	assert!(delegate.contents.contains(
+		"[Delegate]\nDNS=10.0.9.53%eth0\nDNS=2606:4700:4700::1111%eth0\nDomains=~.\nDefaultRoute=yes\n"
+	));
+	assert_eq!(delegate.mode, PUBLIC);
+	assert!(Paths::system().owns(std::path::Path::new(
+		"/etc/systemd/dns-delegate.d/50-bliti-eth0.dns-delegate"
+	)));
 	let fixed = &file(&out, "network/50-bliti-eth1.network").contents;
 	assert!(fixed.contains("DNS=192.0.2.53\n"));
 

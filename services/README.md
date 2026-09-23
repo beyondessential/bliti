@@ -33,6 +33,12 @@ one failure at a time.
   loads, and creating and deleting the hotspot's access point interface. bliti
   runs it rather than speaking nl80211 itself, until a netlink crate is chosen.
   It is a dependency for as long as that holds.
+- **`iwd`** for the wireless client, with `bliti-iwd-dropin.conf` beside this
+  file keeping it off the hotspot's interface.
+- **`systemd-resolved`**, at systemd 258 or later, for per-link resolvers. A
+  candidate's own resolvers are written as a DNS delegate
+  (`/etc/systemd/dns-delegate.d`), which is what keeps the site's own names
+  going to the site's resolvers, and delegates first appear in 258.
 
 The wireless client, wired addressing and the resolvers are all supplied by
 whichever backend gets chosen, so their packages are listed under that choice

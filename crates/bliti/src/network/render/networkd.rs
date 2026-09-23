@@ -27,19 +27,25 @@ pub(super) fn owns(name: &str) -> bool {
 	name.starts_with(PREFIX) && name.ends_with(".network")
 }
 
+/// Whether a file in resolved's delegate directory is one bliti renders.
+pub(super) fn owns_delegate(name: &str) -> bool {
+	name.starts_with(PREFIX) && name.ends_with(".dns-delegate")
+}
+
 /// The route metric of the candidate at `rank`. The lowest wins, so of the candidates up the one
 /// highest in the ordering carries the default route and the rest stay reachable (LINK).
 fn metric(rank: usize) -> u32 {
 	METRIC_BASE.saturating_add(u32::try_from(rank).unwrap_or(u32::MAX))
 }
 
-/// The `.network` a candidate brings up on its interface, whether or not it is selected, so that
-/// every candidate is checked.
+/// The files a candidate brings up on its interface, whether or not it is selected, so that every
+/// candidate is checked: its `.network`, and for a dynamic link naming resolvers of its own, the DNS
+/// delegate carrying them.
 pub(super) fn candidate(
 	attachment: &Attachment,
 	rank: usize,
 	hardware: &Hardware,
-) -> Result<File, Invalid> {
+) -> Result<Vec<File>, Invalid> {
 	let nameservers = nameservers(attachment, rank)?;
 	let from = candidate_path(rank);
 	let (interface, contents) = match &attachment.kind {
@@ -88,11 +94,44 @@ pub(super) fn candidate(
 			)
 		}
 	};
-	Ok(File {
+	let mut files = vec![File {
 		path: path(&hardware.paths, interface),
 		contents,
 		mode: PUBLIC,
-	})
+	}];
+	let dynamic = !matches!(attachment.kind, AttachmentKind::WiredStatic { .. });
+	if dynamic && !nameservers.is_empty() {
+		files.push(delegate(&from, interface, &nameservers, &hardware.paths));
+	}
+	Ok(files)
+}
+
+/// The DNS delegate carrying a dynamic link's own resolvers.
+///
+/// resolved routes a query to a link and then uses that link's servers in turn, falling through only
+/// on an error, and a resolver answering that a name does not exist has not erred. So the link's own
+/// resolvers and the ones its network supplies cannot share the link: the site's names would never
+/// reach the site. The link keeps the supplied ones, with the site's search domains routed to it, and
+/// the candidate's own answer everything else from a delegate bound to the link (LINK). Delegates
+/// need systemd 258.
+fn delegate(from: &str, interface: &str, nameservers: &[IpAddr], paths: &Paths) -> File {
+	let mut contents = header(from);
+	let _ = writeln!(
+		contents,
+		"
+[Delegate]"
+	);
+	for server in nameservers {
+		let _ = writeln!(contents, "DNS={server}%{interface}");
+	}
+	let _ = write!(contents, "Domains=~.\nDefaultRoute=yes\n");
+	File {
+		path: paths
+			.resolved
+			.join(format!("{PREFIX}{interface}.dns-delegate")),
+		contents,
+		mode: PUBLIC,
+	}
 }
 
 fn path(paths: &Paths, interface: &str) -> std::path::PathBuf {
@@ -128,9 +167,7 @@ fn nameservers(attachment: &Attachment, rank: usize) -> Result<Vec<IpAddr>, Inva
 		.collect()
 }
 
-/// The `[Network]` resolvers. networkd hands resolved a link's servers with the configured ones ahead
-/// of those DHCP and router advertisements supply, and resolved tries them in that order, so the
-/// candidate's own are queried first and the link's are used where it names none (LINK).
+/// A static link's resolvers, which sit on the link itself: nothing supplies it any to share it with.
 fn write_dns(out: &mut String, nameservers: &[IpAddr]) {
 	for server in nameservers {
 		let _ = writeln!(out, "DNS={server}");
@@ -154,12 +191,16 @@ fn dynamic(
 	if wireless {
 		let _ = writeln!(out, "IgnoreCarrierLoss={ROAMING_GRACE}");
 	}
-	write_dns(&mut out, nameservers);
+	// The site's search domains route its own names to the resolvers it supplies. Routing them makes
+	// resolved stop treating the link as a default route, so that is said outright: a link with
+	// resolvers of its own in a delegate is not one, and one without is (see `delegate`).
+	let default_route = if nameservers.is_empty() { "yes" } else { "no" };
+	let _ = writeln!(out, "DNSDefaultRoute={default_route}");
 	let _ = write!(
 		out,
-		"\n[DHCPv4]\nUseDNS=yes\nRouteMetric={metric}\n\
-		 \n[DHCPv6]\nUseDNS=yes\n\
-		 \n[IPv6AcceptRA]\nUseDNS=yes\nRouteMetric={metric}\n"
+		"\n[DHCPv4]\nUseDNS=yes\nUseDomains=route\nRouteMetric={metric}\n\
+		 \n[DHCPv6]\nUseDNS=yes\nUseDomains=route\n\
+		 \n[IPv6AcceptRA]\nUseDNS=yes\nUseDomains=route\nRouteMetric={metric}\n"
 	);
 	out
 }

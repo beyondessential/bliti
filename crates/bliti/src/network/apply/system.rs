@@ -24,6 +24,9 @@ const IWD: &str = "iwd.service";
 /// The unit running hostapd on bliti's configuration, from `services/`.
 const HOSTAPD: &str = "bliti-hostapd.service";
 
+/// The unit running systemd-resolved, which rereads its DNS delegates on reload.
+const RESOLVED: &str = "systemd-resolved.service";
+
 /// How long a D-Bus call waits for its reply.
 const CALL: Duration = Duration::from_secs(25);
 
@@ -132,5 +135,9 @@ impl System for Linux {
 			.with_proxy(NETWORKD, NETWORKD_PATH, CALL)
 			.method_call::<(), _, _, _>(NETWORKD_MANAGER, "Reload", ())
 			.context("networkd refused to reload")
+	}
+
+	fn reload_resolved(&mut self) -> anyhow::Result<()> {
+		self.unit("ReloadUnit", RESOLVED)
 	}
 }

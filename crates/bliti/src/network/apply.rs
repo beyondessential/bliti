@@ -56,11 +56,20 @@ pub enum Backend {
 	Iwd,
 	/// systemd-networkd, addressing every link.
 	Networkd,
+	/// systemd-resolved, reading the DNS delegates carrying a link's own resolvers. After networkd,
+	/// since a delegate is bound to a link networkd brings up.
+	Resolved,
 }
 
 impl Backend {
 	/// Every backend, in the order they pick changes up.
-	const ORDER: [Self; 4] = [Self::Regdom, Self::Hostapd, Self::Iwd, Self::Networkd];
+	const ORDER: [Self; 5] = [
+		Self::Regdom,
+		Self::Hostapd,
+		Self::Iwd,
+		Self::Networkd,
+		Self::Resolved,
+	];
 
 	/// The backend reading `path`, where it is a file bliti owns.
 	fn of(paths: &Paths, path: &Path) -> Option<Self> {
@@ -72,6 +81,8 @@ impl Backend {
 			Some(Self::Hostapd)
 		} else if path == paths.iwd_config || path.parent() == Some(&paths.iwd_state) {
 			Some(Self::Iwd)
+		} else if path.parent() == Some(&paths.resolved) {
+			Some(Self::Resolved)
 		} else {
 			Some(Self::Networkd)
 		}
@@ -85,6 +96,7 @@ impl fmt::Display for Backend {
 			Self::Hostapd => "hostapd",
 			Self::Iwd => "iwd",
 			Self::Networkd => "systemd-networkd",
+			Self::Resolved => "systemd-resolved",
 		})
 	}
 }
@@ -109,6 +121,8 @@ pub struct Changes {
 	pub iwd: Vec<Change>,
 	/// networkd's `.network` files.
 	pub networkd: Vec<Change>,
+	/// resolved's DNS delegates.
+	pub resolved: Vec<Change>,
 }
 
 impl Changes {
@@ -130,6 +144,7 @@ impl Changes {
 			Backend::Hostapd => &self.hostapd,
 			Backend::Iwd => &self.iwd,
 			Backend::Networkd => &self.networkd,
+			Backend::Resolved => &self.resolved,
 		}
 	}
 
@@ -139,6 +154,7 @@ impl Changes {
 			Backend::Hostapd => &mut self.hostapd,
 			Backend::Iwd => &mut self.iwd,
 			Backend::Networkd => &mut self.networkd,
+			Backend::Resolved => &mut self.resolved,
 		}
 	}
 }
@@ -174,6 +190,9 @@ pub trait System {
 
 	/// Have networkd read its configuration again and reconfigure the links it changed for.
 	fn reload_networkd(&mut self) -> anyhow::Result<()>;
+
+	/// Have resolved read its configuration again, DNS delegates included.
+	fn reload_resolved(&mut self) -> anyhow::Result<()>;
 }
 
 /// Why an apply stopped.
@@ -329,6 +348,10 @@ impl Step<'_> {
 			Backend::Networkd => {
 				self.put()?;
 				system.reload_networkd().map_err(|e| self.failed(e))?;
+			}
+			Backend::Resolved => {
+				self.put()?;
+				system.reload_resolved().map_err(|e| self.failed(e))?;
 			}
 		}
 		Ok(())

@@ -36,6 +36,7 @@ enum Call {
 	Hostapd(Hostapd),
 	RestartIwd,
 	ReloadNetworkd,
+	ReloadResolved,
 }
 
 /// A [`System`] that records what it is asked, and fails the calls it is told to.
@@ -84,6 +85,10 @@ impl System for Fake {
 	fn reload_networkd(&mut self) -> anyhow::Result<()> {
 		self.call(Call::ReloadNetworkd)
 	}
+
+	fn reload_resolved(&mut self) -> anyhow::Result<()> {
+		self.call(Call::ReloadResolved)
+	}
 }
 
 /// A device rooted in a scratch directory, with the state it has been rendered in.
@@ -109,6 +114,7 @@ impl Device {
 				iwd_config: root.join("etc/iwd/main.conf"),
 				hostapd: root.join("etc/hostapd/bliti.conf"),
 				modprobe: root.join("etc/modprobe.d/bliti-regdom.conf"),
+				resolved: root.join("etc/systemd/dns-delegate.d"),
 			},
 		};
 		Self {
@@ -153,7 +159,7 @@ fn full() -> Json {
 	json!({
 		"regulatory-domain": "NZ",
 		"attachments": [
-			{ "kind": "wired-dynamic", "label": "wall", "interface": "eth0" },
+			{ "kind": "wired-dynamic", "label": "wall", "interface": "eth0", "nameservers": ["1.1.1.1"] },
 			wireless("Clinic", "a long passphrase")
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
@@ -224,7 +230,7 @@ fn a_secret_is_written_with_its_mode_from_the_start() {
 }
 
 /// The first apply writes everything and has each backend pick it up, regulatory domain first, then
-/// the hotspot's interface and hostapd, then the station, then networkd.
+/// the hotspot's interface and hostapd, then the station, then networkd, then resolved.
 #[test]
 fn the_first_apply_picks_everything_up_in_order() {
 	let mut device = Device::new();
@@ -237,6 +243,7 @@ fn the_first_apply_picks_everything_up_in_order() {
 			Call::Hostapd(Hostapd::Start),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
+			Call::ReloadResolved,
 		]
 	);
 	assert_eq!(
@@ -251,6 +258,9 @@ fn the_first_apply_picks_everything_up_in_order() {
 			networkd: written(&[
 				device.path("etc/systemd/network/50-bliti-ap0.network"),
 				device.path("etc/systemd/network/50-bliti-eth0.network"),
+			]),
+			resolved: written(&[
+				device.path("etc/systemd/dns-delegate.d/50-bliti-eth0.dns-delegate")
 			]),
 		}
 	);
@@ -407,11 +417,16 @@ fn a_known_network_is_picked_up_by_iwd_itself() {
 /// A wired change reloads networkd and touches nothing else.
 #[test]
 fn a_networkd_change_only_reloads_networkd() {
+	let mut base = full();
+	base["attachments"][0]
+		.as_object_mut()
+		.unwrap()
+		.remove("nameservers");
 	let mut device = Device::new();
-	device.apply(&full());
+	device.apply(&base);
 	device.system.take();
 
-	let mut static_ = full();
+	let mut static_ = base;
 	static_["attachments"][0] = json!({
 		"kind": "wired-static", "label": "lab", "interface": "eth0",
 		"addresses": ["10.1.0.5/24"], "gateway": "10.1.0.1"
@@ -562,6 +577,7 @@ fn a_failing_call_names_its_backend_and_is_retried() {
 			Call::Hostapd(Hostapd::Start),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
+			Call::ReloadResolved,
 		]
 	);
 }
@@ -615,7 +631,7 @@ fn an_unreadable_record_applies_afresh() {
 
 	let changes = device.apply(&full());
 	assert_eq!(changes.iwd.len(), 2);
-	assert_eq!(device.system.take().len(), 5);
+	assert_eq!(device.system.take().len(), 6);
 }
 
 #[test]
@@ -625,4 +641,30 @@ fn the_domain_is_read_from_the_modprobe_file() {
 		Some("NZ")
 	);
 	assert_eq!(regulatory_domain("# nothing\n"), None);
+}
+
+/// A dynamic link's own resolvers live in a delegate, which only resolved picks up, and dropping them
+/// takes the delegate away and has resolved read that too.
+#[test]
+fn resolvers_of_its_own_are_resolved_s_to_pick_up() {
+	let mut device = Device::new();
+	device.apply(&full());
+	device.system.take();
+
+	let mut without = full();
+	without["attachments"][0]
+		.as_object_mut()
+		.unwrap()
+		.remove("nameservers");
+	let changes = device.apply(&without);
+	assert_eq!(
+		changes.resolved,
+		[Change::Removed(device.path(
+			"etc/systemd/dns-delegate.d/50-bliti-eth0.dns-delegate"
+		))]
+	);
+	assert_eq!(
+		device.system.take(),
+		[Call::ReloadNetworkd, Call::ReloadResolved]
+	);
 }
