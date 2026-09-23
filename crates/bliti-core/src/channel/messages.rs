@@ -66,7 +66,22 @@ pub enum Message {
 	},
 
 	/// A device's answer that a proposal was applied to the running system (CFG).
-	Applied,
+	Applied {
+		/// The device's capabilities, where applying the proposal changed them.
+		capabilities: Option<Map<String, Json>>,
+	},
+
+	/// The state of each candidate of the configuration running, position for position (CFG).
+	State {
+		/// One entry per attachment, kept raw as the document is.
+		attachments: Vec<Json>,
+	},
+
+	/// The PIN a device joining by WPS generated, for the operator to enter at the access point (CFG).
+	Pin {
+		/// The PIN's digits.
+		pin: String,
+	},
 
 	/// A device's answer that a proposal cannot be accepted, naming the part at fault, the device's own
 	/// reason, and the verification stage an apply-time failure reached (CFG).
@@ -109,11 +124,11 @@ pub enum Message {
 		interface: Option<String>,
 	},
 
-	/// A device's answer to `scan`. The shape of each network is the device-scanning feature's to
-	/// define, so they ride as raw JSON.
+	/// A device's answer to `scan`: one entry per access point each radio scanned heard (CFG), kept
+	/// raw so a member a newer device adds survives.
 	Networks {
-		/// The networks the device can see.
-		networks: Vec<Json>,
+		/// The access points heard, as the `access-points` member.
+		access_points: Vec<Json>,
 	},
 
 	/// A device's answer to `survey`. Its shape is the device-scanning feature's to define, so it rides
@@ -168,8 +183,22 @@ impl Message {
 					);
 				}
 			}
-			Self::Applied => {
+			Self::Applied { capabilities } => {
 				map.insert("type".to_owned(), "applied".into());
+				if let Some(capabilities) = capabilities {
+					map.insert(
+						"capabilities".to_owned(),
+						Json::Object(capabilities.clone()),
+					);
+				}
+			}
+			Self::State { attachments } => {
+				map.insert("type".to_owned(), "state".into());
+				map.insert("attachments".to_owned(), Json::Array(attachments.clone()));
+			}
+			Self::Pin { pin } => {
+				map.insert("type".to_owned(), "pin".into());
+				map.insert("pin".to_owned(), pin.clone().into());
 			}
 			Self::Invalid {
 				at,
@@ -205,9 +234,12 @@ impl Message {
 				map.insert("method".to_owned(), method.clone().into());
 				insert_interface(&mut map, interface);
 			}
-			Self::Networks { networks } => {
+			Self::Networks { access_points } => {
 				map.insert("type".to_owned(), "networks".into());
-				map.insert("networks".to_owned(), Json::Array(networks.clone()));
+				map.insert(
+					"access-points".to_owned(),
+					Json::Array(access_points.clone()),
+				);
 			}
 			Self::Spectrum { spectrum } => {
 				map.insert("type".to_owned(), "spectrum".into());
@@ -275,7 +307,15 @@ impl<'de> Visitor<'de> for MessageVisitor {
 				document: object(&map, "document")?,
 				capabilities: optional_object(&map, "capabilities")?,
 			}),
-			"applied" => Ok(Message::Applied),
+			"applied" => Ok(Message::Applied {
+				capabilities: optional_object(&map, "capabilities")?,
+			}),
+			"state" => Ok(Message::State {
+				attachments: array(&map, "attachments")?,
+			}),
+			"pin" => Ok(Message::Pin {
+				pin: string(&map, "pin")?,
+			}),
 			"invalid" => Ok(Message::Invalid {
 				at: string(&map, "at")?,
 				reason: string(&map, "reason")?,
@@ -295,7 +335,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 				interface: optional_string(&map, "interface")?,
 			}),
 			"networks" => Ok(Message::Networks {
-				networks: array(&map, "networks")?,
+				access_points: array(&map, "access-points")?,
 			}),
 			"spectrum" => Ok(Message::Spectrum {
 				spectrum: object(&map, "spectrum")?,
@@ -362,6 +402,8 @@ impl MessageSet for Message {
 			"configure",
 			"configuration",
 			"applied",
+			"state",
+			"pin",
 			"invalid",
 			"confirm",
 			"discard",

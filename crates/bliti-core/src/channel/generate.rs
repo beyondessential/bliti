@@ -138,7 +138,11 @@ pub fn message() -> impl Strategy<Value = Message> {
 				capabilities,
 			}
 		),
-		1 => Just(Message::Applied),
+		1 => prop::option::of(object_of(json()))
+			.prop_map(|capabilities| Message::Applied { capabilities }),
+		1 => prop::collection::vec(json(), 0..3)
+			.prop_map(|attachments| Message::State { attachments }),
+		1 => "[0-9]{4,8}".prop_map(|pin| Message::Pin { pin }),
 		1 => (
 			"[a-z][a-z.0-9-]{0,16}",
 			"[a-z ]{1,20}",
@@ -162,7 +166,8 @@ pub fn message() -> impl Strategy<Value = Message> {
 				method: method.to_owned(),
 				interface,
 			}),
-		1 => prop::collection::vec(json(), 0..3).prop_map(|networks| Message::Networks { networks }),
+		1 => prop::collection::vec(json(), 0..3)
+			.prop_map(|access_points| Message::Networks { access_points }),
 		1 => object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
 	]
 }
@@ -250,6 +255,9 @@ mod tests {
 				Message::Invalid {
 					reached: Some(_), ..
 				} => reached += 1,
+				Message::Applied {
+					capabilities: Some(_),
+				} => capabilities += 1,
 				Message::Scan { interface }
 				| Message::Survey { interface }
 				| Message::Wps { interface, .. } => {

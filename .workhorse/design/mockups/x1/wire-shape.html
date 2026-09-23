@@ -122,7 +122,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<tr><td><code>true</code></td><td>Supported, with any value the document itself admits.</td></tr>
 		<tr><td>an array</td><td>Supported, with exactly these values.</td></tr>
 		<tr><td>an object</td><td>Supported, and constrained member by member, recursively.</td></tr>
-		<tr><td>an object keyed by the member's values</td><td>Where what its siblings may carry depends on this member's value, each key is a value it may take, holding the constraints on its siblings under that value. The attachment <code>kind</code>, the security <code>kind</code>, a radio's <code>interface</code> and a hotspot's <code>band</code> all work this way. Left unset, the member is allowed where any key allows what the rest of the document asks.</td></tr>
+		<tr><td>an object keyed by the member's values</td><td>Where what its siblings may carry depends on this member's value, each key is a value it may take, holding the constraints on its siblings under that value. The attachment <code>kind</code>, the security <code>kind</code>, a radio's <code>interface</code> and a hotspot's <code>band</code> all work this way, each wrapping its keys under its own name, as <code>"attachments": {"kind": {"wireless": …}}</code>. A key with nothing further to constrain holds <code>{}</code>. Left unset, the member is allowed where any key allows what the rest of the document asks.</td></tr>
 	</table>
 	<p style="margin:12px 0 0">A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed. For <code>enterprise</code> that means only <code>eap</code>: the credentials each method uses come with the method (WLAN).</p>
 	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the Normalized Path of the first member not covered.</p>
@@ -150,14 +150,14 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<h3>Raspberry Pi 5, CYW43455</h3>
 <pre>{
   <span class="k">"document"</span>: {
-    <span class="k">"attachments"</span>: {
+    <span class="k">"attachments"</span>: { <span class="k">"kind"</span>: {
       <span class="k">"wireless"</span>: {
         <span class="k">"interface"</span>: {
           <span class="k">"wlan0"</span>: {
-            <span class="k">"security"</span>: {
-              <span class="k">"psk"</span>: true, <span class="k">"sae"</span>: true, <span class="k">"psk-sae"</span>: true,
+            <span class="k">"security"</span>: { <span class="k">"kind"</span>: {
+              <span class="k">"psk"</span>: {}, <span class="k">"sae"</span>: {}, <span class="k">"psk-sae"</span>: {},
               <span class="k">"enterprise"</span>: { <span class="k">"eap"</span>: ["peap", "ttls", "tls", "pwd"] }
-            },
+            } },
             <span class="k">"hidden"</span>: true
           }
         },
@@ -165,7 +165,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
       },
       <span class="k">"wired-dynamic"</span>: { <span class="k">"interface"</span>: ["eth0"], <span class="k">"nameservers"</span>: true },
       <span class="k">"wired-static"</span>: { <span class="k">"interface"</span>: ["eth0"], <span class="k">"nameservers"</span>: true }
-    },
+    } },
     <span class="k">"hotspot"</span>: {
       <span class="k">"interface"</span>: { <span class="k">"wlan0"</span>: {} },
       <span class="k">"share-upstream"</span>: true,
@@ -193,22 +193,22 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<h3>The Pi with a USB adapter</h3>
 <pre>{
   <span class="k">"document"</span>: {
-    <span class="k">"attachments"</span>: {
+    <span class="k">"attachments"</span>: { <span class="k">"kind"</span>: {
       <span class="k">"wireless"</span>: {
         <span class="k">"interface"</span>: {
           <span class="k">"wlan0"</span>: { <span class="c">…as the Pi…</span> },
           <span class="k">"wlx00c0caa1b2c3"</span>: {
-            <span class="k">"security"</span>: {
-              <span class="k">"psk"</span>: true, <span class="k">"sae"</span>: true, <span class="k">"psk-sae"</span>: true,
+            <span class="k">"security"</span>: { <span class="k">"kind"</span>: {
+              <span class="k">"psk"</span>: {}, <span class="k">"sae"</span>: {}, <span class="k">"psk-sae"</span>: {},
               <span class="k">"enterprise"</span>: { <span class="k">"eap"</span>: ["peap", "ttls", "tls", "pwd"] }
-            },
+            } },
             <span class="k">"hidden"</span>: true
           }
         },
         <span class="k">"nameservers"</span>: true
       },
       <span class="c">…wired as the Pi…</span>
-    },
+    } },
     <span class="k">"hotspot"</span>: {
       <span class="k">"interface"</span>: {
         <span class="k">"wlan0"</span>: {},
@@ -248,7 +248,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<h3>Wired only, two ports</h3>
 <pre>{
   <span class="k">"document"</span>: {
-    <span class="k">"attachments"</span>: {
+    <span class="k">"attachments"</span>: { <span class="k">"kind"</span>: {
       <span class="k">"wired-dynamic"</span>: {
         <span class="k">"interface"</span>: ["eth0", "eth1"],
         <span class="k">"nameservers"</span>: true
@@ -257,7 +257,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
         <span class="k">"interface"</span>: ["eth0", "eth1"],
         <span class="k">"nameservers"</span>: true
       }
-    }
+    } }
   },
   <span class="k">"acts"</span>: {}
 }</pre>

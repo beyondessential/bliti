@@ -241,7 +241,9 @@ where
 				tracing::debug!("a configuration-session message outside a session; nothing to do");
 			}
 			Ok(Reading::Message(
-				Message::Applied
+				Message::Applied { .. }
+				| Message::State { .. }
+				| Message::Pin { .. }
 				| Message::Invalid { .. }
 				| Message::Busy
 				| Message::Networks { .. }

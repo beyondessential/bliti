@@ -370,7 +370,15 @@ impl<B: Backend> Open<B> {
 			}
 			Message::Scan { interface } => {
 				match self.state().backend.scan(interface.as_deref()).await {
-					Ok(networks) => send(writer, &Message::Networks { networks }).await?,
+					Ok(networks) => {
+						send(
+							writer,
+							&Message::Networks {
+								access_points: networks,
+							},
+						)
+						.await?
+					}
 					Err(invalid) => send_invalid(writer, invalid).await?,
 				}
 			}
@@ -398,7 +406,9 @@ impl<B: Backend> Open<B> {
 			Message::Subscribe { .. }
 			| Message::Fact(_)
 			| Message::Reading(_)
-			| Message::Applied
+			| Message::Applied { .. }
+			| Message::State { .. }
+			| Message::Pin { .. }
 			| Message::Invalid { .. }
 			| Message::Busy
 			| Message::Networks { .. }
@@ -498,7 +508,7 @@ impl<B: Backend> Open<B> {
 					}
 					self.applied = Some(proposal);
 					tracing::info!("proposal applied");
-					send(writer, &Message::Applied).await?;
+					send(writer, &Message::Applied { capabilities: None }).await?;
 				}
 				Outcome::Finished(Err(invalid)) => {
 					self.revert().await;

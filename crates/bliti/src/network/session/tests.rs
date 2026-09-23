@@ -377,7 +377,10 @@ async fn writing_the_configuration_back_unmodified_changes_nothing() {
 	let device = Device::new().await;
 	let (mut client, _task, document) = device.opened().await;
 	propose(&mut client, document).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	assert_eq!(
 		device.log.calls(),
 		[Call::Apply(parsed(&recorded()))],
@@ -390,7 +393,10 @@ async fn a_proposal_is_applied_to_the_running_system_and_written_nowhere() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()))]);
 	assert_eq!(device.store().load().unwrap(), Some(recorded()));
 }
@@ -402,7 +408,10 @@ async fn confirming_a_proposal_makes_it_the_recorded_configuration() {
 	let mut sent = proposal();
 	sent.insert("x-added-by-this-client".to_owned(), json!(1));
 	propose(&mut client, sent.clone()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	assert_eq!(confirmed(&mut client).await, sent, "what is now in force");
 	assert_eq!(
@@ -459,7 +468,10 @@ async fn discard_after_a_proposal_is_applied_reverts_to_the_recorded_configurati
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	send(&mut client, Message::Discard).await;
 	assert!(quiet(&mut client).await, "discard is not answered");
@@ -478,7 +490,10 @@ async fn a_session_abandoned_by_closing_the_stream_leaves_the_recorded_configura
 	let device = Device::new().await;
 	let (mut client, task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	client.close().await.unwrap();
 	task.await.unwrap();
@@ -497,7 +512,10 @@ async fn a_session_abandoned_by_the_channel_dropping_leaves_the_recorded_configu
 	let device = Device::new().await;
 	let (mut client, task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	// The whole transport goes, with no close.
 	drop(client);
@@ -515,7 +533,10 @@ async fn a_session_whose_task_is_dropped_restores_before_another_can_open() {
 	let device = Device::new().await;
 	let (mut client, task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	// The connection's task is dropped with the session in it.
 	task.abort();
@@ -563,7 +584,10 @@ async fn a_device_powered_off_mid_proposal_starts_on_the_recorded_configuration(
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	// Power comes back: a fresh daemon over the same disk, with nothing of the session.
 	let (backend, log) = fake();
@@ -597,7 +621,10 @@ async fn a_proposal_is_never_timed_out_while_its_session_is_open() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	tokio::time::advance(Duration::from_secs(30 * 24 * 60 * 60)).await;
 	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()))]);
@@ -611,7 +638,10 @@ async fn a_device_retains_nothing_of_a_proposal_after_reverting() {
 	let (mut client, _task, _) = device.opened().await;
 
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	send(&mut client, Message::Discard).await;
 	assert_eq!(
 		confirmed(&mut client).await,
@@ -731,7 +761,10 @@ async fn an_invalid_proposal_leaves_an_applied_one_in_place() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	propose(&mut client, object(json!({"attachments": "none"}))).await;
 	assert!(matches!(recv(&mut client).await, Message::Invalid { .. }));
@@ -743,12 +776,18 @@ async fn a_new_proposal_while_one_is_applied_replaces_it() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	let mut second = proposal();
 	second.insert("regulatory-domain".to_owned(), json!("AU"));
 	propose(&mut client, second.clone()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	assert_eq!(confirmed(&mut client).await, second);
 }
 
@@ -772,7 +811,10 @@ async fn a_proposal_while_another_is_being_verified_supersedes_it() {
 		),
 		"the interrupted proposal is answered first"
 	);
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	assert_eq!(
 		device.log.calls(),
 		[
@@ -819,7 +861,7 @@ async fn scan_is_answered_with_networks() {
 	assert_eq!(
 		recv(&mut client).await,
 		Message::Networks {
-			networks: vec![json!({"interface": "wlan0", "ssid": "Clinic", "signal": -61})],
+			access_points: vec![json!({"interface": "wlan0", "ssid": "Clinic", "signal": -61})],
 		}
 	);
 
@@ -834,7 +876,7 @@ async fn scan_is_answered_with_networks() {
 	assert_eq!(
 		recv(&mut client).await,
 		Message::Networks {
-			networks: vec![
+			access_points: vec![
 				json!({"interface": "wlx00c0caa1b2c3", "ssid": "Clinic", "signal": -61})
 			],
 		}
@@ -877,7 +919,10 @@ async fn wps_proposes_what_it_joined_for_the_client_to_confirm() {
 			capabilities: None,
 		}
 	);
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 	assert_eq!(device.store().load().unwrap(), Some(recorded()));
 
 	assert_eq!(confirmed(&mut client).await, proposal());
@@ -918,7 +963,7 @@ async fn messages_only_a_device_sends_are_no_ops() {
 	let device = Device::new().await;
 	let (mut client, _task, _) = device.opened().await;
 	for message in [
-		Message::Applied,
+		Message::Applied { capabilities: None },
 		Message::Busy,
 		Message::Invalid {
 			at: path(&[]),
@@ -926,7 +971,7 @@ async fn messages_only_a_device_sends_are_no_ops() {
 			reached: None,
 		},
 		Message::Networks {
-			networks: Vec::new(),
+			access_points: Vec::new(),
 		},
 		Message::Spectrum {
 			spectrum: Map::new(),
@@ -948,7 +993,10 @@ async fn a_protocol_fault_ends_the_session_and_restores() {
 	let device = Device::new().await;
 	let (mut client, task, _) = device.opened().await;
 	propose(&mut client, proposal()).await;
-	assert_eq!(recv(&mut client).await, Message::Applied);
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
 
 	write_message(&mut client, b"not json").await.unwrap();
 	task.await.unwrap();

@@ -310,7 +310,9 @@ pub async fn connect(
 					Ok(Reading::Message(
 						Message::Configure
 						| Message::Configuration { .. }
-						| Message::Applied
+						| Message::Applied { .. }
+						| Message::State { .. }
+						| Message::Pin { .. }
 						| Message::Invalid { .. }
 						| Message::Confirm
 						| Message::Discard
