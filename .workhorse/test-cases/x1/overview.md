@@ -24,7 +24,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A proposal is never timed out while its session is open. Verifies spec: CFG
 - [x] A device retains nothing of a proposal after reverting. Verifies spec: CFG
 - [x] A failure carries the part of the document at fault, a reason in the device's words, and the verification stage reached. Verifies spec: CFG
-- [ ] A configuration that cannot work, by wrong passphrase and by absent SSID, is reported with the stage it failed at. Verifies spec: CFG
+- [x] A configuration that cannot work, by wrong passphrase and by absent SSID, is reported with the stage it failed at. Verifies spec: CFG
 - [x] A session the daemon drops when its client unsubscribes ends its configuration session, so the next client is not told the device is busy. Verifies spec: CFG
 - [ ] A client that walks away with a proposal applied and its feed closed leaves the device back on its recorded configuration, on real hardware. Verifies spec: CFG
 - [x] An act on an adapter or with a method the device did not offer is invalid at the act's own path. Verifies spec: NET, CFG
@@ -38,7 +38,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 - [x] A proposal is judged only on candidates it adds or changes that carry `verify` true, per interface: a wrong passphrase beside a working wall port fails, a static per site on one port applies at either site, and a candidate carrying `verify` false fails nothing. Verifies spec: CFG
 - [x] A failure that is not a candidate's, such as a hotspot that does not start, carries no `reached`. Verifies spec: CFG
-- [ ] A wrong passphrase beside a working wall port is refused, and applying it again unchecked is applied, on real hardware. Verifies spec: CFG
+- [x] A wrong passphrase beside a working wall port is refused, and applying it again unchecked is applied, on real hardware. Verifies spec: CFG
 
 ## Attachment and selection
 
