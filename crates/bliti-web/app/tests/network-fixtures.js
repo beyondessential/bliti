@@ -91,11 +91,11 @@ export const WIRED_ONLY = {
 
 export const IN_FORCE = {
 	attachments: [
-		{ kind: 'wired-static', label: 'Clinic wall port', interface: 'eth0', addresses: ['10.4.2.20/24'], gateway: '10.4.2.1' },
-		{ kind: 'wired-static', label: 'North site', interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1', nameservers: ['192.168.60.1'] },
-		{ kind: 'wired-dynamic', label: 'eth0 automatic', interface: 'eth0' },
-		{ kind: 'wireless', label: 'Clinic-Staff', ssid: 'Clinic-Staff', security: { kind: 'sae', passphrase: 'correct horse battery' } },
-		{ kind: 'wireless', label: 'BackupLink', ssid: 'BackupLink', security: { kind: 'psk', passphrase: 'backup-link-77' } },
+		{ kind: 'wired-static', label: 'Clinic wall port', verify: true, interface: 'eth0', addresses: ['10.4.2.20/24'], gateway: '10.4.2.1' },
+		{ kind: 'wired-static', label: 'North site', verify: true, interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1', nameservers: ['192.168.60.1'] },
+		{ kind: 'wired-dynamic', label: 'eth0 automatic', verify: true, interface: 'eth0' },
+		{ kind: 'wireless', label: 'Clinic-Staff', verify: true, ssid: 'Clinic-Staff', security: { kind: 'sae', passphrase: 'correct horse battery' } },
+		{ kind: 'wireless', label: 'BackupLink', verify: true, ssid: 'BackupLink', security: { kind: 'psk', passphrase: 'backup-link-77' } },
 	],
 	hotspot: { ssid: 'Clinic-Field-04', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true, 'isolate-clients': true },
 	'regulatory-domain': 'VU',

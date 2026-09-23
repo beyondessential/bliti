@@ -130,21 +130,21 @@ export function withMember(object, member, value) {
 // Candidates
 
 /// A new candidate of `kind`, carrying what that kind requires and every optional member whose absence
-/// would mean something.
+/// would mean something. It is checked when applied (NSCR).
 export function blankCandidate(kind, capabilities) {
 	switch (kind) {
 		case 'wireless': {
 			const security = securityKinds(capabilities)[0] ?? 'psk-sae'
-			const candidate = { kind, label: '', ssid: '', security: blankSecurity(security, capabilities) }
+			const candidate = { kind, label: '', verify: true, ssid: '', security: blankSecurity(security, capabilities) }
 			if (offersMember(capabilities, kind, 'hidden')) candidate.hidden = false
 			return candidate
 		}
 		case 'wired-dynamic': {
 			const name = interfaces(capabilities, kind)?.[0] ?? ''
-			return { kind, label: name ? `${name} automatic` : '', interface: name }
+			return { kind, label: name ? `${name} automatic` : '', verify: true, interface: name }
 		}
 		default:
-			return { kind, label: '', interface: interfaces(capabilities, kind)?.[0] ?? '', addresses: [], gateway: '' }
+			return { kind, label: '', verify: true, interface: interfaces(capabilities, kind)?.[0] ?? '', addresses: [], gateway: '' }
 	}
 }
 

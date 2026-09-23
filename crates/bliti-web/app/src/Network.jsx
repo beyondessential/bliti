@@ -8,6 +8,7 @@ import { absent, acts, attachmentKinds, check, countries, surveyors } from './ca
 import {
 	candidateAt,
 	changes,
+	checking,
 	addCandidate,
 	describeCandidate,
 	failureHeadline,
@@ -20,7 +21,8 @@ import {
 	stagesOf,
 	stateFor,
 	stateWording,
-	unverifiable,
+	uncheckable,
+	unedited,
 	updateCandidate,
 	validate,
 	writable,
@@ -88,16 +90,21 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 	const caps = state.capabilities
 	const surveyWith = state.edit.document.hotspot?.interface
 
-	// Only the document that failed is applied unverified; anything edited since is verified (NSCR).
-	function apply(verify) {
-		if (!verify && !unverifiable(state)) return
-		const document = state.edit.document
+	function propose(edit) {
+		const document = edit.document
 		const problem = validate(document) ?? check(document, caps)
 		if (problem) {
 			dispatch({ type: 'problem', problem })
 			return
 		}
-		if (send((handle) => handle.propose(document, verify))) dispatch({ type: 'proposed', verify })
+		if (send((handle) => handle.propose(document))) dispatch({ type: 'proposed', edit })
+	}
+
+	// Only the document that failed is applied again without checking the candidate that failed it,
+	// and every other candidate as it was (NSCR).
+	function applyUnchecked() {
+		const key = uncheckable(state)
+		if (key && unedited(state)) propose(checking(state.edit, key, false))
 	}
 
 	function cancel() {
@@ -190,6 +197,9 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 					change={change}
 					marks={marks}
 					failure={failedKey === state.selected ? failure : null}
+					unchecked={
+						uncheckable(state) === state.selected ? { enabled: unedited(state), apply: applyUnchecked } : null
+					}
 					scan={{
 						busy: state.act?.type === 'scan' && !state.act.failure,
 						failure: state.act?.type === 'scan' ? state.act.failure : null,
@@ -243,8 +253,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 			<SessionBar
 				state={state}
 				count={changes(state.edit, state.inForce, state.inForceKeys)}
-				onApply={() => apply(true)}
-				onApplyUnverified={() => apply(false)}
+				onApply={() => propose(state.edit)}
 				onReset={() => dispatch({ type: 'reset' })}
 				onCancel={cancel}
 				onConfirm={confirm}
@@ -256,7 +265,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 /// The state of the session, pinned to the bottom of the viewport: which stage the operator is in,
 /// whether what the device runs is saved, what leaving would cost, and only the actions the stage
 /// allows (NSCR).
-function SessionBar({ state, count, onApply, onApplyUnverified, onReset, onCancel, onConfirm }) {
+function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 	const { stage } = state
 	let tone = ''
 	let said
@@ -277,13 +286,9 @@ function SessionBar({ state, count, onApply, onApplyUnverified, onReset, onCance
 					'Waiting for the PIN.'
 				)}
 			</>
-		) : state.verify ? (
-			<>
-				<strong>Applying.</strong> Checking the new settings. Leaving cancels it.
-			</>
 		) : (
 			<>
-				<strong>Applying without checking.</strong> Leaving cancels it.
+				<strong>Applying.</strong> Checking the new settings. Leaving cancels it.
 			</>
 		)
 		actions = (
@@ -298,7 +303,7 @@ function SessionBar({ state, count, onApply, onApplyUnverified, onReset, onCance
 			</>
 		) : (
 			<>
-				<strong>{state.verify ? 'Applied, not saved.' : 'Applied without checking, not saved.'}</strong> Running now. Discarded if you leave or disconnect.
+				<strong>Applied, not saved.</strong> Running now. Discarded if you leave or disconnect.
 			</>
 		)
 		actions = (
@@ -348,11 +353,6 @@ function SessionBar({ state, count, onApply, onApplyUnverified, onReset, onCance
 				<button onClick={onApply} disabled={nothing}>
 					Apply
 				</button>
-				{stage === 'errored' && (
-					<button className="secondary" onClick={onApplyUnverified} disabled={!unverifiable(state)}>
-						Apply without checking
-					</button>
-				)}
 				<button className="secondary" onClick={onReset} disabled={nothing}>
 					Reset
 				</button>
@@ -484,7 +484,10 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 							>
 								<span className="name">{name}</span>
 								<br />
-								<span className="kind">{describeCandidate(candidate)}</span>
+								<span className="kind">
+									{describeCandidate(candidate)}
+									{candidate?.verify === false && ', not checked'}
+								</span>
 							</button>
 							{observed && <span className={`state ${observed.tone}`}>{observed.text}</span>}
 						</li>
@@ -495,8 +498,9 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 	)
 }
 
-/// One candidate's fields, opened from its row.
-function Candidate({ state, candidateKey, readOnly, change, marks, failure, scan, onRemove }) {
+/// One candidate's fields, opened from its row. After its checking failed a proposal, it offers to
+/// apply that again without checking it; one not checked says so, and can be checked again (NSCR).
+function Candidate({ state, candidateKey, readOnly, change, marks, failure, unchecked, scan, onRemove }) {
 	const index = state.edit.keys.indexOf(candidateKey)
 	const candidate = state.edit.document.attachments[index]
 	const observed = stateFor(state, candidateKey)
@@ -512,7 +516,27 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, scan
 				</button>
 			</div>
 			{failure && <Failure failure={failure} kind={candidate.kind} />}
+			{unchecked && (
+				<div className="unchecked">
+					<p className="muted">
+						{unchecked.enabled
+							? 'You can apply again without checking this one. The rest are still checked.'
+							: 'Undo your changes to apply what failed without checking this one.'}
+					</p>
+					<button className="secondary small" onClick={unchecked.apply} disabled={!unchecked.enabled}>
+						Apply without checking
+					</button>
+				</div>
+			)}
 			{!failure && observed?.is === 'unavailable' && observed.reason && <p className="muted">{observed.reason}</p>}
+			{candidate.verify === false && (
+				<div className="unchecked">
+					<p className="muted">Not checked. Applying goes ahead even if this cannot connect.</p>
+					<button className="secondary small" onClick={() => change((held) => checking(held, candidateKey, true))} disabled={readOnly}>
+						Turn checking on
+					</button>
+				</div>
+			)}
 			{known ? (
 				<fieldset disabled={readOnly}>
 					<CandidateFields candidate={candidate} index={index} change={edit} capabilities={state.capabilities} marks={marks} scan={scan} />

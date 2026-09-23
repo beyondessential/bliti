@@ -59,6 +59,12 @@ export function updateCandidate(edit, key, change) {
 	return { ...edit, document: { ...edit.document, attachments } }
 }
 
+/// The candidate under `key` with checking turned off or back on: one not checked cannot fail a
+/// proposal, and is otherwise brought up as any other (BLI-CFG).
+export function checking(edit, key, verify) {
+	return updateCandidate(edit, key, (candidate) => ({ ...candidate, verify }))
+}
+
 export function removeCandidate(edit, key) {
 	const index = edit.keys.indexOf(key)
 	if (index === -1) return edit
@@ -126,7 +132,6 @@ export function opening() {
 		capabilities: null,
 		edit: fromDocument(null),
 		proposed: null,
-		verify: true,
 		runningKeys: [],
 		failure: null,
 		problem: null,
@@ -149,10 +154,17 @@ export function writable(state) {
 	return state.status === 'open' && (state.stage === 'editing' || state.stage === 'errored')
 }
 
-/// Whether the operator may apply unverified: after a failure, while the fields still hold the
-/// document that failed (NSCR). An edit is applied as any other, verified.
-export function unverifiable(state) {
-	return writable(state) && state.stage === 'errored' && !!state.proposed && same(state.edit.document, state.proposed.document)
+/// The key of the candidate whose checking failed the last proposal, which the operator may apply
+/// again without checking (NSCR). Null for a failure that is not a candidate's checking.
+export function uncheckable(state) {
+	if (!writable(state) || state.stage !== 'errored' || !state.failure?.reached || !state.proposed) return null
+	return candidateAt(state.failure.at, state.proposed.keys)
+}
+
+/// Whether the fields still hold the document that failed, which is all that may be applied again
+/// without checking; an edit since is applied as any other.
+export function unedited(state) {
+	return !!state.proposed && same(state.edit.document, state.proposed.document)
 }
 
 /// Enter editing, filled from the configuration in force.
@@ -165,7 +177,6 @@ function editing(state) {
 		inForceKeys: edit.keys,
 		runningKeys: edit.keys,
 		proposed: null,
-		verify: true,
 		failure: null,
 		problem: null,
 		confirming: false,
@@ -203,8 +214,8 @@ export function reduce(state, action) {
 			return {
 				...state,
 				stage: 'applying',
-				proposed: clone(state.edit),
-				verify: action.verify,
+				edit: action.edit,
+				proposed: clone(action.edit),
 				awaiting: state.awaiting + 1,
 				failure: null,
 				problem: null,
@@ -214,7 +225,6 @@ export function reduce(state, action) {
 				...state,
 				stage: 'applying',
 				proposed: null,
-				verify: true,
 				awaiting: state.awaiting + 1,
 				failure: null,
 				problem: null,

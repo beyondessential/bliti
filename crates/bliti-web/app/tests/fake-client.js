@@ -78,7 +78,7 @@ window.__blitiClient = {
 		send({ type: 'configure' })
 		return {
 			// Copied as the wasm half copies it, by writing it out as JSON.
-			propose: (document, verify) => send({ type: 'configuration', document: JSON.parse(JSON.stringify(document)), verify }),
+			propose: (document) => send({ type: 'configuration', document: JSON.parse(JSON.stringify(document)) }),
 			confirm: () => send({ type: 'confirm' }),
 			discard: () => send({ type: 'discard' }),
 			scan: (iface) => send(iface ? { type: 'scan', interface: iface } : { type: 'scan' }),

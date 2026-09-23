@@ -251,6 +251,10 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .stages .failed { color: var(--bad); }
 .stages .failed::before { content: "\2717"; }
 .stages .untried { color: var(--muted); }
+/* A candidate not checked when applied: offered where its checking failed, and said wherever it is
+   off, so an operator never loses track of which ones can fail without stopping a change. */
+.network .unchecked { margin: 0 0 12px; }
+.network .unchecked p { margin: 0 0 8px; font-size: 0.85rem; }
 .field-fault { border-color: var(--bad); }
 .why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
 .why.reason { margin-bottom: 12px; }

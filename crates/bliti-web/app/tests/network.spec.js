@@ -149,9 +149,9 @@ test.describe('rendering a failure', () => {
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
 		await expect(page.getByLabel('Gateway')).toHaveClass(/field-fault/)
 		await expect(page.getByLabel('Address')).not.toHaveClass(/field-fault/)
-		// Errored is writable, and offers apply, apply unverified and reset.
+		// Errored is writable, and offers apply and reset.
 		await expect(page.getByLabel('Gateway')).toBeEditable()
-		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Apply without checking', 'Reset'])
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
 	})
 
 	test('the verification stages show which passed and which failed', async ({ page }) => {
@@ -204,11 +204,12 @@ test.describe('rendering a failure', () => {
 	})
 })
 
-// NSCR: a proposal is verified, except the document that failed where the operator applies it
-// unverified.
-test.describe('applying unverified', () => {
+// NSCR: every candidate is checked, except one the operator applies without checking after its
+// checking failed a proposal.
+test.describe('applying without checking', () => {
 	const failure = message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: '192.168.60.254 did not answer.', reached: 'gateway' })
-	const unverified = (page) => bar(page).getByRole('button', { name: 'Apply without checking' })
+	const unchecked = (page) => page.locator('.candidate').getByRole('button', { name: 'Apply without checking' })
+	const checkedAgain = (page) => page.locator('.candidate').getByRole('button', { name: 'Turn checking on' })
 
 	async function failGateway(page) {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
@@ -219,83 +220,111 @@ test.describe('applying unverified', () => {
 		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
 	}
 
-	test('apply proposes with verification', async ({ page }) => {
+	test('every candidate is proposed checked, and one added is too', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Add' }).click()
+		await page.getByRole('button', { name: 'Wired, static' }).click()
+		await page.getByLabel('Name', { exact: true }).fill('South site')
+		await page.getByLabel('Address').fill('172.16.4.20/24')
+		await page.getByLabel('Gateway').fill('172.16.4.1')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		const [proposal] = await proposals(page)
-		expect(proposal.verify).toBe(true)
-		expect(proposal.document['regulatory-domain']).toBe('FJ')
+		expect(proposal.verify).toBeUndefined()
+		expect(proposal.document.attachments.map((each) => each.verify)).toEqual([true, true, true, true, true, true])
+		await expect(page.locator('.order')).not.toContainText('not checked')
 	})
 
-	test('it is not offered while editing', async ({ page }) => {
+	test('it is offered only on the candidate whose checking failed', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await expect(unverified(page)).toHaveCount(0)
-		await page.getByLabel('Country').selectOption('FJ')
-		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+		await open(page, 'North site')
+		await expect(unchecked(page)).toHaveCount(0)
 
-		// Nor once a failure has been reset away.
 		await answer(page, 'configuration', failure)
+		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(unverified(page)).toBeEnabled()
+		await expect(unchecked(page)).toBeEnabled()
+		await expect(page.locator('.candidate')).toContainText('The rest are still checked.')
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+		await open(page, 'Clinic wall port')
+		await expect(unchecked(page)).toHaveCount(0)
+
+		// Nor once the failure has been reset away.
 		await bar(page).getByRole('button', { name: 'Reset' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
-		await expect(unverified(page)).toHaveCount(0)
+		await open(page, 'North site')
+		await expect(unchecked(page)).toHaveCount(0)
 	})
 
-	test('after a failure, the document that failed is proposed without verification', async ({ page }) => {
+	test('it is not offered where nothing was checked', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['interface']", reason: 'eth0 is not free.' }))
+		await open(page, 'North site')
+		await page.getByLabel('Gateway').fill('192.168.60.254')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(page.locator('.candidate')).toContainText('eth0 is not free.')
+		await expect(unchecked(page)).toHaveCount(0)
+	})
+
+	test('the document that failed is proposed again with that candidate not checked', async ({ page }) => {
 		await failGateway(page)
-		await unverified(page).click()
+		await unchecked(page).click()
 
 		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-		await expect(bar(page)).toContainText('Applying without checking.')
 		await expect(page.getByLabel('Gateway')).toBeDisabled()
 		const [failed, again] = await proposals(page)
-		expect(failed.verify).toBe(true)
-		expect(again.verify).toBe(false)
-		expect(again.document).toEqual(failed.document)
+		expect(failed.document.attachments[1].verify).toBe(true)
+		expect(again.document.attachments[1]).toEqual({ ...failed.document.attachments[1], verify: false })
+		expect(again.document.attachments.filter((_, index) => index !== 1)).toEqual(failed.document.attachments.filter((_, index) => index !== 1))
+		expect({ ...again.document, attachments: null }).toEqual({ ...failed.document, attachments: null })
+		await expect(row(page, 'North site')).toContainText('not checked')
+		await expect(row(page, 'Clinic wall port')).not.toContainText('not checked')
 
 		await say(page, message({ type: 'applied' }))
 		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await expect(bar(page)).toContainText('Applied without checking, not saved.')
+		await expect(bar(page)).toContainText('Applied, not saved.')
 		await expect(bar(page).getByRole('button')).toHaveText(['Confirm', 'Cancel'])
 		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
+		await expect(page.locator('.candidate')).toContainText('Not checked.')
+		await expect(checkedAgain(page)).toBeDisabled()
 	})
 
-	test('an edit after the failure is applied with verification', async ({ page }) => {
+	test('an edit after the failure is applied with checking', async ({ page }) => {
 		await failGateway(page)
 		await page.getByLabel('Gateway').fill('192.168.60.1')
-		await expect(unverified(page)).toBeDisabled()
+		await expect(unchecked(page)).toBeDisabled()
+		await expect(page.locator('.candidate')).toContainText('Undo your changes')
 		// Back to what failed, and it is offered again.
 		await page.getByLabel('Gateway').fill('192.168.60.254')
-		await expect(unverified(page)).toBeEnabled()
+		await expect(unchecked(page)).toBeEnabled()
 
 		await page.getByLabel('Gateway').fill('192.168.60.1')
 		await bar(page).getByRole('button', { name: 'Apply', exact: true }).click()
 		const [, edited] = await proposals(page)
-		expect(edited.verify).toBe(true)
-		expect(edited.document.attachments[1].gateway).toBe('192.168.60.1')
+		expect(edited.document.attachments[1]).toMatchObject({ gateway: '192.168.60.1', verify: true })
 	})
 
-	test('a proposal applied unverified is confirmed like any other', async ({ page }) => {
+	test('a candidate applied without checking is confirmed like any other, and saved not checked', async ({ page }) => {
 		await failGateway(page)
 		const [failed] = await proposals(page)
+		const saved = structuredClone(failed.document)
+		saved.attachments[1].verify = false
 		await answer(page, 'configuration', message({ type: 'applied' }))
-		await answer(page, 'confirm', message({ type: 'configuration', document: failed.document }))
-		await unverified(page).click()
+		await answer(page, 'confirm', message({ type: 'configuration', document: saved }))
+		await unchecked(page).click()
 		await bar(page).getByRole('button', { name: 'Confirm' }).click()
 
 		await expect(bar(page)).toContainText('Saved.')
+		await expect(row(page, 'North site')).toContainText('not checked')
 		await open(page, 'North site')
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
 		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'configuration', 'confirm'])
 	})
 
-	// CFG: applied unverified, each candidate is reported through `state`, the failing one included.
-	test('candidates that do not verify are shown by what the device observed', async ({ page }) => {
+	// CFG: a candidate not checked is still brought up, and reported through `state`.
+	test('a candidate not checked is shown by what the device observed', async ({ page }) => {
 		await failGateway(page)
 		await answer(page, 'configuration', message({ type: 'applied' }))
-		await unverified(page).click()
+		await unchecked(page).click()
 		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
 		await say(page, message({
 			type: 'state',
@@ -311,6 +340,23 @@ test.describe('applying unverified', () => {
 		await expect(row(page, 'Clinic-Staff').locator('.state')).toHaveText('Out of range')
 		await expect(page.locator('.candidate')).toContainText('192.168.60.254 did not answer')
 		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
+	})
+
+	test('checking is turned back on while editing', async ({ page }) => {
+		const document = structuredClone(IN_FORCE)
+		document.attachments[3].verify = false
+		await openNetwork(page, { document, capabilities: PI })
+		await expect(row(page, 'Clinic-Staff')).toContainText('Wireless, WPA3, not checked')
+		await open(page, 'Clinic-Staff')
+		await expect(page.locator('.candidate')).toContainText('Not checked. Applying goes ahead even if this cannot connect.')
+
+		await checkedAgain(page).click()
+		await expect(checkedAgain(page)).toHaveCount(0)
+		await expect(row(page, 'Clinic-Staff')).not.toContainText('not checked')
+		await expect(bar(page)).toContainText('1 change not applied.')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.document.attachments[3].verify).toBe(true)
 	})
 })
 
@@ -344,7 +390,7 @@ test.describe('validating before proposing', () => {
 	})
 
 	test('a device with no radio offers no wireless, hotspot or country, and says why', async ({ page }) => {
-		const wired = { attachments: [{ kind: 'wired-dynamic', label: 'eth0 automatic', interface: 'eth0' }] }
+		const wired = { attachments: [{ kind: 'wired-dynamic', label: 'eth0 automatic', verify: true, interface: 'eth0' }] }
 		await openNetwork(page, { document: wired, capabilities: WIRED_ONLY })
 		await expect(page.locator('.hotspot')).toContainText('This device has no wireless radio.')
 		await expect(page.getByRole('button', { name: 'Turn on' })).toHaveCount(0)
@@ -355,7 +401,7 @@ test.describe('validating before proposing', () => {
 
 	test('a document outside the capabilities is not proposed', async ({ page }) => {
 		const withEth1 = {
-			attachments: [{ kind: 'wired-dynamic', label: 'eth1 automatic', interface: 'eth1' }],
+			attachments: [{ kind: 'wired-dynamic', label: 'eth1 automatic', verify: true, interface: 'eth1' }],
 		}
 		await openNetwork(page, { document: withEth1, capabilities: PI })
 		await open(page, 'eth1 automatic')
@@ -395,6 +441,7 @@ test.describe('the ordering', () => {
 		expect(proposal.document.attachments[5]).toEqual({
 			kind: 'wired-static',
 			label: 'South site',
+			verify: true,
 			interface: 'eth0',
 			addresses: ['172.16.4.20/24'],
 			gateway: '172.16.4.1',
@@ -438,13 +485,15 @@ test.describe('the state of the session', () => {
 	})
 
 	test('the vocabulary of the wire does not appear on screen', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI, states: STATES })
+		const document = structuredClone(IN_FORCE)
+		document.attachments[4].verify = false
+		await openNetwork(page, { document, capabilities: PI, states: STATES })
 		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: 'no answer', reached: 'gateway' }))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await page.getByText('Radio and addressing').click()
 		const shown = await page.locator('.network').innerText()
-		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', '$[']) {
+		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', '$[']) {
 			expect(shown.toLowerCase()).not.toContain(word)
 		}
 	})
@@ -478,6 +527,7 @@ test.describe('adapters', () => {
 		expect(proposal.document.attachments[5]).toEqual({
 			kind: 'wireless',
 			label: 'Clinic',
+			verify: true,
 			ssid: 'Clinic',
 			interface: 'wlan0',
 			security: { kind: 'psk-sae', passphrase: 'correct horse battery' },
