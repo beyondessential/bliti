@@ -24,6 +24,7 @@ Each candidate MUST carry:
 | --- | --- | --- | --- |
 | `kind` | string | yes | `wireless`, `wired-dynamic` or `wired-static` |
 | `label` | string | yes | what the operator calls this candidate |
+| `verify` | boolean | yes | whether a proposal fails where this candidate cannot be established (CFG) |
 | `nameservers` | array | no | the resolvers of this link, in the order they are queried |
 
 A `wireless` candidate MUST carry the members of [WLAN](wireless.md).

@@ -14,7 +14,7 @@ A client MUST open a configuration session by opening a stream whose first messa
 
 A device MUST answer `configure` with `configuration`, carrying the configuration in force and the capabilities of [NET](overview.md).
 
-A client MUST propose a change by sending `configuration` carrying the document it wants in force and `verify`, a boolean saying whether the device is to verify it.
+A client MUST propose a change by sending `configuration` carrying the document it wants in force.
 
 A device MUST answer a proposal with `applied` or with `invalid`.
 
@@ -43,7 +43,7 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 | type | sent by | carries |
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
-| `configuration` | either end | `document`, `verify` on a proposal, and `capabilities` on the first from a device |
+| `configuration` | either end | `document`, and `capabilities` on the first from a device |
 | `state` | device | `attachments`, and `capabilities` where returning to the recorded configuration changed them |
 | `applied` | device | `capabilities` where the proposal changed them |
 | `invalid` | device | `at`, `reason`, and `reached` where a proposal was applied and then failed |
@@ -58,18 +58,20 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 
 ## When a proposal fails
 
-A device MUST answer a proposal carrying `verify` true with `applied` where, on every interface carrying a candidate the proposal adds or changes against the configuration running, some candidate is established.
+A device MUST judge a proposal on the candidates it adds or changes against the configuration running that carry `verify` true, and on no others.
 
-A device MUST otherwise answer it with `invalid` at the candidate, among those added or changed on an interface where none is established, that passed the most stages of [LINK](attachment.md), the first in the ordering among equals.
+A device MUST answer a proposal with `applied` where, on every interface carrying a candidate it is judged on, some candidate is established.
 
-A device MUST answer a proposal carrying `verify` false with `applied` once it is applied, whatever verifying its candidates finds, and MUST report each candidate through `state`.
+A device MUST otherwise answer it with `invalid` at the candidate, among those it is judged on that sit on an interface where none is established, that passed the most stages of [LINK](attachment.md), the first in the ordering among equals.
 
-A device MUST answer with `invalid` a proposal it cannot apply, whatever `verify` carries.
+A device MUST answer with `invalid` a proposal it cannot apply, whatever its candidates carry.
+
+A device MUST verify and select a candidate carrying `verify` false as it does any other, and report it through `state`.
 
 > [!NOTE]
 > Judging each interface rather than each candidate is what lets one document carry a static candidate for each of two sites on one port: at either site the other's fails, and the port is still established.
 > A candidate the proposal leaves as it was has already been judged, so a network that is out of range today does not stop an operator changing something else.
-> A proposal sent without verification is for the operator who knows better than the device, as on a network that is not up yet. It is confirmed or discarded like any other.
+> A candidate that is not verified is for the operator who knows better than the device, as with a network that is not up yet. It only stops that candidate failing a proposal: the device still brings it up only as far as it can observe.
 
 ## What a failure says
 
