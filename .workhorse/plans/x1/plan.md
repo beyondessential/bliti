@@ -80,7 +80,7 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [x] Candidate selection, in `network/select.rs`: a pure, event-driven selector placing candidates on interfaces and the hotspot on a radio by LINK and HOT, with per-candidate states and the changes to apply. No timers; a retry is an event the caller schedules
 - [ ] The event sources feeding it: carrier and addresses (rtnetlink), association and range (iwd over D-Bus), and the gateway answering
 - [ ] A real `Backend` joining the selector, renderer and applier
-- [ ] Event-driven reselection on carrier, failure and a higher candidate returning
+- [x] Event-driven reselection on carrier, failure and a higher candidate returning
 - [x] Put rendered files in place and have the stack pick them up, in `network/apply.rs`: atomic writes, stale bliti files removed, a record by digest of what was written so iwd's own rewrites are not drift, and regdom, hostapd, iwd, networkd, resolved picked up in that order. Real `System` over systemd and networkd D-Bus, with `iw` until nl80211 replaces it
   - [ ] Replace `apply/iw.rs` with the probe module's nl80211 setters. They are async and `System` is not, so the real `System` holds a runtime handle and blocks on them from the blocking pool apply runs on; then `iw` leaves `services/README.md`
 - [ ] Apply and revert driven by a session, with nothing provisional surviving a reboot. Everything bliti renders lives under `/run` (`Paths::system()`, and iwd pointed there by its drop-in), so a power cut leaves nothing for the stack to bring up at the next boot, and bliti renders the recorded configuration, kept in `/var/lib/bliti`, as it starts. bliti therefore has to start before anything wants the network. Not checked on hardware: that emptying `StateDirectory=` in the drop-in lets `Environment=STATE_DIRECTORY` win
@@ -142,11 +142,11 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [ ] `Hardware` describing each radio (its station interface, the AP interface bliti creates on it, its `alongside`), and `Selection` saying which radio carries each active wireless candidate and the hotspot
 - [ ] iwd's known networks are global to iwd rather than per interface, so a pin is enforced by bliti connecting that interface's station itself, with every network at `AutoConnect=false`
 - [ ] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
-- [ ] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
+- [x] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
 - [ ] `wireless-network` in NFO carries `interface`, distinguishing
 - [x] `scan`, `survey` and `wps` take an optional `interface` on the wire and through the `Backend` trait; unset, scan and survey run on every radio able to
 - [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
-- [ ] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
+- [x] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
 - [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
 - [ ] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
 - [ ] The screen: a WPS adapter choice, a survey adapter choice, and the siting view counting every channel a wide access point spans (NSCR)
