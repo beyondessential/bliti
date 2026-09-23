@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Value as Json, json};
 
 use super::{Band, RadioInfo, alongside_str};
-use crate::network::select::Alongside;
+use crate::network::{render, select::Alongside};
 
 /// What the stack above the radios offers, whatever radio it runs on.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,8 +124,8 @@ fn security(radio: &RadioInfo, backend: &Backend) -> Map<String, Json> {
 /// What a hotspot on `radio` may carry, or `None` where the radio cannot run one.
 ///
 /// A shared-channel radio's hotspot follows its client's channel, so it offers no `band` (HOT).
-/// Elsewhere each band carries the channels an access point can start on, and the widths the radio,
-/// the regulatory domain and the stack all allow.
+/// Elsewhere each band carries the channels an access point can start on and the renderer renders,
+/// and the widths the radio, the regulatory domain and the stack all allow.
 fn hotspot(radio: &RadioInfo, backend: &Backend) -> Option<Map<String, Json>> {
 	match radio.alongside? {
 		Alongside::SharedChannel => Some(Map::new()),
@@ -139,6 +139,7 @@ fn hotspot(radio: &RadioInfo, backend: &Backend) -> Option<Map<String, Json>> {
 					.channels
 					.iter()
 					.filter(|channel| channel.can_start_ap())
+					.filter(|channel| render::hotspot_channel(band.as_str(), channel.number))
 					.collect();
 				let widths: Vec<u32> = info
 					.widths

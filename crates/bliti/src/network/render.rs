@@ -266,6 +266,14 @@ fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 	Ok(())
 }
 
+/// Whether the hotspot renders on `channel` of `band`, as the band is named on the wire.
+///
+/// The one list of channels hostapd is rendered on, so capabilities never offer a channel the
+/// renderer would then refuse.
+pub(super) fn hotspot_channel(band: &str, channel: u32) -> bool {
+	hostapd::band(band).is_ok_and(|band| hostapd::exists(band, channel))
+}
+
 /// A fault found in the document before anything was applied, at the node `at` names.
 fn invalid(at: &[Segment<'_>], reason: impl Into<String>) -> Invalid {
 	Invalid {

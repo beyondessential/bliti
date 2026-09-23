@@ -305,3 +305,21 @@ fn a_device_without_radios_offers_nothing_wireless() {
 	let err = check(&object(hotspot(json!({}))), document).unwrap_err();
 	assert_eq!(err.at, "$['hotspot']");
 }
+
+/// A channel the radio can start an access point on but the renderer does not render, as the 4.9 GHz
+/// channels numbered on the 5 GHz band are, is not offered: capabilities offer nothing the device
+/// would then refuse.
+#[test]
+fn a_channel_the_renderer_refuses_is_not_offered() {
+	let mut radio = adapter();
+	radio
+		.bands
+		.get_mut(&Band::Five)
+		.unwrap()
+		.channels
+		.push(channel(184, 20));
+	let caps = capabilities(&[radio], &[], &Backend::stack());
+	let channels =
+		&caps["document"]["hotspot"]["interface"]["wlx00c0caa1b2c3"]["band"]["5ghz"]["channel"];
+	assert_eq!(channels, &json!([36, 40]));
+}

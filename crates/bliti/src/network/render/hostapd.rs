@@ -22,7 +22,7 @@ fn at(member: &str) -> [Segment<'_>; 2] {
 
 /// Read `band`, in the vocabulary proposed with the wire shape and shared with NFO's `channel`
 /// trait. Kept to this one function because HOT does not pin its values.
-fn band(band: &str) -> Result<Band, String> {
+pub(super) fn band(band: &str) -> Result<Band, String> {
 	match band {
 		"2.4ghz" => Ok(Band::TwoPointFour),
 		"5ghz" => Ok(Band::Five),
@@ -33,7 +33,7 @@ fn band(band: &str) -> Result<Band, String> {
 }
 
 /// Whether `number` is a 20 MHz channel on `band`.
-fn exists(band: Band, number: u32) -> bool {
+pub(super) fn exists(band: Band, number: u32) -> bool {
 	match band {
 		Band::TwoPointFour => (1..=14).contains(&number),
 		Band::Five => {
