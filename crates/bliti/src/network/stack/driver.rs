@@ -6,15 +6,15 @@
 //! a wired one's addressing deadline started, once the files it needs are written.
 //!
 //! A proposal is answered once nothing brought up is still being verified and every scan it asked
-//! for is in. It is applied where any candidate is established, which is what lets a document
-//! carrying two sites' static candidates be applied at either site; with none established it fails
-//! at the candidate that got furthest, the first of those in the ordering (CFG).
+//! for is in, and is judged by [`verdict`]. One sent unverified is answered once it is applied.
+//! A wireless candidate's first join waits for the proposal's scan of its radio, so it is not tried
+//! from what iwd heard before.
 //!
-//! Timers are deadlines on one attempt's stage, and retries of a failed candidate on an interface
-//! left with nothing established, each backed off. Nothing is polled (LINK).
+//! Timers are deadlines on one attempt's stage, retries of a failed candidate on an interface left
+//! with nothing established, and scans for a wireless candidate above the default route while it is
+//! out of range, each backed off. Nothing else is polled (LINK).
 
 use std::{
-	cmp::Reverse,
 	collections::{BTreeMap, BTreeSet},
 	sync::Arc,
 	time::Duration,
@@ -37,7 +37,13 @@ use crate::network::{
 	session::entry,
 };
 
+#[cfg(test)]
+pub(super) use self::verdict::Judged;
+pub(super) use self::verdict::{changed, verdict};
+
 mod attempt;
+mod sweep;
+mod verdict;
 
 /// How long a wireless candidate may take to associate.
 pub(super) const ASSOCIATE: Duration = Duration::from_secs(90);
@@ -60,9 +66,11 @@ pub(super) const RETRY_MAX: Duration = Duration::from_secs(15 * 60);
 
 /// What the backend asks of the task.
 pub(super) enum Command {
-	/// Configure a proposal and answer once it is verified.
+	/// Configure a proposal and answer once it is verified, or once it is applied where `verify` is
+	/// false.
 	Apply {
 		document: Document,
+		verify: bool,
 		reply: oneshot::Sender<Result<(), Invalid>>,
 	},
 	/// Configure the recorded document and answer once it is applied.
@@ -94,6 +102,13 @@ enum Internal {
 	Scanned {
 		interface: String,
 		result: Result<BTreeMap<String, i32>, String>,
+		/// The sweep that asked for it, or `None` for a pending proposal's.
+		sweep: Option<u64>,
+	},
+	/// A sweep's wait before its next scan is over.
+	Sweep {
+		radio: String,
+		token: u64,
 	},
 	Associated {
 		attempt: Attempt,
@@ -115,7 +130,12 @@ enum Internal {
 
 /// A command waiting on its answer, and the render it waits to see applied.
 enum Pending {
-	Apply(oneshot::Sender<Result<(), Invalid>>),
+	Apply {
+		reply: oneshot::Sender<Result<(), Invalid>>,
+		verify: bool,
+		/// The candidates it adds or changes against the configuration running before it.
+		changed: Vec<usize>,
+	},
 	Restore(oneshot::Sender<anyhow::Result<()>>),
 }
 
@@ -123,6 +143,8 @@ pub(super) struct Driver {
 	shared: Arc<Shared>,
 	selector: Selector,
 	document: Document,
+	/// The configuration running: the last restored, or the last proposal answered as applied.
+	running: Document,
 	/// Whether a document has been configured, before which nothing is rendered.
 	configured: bool,
 	/// Taken while an apply runs.
@@ -137,8 +159,8 @@ pub(super) struct Driver {
 	taken: u64,
 	done: u64,
 	reprobing: bool,
-	/// Scans a pending proposal waits on.
-	scanning: usize,
+	/// Scans a pending proposal waits on, by radio.
+	scanning: BTreeMap<String, usize>,
 	pending: Option<(Pending, u64)>,
 	links: Links,
 	heard: BTreeMap<String, BTreeMap<String, i32>>,
@@ -152,6 +174,12 @@ pub(super) struct Driver {
 	backoff: BTreeMap<usize, u32>,
 	/// Candidates that failed and are to be tried again once nothing is pending.
 	failed: BTreeSet<usize>,
+	/// The radio each wireless candidate was last brought up on since the document was configured.
+	placed: BTreeMap<usize, String>,
+	/// The radios being scanned for a candidate above the default route.
+	sweeps: BTreeMap<String, sweep::Sweep>,
+	/// The last sweep started, so a timer or scan for one since stopped is recognised.
+	swept: u64,
 }
 
 impl Driver {
@@ -171,6 +199,7 @@ impl Driver {
 		Self {
 			shared,
 			selector,
+			running: document.clone(),
 			document,
 			configured: false,
 			system: Some(system),
@@ -182,7 +211,7 @@ impl Driver {
 			taken: 0,
 			done: 0,
 			reprobing: false,
-			scanning: 0,
+			scanning: BTreeMap::new(),
 			pending: None,
 			links: Links::default(),
 			heard: BTreeMap::new(),
@@ -192,6 +221,9 @@ impl Driver {
 			held: BTreeSet::new(),
 			backoff: BTreeMap::new(),
 			failed: BTreeSet::new(),
+			placed: BTreeMap::new(),
+			sweeps: BTreeMap::new(),
+			swept: 0,
 		}
 	}
 
@@ -219,22 +251,38 @@ impl Driver {
 			}
 			self.kick();
 			self.settle();
+			self.sweep();
 		}
 	}
 
 	fn command(&mut self, command: Command) {
 		match command {
-			Command::Apply { document, reply } => match self.configure(document) {
-				Ok(()) => {
-					self.pending = Some((Pending::Apply(reply), self.wanted));
-					self.scan_for_pending();
+			Command::Apply {
+				document,
+				verify,
+				reply,
+			} => {
+				let changed = changed(&self.running, &document);
+				match self.configure(document) {
+					Ok(()) => {
+						let pending = Pending::Apply {
+							reply,
+							verify,
+							changed,
+						};
+						self.pending = Some((pending, self.wanted));
+						self.scan_for_pending();
+					}
+					Err(invalid) => {
+						let _ = reply.send(Err(invalid));
+					}
 				}
-				Err(invalid) => {
-					let _ = reply.send(Err(invalid));
-				}
-			},
+			}
 			Command::Restore { document, reply } => match self.configure(document) {
-				Ok(()) => self.pending = Some((Pending::Restore(reply), self.wanted)),
+				Ok(()) => {
+					self.running = self.document.clone();
+					self.pending = Some((Pending::Restore(reply), self.wanted));
+				}
 				Err(invalid) => {
 					let _ = reply.send(Err(anyhow::anyhow!(
 						"{} (at {})",
@@ -266,6 +314,7 @@ impl Driver {
 		self.generation += 1;
 		self.backoff.clear();
 		self.failed.clear();
+		self.placed.clear();
 		// Rendered whether or not anything changed, so the running system is made to match.
 		self.wanted += 1;
 
@@ -297,17 +346,22 @@ impl Driver {
 			if !radio.scan || self.held.contains(&radio.station) {
 				continue;
 			}
-			self.scanning += 1;
-			let iwd = self.shared.platform.iwd.clone();
-			let internal = self.internal.clone();
-			tokio::spawn(async move {
-				let result = iwd.scan(&radio.station).await;
-				let _ = internal.send(Internal::Scanned {
-					interface: radio.station,
-					result,
-				});
-			});
+			*self.scanning.entry(radio.station.clone()).or_default() += 1;
+			self.scan(radio.station, None);
 		}
+	}
+
+	fn scan(&self, station: String, sweep: Option<u64>) {
+		let iwd = self.shared.platform.iwd.clone();
+		let internal = self.internal.clone();
+		tokio::spawn(async move {
+			let result = iwd.scan(&station).await;
+			let _ = internal.send(Internal::Scanned {
+				interface: station,
+				result,
+				sweep,
+			});
+		});
 	}
 
 	fn observe(&mut self, observation: Observation) {
@@ -422,7 +476,11 @@ impl Driver {
 					Err(error) => {
 						tracing::error!(%error, "applying the network configuration failed");
 						let at = self.at_fault(&error);
-						self.failed(Stage::Carrier.failed(at, error.to_string()));
+						self.failed(Invalid {
+							at,
+							reason: error.to_string(),
+							reached: None,
+						});
 					}
 				}
 				for attempt in attempts {
@@ -438,13 +496,21 @@ impl Driver {
 					}
 				}
 			}
-			Internal::Scanned { interface, result } => {
-				self.scanning = self.scanning.saturating_sub(1);
+			Internal::Scanned {
+				interface,
+				result,
+				sweep,
+			} => {
 				match result {
-					Ok(networks) => self.heard(interface, networks),
+					Ok(networks) => self.heard(interface.clone(), networks),
 					Err(reason) => tracing::warn!(interface, reason, "scanning failed"),
 				}
+				match sweep {
+					Some(token) => self.swept_on(&interface, token),
+					None => self.scanned_for_pending(&interface),
+				}
 			}
+			Internal::Sweep { radio, token } => self.sweep_now(radio, token),
 			Internal::Associated { attempt, result } => self.associated(attempt, result),
 			Internal::Deadline { attempt, timer } => self.deadline_passed(attempt, timer),
 			Internal::Probed { attempt, result } => self.probed(attempt, result),
@@ -516,6 +582,9 @@ impl Driver {
 			_ => Stage::Addressing,
 		};
 		let attachment = &self.document.attachments[link.candidate];
+		if matches!(attachment.kind, AttachmentKind::Wireless(_)) {
+			self.placed.insert(link.candidate, interface.clone());
+		}
 		let stale = match self.last.insert(interface.clone(), attachment.clone()) {
 			Some(previous) if previous != *attachment => self.links.held(&interface),
 			_ => BTreeSet::new(),
@@ -551,7 +620,7 @@ impl Driver {
 	/// Schedule trying a failed candidate again, backing off each time it fails again.
 	fn retry_later(&mut self, candidate: usize) {
 		let tries = self.backoff.entry(candidate).or_default();
-		let wait = RETRY.saturating_mul(1 << (*tries).min(16)).min(RETRY_MAX);
+		let wait = backoff(*tries);
 		*tries += 1;
 		let generation = self.generation;
 		let internal = self.internal.clone();
@@ -684,7 +753,7 @@ impl Driver {
 		if self.done < *needs || self.reprobing {
 			return;
 		}
-		if matches!(self.pending, Some((Pending::Apply(_), _))) {
+		if matches!(self.pending, Some((Pending::Apply { verify: true, .. }, _))) {
 			let verifying = self
 				.selector
 				.decision()
@@ -692,18 +761,33 @@ impl Driver {
 				.iter()
 				.any(|state| matches!(state, State::Verifying { .. }));
 			let applying = self.system.is_none() || self.taken < self.wanted;
-			if verifying || applying || self.scanning > 0 {
+			if verifying || applying || !self.scanning.is_empty() {
 				return;
 			}
 		}
 		match self.pending.take() {
-			Some((Pending::Apply(reply), _)) => {
-				let answer = verdict(&self.selector.decision().states);
+			Some((
+				Pending::Apply {
+					reply,
+					verify,
+					changed,
+				},
+				_,
+			)) => {
+				let answer = if verify {
+					verdict(self.selector.decision(), &self.judged(&changed))
+				} else {
+					Ok(())
+				};
 				match &answer {
-					Ok(()) => tracing::info!("proposal verified"),
+					Ok(()) if verify => tracing::info!("proposal verified"),
+					Ok(()) => tracing::info!("proposal applied unverified"),
 					Err(invalid) => {
 						tracing::info!(at = invalid.at, reason = invalid.reason, reached = ?invalid.reached, "proposal failed")
 					}
+				}
+				if answer.is_ok() {
+					self.running = self.document.clone();
 				}
 				let _ = reply.send(answer);
 			}
@@ -717,7 +801,7 @@ impl Driver {
 	/// Fail the command waiting, where one is.
 	fn failed(&mut self, invalid: Invalid) {
 		match self.pending.take() {
-			Some((Pending::Apply(reply), _)) => {
+			Some((Pending::Apply { reply, .. }, _)) => {
 				let _ = reply.send(Err(invalid));
 			}
 			Some((Pending::Restore(reply), _)) => {
@@ -750,32 +834,7 @@ impl Driver {
 	}
 }
 
-/// What a proposal comes to once nothing brought up is being verified: applied where a candidate is
-/// established or there are none, else failed at the candidate that got furthest.
-pub(super) fn verdict(states: &[State]) -> Result<(), Invalid> {
-	if states.is_empty()
-		|| states
-			.iter()
-			.any(|state| matches!(state, State::Up | State::DefaultRoute))
-	{
-		return Ok(());
-	}
-	let furthest = states
-		.iter()
-		.enumerate()
-		.filter_map(|(candidate, state)| match state {
-			State::Unavailable { reached, reason } => Some((candidate, *reached, reason)),
-			_ => None,
-		})
-		.max_by_key(|(candidate, reached, _)| (*reached, Reverse(*candidate)));
-	match furthest {
-		Some((candidate, reached, reason)) => Err(reached.failed(
-			path(&[Segment::Name("attachments"), Segment::Index(candidate)]),
-			reason.clone(),
-		)),
-		None => Err(Stage::Carrier.failed(
-			path(&[Segment::Name("attachments")]),
-			"no candidate could be brought up",
-		)),
-	}
+/// How long to wait before the next of a series of tries, `tries` having been made already.
+fn backoff(tries: u32) -> Duration {
+	RETRY.saturating_mul(1 << tries.min(16)).min(RETRY_MAX)
 }

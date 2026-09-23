@@ -136,6 +136,8 @@ pub(super) struct Check {
 	pub(super) at: Option<Stage>,
 	/// Whether the render bringing it up has been applied, before which nothing is asked of it.
 	pub(super) armed: bool,
+	/// Whether its join waits for the pending proposal's scan of its radio.
+	pub(super) awaiting_scan: bool,
 	/// Addresses and gateways the link held when it started, left over from another candidate, and
 	/// not to be taken as this one's until they are announced again.
 	pub(super) stale: BTreeSet<IpAddr>,
@@ -179,6 +181,7 @@ impl Check {
 			addressing: Addressing::of(attachment),
 			at: Some(at),
 			armed: false,
+			awaiting_scan: false,
 			stale,
 			probing: false,
 			timer: 0,

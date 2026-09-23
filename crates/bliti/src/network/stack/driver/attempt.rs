@@ -5,10 +5,24 @@ use std::time::Duration;
 
 use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE};
 use crate::network::{
-	observe::{Joined, Station, render_channel},
+	observe::{Joined, NetworkType, Station, render_channel},
 	select::{Attempt, Event, Stage},
-	stack::verify::Addressing,
+	stack::verify::{Addressing, Joining},
 };
+
+/// Why a join failed, in iwd's words except where they give an operator nothing to go on: iwd
+/// answers a key-based network refusing the handshake with a bare `Failed`, which is most often a
+/// wrong passphrase.
+pub(in crate::network::stack) fn refused(joining: &Joining, reason: String) -> String {
+	if joining.target.kind == NetworkType::Psk && reason.contains("net.connman.iwd.Failed") {
+		tracing::info!(reason, "iwd could not join");
+		return format!(
+			"{:?} refused the connection; the passphrase is most likely wrong",
+			joining.target.ssid
+		);
+	}
+	reason
+}
 
 impl Driver {
 	pub(super) fn arm(&mut self, attempt: Attempt) {
@@ -20,6 +34,10 @@ impl Driver {
 		}
 		check.armed = true;
 		match check.at {
+			// Joined from a scan older than the proposal, a network just gone would be tried.
+			Some(Stage::Association) if self.scanning.contains_key(&check.interface) => {
+				check.awaiting_scan = true;
+			}
 			Some(Stage::Association) => self.associate(attempt),
 			Some(Stage::Addressing) => {
 				self.address_deadline(attempt);
@@ -29,7 +47,7 @@ impl Driver {
 		}
 	}
 
-	fn associate(&mut self, attempt: Attempt) {
+	pub(super) fn associate(&mut self, attempt: Attempt) {
 		let Some(check) = self.checks.get(&attempt) else {
 			return;
 		};
@@ -108,7 +126,7 @@ impl Driver {
 			Err(reason) => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
-				reason,
+				reason: refused(&joining, reason),
 			}),
 		}
 	}

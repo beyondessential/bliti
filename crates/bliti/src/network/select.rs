@@ -81,7 +81,7 @@ impl Stage {
 		}
 	}
 
-	/// An apply-time failure that stopped at this stage, at the part of the document named by `at`,
+	/// A candidate's verification that stopped at this stage, at the part of the document named by `at`,
 	/// a Normalized Path made with [`bliti_core::channel::config::path`].
 	pub fn failed(self, at: impl Into<String>, reason: impl Into<String>) -> Invalid {
 		Invalid {

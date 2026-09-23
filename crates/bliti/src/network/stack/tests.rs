@@ -1,260 +1,33 @@
 use std::{
-	collections::BTreeMap,
+	collections::{BTreeMap, BTreeSet},
 	fs,
-	net::IpAddr,
 	sync::{Arc, Mutex},
 	time::Duration,
 };
 
 use bliti_core::channel::config::Document;
-use futures::future::BoxFuture;
 use serde_json::{Map, Value as Json, json};
 use tokio::sync::{mpsc, oneshot};
 
+use self::fake::{Calls, FakeAir, FakeGateway, FakeIwd, FakeSystem, Scratch};
 use super::*;
 use crate::network::{
-	apply::Hostapd,
-	observe::{
-		Joined, Observation, Operating, Station, Surveyed, Target, WpsFailed, bss::AccessPoint,
-	},
+	observe::{Joined, Observation, Operating, Station, Surveyed, bss::AccessPoint},
 	probe::{Band, BandInfo, Channel},
-	select::{Alongside, State},
+	select::Alongside,
 };
 
-/// A directory under the system's temporary directory, removed when dropped.
-struct Scratch(PathBuf);
-
-impl Scratch {
-	fn new() -> Self {
-		let dir = std::env::temp_dir().join(format!("bliti-stack-{:016x}", rand::random::<u64>()));
-		fs::create_dir(&dir).unwrap();
-		Self(dir)
-	}
-
-	fn paths(&self) -> render::Paths {
-		let root = &self.0;
-		render::Paths {
-			networkd: root.join("network"),
-			iwd_state: root.join("iwd"),
-			iwd_config: root.join("iwd-config/main.conf"),
-			hostapd: root.join("hostapd.conf"),
-			modprobe: root.join("modprobe.d/bliti-regdom.conf"),
-			resolved: root.join("dns-delegate.d"),
-		}
-	}
-}
-
-impl Drop for Scratch {
-	fn drop(&mut self) {
-		let _ = fs::remove_dir_all(&self.0);
-	}
-}
-
-/// What the fake system was asked, in order.
-type Calls = Arc<Mutex<Vec<String>>>;
-
-struct FakeSystem(Calls);
-
-impl FakeSystem {
-	fn call(&mut self, call: String) -> anyhow::Result<()> {
-		self.0.lock().unwrap().push(call);
-		Ok(())
-	}
-}
-
-impl System for FakeSystem {
-	fn set_regulatory_domain(&mut self, domain: &str) -> anyhow::Result<()> {
-		self.call(format!("regdom {domain}"))
-	}
-
-	fn create_access_point(&mut self, radio: &str, interface: &str) -> anyhow::Result<()> {
-		self.call(format!("create {interface} on {radio}"))
-	}
-
-	fn delete_access_point(&mut self, interface: &str) -> anyhow::Result<()> {
-		self.call(format!("delete {interface}"))
-	}
-
-	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()> {
-		self.call(format!("hostapd {action:?}"))
-	}
-
-	fn restart_iwd(&mut self) -> anyhow::Result<()> {
-		self.call("restart iwd".into())
-	}
-
-	fn reload_networkd(&mut self) -> anyhow::Result<()> {
-		self.call("reload networkd".into())
-	}
-
-	fn reload_resolved(&mut self) -> anyhow::Result<()> {
-		self.call("reload resolved".into())
-	}
-}
-
-/// An iwd that answers as it is told to.
-#[derive(Default)]
-struct FakeIwd {
-	/// How joining each SSID goes.
-	joins: Mutex<BTreeMap<String, Result<Joined, String>>>,
-	/// What every scan hears.
-	heard: Mutex<BTreeMap<String, i32>>,
-	/// How WPS goes.
-	wps: Mutex<Option<Result<Joined, WpsFailed>>>,
-	/// What a WPS join left behind.
-	passphrase: Mutex<Option<String>>,
-	calls: Mutex<Vec<String>>,
-}
-
-impl FakeIwd {
-	fn called(&self, call: String) {
-		self.calls.lock().unwrap().push(call);
-	}
-
-	fn wps_result(&self) -> Result<Joined, WpsFailed> {
-		self.wps.lock().unwrap().clone().unwrap_or(Err(WpsFailed {
-			found: false,
-			reason: "no access point in push-button mode".into(),
-		}))
-	}
-}
-
-impl crate::network::observe::Iwd for FakeIwd {
-	fn connect(
-		&self,
-		station: &str,
-		target: &Target,
-	) -> BoxFuture<'static, Result<Joined, String>> {
-		self.called(format!("connect {station} {}", target.ssid));
-		let result = self
-			.joins
-			.lock()
-			.unwrap()
-			.get(&target.ssid)
-			.cloned()
-			.unwrap_or_else(|| Err(format!("{station} does not hear {:?}", target.ssid)));
-		Box::pin(async move { result })
-	}
-
-	fn disconnect(&self, station: &str) -> BoxFuture<'static, Result<(), String>> {
-		self.called(format!("disconnect {station}"));
-		Box::pin(async { Ok(()) })
-	}
-
-	fn scan(&self, station: &str) -> BoxFuture<'static, Result<BTreeMap<String, i32>, String>> {
-		self.called(format!("scan {station}"));
-		let heard = self.heard.lock().unwrap().clone();
-		Box::pin(async move { Ok(heard) })
-	}
-
-	fn push_button(&self, station: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		self.called(format!("push-button {station}"));
-		let result = self.wps_result();
-		Box::pin(async move { result })
-	}
-
-	fn generate_pin(&self, _station: &str) -> BoxFuture<'static, Result<String, String>> {
-		Box::pin(async { Ok("12345670".to_owned()) })
-	}
-
-	fn start_pin(&self, station: &str, pin: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		self.called(format!("start-pin {station} {pin}"));
-		let result = self.wps_result();
-		Box::pin(async move { result })
-	}
-
-	fn cancel_wps(&self, station: &str) -> BoxFuture<'static, ()> {
-		self.called(format!("cancel-wps {station}"));
-		Box::pin(async {})
-	}
-
-	fn passphrase(&self, _ssid: &str) -> BoxFuture<'static, Result<String, String>> {
-		let passphrase = self.passphrase.lock().unwrap().clone();
-		Box::pin(async move { passphrase.ok_or_else(|| "a raw key".to_owned()) })
-	}
-}
-
-#[derive(Default)]
-struct FakeAir {
-	radios: Vec<RadioInfo>,
-	heard: Vec<AccessPoint>,
-	surveyed: Vec<Surveyed>,
-	addresses: BTreeMap<String, String>,
-	operating: BTreeMap<String, Operating>,
-	clients: usize,
-}
-
-impl crate::network::observe::Air for FakeAir {
-	fn radios(&self) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
-		let radios = self.radios.clone();
-		Box::pin(async move { Ok(radios) })
-	}
-
-	fn access_points(
-		&self,
-		_station: &str,
-	) -> BoxFuture<'static, Result<Vec<AccessPoint>, String>> {
-		let heard = self.heard.clone();
-		Box::pin(async move { Ok(heard) })
-	}
-
-	fn survey(&self, _station: &str) -> BoxFuture<'static, Result<Vec<Surveyed>, String>> {
-		let surveyed = self.surveyed.clone();
-		Box::pin(async move { Ok(surveyed) })
-	}
-
-	fn address(&self, interface: &str) -> Option<String> {
-		self.addresses.get(interface).cloned()
-	}
-
-	fn operating(&self, interface: &str) -> BoxFuture<'static, Result<Option<Operating>, String>> {
-		let operating = self.operating.get(interface).copied();
-		Box::pin(async move { Ok(operating) })
-	}
-
-	fn clients(&self, _interface: &str) -> BoxFuture<'static, Result<usize, String>> {
-		let clients = self.clients;
-		Box::pin(async move { Ok(clients) })
-	}
-}
-
-/// A gateway probe answering for the gateways it is told answer.
-#[derive(Default)]
-struct FakeGateway {
-	answering: Mutex<Vec<IpAddr>>,
-	asked: Mutex<Vec<(String, IpAddr, IpAddr)>>,
-}
-
-impl crate::network::observe::Gateway for FakeGateway {
-	fn probe(
-		&self,
-		interface: &str,
-		source: IpAddr,
-		gateway: IpAddr,
-	) -> BoxFuture<'static, Result<(), String>> {
-		self.asked
-			.lock()
-			.unwrap()
-			.push((interface.to_owned(), source, gateway));
-		let answers = self.answering.lock().unwrap().contains(&gateway);
-		let interface = interface.to_owned();
-		Box::pin(async move {
-			if answers {
-				Ok(())
-			} else {
-				Err(format!(
-					"the gateway {gateway} did not answer on {interface}"
-				))
-			}
-		})
-	}
-}
+mod fake;
+mod sweep;
+mod verdict;
 
 /// A backend on fakes, and the ends a test drives it from.
 struct Rig {
 	stack: Stack,
 	observe: mpsc::UnboundedSender<Observation>,
 	system: Calls,
+	/// The system calls that fail.
+	failing: Arc<Mutex<BTreeSet<String>>>,
 	iwd: Arc<FakeIwd>,
 	gateway: Arc<FakeGateway>,
 	scratch: Scratch,
@@ -277,11 +50,15 @@ impl Rig {
 			gateway: gateway.clone(),
 		};
 		let system = Calls::default();
+		let failing = Arc::<Mutex<BTreeSet<String>>>::default();
 		let (observe, observations) = mpsc::unbounded_channel();
 		let stack = Stack::start(
 			config,
 			platform,
-			Box::new(FakeSystem(system.clone())),
+			Box::new(FakeSystem {
+				calls: system.clone(),
+				failing: failing.clone(),
+			}),
 			observations,
 		)
 		.await
@@ -290,6 +67,7 @@ impl Rig {
 			stack,
 			observe,
 			system,
+			failing,
 			iwd,
 			gateway,
 			scratch,
@@ -334,6 +112,22 @@ impl Rig {
 
 	fn calls(&self) -> Vec<String> {
 		self.system.lock().unwrap().clone()
+	}
+
+	/// What iwd was asked, in order.
+	fn asked(&self) -> Vec<String> {
+		self.iwd.calls.lock().unwrap().clone()
+	}
+
+	/// Have every scan hear `ssid`, and joining it go as `join` says.
+	fn hears(&self, ssid: &str, join: Result<Joined, String>) {
+		self.iwd.heard.lock().unwrap().insert(ssid.into(), -55);
+		self.iwd.joins.lock().unwrap().insert(ssid.into(), join);
+	}
+
+	/// Have scans hear nothing.
+	fn hears_nothing(&self) {
+		self.iwd.heard.lock().unwrap().clear();
 	}
 }
 
@@ -432,11 +226,24 @@ fn joined(ssid: &str, frequency: u32) -> Joined {
 
 /// Apply `document` on a task, so the test can observe for it while it is verified.
 fn applying(rig: &mut Rig, document: Document) -> oneshot::Receiver<Result<(), Invalid>> {
+	proposing(rig, document, true)
+}
+
+/// Apply `document`, verified or not.
+fn proposing(
+	rig: &mut Rig,
+	document: Document,
+	verify: bool,
+) -> oneshot::Receiver<Result<(), Invalid>> {
 	let (tx, rx) = oneshot::channel();
 	let (reply, answer) = oneshot::channel();
 	rig.stack
 		.commands
-		.send(driver::Command::Apply { document, reply })
+		.send(driver::Command::Apply {
+			document,
+			verify,
+			reply,
+		})
 		.unwrap();
 	tokio::spawn(async move {
 		let _ = tx.send(answer.await.unwrap());
@@ -486,10 +293,9 @@ async fn a_wrong_key_fails_at_association() {
 	let failed = answer.await.unwrap().unwrap_err();
 	assert_eq!(failed.reached.as_deref(), Some("association"));
 	assert_eq!(failed.at, "$['attachments'][0]");
-	assert!(
-		failed.reason.contains("net.connman.iwd.Failed"),
-		"{}",
-		failed.reason
+	assert_eq!(
+		failed.reason,
+		"\"clinic\" refused the connection; the passphrase is most likely wrong"
 	);
 	assert!(
 		rig.iwd
@@ -795,6 +601,7 @@ async fn wps_passes_on_the_pin_and_answers_the_joined_document() {
 	.await;
 
 	let base = json!({"attachments": [dynamic(), clinic()]});
+	rig.stack.restore(&document(base.clone())).await.unwrap();
 	let Json::Object(base) = base else {
 		unreachable!()
 	};
@@ -837,31 +644,6 @@ async fn a_wps_join_that_finds_nothing_fails_at_carrier() {
 		"{}",
 		failed.reason
 	);
-}
-
-#[test]
-fn a_proposal_holds_where_any_candidate_is_established() {
-	let failed = |reached, reason: &str| State::Unavailable {
-		reached,
-		reason: reason.into(),
-	};
-	assert_eq!(driver::verdict(&[]), Ok(()));
-	assert_eq!(
-		driver::verdict(&[failed(Stage::Association, "wrong key"), State::Up]),
-		Ok(())
-	);
-	let invalid = driver::verdict(&[
-		failed(Stage::Carrier, "unplugged"),
-		failed(Stage::Gateway, "silent"),
-		failed(Stage::Gateway, "also silent"),
-	])
-	.unwrap_err();
-	assert_eq!(
-		invalid.at, "$['attachments'][1]",
-		"the first of those that got furthest"
-	);
-	assert_eq!(invalid.reached.as_deref(), Some("gateway"));
-	assert_eq!(invalid.reason, "silent");
 }
 
 #[tokio::test(start_paused = true)]

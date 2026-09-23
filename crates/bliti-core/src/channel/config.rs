@@ -25,7 +25,7 @@ use self::Segment::{Index, Name};
 ///
 /// The shape of the `invalid` answer of CFG. `at` names the part at fault so a client can put an
 /// operator's cursor on it; `reason` is the device's own words; `reached` is the verification stage
-/// of LINK an apply-time failure got to, absent for a fault found before anything was applied.
+/// of LINK a candidate's verification got to, absent for any other failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invalid {
 	/// Which part of the document is at fault, as an RFC 9535 Normalized Path (e.g.
@@ -33,8 +33,9 @@ pub struct Invalid {
 	pub at: String,
 	/// What was wrong, in words an operator can act on.
 	pub reason: String,
-	/// The verification stage of LINK an apply-time failure stopped at; every stage before it passed.
-	/// Absent only for a fault found before anything was applied.
+	/// The verification stage of LINK a candidate's verification stopped at; every stage before it
+	/// passed. Absent where nothing was applied, or where what failed is not a candidate's
+	/// verification, as a hotspot that does not start (CFG).
 	pub reached: Option<String>,
 }
 

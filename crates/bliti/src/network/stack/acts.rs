@@ -178,9 +178,10 @@ pub(super) async fn wps(
 	})?;
 	hold.finished();
 
+	// Not the joined network's verification failing, so it reaches no stage (CFG).
 	let passphrase = iwd.passphrase(&joined.ssid).await.map_err(|reason| {
-		Stage::Addressing.failed(
-			path(&[]),
+		refused(
+			&[],
 			format!(
 				"{:?} was joined, but its credentials cannot be carried: {reason}",
 				joined.ssid
@@ -190,7 +191,7 @@ pub(super) async fn wps(
 	let raw = joined_document(base, &joined.ssid, &passphrase, interface);
 	let document = Document::parse(&raw)?;
 	stack.check(&document)?;
-	stack.apply(&document).await?;
+	stack.apply(&document, true).await?;
 	Ok(raw)
 }
 
