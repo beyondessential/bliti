@@ -61,15 +61,21 @@ pub struct Paths {
 }
 
 impl Paths {
-	/// Where a device running the stock packages reads each file.
+	/// Where a device reads each file: all of them under `/run`, which does not survive a reboot.
+	///
+	/// A proposal is applied to the running system and recorded nowhere (CFG), and the files a render
+	/// writes are that running system. In `/etc` a proposal would outlive a power cut, and the stack
+	/// would bring it up at the next boot before bliti restored the recorded configuration. Under
+	/// `/run` a reboot leaves nothing, and bliti renders the recorded configuration as it starts.
+	/// iwd is pointed at its two directories by the unit drop-in in `services/`.
 	pub fn system() -> Self {
 		Self {
-			networkd: "/etc/systemd/network".into(),
-			iwd_state: "/var/lib/iwd".into(),
-			iwd_config: "/etc/iwd/main.conf".into(),
-			hostapd: "/etc/hostapd/bliti.conf".into(),
-			modprobe: "/etc/modprobe.d/bliti-regdom.conf".into(),
-			resolved: "/etc/systemd/dns-delegate.d".into(),
+			networkd: "/run/systemd/network".into(),
+			iwd_state: "/run/bliti/iwd".into(),
+			iwd_config: "/run/bliti/iwd-config/main.conf".into(),
+			hostapd: "/run/bliti/hostapd.conf".into(),
+			modprobe: "/run/modprobe.d/bliti-regdom.conf".into(),
+			resolved: "/run/systemd/dns-delegate.d".into(),
 		}
 	}
 

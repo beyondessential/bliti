@@ -197,7 +197,7 @@ fn per_link_nameservers() {
 	));
 	assert_eq!(delegate.mode, PUBLIC);
 	assert!(Paths::system().owns(std::path::Path::new(
-		"/etc/systemd/dns-delegate.d/50-bliti-eth0.dns-delegate"
+		"/run/systemd/dns-delegate.d/50-bliti-eth0.dns-delegate"
 	)));
 	let fixed = &file(&out, "network/50-bliti-eth1.network").contents;
 	assert!(fixed.contains("DNS=192.0.2.53\n"));
