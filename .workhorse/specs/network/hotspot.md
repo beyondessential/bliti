@@ -41,7 +41,9 @@ A device whose `dhcp-range` is unset MUST use `10.41.0.0/24`, the same range as 
 
 A device MUST run a hotspot naming an `interface` on that interface's radio.
 
-A device MUST run a hotspot naming no `interface` on a radio able to run it, and MUST prefer one carrying no wireless candidate.
+A device MUST run a hotspot naming no `interface` on a radio able to run it, and MUST prefer one carrying no wireless candidate, then one running an access point and a wireless client independently.
+
+A device MUST NOT move a running hotspot to another radio unless a radio it prefers becomes available or its own is lost.
 
 A device MUST run a hotspot whose `band`, `channel` or `channel-width` is set only on a radio offering them.
 

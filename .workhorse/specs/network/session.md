@@ -84,7 +84,7 @@ A device MUST send `state` after the first `configuration` it sends in a session
 | `reached` | string | where `is` is `unavailable` | the stage of [LINK](attachment.md) at which it stopped, as `invalid` carries it |
 | `reason` | string | where `is` is `unavailable` | what the device observed, in its own words |
 
-`standby` MUST mean a candidate not tried because one above it holds its interface.
+`standby` MUST mean a candidate not tried because every interface it could be brought up on carries a candidate above it, or is kept for the hotspot.
 
 > [!NOTE]
 > The stage says what the device observed of a candidate that is not up, and a client words it: stopping at `addressing` is no lease, and a wireless candidate stopping at `carrier` is out of range.
