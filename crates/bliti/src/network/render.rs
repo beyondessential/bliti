@@ -222,6 +222,23 @@ pub fn render(
 		files.extend(networks[index].iter().cloned());
 	}
 
+	let mut idle: Vec<&str> = document
+		.attachments
+		.iter()
+		.filter_map(|attachment| match &attachment.kind {
+			AttachmentKind::WiredDynamic { interface }
+			| AttachmentKind::WiredStatic { interface, .. } => Some(interface.as_str()),
+			AttachmentKind::Wireless(_) => None,
+		})
+		.filter(|interface| !interfaces.contains(interface))
+		.collect();
+	idle.sort_unstable();
+	idle.dedup();
+	files.extend(
+		idle.into_iter()
+			.map(|interface| networkd::idle(interface, &hardware.paths)),
+	);
+
 	if hardware.station.is_some() {
 		files.push(iwd::main_conf(&hardware.paths, domain));
 	}
