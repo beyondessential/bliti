@@ -230,21 +230,17 @@ impl Backend for Stack {
 		self.states.clone()
 	}
 
-	async fn apply(&mut self, document: &Document, verify: bool) -> Result<(), Invalid> {
+	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
 		let document = document.clone();
-		self.ask(|reply| driver::Command::Apply {
-			document,
-			verify,
-			reply,
-		})
-		.await
-		.unwrap_or_else(|| {
-			Err(Invalid {
-				at: path(&[]),
-				reason: STOPPED.to_owned(),
-				reached: None,
+		self.ask(|reply| driver::Command::Apply { document, reply })
+			.await
+			.unwrap_or_else(|| {
+				Err(Invalid {
+					at: path(&[]),
+					reason: STOPPED.to_owned(),
+					reached: None,
+				})
 			})
-		})
 	}
 
 	async fn restore(&mut self, document: &Document) -> anyhow::Result<()> {
@@ -316,10 +312,10 @@ impl Backend for Chosen {
 		}
 	}
 
-	async fn apply(&mut self, document: &Document, verify: bool) -> Result<(), Invalid> {
+	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
 		match self {
-			Self::Inert(backend) => backend.apply(document, verify).await,
-			Self::Stack(backend) => backend.apply(document, verify).await,
+			Self::Inert(backend) => backend.apply(document).await,
+			Self::Stack(backend) => backend.apply(document).await,
 		}
 	}
 

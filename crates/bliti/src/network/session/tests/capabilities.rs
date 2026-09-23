@@ -178,7 +178,7 @@ async fn an_invalid_proposal_after_one_it_superseded_restores_the_recorded_confi
 	propose(&mut client, proposal()).await;
 	device
 		.log
-		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()), true)))
+		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
 	propose(
@@ -197,7 +197,7 @@ async fn an_invalid_proposal_after_one_it_superseded_restores_the_recorded_confi
 	assert_eq!(
 		device.log.until(|calls| calls.len() == 3).await,
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Aborted,
 			Call::Restore(parsed(&recorded())),
 		],

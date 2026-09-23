@@ -201,14 +201,8 @@ struct Open<B: Backend> {
 
 /// What a session does to the running system, which a `discard` or a newer one interrupts.
 enum Attempt {
-	/// A document, and whether to verify it.
-	Propose(Map<String, Json>, bool),
+	Propose(Map<String, Json>),
 	Wps(String, Option<String>),
-}
-
-/// A proposal as a client sent it, verified unless it says otherwise (CFG).
-fn proposed(document: Map<String, Json>, verify: Option<bool>) -> Attempt {
-	Attempt::Propose(document, verify.unwrap_or(true))
 }
 
 /// How an attempt ended.
@@ -341,8 +335,8 @@ async fn verify<T>(
 			message = next(incoming) => match message? {
 				None => return Ok(Outcome::Ended),
 				Some(Message::Discard) => return Ok(Outcome::Discarded),
-				Some(Message::Configuration { document, verify, .. }) => {
-					return Ok(Outcome::Superseded(proposed(document, verify)));
+				Some(Message::Configuration { document, .. }) => {
+					return Ok(Outcome::Superseded(Attempt::Propose(document)));
 				}
 				Some(Message::Wps { method, interface }) => {
 					return Ok(Outcome::Superseded(Attempt::Wps(method, interface)));
@@ -528,11 +522,9 @@ impl<B: Backend> Open<B> {
 	) -> Result<Step, SessionError> {
 		match message {
 			Message::Configure => self.answer_configure(writer).await?,
-			Message::Configuration {
-				document, verify, ..
-			} => {
+			Message::Configuration { document, .. } => {
 				return self
-					.attempt(proposed(document, verify), writer, incoming, deferred)
+					.attempt(Attempt::Propose(document), writer, incoming, deferred)
 					.await;
 			}
 			Message::Wps { method, interface } => {
@@ -629,7 +621,6 @@ impl<B: Backend> Open<B> {
 			&Message::Configuration {
 				document,
 				capabilities: Some(capabilities),
-				verify: None,
 			},
 		)
 		.await
@@ -646,7 +637,7 @@ impl<B: Backend> Open<B> {
 		let mut next = Some(first);
 		while let Some(attempt) = next.take() {
 			let outcome = match attempt {
-				Attempt::Propose(raw, verifying) => {
+				Attempt::Propose(raw) => {
 					let proposal = match Proposal::parse(raw).and_then(|proposal| {
 						let backend = &self.state().backend;
 						within(&backend.capabilities(), &proposal.raw)?;
@@ -659,11 +650,11 @@ impl<B: Backend> Open<B> {
 							continue;
 						}
 					};
-					tracing::info!(verify = verifying, "applying a proposal");
+					tracing::info!("applying a proposal");
 					self.applied = None;
 					self.provisional = true;
 					self.sent = None;
-					let applying = self.state().backend.apply(&proposal.document, verifying);
+					let applying = self.state().backend.apply(&proposal.document);
 					match verify(applying, None, writer, incoming, deferred).await? {
 						Outcome::Finished(Ok(())) => Outcome::Finished(Ok((proposal, false))),
 						Outcome::Finished(Err(invalid)) => Outcome::Finished(Err(invalid)),
@@ -717,7 +708,6 @@ impl<B: Backend> Open<B> {
 							&Message::Configuration {
 								document: proposal.raw.clone(),
 								capabilities: None,
-								verify: None,
 							},
 						)
 						.await?;
@@ -796,7 +786,6 @@ impl<B: Backend> Open<B> {
 				&Message::Configuration {
 					document,
 					capabilities: None,
-					verify: None,
 				},
 			)
 			.await;
@@ -825,7 +814,6 @@ impl<B: Backend> Open<B> {
 			&Message::Configuration {
 				document,
 				capabilities: None,
-				verify: None,
 			},
 		)
 		.await

@@ -1,5 +1,5 @@
-//! What a proposal comes to: judged per interface on what it adds or changes (CFG), or only on
-//! applying where it is sent unverified.
+//! What a proposal comes to: judged per interface on the candidates it adds or changes that carry
+//! `verify` true (CFG).
 
 use super::{driver::Judged, *};
 use crate::network::select::{Attempt, Decision, Link, Stage, State};
@@ -204,37 +204,83 @@ async fn a_join_waits_for_the_proposals_scan() {
 	);
 }
 
+/// A candidate carrying `verify` false, as the operator skips checking it after it failed.
+fn unverified(mut candidate: Json) -> Json {
+	candidate["verify"] = json!(false);
+	candidate
+}
+
 #[tokio::test(start_paused = true)]
-async fn an_unverified_proposal_is_applied_whatever_verifying_finds() {
+async fn a_candidate_that_is_not_verified_does_not_fail_a_proposal() {
+	let mut rig = Rig::wireless().await;
+	on_the_wall(&mut rig, json!({"attachments": [dynamic()]})).await;
+	rig.hears(
+		"clinic",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+
+	let answer = applying(
+		&mut rig,
+		document(json!({"attachments": [unverified(clinic()), dynamic()]})),
+	);
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	assert!(
+		rig.asked().iter().any(|call| call == "connect wld0 clinic"),
+		"it is still tried: {:?}",
+		rig.asked()
+	);
+	assert_eq!(rig.states()[0]["reached"], "association");
+	assert_eq!(rig.states()[1], json!({"is": "default-route"}));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_proposal_of_only_candidates_not_verified_is_applied_whatever_they_find() {
 	let mut rig = Rig::wireless().await;
 	rig.hears(
 		"clinic",
 		Err("Operation failed (net.connman.iwd.Failed)".into()),
 	);
-	let answer = proposing(
+	let answer = applying(
 		&mut rig,
-		document(json!({"attachments": [clinic()]})),
-		false,
+		document(json!({"attachments": [unverified(clinic())]})),
 	);
 	assert_eq!(answer.await.unwrap(), Ok(()));
-	tokio::time::sleep(Duration::from_secs(1)).await;
 	assert_eq!(rig.states()[0]["reached"], "association");
 }
 
-/// A hotspot that does not start is no candidate's verification, so no stage is reached, verified
-/// or not.
+/// Turning verification back on changes the candidate, so it is judged again.
+#[tokio::test(start_paused = true)]
+async fn a_candidate_verified_again_is_judged() {
+	let mut rig = Rig::wireless().await;
+	on_the_wall(
+		&mut rig,
+		json!({"attachments": [unverified(clinic()), dynamic()]}),
+	)
+	.await;
+	assert_eq!(rig.states()[0]["reached"], "carrier");
+
+	let answer = applying(
+		&mut rig,
+		document(json!({"attachments": [clinic(), dynamic()]})),
+	);
+	let failed = answer.await.unwrap().unwrap_err();
+	assert_eq!(failed.at, "$['attachments'][0]");
+	assert_eq!(failed.reached.as_deref(), Some("carrier"));
+}
+
+/// A hotspot that does not start is no candidate's verification, so no stage is reached, and it
+/// fails a proposal whatever its candidates carry.
 #[tokio::test(start_paused = true)]
 async fn a_hotspot_that_does_not_start_fails_at_the_hotspot_reaching_no_stage() {
-	for verify in [true, false] {
+	for attachments in [json!([]), json!([unverified(dynamic())])] {
 		let mut rig = Rig::wireless().await;
 		rig.failing.lock().unwrap().insert("hostapd Start".into());
-		let answer = proposing(
+		let answer = applying(
 			&mut rig,
 			document(json!({
-				"attachments": [],
+				"attachments": attachments,
 				"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
 			})),
-			verify,
 		);
 		let failed = answer.await.unwrap().unwrap_err();
 		assert_eq!(failed.at, "$['hotspot']");

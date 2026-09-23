@@ -1,11 +1,11 @@
 //! What a verified proposal comes to (CFG, "When a proposal fails").
 //!
-//! A proposal is judged on the candidates it adds or changes: those equal to no candidate of the
-//! configuration running before it, each of that configuration's candidates matching at most one,
-//! as the selector carries a candidate over. A candidate that only moved in the ordering is carried
-//! over, and so has already been judged. Each is judged on the interface it goes on: a wired
-//! candidate's, the radio a wireless one names, else the radio it was brought up on, else, where it
-//! never was, any radio it could go on.
+//! A proposal is judged on the candidates it adds or changes that carry `verify` true. A candidate
+//! is added or changed where it equals no candidate of the configuration running before it, each of
+//! that configuration's candidates matching at most one, as the selector carries a candidate over.
+//! A candidate that only moved in the ordering is carried over, and so has already been judged.
+//! Each is judged on the interface it goes on: a wired candidate's, the radio a wireless one names,
+//! else the radio it was brought up on, else, where it never was, any radio it could go on.
 
 use std::cmp::Reverse;
 
@@ -89,13 +89,17 @@ pub(in crate::network::stack) fn verdict(
 }
 
 impl Driver {
-	/// The interfaces each of `candidates` is judged on.
+	/// Those of `candidates` carrying `verify` true, each with the interfaces it is judged on.
 	pub(super) fn judged(&self, candidates: &[usize]) -> Vec<Judged> {
 		let decision = self.selector.decision();
 		candidates
 			.iter()
 			.filter_map(|&candidate| {
-				let interfaces = match &self.document.attachments.get(candidate)?.kind {
+				let attachment = self.document.attachments.get(candidate)?;
+				if !attachment.verify {
+					return None;
+				}
+				let interfaces = match &attachment.kind {
 					AttachmentKind::WiredDynamic { interface }
 					| AttachmentKind::WiredStatic { interface, .. } => vec![interface.clone()],
 					AttachmentKind::Wireless(wireless) => match &wireless.interface {

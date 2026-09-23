@@ -14,8 +14,7 @@ use super::{super::Backend, object};
 /// What the fake backend was asked to do, in order.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
-	/// A document, and whether it was to be verified.
-	Apply(Document, bool),
+	Apply(Document),
 	/// An apply whose future was dropped before it finished.
 	Aborted,
 	Restore(Document),
@@ -204,10 +203,10 @@ impl Backend for Fake {
 		}
 	}
 
-	async fn apply(&mut self, document: &Document, verify: bool) -> Result<(), Invalid> {
+	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
 		let applying = {
 			let mut shared = self.0.lock().unwrap();
-			shared.calls.push(Call::Apply(document.clone(), verify));
+			shared.calls.push(Call::Apply(document.clone()));
 			shared.running(document);
 			shared.applying.clone()
 		};

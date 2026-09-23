@@ -24,7 +24,6 @@ use super::{
 mod capabilities;
 mod fake;
 mod state;
-mod verify;
 mod wps;
 
 /// The recorded configuration the tests start from: a wall port, and a member a newer client added.
@@ -136,16 +135,11 @@ async fn send(client: &mut Client, message: Message) {
 }
 
 async fn propose(client: &mut Client, document: Map<String, Json>) {
-	propose_verifying(client, document, Some(true)).await;
-}
-
-async fn propose_verifying(client: &mut Client, document: Map<String, Json>, verify: Option<bool>) {
 	send(
 		client,
 		Message::Configuration {
 			document,
 			capabilities: None,
-			verify,
 		},
 	)
 	.await;
@@ -177,7 +171,6 @@ async fn confirmed(client: &mut Client) -> Map<String, Json> {
 		Message::Configuration {
 			document,
 			capabilities: None,
-			verify: None,
 		} => document,
 		other => panic!("confirm is answered with the configuration, got {other:?}"),
 	}
@@ -192,7 +185,6 @@ async fn opening_a_session_returns_the_configuration_in_force_and_the_capabiliti
 		Message::Configuration {
 			document: recorded(),
 			capabilities: Some(capabilities()),
-			verify: None,
 		},
 		"the recorded document is echoed raw, with the member this build does not know"
 	);
@@ -240,7 +232,7 @@ async fn writing_the_configuration_back_unmodified_changes_nothing() {
 	);
 	assert_eq!(
 		device.log.calls(),
-		[Call::Apply(parsed(&recorded()), true)],
+		[Call::Apply(parsed(&recorded()))],
 		"the backend is asked to run exactly what it already runs"
 	);
 }
@@ -254,7 +246,7 @@ async fn a_proposal_is_applied_to_the_running_system_and_written_nowhere() {
 		recv(&mut client).await,
 		Message::Applied { capabilities: None }
 	);
-	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()), true)]);
+	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()))]);
 	assert_eq!(device.store().load().unwrap(), Some(recorded()));
 }
 
@@ -280,7 +272,7 @@ async fn confirming_a_proposal_makes_it_the_recorded_configuration() {
 	// Recorded, so ending the session keeps it rather than reverting.
 	client.close().await.unwrap();
 	task.await.unwrap();
-	assert_eq!(device.log.calls(), [Call::Apply(parsed(&sent), true)]);
+	assert_eq!(device.log.calls(), [Call::Apply(parsed(&sent))]);
 
 	// And it is what the next session opens with, and what a restart puts in force.
 	let (_client, _task, opened) = device.opened().await;
@@ -301,7 +293,7 @@ async fn discard_during_verification_aborts_the_attempt_and_leaves_the_recorded_
 	propose(&mut client, proposal()).await;
 	device
 		.log
-		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()), true)))
+		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
 	send(&mut client, Message::Discard).await;
@@ -312,7 +304,7 @@ async fn discard_during_verification_aborts_the_attempt_and_leaves_the_recorded_
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Aborted,
 			Call::Restore(parsed(&recorded())),
 		]
@@ -335,7 +327,7 @@ async fn discard_after_a_proposal_is_applied_reverts_to_the_recorded_configurati
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Restore(parsed(&recorded())),
 		]
 	);
@@ -357,7 +349,7 @@ async fn a_session_abandoned_by_closing_the_stream_leaves_the_recorded_configura
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Restore(parsed(&recorded())),
 		]
 	);
@@ -418,7 +410,7 @@ async fn a_session_dropped_during_verification_aborts_and_restores() {
 	propose(&mut client, proposal()).await;
 	device
 		.log
-		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()), true)))
+		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
 	task.abort();
@@ -429,7 +421,7 @@ async fn a_session_dropped_during_verification_aborts_and_restores() {
 	assert_eq!(
 		calls,
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Aborted,
 			Call::Restore(parsed(&recorded())),
 		]
@@ -484,7 +476,7 @@ async fn a_proposal_is_never_timed_out_while_its_session_is_open() {
 	);
 
 	tokio::time::advance(Duration::from_secs(30 * 24 * 60 * 60)).await;
-	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()), true)]);
+	assert_eq!(device.log.calls(), [Call::Apply(parsed(&proposal()))]);
 	assert_eq!(confirmed(&mut client).await, proposal());
 	assert_eq!(device.store().load().unwrap(), Some(proposal()));
 }
@@ -563,9 +555,9 @@ async fn a_failure_carries_the_part_at_fault_a_reason_and_the_stage_it_stopped_a
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Restore(parsed(&recorded())),
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Restore(parsed(&recorded())),
 		]
 	);
@@ -656,7 +648,7 @@ async fn a_proposal_while_another_is_being_verified_supersedes_it() {
 	propose(&mut client, proposal()).await;
 	device
 		.log
-		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()), true)))
+		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
 	device.log.set(Applying::Succeed);
@@ -675,9 +667,9 @@ async fn a_proposal_while_another_is_being_verified_supersedes_it() {
 	assert_eq!(
 		device.log.calls(),
 		[
-			Call::Apply(parsed(&proposal()), true),
+			Call::Apply(parsed(&proposal())),
 			Call::Aborted,
-			Call::Apply(parsed(&recorded()), true),
+			Call::Apply(parsed(&recorded())),
 		]
 	);
 }
@@ -690,7 +682,7 @@ async fn anything_else_sent_during_verification_is_answered_after_the_proposal()
 	propose(&mut client, proposal()).await;
 	device
 		.log
-		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()), true)))
+		.until(|calls| calls.contains(&Call::Apply(parsed(&proposal()))))
 		.await;
 
 	send(&mut client, Message::Scan { interface: None }).await;

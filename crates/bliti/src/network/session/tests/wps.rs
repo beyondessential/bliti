@@ -20,7 +20,6 @@ async fn wps_proposes_what_it_joined_for_the_client_to_confirm() {
 		Message::Configuration {
 			document: proposal(),
 			capabilities: None,
-			verify: None,
 		}
 	);
 	assert_eq!(
@@ -87,7 +86,6 @@ async fn wps_by_pin_passes_on_the_pin_before_the_joined_result() {
 		Message::Configuration {
 			document: proposal(),
 			capabilities: None,
-			verify: None,
 		}
 	);
 	assert_eq!(

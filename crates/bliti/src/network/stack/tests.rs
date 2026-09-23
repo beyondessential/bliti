@@ -226,24 +226,11 @@ fn joined(ssid: &str, frequency: u32) -> Joined {
 
 /// Apply `document` on a task, so the test can observe for it while it is verified.
 fn applying(rig: &mut Rig, document: Document) -> oneshot::Receiver<Result<(), Invalid>> {
-	proposing(rig, document, true)
-}
-
-/// Apply `document`, verified or not.
-fn proposing(
-	rig: &mut Rig,
-	document: Document,
-	verify: bool,
-) -> oneshot::Receiver<Result<(), Invalid>> {
 	let (tx, rx) = oneshot::channel();
 	let (reply, answer) = oneshot::channel();
 	rig.stack
 		.commands
-		.send(driver::Command::Apply {
-			document,
-			verify,
-			reply,
-		})
+		.send(driver::Command::Apply { document, reply })
 		.unwrap();
 	tokio::spawn(async move {
 		let _ = tx.send(answer.await.unwrap());

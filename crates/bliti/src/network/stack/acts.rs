@@ -191,7 +191,7 @@ pub(super) async fn wps(
 	let raw = joined_document(base, &joined.ssid, &passphrase, interface);
 	let document = Document::parse(&raw)?;
 	stack.check(&document)?;
-	stack.apply(&document, true).await?;
+	stack.apply(&document).await?;
 	Ok(raw)
 }
 

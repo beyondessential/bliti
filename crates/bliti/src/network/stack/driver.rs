@@ -6,7 +6,7 @@
 //! a wired one's addressing deadline started, once the files it needs are written.
 //!
 //! A proposal is answered once nothing brought up is still being verified and every scan it asked
-//! for is in, and is judged by [`verdict`]. One sent unverified is answered once it is applied.
+//! for is in, and is judged by [`verdict`].
 //! A wireless candidate's first join waits for the proposal's scan of its radio, so it is not tried
 //! from what iwd heard before.
 //!
@@ -66,11 +66,9 @@ pub(super) const RETRY_MAX: Duration = Duration::from_secs(15 * 60);
 
 /// What the backend asks of the task.
 pub(super) enum Command {
-	/// Configure a proposal and answer once it is verified, or once it is applied where `verify` is
-	/// false.
+	/// Configure a proposal and answer once it is verified.
 	Apply {
 		document: Document,
-		verify: bool,
 		reply: oneshot::Sender<Result<(), Invalid>>,
 	},
 	/// Configure the recorded document and answer once it is applied.
@@ -132,7 +130,6 @@ enum Internal {
 enum Pending {
 	Apply {
 		reply: oneshot::Sender<Result<(), Invalid>>,
-		verify: bool,
 		/// The candidates it adds or changes against the configuration running before it.
 		changed: Vec<usize>,
 	},
@@ -257,20 +254,11 @@ impl Driver {
 
 	fn command(&mut self, command: Command) {
 		match command {
-			Command::Apply {
-				document,
-				verify,
-				reply,
-			} => {
+			Command::Apply { document, reply } => {
 				let changed = changed(&self.running, &document);
 				match self.configure(document) {
 					Ok(()) => {
-						let pending = Pending::Apply {
-							reply,
-							verify,
-							changed,
-						};
-						self.pending = Some((pending, self.wanted));
+						self.pending = Some((Pending::Apply { reply, changed }, self.wanted));
 						self.scan_for_pending();
 					}
 					Err(invalid) => {
@@ -753,7 +741,7 @@ impl Driver {
 		if self.done < *needs || self.reprobing {
 			return;
 		}
-		if matches!(self.pending, Some((Pending::Apply { verify: true, .. }, _))) {
+		if matches!(self.pending, Some((Pending::Apply { .. }, _))) {
 			let verifying = self
 				.selector
 				.decision()
@@ -766,22 +754,10 @@ impl Driver {
 			}
 		}
 		match self.pending.take() {
-			Some((
-				Pending::Apply {
-					reply,
-					verify,
-					changed,
-				},
-				_,
-			)) => {
-				let answer = if verify {
-					verdict(self.selector.decision(), &self.judged(&changed))
-				} else {
-					Ok(())
-				};
+			Some((Pending::Apply { reply, changed }, _)) => {
+				let answer = verdict(self.selector.decision(), &self.judged(&changed));
 				match &answer {
-					Ok(()) if verify => tracing::info!("proposal verified"),
-					Ok(()) => tracing::info!("proposal applied unverified"),
+					Ok(()) => tracing::info!("proposal verified"),
 					Err(invalid) => {
 						tracing::info!(at = invalid.at, reason = invalid.reason, reached = ?invalid.reached, "proposal failed")
 					}

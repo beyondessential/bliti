@@ -40,16 +40,8 @@ pub trait Backend: Send + 'static {
 	/// Make the running system match a document, without recording it anywhere, and verify it through
 	/// the stages of LINK. A failure of a candidate's verification carries the stage it stopped at.
 	///
-	/// With `verify` false the answer is `Ok` once the document is applied, whatever verifying its
-	/// candidates finds, which the states report as usual; a document that cannot be applied still
-	/// fails (CFG).
-	///
 	/// Dropping the future aborts the attempt; the session restores the recorded configuration after.
-	fn apply(
-		&mut self,
-		document: &Document,
-		verify: bool,
-	) -> impl Future<Output = Result<(), Invalid>> + Send;
+	fn apply(&mut self, document: &Document) -> impl Future<Output = Result<(), Invalid>> + Send;
 
 	/// Return the running system to a recorded configuration.
 	fn restore(&mut self, document: &Document) -> impl Future<Output = anyhow::Result<()>> + Send;
@@ -131,7 +123,7 @@ impl Backend for Inert {
 		})
 	}
 
-	async fn apply(&mut self, document: &Document, _verify: bool) -> Result<(), Invalid> {
+	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
 		self.check(document)
 	}
 
@@ -193,8 +185,7 @@ mod tests {
 		assert_eq!(*inert.states().borrow(), None, "observing nothing");
 		let refused = inert.check(&document).unwrap_err();
 		assert_eq!(refused.reached, None);
-		assert!(inert.apply(&document, true).await.is_err());
-		assert!(inert.apply(&document, false).await.is_err());
+		assert!(inert.apply(&document).await.is_err());
 		assert!(inert.restore(&document).await.is_ok());
 		assert_eq!(inert.survey(None).await, Ok(None));
 	}
