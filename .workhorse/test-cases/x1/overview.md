@@ -33,7 +33,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Joining by WPS PIN sends the PIN before the joined result, while the join is under way. Verifies spec: CFG
 - [x] A proposal interrupted by a newer one is answered `invalid` at `$`, and one refused after it superseded another restores the recorded configuration. Verifies spec: CFG
 - [x] An unconfigured device holds one dynamic candidate per physical wired interface and no hotspot. Verifies spec: CFG
-- [ ] An unconfigured device plugged into a network with DHCP is reachable on it, on real hardware. Verifies spec: CFG
+- [x] An unconfigured device plugged into a network with DHCP is reachable on it, on real hardware. Verifies spec: CFG
 - [ ] A power cut with a proposal applied brings the device back on its recorded configuration, with nothing of the proposal brought up at boot, on real hardware. Verifies spec: CFG
 
 ## Attachment and selection
@@ -59,6 +59,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
 - [x] A radio on a driver whose SAE is disabled offers no `sae` or `psk-sae`, and iwd is told not to run SAE on it. Verifies spec: WLAN, NET
 - [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
+- [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
+- [ ] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
 - [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
 - [ ] A device does not join a network that cannot authenticate its access point to it, and says why in terms an operator can act on. Verifies spec: WLAN
 - [ ] An access point advertising both an unauthenticated network and an authenticated one is joined only on the authenticated one. Verifies spec: WLAN

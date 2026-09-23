@@ -110,6 +110,22 @@ enum Command {
 		adapter: Option<String>,
 	},
 
+	/// Open a configuration session on a device: each line of standard input is sent as one message,
+	/// and each message the device answers with is printed as it arrived. The session ends with
+	/// standard input.
+	Configure {
+		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		code: String,
+
+		/// The device's address, as reported by `scan`. Found by matching the QR code when absent.
+		#[arg(long)]
+		address: Option<String>,
+
+		/// Bluetooth adapter to use. Defaults to the system's first.
+		#[arg(long)]
+		adapter: Option<String>,
+	},
+
 	/// Open a channel to a device and exchange the milestone's two messages.
 	Connect {
 		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
@@ -164,6 +180,11 @@ async fn run(cli: Cli) -> Result<()> {
 			address,
 			adapter,
 		} => connect(&code, address.as_deref(), adapter.as_deref()).await,
+		Command::Configure {
+			code,
+			address,
+			adapter,
+		} => configure(&code, address.as_deref(), adapter.as_deref()).await,
 	}
 }
 
@@ -319,6 +340,21 @@ async fn connect(code: &str, address: Option<&str>, adapter: Option<&str>) -> Re
 		.transpose()
 		.context("reading the device address")?;
 	client::connect(address, payload.secret(), adapter).await
+}
+
+#[cfg(target_os = "linux")]
+async fn configure(code: &str, address: Option<&str>, adapter: Option<&str>) -> Result<()> {
+	let payload = read_qr(code)?;
+	let address = address
+		.map(str::parse::<bluer::Address>)
+		.transpose()
+		.context("reading the device address")?;
+	client::configure(address, payload.secret(), adapter).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn configure(_code: &str, _address: Option<&str>, _adapter: Option<&str>) -> Result<()> {
+	anyhow::bail!("configuring runs on Linux, against BlueZ")
 }
 
 #[cfg(not(target_os = "linux"))]

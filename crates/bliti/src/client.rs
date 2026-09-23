@@ -18,12 +18,14 @@ use bliti_core::{
 		envelope::{Reading, read},
 		messages::Message,
 		readings::Entry,
-		stream::{Mode, connect_initiator, multiplex, read_message, write_message},
+		stream::{Mode, Streams, connect_initiator, multiplex, read_message, write_message},
 	},
 	key_schedule::PresenceToken,
 };
 use bluer::gatt::remote::Characteristic;
-use futures::{AsyncRead, AsyncWrite, SinkExt, StreamExt, channel::mpsc};
+use futures::{
+	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt as _, SinkExt, StreamExt, channel::mpsc,
+};
 
 /// How long to wait for the host to discover what the peer offers, after the link is up.
 const SERVICE_RESOLUTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
@@ -176,12 +178,20 @@ async fn find(
 	Err(anyhow!("no device matching that QR code was heard"))
 }
 
-/// Connect to a device, run the handshake, and exchange the milestone's two messages.
-pub async fn connect(
+/// An open channel to a device, its hello already sent.
+struct Channel {
+	// Held so the connection to BlueZ outlives every use of the device.
+	_session: bluer::Session,
+	device: bluer::Device,
+	streams: Streams,
+}
+
+/// Connect to a device, run the handshake, and name this client on its own hello stream.
+async fn open(
 	address: Option<bluer::Address>,
 	secret: &PresenceToken,
 	adapter_name: Option<&str>,
-) -> Result<()> {
+) -> Result<Channel> {
 	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
 		Some(name) => session.adapter(name)?,
@@ -281,6 +291,25 @@ pub async fn connect(
 	};
 	write_message(&mut hello_stream, &hello.to_json()).await?;
 
+	Ok(Channel {
+		_session: session,
+		device,
+		streams,
+	})
+}
+
+/// Connect to a device, run the handshake, and exchange the milestone's two messages.
+pub async fn connect(
+	address: Option<bluer::Address>,
+	secret: &PresenceToken,
+	adapter_name: Option<&str>,
+) -> Result<()> {
+	let Channel {
+		_session,
+		device,
+		mut streams,
+	} = open(address, secret, adapter_name).await?;
+
 	// The device pushes its own hello and the default feed unprompted, each on its own stream (MSG).
 	// Read whatever it pushes for a few seconds and print each message from its own description.
 	let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -338,6 +367,59 @@ pub async fn connect(
 		});
 	}
 
+	let _ = device.disconnect().await;
+	Ok(())
+}
+
+/// Open a configuration session on a device (CFG) and relay it.
+///
+/// Each line of standard input is sent on the session stream as one message, verbatim, and each
+/// message the device sends there is printed as it arrived, one per line. The session ends when
+/// standard input does, which leaves the recorded configuration in force unless a `confirm` was sent.
+/// Everything the device pushes on streams of its own is read and dropped.
+pub async fn configure(
+	address: Option<bluer::Address>,
+	secret: &PresenceToken,
+	adapter_name: Option<&str>,
+) -> Result<()> {
+	let Channel {
+		_session,
+		device,
+		mut streams,
+	} = open(address, secret, adapter_name).await?;
+
+	let (mut from_device, mut to_device) = AsyncReadExt::split(streams.open().await?);
+	write_message(&mut to_device, &Message::Configure.to_json()).await?;
+
+	tokio::spawn(async move {
+		while let Some(mut pushed) = streams.accept().await {
+			tokio::spawn(async move { while let Ok(Some(_)) = read_message(&mut pushed).await {} });
+		}
+	});
+	let printer = tokio::spawn(async move {
+		while let Ok(Some(raw)) = read_message(&mut from_device).await {
+			println!("{}", String::from_utf8_lossy(&raw));
+		}
+	});
+
+	let (lines_tx, mut lines) = mpsc::channel::<String>(8);
+	std::thread::spawn(move || {
+		let mut lines_tx = lines_tx;
+		for line in io::stdin().lines().map_while(Result::ok) {
+			if futures::executor::block_on(lines_tx.send(line)).is_err() {
+				break;
+			}
+		}
+	});
+	while let Some(line) = lines.next().await {
+		let line = line.trim();
+		if !line.is_empty() {
+			write_message(&mut to_device, line.as_bytes()).await?;
+		}
+	}
+
+	to_device.close().await?;
+	printer.abort();
 	let _ = device.disconnect().await;
 	Ok(())
 }

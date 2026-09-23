@@ -7,7 +7,8 @@
 //! `Station.ConnectedNetwork`, `Station.Scan`, `Station.GetOrderedNetworks`, `Station.Disconnect`,
 //! `Station.ConnectHiddenNetwork`, `Network.Connect` with `Name`, `Type` and `Device`, `Device.Name`,
 //! `StationDiagnostic.GetDiagnostics` for `Frequency` and `Security`, and `SimpleConfiguration`'s
-//! `PushButton`, `GeneratePin`, `StartPin` and `Cancel`.
+//! `PushButton`, `GeneratePin`, `StartPin` and `Cancel`, and `AgentManager.RegisterAgent` for the
+//! [`agent`].
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -30,6 +31,8 @@ use tokio::sync::mpsc;
 
 use super::{Joined, Observation, Station, Target, WpsFailed};
 use crate::network::render;
+
+mod agent;
 
 const SERVICE: &str = "net.connman.iwd";
 const STATION: &str = "net.connman.iwd.Station";
@@ -82,10 +85,14 @@ impl Iwd {
 		observations: mpsc::UnboundedSender<Observation>,
 	) -> anyhow::Result<Self> {
 		let (resource, bus) = dbus_tokio::connection::new_system_sync()?;
+		// The watch matches every signal iwd sends, and a scan matches its station's too. dbus hands a
+		// signal to the first match alone unless told otherwise, which starves every match but one.
+		bus.set_signal_match_mode(true);
 		tokio::spawn(async move {
 			let error = resource.await;
 			tracing::error!(%error, "lost the system bus; iwd is no longer observed");
 		});
+		agent::serve(&bus, paths.clone());
 		let iwd = Self { bus, paths };
 		iwd.clone().watch(observations).await?;
 		Ok(iwd)
@@ -209,6 +216,7 @@ impl Iwd {
 		let (owner, mut owners) = owner.msg_stream();
 
 		let mut names: HashMap<ObjectPath<'static>, String> = HashMap::new();
+		agent::register(&self.bus).await;
 		self.resync(&mut names, &observations).await;
 		tokio::spawn(async move {
 			// Held for as long as the watch runs; dropping a match removes it.
@@ -237,6 +245,7 @@ impl Iwd {
 							});
 						}
 						if !new.is_empty() {
+							agent::register(&self.bus).await;
 							self.resync(&mut names, &observations).await;
 						}
 					}
@@ -421,8 +430,19 @@ impl Iwd {
 			.await;
 		match scanning {
 			Ok(()) => {}
-			// A scan already under way is one to wait for.
-			Err(error) if error.name() == Some("net.connman.iwd.Busy") => {}
+			// A scan already under way is one to wait for. iwd is also busy while it connects, and then
+			// no scan is coming: what it already hears is the answer.
+			Err(error) if error.name() == Some("net.connman.iwd.Busy") => {
+				let under_way: bool = self
+					.proxy(path.clone(), CALL)
+					.get(STATION, "Scanning")
+					.await
+					.map_err(failed)?;
+				if !under_way {
+					drop(matched);
+					return self.ordered(&path).await;
+				}
+			}
 			Err(error) => return Err(failed(error)),
 		}
 		let finished = async {
