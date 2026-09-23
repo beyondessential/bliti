@@ -63,6 +63,9 @@ pub enum Message {
 		/// What the device supports, on the first `configuration` a device sends. Kept raw for the same
 		/// reason, and because the layer that probes capabilities owns their shape.
 		capabilities: Option<Map<String, Json>>,
+		/// Whether the device is to verify the proposal, on a client's proposal and on no other
+		/// `configuration` (CFG).
+		verify: Option<bool>,
 	},
 
 	/// A device's answer that a proposal was applied to the running system (CFG).
@@ -175,6 +178,7 @@ impl Message {
 			Self::Configuration {
 				document,
 				capabilities,
+				verify,
 			} => {
 				map.insert("type".to_owned(), "configuration".into());
 				map.insert("document".to_owned(), Json::Object(document.clone()));
@@ -183,6 +187,9 @@ impl Message {
 						"capabilities".to_owned(),
 						Json::Object(capabilities.clone()),
 					);
+				}
+				if let Some(verify) = verify {
+					map.insert("verify".to_owned(), (*verify).into());
 				}
 			}
 			Self::Applied { capabilities } => {
@@ -317,6 +324,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"configuration" => Ok(Message::Configuration {
 				document: object(&map, "document")?,
 				capabilities: optional_object(&map, "capabilities")?,
+				verify: optional_bool(&map, "verify")?,
 			}),
 			"applied" => Ok(Message::Applied {
 				capabilities: optional_object(&map, "capabilities")?,
@@ -381,6 +389,14 @@ fn object<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Map<Str
 		_ => Err(de::Error::custom(format!(
 			"this message carries an object `{member}`"
 		))),
+	}
+}
+
+fn optional_bool<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Option<bool>, E> {
+	match map.get(member) {
+		None | Some(Json::Null) => Ok(None),
+		Some(Json::Bool(value)) => Ok(Some(*value)),
+		Some(_) => Err(de::Error::custom(format!("`{member}` is a boolean"))),
 	}
 }
 

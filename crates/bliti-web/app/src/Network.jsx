@@ -94,7 +94,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 			dispatch({ type: 'problem', problem })
 			return
 		}
-		if (send((handle) => handle.propose(document))) dispatch({ type: 'proposed' })
+		if (send((handle) => handle.propose(document, true))) dispatch({ type: 'proposed' })
 	}
 
 	function cancel() {

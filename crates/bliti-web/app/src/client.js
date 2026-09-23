@@ -180,7 +180,7 @@ export function createClient() {
 				send()
 			}
 			return {
-				propose: (document) => sending('configuration  document', () => handle.propose(document)),
+				propose: (document, verify) => sending('configuration  document', () => handle.propose(document, verify)),
 				confirm: () => sending('confirm', () => handle.confirm()),
 				discard: () => sending('discard', () => handle.discard()),
 				scan: (iface) => sending(iface ? `scan  interface ${iface}` : 'scan', () => handle.scan(iface)),

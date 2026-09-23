@@ -621,6 +621,7 @@ impl<B: Backend> Open<B> {
 			&Message::Configuration {
 				document,
 				capabilities: Some(capabilities),
+				verify: None,
 			},
 		)
 		.await
@@ -708,6 +709,7 @@ impl<B: Backend> Open<B> {
 							&Message::Configuration {
 								document: proposal.raw.clone(),
 								capabilities: None,
+								verify: None,
 							},
 						)
 						.await?;
@@ -786,6 +788,7 @@ impl<B: Backend> Open<B> {
 				&Message::Configuration {
 					document,
 					capabilities: None,
+					verify: None,
 				},
 			)
 			.await;
@@ -814,6 +817,7 @@ impl<B: Backend> Open<B> {
 			&Message::Configuration {
 				document,
 				capabilities: None,
+				verify: None,
 			},
 		)
 		.await

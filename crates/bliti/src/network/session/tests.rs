@@ -140,6 +140,7 @@ async fn propose(client: &mut Client, document: Map<String, Json>) {
 		Message::Configuration {
 			document,
 			capabilities: None,
+			verify: Some(true),
 		},
 	)
 	.await;
@@ -171,6 +172,7 @@ async fn confirmed(client: &mut Client) -> Map<String, Json> {
 		Message::Configuration {
 			document,
 			capabilities: None,
+			verify: None,
 		} => document,
 		other => panic!("confirm is answered with the configuration, got {other:?}"),
 	}
@@ -185,6 +187,7 @@ async fn opening_a_session_returns_the_configuration_in_force_and_the_capabiliti
 		Message::Configuration {
 			document: recorded(),
 			capabilities: Some(capabilities()),
+			verify: None,
 		},
 		"the recorded document is echoed raw, with the member this build does not know"
 	);

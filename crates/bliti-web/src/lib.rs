@@ -407,11 +407,12 @@ pub struct ConfigurationHandle {
 
 #[wasm_bindgen]
 impl ConfigurationHandle {
-	/// Propose a document: the whole configuration the client wants in force, as a plain object.
-	pub fn propose(&self, document: JsValue) -> Result<(), JsError> {
+	/// Propose a document: the whole configuration the client wants in force, as a plain object, and
+	/// whether the device is to verify it.
+	pub fn propose(&self, document: JsValue, verify: bool) -> Result<(), JsError> {
 		let json = JSON::stringify(&document)
 			.map_err(|_| JsError::new("the document cannot be written as JSON"))?;
-		let message = proposal(&String::from(json)).map_err(|why| JsError::new(&why))?;
+		let message = proposal(&String::from(json), verify).map_err(|why| JsError::new(&why))?;
 		self.send(message)
 	}
 
@@ -461,11 +462,12 @@ impl ConfigurationHandle {
 }
 
 /// The `configuration` message proposing a document, from the document as JSON text.
-fn proposal(json: &str) -> Result<Vec<u8>, String> {
+fn proposal(json: &str, verify: bool) -> Result<Vec<u8>, String> {
 	match serde_json::from_str(json) {
 		Ok(serde_json::Value::Object(document)) => Ok(Message::Configuration {
 			document,
 			capabilities: None,
+			verify: Some(verify),
 		}
 		.to_json()),
 		Ok(_) => Err("a document is an object".to_owned()),
@@ -586,25 +588,32 @@ mod tests {
 
 	use super::*;
 
-	/// A proposal is a `configuration` carrying the document whole and no capabilities, with the
-	/// document critical on the wire so a device that cannot read it does not act on it (CFG).
+	/// A proposal is a `configuration` carrying the document whole, `verify`, and no capabilities,
+	/// with the document critical on the wire so a device that cannot read it does not act on it
+	/// (CFG).
 	#[test]
 	fn a_proposal_carries_the_document_critical() {
-		let bytes =
-			proposal(r#"{"attachments":[],"regulatory-domain":"VU","later":{"kept":1}}"#).unwrap();
+		let bytes = proposal(
+			r#"{"attachments":[],"regulatory-domain":"VU","later":{"kept":1}}"#,
+			true,
+		)
+		.unwrap();
 		let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
 		assert_eq!(wire["type"], "configuration");
 		assert_eq!(wire["DOCUMENT"]["regulatory-domain"], "VU");
+		assert_eq!(wire["verify"], true);
 		assert!(wire.get("capabilities").is_none());
 
 		let Ok(Reading::Message(Message::Configuration {
 			document,
 			capabilities,
+			verify,
 		})) = read(&bytes)
 		else {
 			panic!("a proposal reads back as a configuration");
 		};
 		assert_eq!(capabilities, None);
+		assert_eq!(verify, Some(true));
 		// A member this build does not know is sent as the operator's document carried it.
 		assert_eq!(document["later"]["kept"], 1);
 	}
@@ -633,7 +642,7 @@ mod tests {
 
 	#[test]
 	fn a_proposal_is_an_object() {
-		assert!(proposal("[]").is_err());
-		assert!(proposal("not json").is_err());
+		assert!(proposal("[]", true).is_err());
+		assert!(proposal("not json", true).is_err());
 	}
 }

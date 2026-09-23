@@ -132,12 +132,16 @@ pub fn message() -> impl Strategy<Value = Message> {
 		// The configuration session of CFG. The document, capabilities and act-answer payloads ride as
 		// raw JSON, so they are generated over the same conforming-JSON strategy as everything else.
 		1 => Just(Message::Configure),
-		1 => (object_of(json()), prop::option::of(object_of(json()))).prop_map(
-			|(document, capabilities)| Message::Configuration {
+		1 => (
+			object_of(json()),
+			prop::option::of(object_of(json())),
+			prop::option::of(any::<bool>()),
+		)
+			.prop_map(|(document, capabilities, verify)| Message::Configuration {
 				document,
 				capabilities,
-			}
-		),
+				verify,
+			}),
 		1 => prop::option::of(object_of(json()))
 			.prop_map(|capabilities| Message::Applied { capabilities }),
 		1 => (
@@ -251,8 +255,15 @@ mod tests {
 	/// The configuration session's optional members are reached too, each both present and absent.
 	#[test]
 	fn the_configuration_optional_members_are_reached() {
-		let (mut capabilities, mut reached, mut addressed, mut unaddressed) = (0, 0, 0, 0);
+		let (mut capabilities, mut reached, mut addressed, mut unaddressed, mut verify) =
+			(0, 0, 0, 0, 0);
 		for message in sample(4000) {
+			if let Message::Configuration {
+				verify: Some(_), ..
+			} = &message
+			{
+				verify += 1;
+			}
 			match &message {
 				Message::Configuration {
 					capabilities: Some(_),
@@ -283,6 +294,7 @@ mod tests {
 		assert!(reached > 20, "failures carrying a stage: {reached}");
 		assert!(addressed > 20, "acts naming an interface: {addressed}");
 		assert!(unaddressed > 20, "acts naming none: {unaddressed}");
+		assert!(verify > 20, "proposals carrying verify: {verify}");
 	}
 
 	/// Every type this build knows is generated. A type in the set but not in the strategy is a type

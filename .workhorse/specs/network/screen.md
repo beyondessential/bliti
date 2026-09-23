@@ -19,7 +19,7 @@ The application MUST move through four stages:
 | --- | --- | --- |
 | editing | writable | apply, reset |
 | applying | read-only | cancel |
-| errored | writable | apply, reset |
+| errored | writable | apply, apply unverified, reset |
 | applied | read-only | confirm, cancel |
 
 The application MUST enter editing when a session opens, and MUST return to it on reset.
@@ -77,9 +77,12 @@ The application MUST render the verification stages of [LINK](attachment.md), sh
 
 The application MUST render the failure's `reason` as the device wrote it.
 
+The application MUST propose with `verify` true, except where the operator chooses to apply unverified the document that failed, which it MUST propose with `verify` false.
+
 > [!NOTE]
 > The stages say the addressing was fine and the network is not routing, without a sentence having to say so.
 > The reason is the device's own words about something the application did not anticipate, so there is no wording of its own to supply.
+> Offering to apply unverified only after a failure keeps it for the operator who has seen why the device refused and knows better, as on a network that is not up yet.
 
 ## The state of the session
 

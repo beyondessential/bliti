@@ -716,6 +716,7 @@ mod tests {
 		let Reading::Message(Message::Configuration {
 			document,
 			capabilities: Some(capabilities),
+			..
 		}) = opened
 		else {
 			panic!("a session opens with the configuration and capabilities, got {opened:?}");

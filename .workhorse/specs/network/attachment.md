@@ -86,12 +86,15 @@ A device MUST select again when:
 - the candidate carrying the default route stops verifying
 - a candidate above the one in force becomes available
 
-A device MUST NOT poll its candidates to detect these.
+A device MUST NOT poll its candidates to detect these, except as follows.
+
+A device MUST scan for a `wireless` candidate ranked above the candidate carrying the default route while the network is out of range, backing off between scans, and MUST NOT scan for one ranked below it.
 
 > [!NOTE]
 > Selecting on the candidate in force failing is what catches a site that changed around a device whose cable never moved.
 > Selecting when something better returns is what stops a device sitting on a fallback for the rest of its life.
 > Driving all three from events leaves a settled device doing nothing, which matters on a device that may be running from a battery.
+> A network coming into range is the one event nothing announces: a radio hears it only by scanning. A device on its best candidate has nothing to scan for, so it still settles.
 
 ## Resolvers
 
