@@ -16,10 +16,10 @@ use serde_json::{Map, Value as Json, json};
 use tokio::{io::DuplexStream, task::JoinHandle};
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 
+use crate::network::select::Stage;
+
 use super::{
-	Backend, Configurator, Store,
-	backend::Stage,
-	serve,
+	Backend, Configurator, Store, serve,
 	store::tests::{Scratch, object},
 };
 

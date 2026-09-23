@@ -75,6 +75,28 @@ pub enum Stage {
 	Gateway,
 }
 
+impl Stage {
+	/// The stage as `reached` carries it on the wire.
+	pub fn as_str(self) -> &'static str {
+		match self {
+			Self::Carrier => "carrier",
+			Self::Association => "association",
+			Self::Addressing => "addressing",
+			Self::Gateway => "gateway",
+		}
+	}
+
+	/// An apply-time failure that stopped at this stage, at the part of the document named by `at`,
+	/// a Normalized Path made with [`bliti_core::channel::config::path`].
+	pub fn failed(self, at: impl Into<String>, reason: impl Into<String>) -> Invalid {
+		Invalid {
+			at: at.into(),
+			reason: reason.into(),
+			reached: Some(self.as_str().to_owned()),
+		}
+	}
+}
+
 /// One candidate brought up on one interface, which the caller verifies and reports back against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Attempt(u64);
@@ -153,7 +175,7 @@ pub enum State {
 	/// Established.
 	Up,
 	/// Brought up, and being verified at `at`.
-	Trying {
+	Verifying {
 		/// The stage it is waiting to pass.
 		at: Stage,
 	},
@@ -558,7 +580,7 @@ impl Selector {
 		let mut states = placed.idle;
 		for held in self.held.values() {
 			let state = match held.at {
-				Some(at) => State::Trying { at },
+				Some(at) => State::Verifying { at },
 				None if Some(held.link.candidate) == default_route => State::DefaultRoute,
 				None => State::Up,
 			};

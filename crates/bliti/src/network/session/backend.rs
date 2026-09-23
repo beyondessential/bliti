@@ -9,59 +9,6 @@ use std::future::Future;
 use bliti_core::channel::config::{Document, Invalid, path};
 use serde_json::{Map, Value as Json};
 
-/// A verification stage of LINK, as `reached` names it on an `invalid`.
-///
-/// `reached` names the stage an attempt stopped at, the one that failed: `gateway` says carrier,
-/// association and addressing passed and the gateway did not answer, and `carrier` says nothing
-/// passed. A wired candidate has no `association`, which it neither passes nor fails.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(
-	not(test),
-	expect(
-		dead_code,
-		reason = "the backend that verifies through these stages has not landed"
-	)
-)]
-pub enum Stage {
-	/// The interface has carrier.
-	Carrier,
-	/// A wireless interface has associated.
-	Association,
-	/// An address is held.
-	Addressing,
-	/// The gateway answers.
-	Gateway,
-}
-
-#[cfg_attr(
-	not(test),
-	expect(
-		dead_code,
-		reason = "the backend that verifies through these stages has not landed"
-	)
-)]
-impl Stage {
-	/// The stage as `reached` carries it on the wire.
-	pub fn as_str(self) -> &'static str {
-		match self {
-			Self::Carrier => "carrier",
-			Self::Association => "association",
-			Self::Addressing => "addressing",
-			Self::Gateway => "gateway",
-		}
-	}
-
-	/// An apply-time failure that stopped at this stage, at the part of the document named by `at`,
-	/// a Normalized Path made with [`path`].
-	pub fn failed(self, at: impl Into<String>, reason: impl Into<String>) -> Invalid {
-		Invalid {
-			at: at.into(),
-			reason: reason.into(),
-			reached: Some(self.as_str().to_owned()),
-		}
-	}
-}
-
 /// The running system a configuration session drives.
 ///
 /// A session holds its backend exclusively, so every method may take `&mut self`. Futures are `Send`
@@ -175,31 +122,7 @@ impl Backend for Inert {
 
 #[cfg(test)]
 mod tests {
-	use bliti_core::channel::config::Segment;
-
 	use super::*;
-
-	#[test]
-	fn stages_carry_the_wire_strings_of_link() {
-		let names: Vec<&str> = [
-			Stage::Carrier,
-			Stage::Association,
-			Stage::Addressing,
-			Stage::Gateway,
-		]
-		.into_iter()
-		.map(Stage::as_str)
-		.collect();
-		assert_eq!(names, ["carrier", "association", "addressing", "gateway"]);
-	}
-
-	#[test]
-	fn a_failure_names_the_stage_it_stopped_at() {
-		let at = path(&[Segment::Name("attachments"), Segment::Index(0)]);
-		let invalid = Stage::Gateway.failed(at.clone(), "the gateway did not answer");
-		assert_eq!(invalid.at, at);
-		assert_eq!(invalid.reached.as_deref(), Some("gateway"));
-	}
 
 	#[tokio::test]
 	async fn inert_refuses_every_proposal_before_applying_it() {

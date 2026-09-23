@@ -138,7 +138,7 @@ fn fail(selector: &mut Selector, candidate: usize, stage: Stage, reason: &str) -
 /// Pass every stage a candidate being tried has left.
 fn establish(selector: &mut Selector, candidate: usize) -> Vec<Change> {
 	let mut changes = Vec::new();
-	while let State::Trying { at } = selector.decision().states[candidate] {
+	while let State::Verifying { at } = selector.decision().states[candidate] {
 		changes = pass(selector, candidate, at);
 	}
 	changes
@@ -201,13 +201,13 @@ fn a_wired_candidate_is_verified_from_addressing_and_a_wireless_one_from_associa
 	hear(&mut selector, "wlan0", "clinic", -50);
 	assert_eq!(
 		state(&selector, 0),
-		&State::Trying {
+		&State::Verifying {
 			at: Stage::Addressing
 		}
 	);
 	assert_eq!(
 		state(&selector, 1),
-		&State::Trying {
+		&State::Verifying {
 			at: Stage::Association
 		}
 	);
@@ -229,7 +229,7 @@ fn stages_pass_only_in_order() {
 	pass(&mut selector, 1, Stage::Association);
 	assert_eq!(
 		state(&selector, 1),
-		&State::Trying {
+		&State::Verifying {
 			at: Stage::Addressing
 		}
 	);
@@ -428,7 +428,7 @@ fn a_report_from_a_superseded_attempt_is_ignored() {
 	assert!(changes.is_empty());
 	assert_eq!(
 		state(&selector, 0),
-		&State::Trying {
+		&State::Verifying {
 			at: Stage::Addressing
 		}
 	);
@@ -779,4 +779,29 @@ fn a_single_radio_decision_is_a_renderer_selection() {
 
 	let several = self::selector(two_radios(), json!({ "attachments": [] }));
 	assert_eq!(several.selection(), None);
+}
+
+#[test]
+fn stages_carry_the_wire_strings_of_link() {
+	let names: Vec<&str> = [
+		Stage::Carrier,
+		Stage::Association,
+		Stage::Addressing,
+		Stage::Gateway,
+	]
+	.into_iter()
+	.map(Stage::as_str)
+	.collect();
+	assert_eq!(names, ["carrier", "association", "addressing", "gateway"]);
+}
+
+#[test]
+fn a_failure_names_the_stage_it_stopped_at() {
+	let at = bliti_core::channel::config::path(&[
+		bliti_core::channel::config::Segment::Name("attachments"),
+		bliti_core::channel::config::Segment::Index(0),
+	]);
+	let invalid = Stage::Gateway.failed(at.clone(), "the gateway did not answer");
+	assert_eq!(invalid.at, at);
+	assert_eq!(invalid.reached.as_deref(), Some("gateway"));
 }
