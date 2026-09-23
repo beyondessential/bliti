@@ -65,22 +65,28 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 
 - [x] Settle the backend choice and the file-ownership question above
 - [x] Model the configuration document and its serialisation in `bliti-core` — `channel/config.rs`: `Document`, `Attachment` (wireless/wired-dynamic/wired-static), `Wireless`, `Security`, `Hotspot`, with `from_json`/`to_json` and the structural validation LINK/WLAN/HOT pin (required members, security kinds, a wired-static without a gateway rejected, at most one wired-dynamic per interface). Capability-dependent validation is left for the device layer, which owns the capabilities shape
-- [ ] Capability probing on the device: AP+STA, shared channel, WPS methods, survey support. **This layer owns the capabilities wire shape** — the specs pin what must be reported (concurrency case, WPS methods, survey) but not the member names. Decide it here, and type it in `bliti-core` so the client's pre-proposal validation of NSCR shares it
+- [x] The capabilities shape, settled and written into NET, and the shared checker in `bliti-core` (`channel/capabilities.rs`): one walk resolving the selectors `kind`, `interface` and `band` by value
+- [ ] Capability probing on the device over nl80211 (`wl-nl80211`): per radio its bands, channels, widths, AP support, `alongside`, SAE holdability and survey support, and the capabilities built from them (`network/probe.rs`, in progress)
 - [x] The session stream role and its message types, in `bliti-core` alongside the existing channel messages — `configure`, `configuration`, `applied`, `invalid`, `confirm`, `discard`, `busy`, and the acts `scan`, `survey`, `wps` with their answers `networks`, `spectrum`. The document, capabilities and act-answer payloads ride as raw JSON so they survive the envelope round trip and stay forward-compatible, mirroring how `Entry` carries `traits`
 - [x] Wire compatibility: the new message types go through `bliti-wire-compat` (generator arms added), and `configuration`'s critical `DOCUMENT` is recorded in `wire-breaks.toml` with a reason
 - [x] The device's configuration session, in `crates/bliti/src/network/session.rs`: one device-wide session behind a lock (`busy` otherwise), the recorded configuration held raw in one file replaced atomically on `confirm`, proposals applied through a `Backend` trait (`capabilities`, `check`, `apply`, `restore`, `scan`, `survey`, `wps`), and restore on discard, failure, and however the session ends. Runs on an `Inert` backend until the real one lands. The daemon restores the recorded configuration at start
   - [x] A session dropped from outside ends the streams it served (`JoinSet` and an abort-on-drop driver in `session::run`), so a configuration session cannot outlive a client that unsubscribed
-  - [ ] The recorded configuration of an unconfigured device, pending gap 4 of the wire shape mockup. Until then it is `{"attachments": []}`, which must not reach a real backend at boot
+  - [ ] The recorded configuration of an unconfigured device: one `wired-dynamic` candidate per wired interface (CFG), read from `/sys/class/net` (in progress)
+  - [ ] `state`, `pin`, capabilities on `applied`, and the capabilities checked before a proposal or act reaches the backend (in progress)
 - [x] Render a document, for a given selection of candidates, as the files iwd, hostapd and networkd read, in `crates/bliti/src/network/render.rs`. Pure: no filesystem, processes or D-Bus. `Paths::owns` tells the applier which files are bliti's so it can delete stale ones
-- [ ] Candidate selection and the four verification stages on the device
+- [x] Candidate selection, in `network/select.rs`: a pure, event-driven selector placing candidates on interfaces and the hotspot on a radio by LINK and HOT, with per-candidate states and the changes to apply. No timers; a retry is an event the caller schedules
+- [ ] The event sources feeding it: carrier and addresses (rtnetlink), association and range (iwd over D-Bus), and the gateway answering
+- [ ] A real `Backend` joining the selector, renderer and applier
 - [ ] Event-driven reselection on carrier, failure and a higher candidate returning
-- [ ] Apply and revert against the chosen backend, with nothing provisional written to disk
+- [x] Put rendered files in place and have the stack pick them up, in `network/apply.rs`: atomic writes, stale bliti files removed, a record by digest of what was written so iwd's own rewrites are not drift, and regdom, hostapd, iwd, networkd, resolved picked up in that order. Real `System` over systemd and networkd D-Bus, with `iw` until nl80211 replaces it
+  - [ ] Replace `apply/iw.rs` with the probe module's nl80211 setters
+- [ ] Apply and revert driven by a session, with nothing provisional written to disk. The applier writes to the backends' own directories, so a proposal on disk there is provisional in effect; the recorded configuration stays the only one bliti keeps
 - [ ] Wireless joining: PSK, SAE, transitional, enterprise, WPS push-button and PIN
 - [ ] Hotspot: bring-up, upstream sharing, client isolation, DHCP range
 - [ ] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
 - [x] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`, with the wireless and hotspot tiles placed where VIEW puts them
 - [x] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md): `Channel::configure` in the wasm crate, `Network.jsx` for the four stages, and `capabilities.js` as the only module that reads the capabilities shape
-  - [ ] Candidate states on a real device. The screen renders the proposed `state` message, but `state` is not yet in `bliti-core`'s message set, so through wasm it is skipped. Waits on gap 1 of the wire shape mockup
+  - [ ] The settled shapes on screen: the shared checker through wasm, adapter pickers, `state`, `pin`, capabilities on `applied`, scanning by SSID with hidden ones on request, one-adapter scans and the siting view (in progress)
 - [ ] Privileges: whichever of the three options above is chosen
 
 ## Notes
