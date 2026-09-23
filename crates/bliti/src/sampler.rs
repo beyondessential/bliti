@@ -159,6 +159,11 @@ impl Sampler {
 					.current
 					.lock()
 					.expect("the snapshot is never held across a panic");
+				// A slow tick takes every reading, so what it does not take is no longer there, as a
+				// hotspot that has stopped is not (NFO).
+				if slow {
+					current.clear();
+				}
 				for reading in &readings {
 					current.insert(identity_key(reading), reading.clone());
 				}
@@ -385,5 +390,39 @@ mod tests {
 		// pass in virtual time, so the kernel's jiffy counters need not have advanced, and processor
 		// use correctly reports nothing when they have not.
 		assert!(names.iter().any(|n| n == "memory-usage"), "{names:?}");
+	}
+
+	/// A source reporting a hotspot for its first slow tick and not after.
+	struct Stopping {
+		slow_ticks: u32,
+	}
+
+	impl Source for Stopping {
+		fn gather(&mut self, slow: bool) -> Vec<Entry> {
+			let mut readings = vec![Entry::quantity(1, "memory-usage", "fraction", 0.5)];
+			if slow {
+				self.slow_ticks += 1;
+				if self.slow_ticks == 1 {
+					readings.push(Entry::text(1, "hotspot", "bliti"));
+				}
+			}
+			readings
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// What stops being there leaves the snapshot at the next slow tick (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn the_snapshot_forgets_what_a_slow_tick_no_longer_takes() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let names = |sampler: &Sampler| -> Vec<String> {
+			sampler.current().iter().map(|e| e.name.clone()).collect()
+		};
+		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
+		assert!(names(&sampler).contains(&"hotspot".to_owned()));
+		tokio::time::sleep(FAST * SLOW_EVERY).await;
+		assert_eq!(names(&sampler), ["memory-usage"]);
 	}
 }
