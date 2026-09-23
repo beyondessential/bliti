@@ -94,6 +94,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Fields are not editable while a proposal is being verified. Verifies spec: NSCR
 - [x] After a failure the fields hold what was proposed, not what the device reverted to, and the field named by the failure is marked. Verifies spec: NSCR
 - [x] The verification stages show which passed and which failed. Verifies spec: NSCR
+- [x] A proposal is sent verified, and only after a failure can the document that failed be applied unverified, confirmed like any other. Verifies spec: NSCR, CFG
+- [x] Candidates left unavailable by an unverified apply show their state. Verifies spec: NSCR
 - [x] The device's reason is rendered as the device wrote it. Verifies spec: NSCR
 - [x] A setting the device did not report supporting is not offered, and the screen says why it is absent. Verifies spec: NSCR
 - [x] Each candidate's state is shown, and an unavailable one is described by what the device observed. Verifies spec: NSCR
