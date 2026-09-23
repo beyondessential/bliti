@@ -55,6 +55,44 @@ A device MUST NOT apply a document in part, MUST NOT report a setting as accepte
 
 A device MUST omit from its capabilities anything the platform beneath it cannot carry out.
 
+Capabilities MUST be an object carrying:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `document` | object | yes | what a document may carry, as below |
+| `radios` | object | no | the device's radios, keyed by the wireless interface of each; absent where it has none |
+| `acts` | object | yes | the acts of [CFG](session.md) the device performs, keyed by message type |
+
+`document` MUST mirror the document, carrying at each of its members:
+
+| capabilities carry | meaning |
+| --- | --- |
+| nothing | the member is not supported |
+| `true` | the member is supported with any value the document admits |
+| an array | the member is supported with exactly these values |
+| an object | the member is supported, and constrained member by member |
+| an object keyed by the member's values | the member is supported with these values, each holding the constraints its siblings are held to under that value |
+
+An array in the document MUST be mirrored by the constraints on its elements.
+
+A member whose value decides what its siblings may carry MUST be mirrored keyed by its values: an attachment's `kind`, a security `kind`, a wireless `interface`, and a hotspot's `interface` and `band` are such members.
+
+A kind present in capabilities MUST support every member the document requires of that kind, and capabilities MUST list only its optional members and constrained values; for `enterprise` that is `eap` alone, each method carrying the members [WLAN](wireless.md) gives it.
+
+A document leaving a keyed member unset MUST be treated as within capabilities where any of that member's keys admits the rest of the document.
+
+A device treating a document as outside its capabilities MUST name in `at` the first member capabilities do not cover.
+
+Each entry of `radios` MUST carry:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `model` | string | yes | what the adapter is |
+| `bands` | array | yes | the bands the radio can use, as [HOT](hotspot.md) names bands |
+| `alongside` | string | where the radio can run an access point | `independent`, `shared-channel` or `one-at-a-time`, as [HOT](hotspot.md) requires it be reported |
+
+`acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each, and `wps` keyed by `interface` with the `method` values each radio offers.
+
 > [!NOTE]
 > A client that has been told what a device supports has no reason to ask for more, which is what removes partial application and the unhonoured setting as outcomes, and what makes the document's declarative reading true rather than aspirational.
 > The rule reaches into what a client draws: a setting absent from a device's capabilities is one the client does not offer, rather than one it offers and the device quietly overrides. A setting whose fate depended on something that changes while nobody is watching would be the worst kind to offer.

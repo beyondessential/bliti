@@ -90,12 +90,12 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 <main>
 
 <h1>Configuration session wire shape</h1>
-<p class="lede">What goes over a configuration session stream (CFG), including the parts the specs leave to the implementation. For review before the capabilities shape is typed in <code>bliti-core</code>.</p>
+<p class="lede">What goes over a configuration session stream (CFG), including the parts the specs leave to the implementation. Settled: all of it is now in NET, CFG, LINK, WLAN, HOT and NSCR, which govern where this and they differ.</p>
 
 <div class="legend">
 	<span><span class="tag pinned">Pinned</span>fixed by a spec</span>
-	<span><span class="tag proposed">Proposed</span>decided here, needs sign-off</span>
-	<span><span class="tag open">Open</span>a gap the specs need closing</span>
+	<span><span class="tag pinned">Pinned</span>decided here, needs sign-off</span>
+	<span><span class="tag pinned">Pinned</span>a gap the specs need closing</span>
 </div>
 
 <h2>The exchange</h2>
@@ -103,7 +103,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	<ul class="flow">
 		<li><span class="who">client</span><span>→</span><span><code>configure</code> <span class="tag pinned">Pinned</span></span></li>
 		<li><span class="who">device</span><span>←</span><span><code>configuration</code> with <code>DOCUMENT</code> and <code>capabilities</code> <span class="tag pinned">Pinned</span></span></li>
-		<li><span class="who">device</span><span>←</span><span><code>state</code>, then again whenever a candidate's state changes <span class="tag open">Open</span></span></li>
+		<li><span class="who">device</span><span>←</span><span><code>state</code>, then again whenever a candidate's state changes <span class="tag pinned">Pinned</span></span></li>
 		<li><span class="who">client</span><span>→</span><span><code>configuration</code> with the proposed <code>DOCUMENT</code> <span class="tag pinned">Pinned</span></span></li>
 		<li><span class="who">device</span><span>←</span><span><code>applied</code>, or <code>invalid</code> with <code>at</code>, <code>reason</code>, <code>reached</code> <span class="tag pinned">Pinned</span></span></li>
 		<li><span class="who">client</span><span>→</span><span><code>confirm</code> or <code>discard</code> <span class="tag pinned">Pinned</span></span></li>
@@ -111,7 +111,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	</ul>
 </div>
 
-<h2>Capabilities <span class="tag proposed">Proposed</span></h2>
+<h2>Capabilities <span class="tag pinned">Pinned</span></h2>
 <p>Three members, each saying something different: <code>document</code> is what a document may carry, <code>radios</code> is what the hardware is, <code>acts</code> is what the device will do on request.</p>
 
 <h3>One rule for <code>document</code>: it mirrors the configuration document</h3>
@@ -329,7 +329,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	</table>
 </div>
 
-<h3><code>networks</code>, answering <code>scan</code> <span class="tag proposed">Proposed</span></h3>
+<h3><code>networks</code>, answering <code>scan</code> <span class="tag pinned">Pinned</span></h3>
 <div class="card">
 	<p>One entry per access point the radio heard, rather than per network. A network is usually several access points, and a single physical access point often carries several BSSIDs, one per band and per SSID. Which one the device hears best is what decides both questions a scan answers:</p>
 	<ul style="margin:0 0 12px; padding-left:20px; max-width:46rem">
@@ -367,7 +367,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	<p style="margin:12px 0 0">The answer is a fresh scan, not whatever the radio last cached. The device leaves its own hotspot out.</p>
 </div>
 
-<h3>What the client makes of it <span class="tag proposed">Proposed</span></h3>
+<h3>What the client makes of it <span class="tag pinned">Pinned</span></h3>
 <div class="card">
 	<p>Networks are listed by SSID, each showing the strongest signal among its access points and how many there are, with the access points behind it on expanding. Access points with no SSID are left out unless the operator asks to see hidden networks. Picking one prefills a hidden candidate with its security, leaving the SSID to type.</p>
 	<p style="margin:0">Siting wants a second reading of the same answer: every access point by signal, and the channels taken on each band the radio can use. Whether the screen grows a view for it is a separate question, below.</p>
@@ -387,7 +387,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 	<p style="margin:12px 0 0">Each entry also carries the <code>interface</code> whose radio heard it (CFG). <code>networks</code> is how many access points the radio heard on the channel. <code>busy</code> is the fraction of time the radio found the channel occupied. Only channels usable under the country in force.</p>
 </div>
 
-<h2>Gaps the specs need closing <span class="tag open">Open</span></h2>
+<h2>Gaps closed in the specs <span class="tag pinned">Pinned</span></h2>
 
 <div class="card q">
 	<h3>1. Candidate state has no message</h3>
@@ -400,7 +400,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     { <span class="k">"is"</span>: "standby" }
   ]
 }</pre>
-	<p style="margin-top:12px"><code>is</code> is <code>default-route</code>, <code>up</code>, <code>standby</code> (not tried, because a candidate above it holds the same interface) or <code>unavailable</code>. An unavailable candidate reuses <code>reached</code> and <code>reason</code> from <code>invalid</code>, so "No lease" is <code>reached: addressing</code> and "Out of range" is <code>reached: carrier</code> on a wireless candidate. The client words each; the device only names the stage.</p>
+	<p style="margin-top:12px"><code>is</code> is <code>default-route</code>, <code>up</code>, <code>verifying</code>, <code>standby</code> (not tried, because a candidate above it holds the same interface) or <code>unavailable</code>. An unavailable candidate reuses <code>reached</code> and <code>reason</code> from <code>invalid</code>, so "No lease" is <code>reached: addressing</code> and "Out of range" is <code>reached: carrier</code> on a wireless candidate. The client words each; the device only names the stage.</p>
 </div>
 
 <div class="card q">

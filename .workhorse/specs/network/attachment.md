@@ -99,6 +99,8 @@ A device MUST query the `nameservers` of a candidate before any the network supp
 
 A device MUST query the resolvers a network supplies where the candidate names none.
 
+A device MUST send a query for a name under a search domain a network supplies for a link to the resolvers that network supplies.
+
 > [!NOTE]
 > Resolvers belong to a link because a site's internal names commonly resolve only on that site's own network, and a device may hold several links at once.
-> Querying configured resolvers first and supplied ones after is what lets an operator add a public resolver without costing the device the site's own names.
+> A configured resolver answering that a name does not exist has answered, so nothing falls through to the site's own. Sending the site's own domain to the site's resolvers is what lets an operator add a public resolver without losing the site's names, where the site hands out its domain.

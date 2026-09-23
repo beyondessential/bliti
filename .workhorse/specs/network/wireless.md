@@ -41,6 +41,10 @@ A device MUST treat an enterprise candidate carrying a member its method does no
 
 A device MUST join only a network that authenticates the access point to it.
 
+A device MUST join a `sae` candidate only by SAE, and MUST fail one that joined by anything else at `association`.
+
+A device MUST offer `sae` only on a radio able to hold a connection to SAE.
+
 > [!NOTE]
 > WPA2-PSK and WPA3-SAE authenticate by proving possession of the key, and 802.1X by certificate.
 > The requirement is not that traffic be encrypted. A link encrypted without authentication leaves an adversary free to impersonate the access point and to inspect, modify and forge everything crossing it, and the traffic at risk is the application's: the overlay of [NFO](../device-info.md) carries management rather than what a device is deployed to do.

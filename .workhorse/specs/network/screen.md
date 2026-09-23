@@ -55,6 +55,20 @@ The application MUST describe an unavailable candidate by what the device observ
 > [!NOTE]
 > "No gateway", "no lease" and "out of range" are the same facts as "not here" and "not offered" with the diagnosis left in. An operator reads the first three and knows what to change.
 
+## Scanning
+
+The application MUST list what a scan heard by SSID, showing for each network the strongest signal among its access points and how many there are, with the access points behind it on request.
+
+The application MUST leave out access points with no SSID unless the operator asks to see hidden networks.
+
+The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use.
+
+The application MUST let the operator scan one adapter rather than every one.
+
+> [!NOTE]
+> Joining asks which network to add. Siting asks where the device's signal comes from and which channel a new access point should take, and it is the same scan read differently.
+> Scanning takes a radio off its channel for a moment, so scanning one adapter spares a radio carrying the uplink or the hotspot.
+
 ## Rendering a failure
 
 The application MUST mark the field named by the failure's `at`.

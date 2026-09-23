@@ -24,6 +24,12 @@ A client MUST abandon a proposal by sending `discard`.
 
 A client MAY propose again on the same stream after any answer.
 
+A device MUST answer every proposal exactly once, and MUST answer one interrupted by `discard` or by a newer proposal before its answer with `invalid` at `$`, carrying no `reached`.
+
+A device MUST NOT answer `discard`.
+
+A device MUST carry `capabilities` on `applied` where applying the proposal changed them, as a new regulatory domain changes the usable channels, and a client MUST check what it proposes next against those.
+
 A device MUST serve at most one configuration session at a time, and MUST answer `configure` on a second stream with `busy` while one is open.
 
 > [!NOTE]
@@ -36,7 +42,8 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
 | `configuration` | either end | `document`, and `capabilities` on the first from a device |
-| `applied` | device | nothing beyond `type` |
+| `state` | device | `attachments` |
+| `applied` | device | `capabilities` where the proposal changed them |
 | `invalid` | device | `at`, `reason`, and `reached` where a proposal was applied and then failed |
 | `confirm` | client | nothing beyond `type` |
 | `discard` | client | nothing beyond `type` |
@@ -65,7 +72,26 @@ A device MUST serve at most one configuration session at a time, and MUST answer
 > The three do different work. `at` puts an operator's cursor in the field that was wrong, `reached` says how far the attempt got, and `reason` carries the part nobody anticipated: a path, a permission, an errno.
 > "Associated, then the gateway did not answer" corrects one field and establishes that the key was right. A single code for failure would carry only the half that was foreseen.
 
+## The state of each candidate
+
+A device MUST send `state` after the first `configuration` it sends in a session, and again whenever the state of a candidate changes.
+
+`state` MUST carry `attachments`, an array matching position for position the attachments of the configuration running, which is a proposal once one is applied, each entry carrying:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `is` | string | yes | `default-route`, `up`, `verifying`, `standby` or `unavailable` |
+| `reached` | string | where `is` is `unavailable` | the stage of [LINK](attachment.md) at which it stopped, as `invalid` carries it |
+| `reason` | string | where `is` is `unavailable` | what the device observed, in its own words |
+
+`standby` MUST mean a candidate not tried because one above it holds its interface.
+
+> [!NOTE]
+> The stage says what the device observed of a candidate that is not up, and a client words it: stopping at `addressing` is no lease, and a wireless candidate stopping at `carrier` is out of range.
+
 ## Provisional and confirmed
+
+A device that has never recorded a configuration MUST hold as its recorded configuration one `wired-dynamic` candidate for each wired interface, labelled by the interface, and no hotspot.
 
 A device MUST apply a proposal to its running system without recording it.
 
@@ -95,6 +121,24 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 | `wps` | client | `method`, and `interface` where the client names the wireless interface to join on | join by WPS, as [WLAN](wireless.md) specifies |
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
+
+A device MUST answer `wps` as it answers a proposal: with `configuration` carrying the configuration in force with the joined network added first among its attachments, then with `applied` or `invalid`, after which it is a proposal like any other.
+
+A device joining by PIN MUST first send `pin`, carrying as `pin` the PIN it generated for the operator to enter at the access point.
+
+`networks` MUST carry `access-points`, from a fresh scan, one entry for each access point each radio scanned heard, leaving out the device's own hotspot:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `interface` | string | yes | the wireless interface whose radio heard it |
+| `bssid` | string | yes | the access point's radio address, lower case and colon-separated |
+| `ssid` | string or null | yes | the network's name, null where the access point hides it and the device does not know it |
+| `hidden` | boolean | yes | whether the access point leaves its name out of its beacons |
+| `security` | array | yes | what it advertises, from `psk`, `sae`, `enterprise`, `open`, `owe` and `wep` |
+| `band` | string | yes | its band, as [HOT](hotspot.md) names bands |
+| `channel` | number | yes | its channel |
+| `channel-width` | number | yes | the width it occupies, in megahertz |
+| `signal` | number | yes | how strongly the radio hears it, in dBm |
 
 A device MUST answer a `scan` or `survey` naming an `interface` for that interface's radio alone, and one naming none for every radio able to.
 
