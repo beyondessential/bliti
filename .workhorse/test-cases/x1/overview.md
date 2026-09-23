@@ -36,6 +36,10 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] An unconfigured device plugged into a network with DHCP is reachable on it, on real hardware. Verifies spec: CFG
 - [ ] A power cut with a proposal applied brings the device back on its recorded configuration, with nothing of the proposal brought up at boot, on real hardware. Verifies spec: CFG
 
+- [x] A proposal is judged only on candidates it adds or changes that carry `verify` true, per interface: a wrong passphrase beside a working wall port fails, a static per site on one port applies at either site, and a candidate carrying `verify` false fails nothing. Verifies spec: CFG
+- [x] A failure that is not a candidate's, such as a hotspot that does not start, carries no `reached`. Verifies spec: CFG
+- [ ] A wrong passphrase beside a working wall port is refused, and applying it again unchecked is applied, on real hardware. Verifies spec: CFG
+
 ## Attachment and selection
 
 - [ ] A device verifies a candidate through carrier, association, addressing and the gateway answering, in that order. Verifies spec: LINK
@@ -94,8 +98,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Fields are not editable while a proposal is being verified. Verifies spec: NSCR
 - [x] After a failure the fields hold what was proposed, not what the device reverted to, and the field named by the failure is marked. Verifies spec: NSCR
 - [x] The verification stages show which passed and which failed. Verifies spec: NSCR
-- [x] A proposal is sent verified, and only after a failure can the document that failed be applied unverified, confirmed like any other. Verifies spec: NSCR, CFG
-- [x] Candidates left unavailable by an unverified apply show their state. Verifies spec: NSCR
+- [x] Only the candidate a failure names offers to go unchecked, and proposing again leaves every other candidate checked. Verifies spec: NSCR
+- [x] An unchecked candidate is marked as such, and checking can be turned back on while editing. Verifies spec: NSCR
+- [x] Candidates left unavailable after applying one unchecked show their state. Verifies spec: NSCR
 - [x] The device's reason is rendered as the device wrote it. Verifies spec: NSCR
 - [x] A setting the device did not report supporting is not offered, and the screen says why it is absent. Verifies spec: NSCR
 - [x] Each candidate's state is shown, and an unavailable one is described by what the device observed. Verifies spec: NSCR

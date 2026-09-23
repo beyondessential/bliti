@@ -520,8 +520,8 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, unch
 				<div className="unchecked">
 					<p className="muted">
 						{unchecked.enabled
-							? 'You can apply again without checking this one. The rest are still checked.'
-							: 'Undo your changes to apply what failed without checking this one.'}
+							? 'Only this one goes unchecked.'
+							: 'Undo your edits first.'}
 					</p>
 					<button className="secondary small" onClick={unchecked.apply} disabled={!unchecked.enabled}>
 						Apply without checking
@@ -531,7 +531,7 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, unch
 			{!failure && observed?.is === 'unavailable' && observed.reason && <p className="muted">{observed.reason}</p>}
 			{candidate.verify === false && (
 				<div className="unchecked">
-					<p className="muted">Not checked. Applying goes ahead even if this cannot connect.</p>
+					<p className="muted">Not checked, so it applies even if it cannot connect.</p>
 					<button className="secondary small" onClick={() => change((held) => checking(held, candidateKey, true))} disabled={readOnly}>
 						Turn checking on
 					</button>

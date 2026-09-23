@@ -243,7 +243,7 @@ test.describe('applying without checking', () => {
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(unchecked(page)).toBeEnabled()
-		await expect(page.locator('.candidate')).toContainText('The rest are still checked.')
+		await expect(page.locator('.candidate')).toContainText('Only this one goes unchecked.')
 		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
 		await open(page, 'Clinic wall port')
 		await expect(unchecked(page)).toHaveCount(0)
@@ -284,7 +284,7 @@ test.describe('applying without checking', () => {
 		await expect(bar(page)).toContainText('Applied, not saved.')
 		await expect(bar(page).getByRole('button')).toHaveText(['Confirm', 'Cancel'])
 		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
-		await expect(page.locator('.candidate')).toContainText('Not checked.')
+		await expect(page.locator('.candidate')).toContainText('Not checked, so')
 		await expect(checkedAgain(page)).toBeDisabled()
 	})
 
@@ -292,7 +292,7 @@ test.describe('applying without checking', () => {
 		await failGateway(page)
 		await page.getByLabel('Gateway').fill('192.168.60.1')
 		await expect(unchecked(page)).toBeDisabled()
-		await expect(page.locator('.candidate')).toContainText('Undo your changes')
+		await expect(page.locator('.candidate')).toContainText('Undo your edits first.')
 		// Back to what failed, and it is offered again.
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await expect(unchecked(page)).toBeEnabled()
@@ -348,7 +348,7 @@ test.describe('applying without checking', () => {
 		await openNetwork(page, { document, capabilities: PI })
 		await expect(row(page, 'Clinic-Staff')).toContainText('Wireless, WPA3, not checked')
 		await open(page, 'Clinic-Staff')
-		await expect(page.locator('.candidate')).toContainText('Not checked. Applying goes ahead even if this cannot connect.')
+		await expect(page.locator('.candidate')).toContainText('Not checked, so it applies even if it cannot connect.')
 
 		await checkedAgain(page).click()
 		await expect(checkedAgain(page)).toHaveCount(0)
