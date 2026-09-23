@@ -13,9 +13,9 @@ use std::collections::BTreeMap;
 
 use wl_nl80211::{
 	Ieee80211AkmSuite, Ieee80211CipherSuite, Ieee80211HtCaps, Ieee80211VhtCapInfo, Nl80211Attr,
-	Nl80211BandInfo, Nl80211BandType, Nl80211Command, Nl80211ExtFeature, Nl80211Features,
-	Nl80211FrequencyInfo, Nl80211IfMode, Nl80211IfaceComb, Nl80211IfaceCombAttribute,
-	Nl80211IfaceCombLimitAttribute, Nl80211InterfaceType,
+	Nl80211BandInfo, Nl80211BandType, Nl80211ExtFeature, Nl80211Features, Nl80211FrequencyInfo,
+	Nl80211IfMode, Nl80211IfaceComb, Nl80211IfaceCombAttribute, Nl80211IfaceCombLimitAttribute,
+	Nl80211InterfaceType,
 };
 
 use super::{Band, BandInfo, Channel, RadioInfo};
@@ -35,7 +35,6 @@ pub(super) fn parse(
 	let mut akms: Option<Vec<Ieee80211AkmSuite>> = None;
 	let mut features = Nl80211Features::empty();
 	let mut extended = Vec::new();
-	let mut commands = Vec::new();
 	let mut scan = false;
 
 	for attribute in attributes {
@@ -61,7 +60,6 @@ pub(super) fn parse(
 			}
 			Nl80211Attr::Features(flags) => features |= *flags,
 			Nl80211Attr::ExtFeatures(list) => extended.extend(list.iter().copied()),
-			Nl80211Attr::SupportedCommand(list) => commands.extend(list.iter().copied()),
 			Nl80211Attr::MaxNumScanSsids(count) => scan = *count > 0,
 			_ => {}
 		}
@@ -78,7 +76,7 @@ pub(super) fn parse(
 		model,
 		bands,
 		alongside: access_point.then(|| alongside(&combinations)),
-		sae: sae(&ciphers, akms.as_deref(), features, &extended, &commands),
+		sae: sae(&ciphers, akms.as_deref(), features, &extended),
 		scan,
 		survey,
 	}
@@ -266,21 +264,19 @@ fn rank(alongside: Alongside) -> u8 {
 /// AKM, CCMP and BIP-CMAC-128 (it ignores the pin silently otherwise).
 ///
 /// The AKM is taken as supported where the wiphy lists no AKMs at all, which nl80211 says means all
-/// of them. SAE itself needs a way to run: in userspace through `NL80211_CMD_AUTHENTICATE` and
-/// `NL80211_CMD_ASSOCIATE` with `NL80211_FEATURE_SAE`, or offloaded to the driver with
-/// `NL80211_EXT_FEATURE_SAE_OFFLOAD`. A driver with `NL80211_FEATURE_SAE` and only
-/// `NL80211_CMD_CONNECT` wants external authentication, which is not counted.
+/// of them. SAE itself needs a way to run, and these are the ways iwd runs it (`wiphy_can_connect_sae`
+/// in iwd): `NL80211_FEATURE_SAE`, run in userspace either through `NL80211_CMD_AUTHENTICATE` and
+/// `NL80211_CMD_ASSOCIATE` or, on a FullMAC driver that only connects, through external
+/// authentication; or `NL80211_EXT_FEATURE_SAE_OFFLOAD`, run in the driver. The Pi's brcmfmac is the
+/// external-authentication case.
 fn sae(
 	ciphers: &[Ieee80211CipherSuite],
 	akms: Option<&[Ieee80211AkmSuite]>,
 	features: Nl80211Features,
 	extended: &[Nl80211ExtFeature],
-	commands: &[Nl80211Command],
 ) -> bool {
 	let akm = akms.is_none_or(|list| list.contains(&Ieee80211AkmSuite::Sae));
-	let in_userspace = features.contains(Nl80211Features::Sae)
-		&& commands.contains(&Nl80211Command::Authenticate)
-		&& commands.contains(&Nl80211Command::Associate);
+	let in_userspace = features.contains(Nl80211Features::Sae);
 	let offloaded = extended.contains(&Nl80211ExtFeature::SaeOffload);
 	akm && (in_userspace || offloaded)
 		&& ciphers.contains(&Ieee80211CipherSuite::Ccmp128)

@@ -18,16 +18,8 @@ use super::{
 	select::{self, Alongside},
 };
 
-#[expect(
-	unused_imports,
-	reason = "wired in by the backend that applies selections"
-)]
 pub use self::capabilities::{Backend, capabilities};
 #[cfg(target_os = "linux")]
-#[expect(
-	unused_imports,
-	reason = "wired in by the backend that applies selections"
-)]
 pub use self::nl80211::Nl80211;
 
 mod capabilities;

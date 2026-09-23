@@ -6,7 +6,7 @@
 //! asks each radio what it can do.
 
 mod apply;
-mod probe;
+pub mod probe;
 mod render;
 mod select;
 pub mod session;

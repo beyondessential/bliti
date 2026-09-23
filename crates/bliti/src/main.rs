@@ -62,6 +62,10 @@ enum Command {
 	/// Report which board ID source this board offers and which one wins, without deriving anything.
 	BoardId,
 
+	/// Report what this device's radios can do, and the network capabilities stated from them, as
+	/// JSON. Only asks: nothing about the radios or the network is changed.
+	Probe,
+
 	/// Scan for the device a QR code belongs to. The client half of discovery, without a browser.
 	Scan {
 		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
@@ -108,6 +112,7 @@ fn main() -> Result<()> {
 async fn run(cli: Cli) -> Result<()> {
 	match cli.command {
 		Command::BoardId => board_id(),
+		Command::Probe => probe().await,
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
 		Command::Daemon { adapter, network } => {
 			daemon(&cli.cache, &network, adapter.as_deref()).await
@@ -123,6 +128,26 @@ async fn run(cli: Cli) -> Result<()> {
 			adapter,
 		} => connect(&code, address.as_deref(), adapter.as_deref()).await,
 	}
+}
+
+/// Report what the radios can do, and the capabilities a configuration session would state (NET).
+#[cfg(target_os = "linux")]
+async fn probe() -> Result<()> {
+	use network::{probe, wired};
+
+	let radios = probe::Nl80211::connect()?.radios().await?;
+	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
+	let capabilities = probe::capabilities(&radios, &wired, &probe::Backend::stack());
+	for radio in &radios {
+		eprintln!("{radio:#?}");
+	}
+	println!("{}", serde_json::to_string_pretty(&capabilities)?);
+	Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn probe() -> Result<()> {
+	anyhow::bail!("probing radios needs nl80211, which only Linux has")
 }
 
 /// Report what the board offers. Probes only: no source value is read, so this is safe and instant

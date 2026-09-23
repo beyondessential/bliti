@@ -1,5 +1,5 @@
 use wl_nl80211::{
-	Nl80211Band, Nl80211Frequency,
+	Nl80211Band, Nl80211Command, Nl80211Frequency,
 	packet_core::{NlaBuffer, Parseable},
 };
 
@@ -343,14 +343,21 @@ fn sae_needs_the_akm_where_the_wiphy_lists_akms() {
 	assert!(radio(&listed).sae);
 }
 
-/// `NL80211_FEATURE_SAE` on a driver that only connects is external authentication, not counted.
+/// `NL80211_FEATURE_SAE` on a driver that only connects is external authentication, which iwd runs,
+/// as it does on the Pi's brcmfmac.
 #[test]
-fn sae_over_connect_alone_is_not_holdable() {
+fn sae_by_external_authentication_is_holdable() {
 	let attributes = with(
 		mac80211(),
 		Nl80211Attr::SupportedCommand(vec![Nl80211Command::Connect]),
 	);
-	assert!(!radio(&attributes).sae);
+	assert!(radio(&attributes).sae);
+
+	let neither = with(
+		with(attributes, Nl80211Attr::Features(Nl80211Features::empty())),
+		Nl80211Attr::ExtFeatures(vec![]),
+	);
+	assert!(!radio(&neither).sae);
 }
 
 #[test]
