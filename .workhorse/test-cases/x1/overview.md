@@ -46,7 +46,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A static candidate carrying no gateway is rejected as invalid. Verifies spec: LINK
 - [x] A second dynamic candidate on an interface that already has one is rejected as invalid. Verifies spec: LINK
 - [ ] A wired and a wireless candidate up at once leave the device reachable on both, with the default route following the ordering. Verifies spec: LINK
-- [ ] The default route moves when a candidate above the one in force becomes available. Verifies spec: LINK
+- [x] The default route moves when a candidate above the one in force becomes available. Verifies spec: LINK
 - [ ] A site that changes around a device whose cable never moved is noticed, and the device selects again. Verifies spec: LINK
 - [ ] A settled device does no polling to detect any of the three selection events. Verifies spec: LINK
 - [ ] Configured resolvers are queried before those a link supplies, and supplied ones are queried where a candidate names none. Verifies spec: LINK
@@ -60,7 +60,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A radio on a driver whose SAE is disabled offers no `sae` or `psk-sae`, and iwd is told not to run SAE on it. Verifies spec: WLAN, NET
 - [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
 - [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
-- [ ] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
+- [x] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
 - [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
 - [ ] A device does not join a network that cannot authenticate its access point to it, and says why in terms an operator can act on. Verifies spec: WLAN
 - [ ] An access point advertising both an unauthenticated network and an authenticated one is joined only on the authenticated one. Verifies spec: WLAN
