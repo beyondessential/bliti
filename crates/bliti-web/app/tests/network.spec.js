@@ -149,9 +149,9 @@ test.describe('rendering a failure', () => {
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
 		await expect(page.getByLabel('Gateway')).toHaveClass(/field-fault/)
 		await expect(page.getByLabel('Address')).not.toHaveClass(/field-fault/)
-		// Errored is writable, and offers apply and reset.
+		// Errored is writable, and offers apply, apply unverified and reset.
 		await expect(page.getByLabel('Gateway')).toBeEditable()
-		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Apply without checking', 'Reset'])
 	})
 
 	test('the verification stages show which passed and which failed', async ({ page }) => {
@@ -201,6 +201,116 @@ test.describe('rendering a failure', () => {
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(page.locator('.why.reason')).toHaveText(reason)
+	})
+})
+
+// NSCR: a proposal is verified, except the document that failed where the operator applies it
+// unverified.
+test.describe('applying unverified', () => {
+	const failure = message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: '192.168.60.254 did not answer.', reached: 'gateway' })
+	const unverified = (page) => bar(page).getByRole('button', { name: 'Apply without checking' })
+
+	async function failGateway(page) {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', failure)
+		await open(page, 'North site')
+		await page.getByLabel('Gateway').fill('192.168.60.254')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+	}
+
+	test('apply proposes with verification', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.verify).toBe(true)
+		expect(proposal.document['regulatory-domain']).toBe('FJ')
+	})
+
+	test('it is not offered while editing', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await expect(unverified(page)).toHaveCount(0)
+		await page.getByLabel('Country').selectOption('FJ')
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+
+		// Nor once a failure has been reset away.
+		await answer(page, 'configuration', failure)
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(unverified(page)).toBeEnabled()
+		await bar(page).getByRole('button', { name: 'Reset' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(unverified(page)).toHaveCount(0)
+	})
+
+	test('after a failure, the document that failed is proposed without verification', async ({ page }) => {
+		await failGateway(page)
+		await unverified(page).click()
+
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(bar(page)).toContainText('Applying without checking.')
+		await expect(page.getByLabel('Gateway')).toBeDisabled()
+		const [failed, again] = await proposals(page)
+		expect(failed.verify).toBe(true)
+		expect(again.verify).toBe(false)
+		expect(again.document).toEqual(failed.document)
+
+		await say(page, message({ type: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		await expect(bar(page)).toContainText('Applied without checking, not saved.')
+		await expect(bar(page).getByRole('button')).toHaveText(['Confirm', 'Cancel'])
+		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
+	})
+
+	test('an edit after the failure is applied with verification', async ({ page }) => {
+		await failGateway(page)
+		await page.getByLabel('Gateway').fill('192.168.60.1')
+		await expect(unverified(page)).toBeDisabled()
+		// Back to what failed, and it is offered again.
+		await page.getByLabel('Gateway').fill('192.168.60.254')
+		await expect(unverified(page)).toBeEnabled()
+
+		await page.getByLabel('Gateway').fill('192.168.60.1')
+		await bar(page).getByRole('button', { name: 'Apply', exact: true }).click()
+		const [, edited] = await proposals(page)
+		expect(edited.verify).toBe(true)
+		expect(edited.document.attachments[1].gateway).toBe('192.168.60.1')
+	})
+
+	test('a proposal applied unverified is confirmed like any other', async ({ page }) => {
+		await failGateway(page)
+		const [failed] = await proposals(page)
+		await answer(page, 'configuration', message({ type: 'applied' }))
+		await answer(page, 'confirm', message({ type: 'configuration', document: failed.document }))
+		await unverified(page).click()
+		await bar(page).getByRole('button', { name: 'Confirm' }).click()
+
+		await expect(bar(page)).toContainText('Saved.')
+		await open(page, 'North site')
+		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'configuration', 'confirm'])
+	})
+
+	// CFG: applied unverified, each candidate is reported through `state`, the failing one included.
+	test('candidates that do not verify are shown by what the device observed', async ({ page }) => {
+		await failGateway(page)
+		await answer(page, 'configuration', message({ type: 'applied' }))
+		await unverified(page).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		await say(page, message({
+			type: 'state',
+			attachments: [
+				{ is: 'default-route' },
+				{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.254 did not answer' },
+				{ is: 'standby' },
+				{ is: 'unavailable', reached: 'carrier', reason: 'Clinic-Staff is not in range' },
+				{ is: 'up' },
+			],
+		}))
+		await expect(row(page, 'North site').locator('.state')).toHaveText('No gateway')
+		await expect(row(page, 'Clinic-Staff').locator('.state')).toHaveText('Out of range')
+		await expect(page.locator('.candidate')).toContainText('192.168.60.254 did not answer')
+		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
 	})
 })
 

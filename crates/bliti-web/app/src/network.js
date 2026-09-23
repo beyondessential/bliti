@@ -126,6 +126,7 @@ export function opening() {
 		capabilities: null,
 		edit: fromDocument(null),
 		proposed: null,
+		verify: true,
 		runningKeys: [],
 		failure: null,
 		problem: null,
@@ -148,6 +149,12 @@ export function writable(state) {
 	return state.status === 'open' && (state.stage === 'editing' || state.stage === 'errored')
 }
 
+/// Whether the operator may apply unverified: after a failure, while the fields still hold the
+/// document that failed (NSCR). An edit is applied as any other, verified.
+export function unverifiable(state) {
+	return writable(state) && state.stage === 'errored' && !!state.proposed && same(state.edit.document, state.proposed.document)
+}
+
 /// Enter editing, filled from the configuration in force.
 function editing(state) {
 	const edit = fromDocument(state.inForce)
@@ -158,6 +165,7 @@ function editing(state) {
 		inForceKeys: edit.keys,
 		runningKeys: edit.keys,
 		proposed: null,
+		verify: true,
 		failure: null,
 		problem: null,
 		confirming: false,
@@ -196,6 +204,7 @@ export function reduce(state, action) {
 				...state,
 				stage: 'applying',
 				proposed: clone(state.edit),
+				verify: action.verify,
 				awaiting: state.awaiting + 1,
 				failure: null,
 				problem: null,
@@ -205,6 +214,7 @@ export function reduce(state, action) {
 				...state,
 				stage: 'applying',
 				proposed: null,
+				verify: true,
 				awaiting: state.awaiting + 1,
 				failure: null,
 				problem: null,

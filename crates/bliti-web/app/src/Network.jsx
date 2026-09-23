@@ -20,6 +20,7 @@ import {
 	stagesOf,
 	stateFor,
 	stateWording,
+	unverifiable,
 	updateCandidate,
 	validate,
 	writable,
@@ -87,14 +88,16 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 	const caps = state.capabilities
 	const surveyWith = state.edit.document.hotspot?.interface
 
-	function apply() {
+	// Only the document that failed is applied unverified; anything edited since is verified (NSCR).
+	function apply(verify) {
+		if (!verify && !unverifiable(state)) return
 		const document = state.edit.document
 		const problem = validate(document) ?? check(document, caps)
 		if (problem) {
 			dispatch({ type: 'problem', problem })
 			return
 		}
-		if (send((handle) => handle.propose(document, true))) dispatch({ type: 'proposed' })
+		if (send((handle) => handle.propose(document, verify))) dispatch({ type: 'proposed', verify })
 	}
 
 	function cancel() {
@@ -240,7 +243,8 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 			<SessionBar
 				state={state}
 				count={changes(state.edit, state.inForce, state.inForceKeys)}
-				onApply={apply}
+				onApply={() => apply(true)}
+				onApplyUnverified={() => apply(false)}
 				onReset={() => dispatch({ type: 'reset' })}
 				onCancel={cancel}
 				onConfirm={confirm}
@@ -252,7 +256,7 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 /// The state of the session, pinned to the bottom of the viewport: which stage the operator is in,
 /// whether what the device runs is saved, what leaving would cost, and only the actions the stage
 /// allows (NSCR).
-function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
+function SessionBar({ state, count, onApply, onApplyUnverified, onReset, onCancel, onConfirm }) {
 	const { stage } = state
 	let tone = ''
 	let said
@@ -273,9 +277,13 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 					'Waiting for the PIN.'
 				)}
 			</>
-		) : (
+		) : state.verify ? (
 			<>
 				<strong>Applying.</strong> Checking the new settings. Leaving cancels it.
+			</>
+		) : (
+			<>
+				<strong>Applying without checking.</strong> Leaving cancels it.
 			</>
 		)
 		actions = (
@@ -290,7 +298,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 			</>
 		) : (
 			<>
-				<strong>Applied, not saved.</strong> Running now. Discarded if you leave or disconnect.
+				<strong>{state.verify ? 'Applied, not saved.' : 'Applied without checking, not saved.'}</strong> Running now. Discarded if you leave or disconnect.
 			</>
 		)
 		actions = (
@@ -340,6 +348,11 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 				<button onClick={onApply} disabled={nothing}>
 					Apply
 				</button>
+				{stage === 'errored' && (
+					<button className="secondary" onClick={onApplyUnverified} disabled={!unverifiable(state)}>
+						Apply without checking
+					</button>
+				)}
 				<button className="secondary" onClick={onReset} disabled={nothing}>
 					Reset
 				</button>
