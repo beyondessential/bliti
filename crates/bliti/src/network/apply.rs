@@ -26,9 +26,20 @@ use super::render::{File, Hardware, Paths, Rendered};
 use record::Record;
 
 mod files;
+#[cfg(target_os = "linux")]
+mod iw;
 mod record;
+#[cfg(target_os = "linux")]
+mod system;
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "linux")]
+#[expect(
+	unused_imports,
+	reason = "wired in by the backend that applies selections"
+)]
+pub use system::Linux;
 
 /// Where a device keeps the record of what bliti last put in place.
 #[expect(dead_code, reason = "wired in by the backend that applies selections")]
