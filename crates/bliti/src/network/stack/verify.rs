@@ -277,8 +277,9 @@ mod tests {
 
 	#[test]
 	fn a_dynamic_candidate_takes_a_leased_address_and_the_routes_gateway() {
-		let dynamic =
-			attachment(json!({"kind": "wired-dynamic", "label": "e", "interface": "eth0"}));
+		let dynamic = attachment(
+			json!({"kind": "wired-dynamic", "label": "e", "verify": true, "interface": "eth0"}),
+		);
 		let mut links = Links::default();
 		address(&mut links, "192.0.2.9", false);
 		let check = Check::new(
@@ -311,8 +312,9 @@ mod tests {
 
 	#[test]
 	fn what_another_candidate_left_is_not_taken_until_announced_again() {
-		let dynamic =
-			attachment(json!({"kind": "wired-dynamic", "label": "e", "interface": "eth0"}));
+		let dynamic = attachment(
+			json!({"kind": "wired-dynamic", "label": "e", "verify": true, "interface": "eth0"}),
+		);
 		let mut links = Links::default();
 		address(&mut links, "198.51.100.7", true);
 		let mut check = Check::new(
@@ -338,7 +340,7 @@ mod tests {
 	#[test]
 	fn a_static_candidate_takes_its_own_address_and_gateway() {
 		let fixed = attachment(json!({
-			"kind": "wired-static", "label": "s", "interface": "eth0",
+			"kind": "wired-static", "label": "s", "verify": true, "interface": "eth0",
 			"addresses": ["192.0.2.9/24"], "gateway": "192.0.2.1"
 		}));
 		let mut links = Links::default();

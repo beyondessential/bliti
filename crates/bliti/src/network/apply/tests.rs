@@ -159,7 +159,7 @@ fn full() -> Json {
 	json!({
 		"regulatory-domain": "NZ",
 		"attachments": [
-			{ "kind": "wired-dynamic", "label": "wall", "interface": "eth0", "nameservers": ["1.1.1.1"] },
+			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0", "nameservers": ["1.1.1.1"] },
 			wireless("Clinic", "a long passphrase")
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
@@ -168,7 +168,7 @@ fn full() -> Json {
 
 fn wireless(ssid: &str, passphrase: &str) -> Json {
 	json!({
-		"kind": "wireless", "label": ssid, "ssid": ssid,
+		"kind": "wireless", "label": ssid, "verify": true, "ssid": ssid,
 		"security": { "kind": "psk", "passphrase": passphrase }
 	})
 }
@@ -428,7 +428,7 @@ fn a_networkd_change_only_reloads_networkd() {
 
 	let mut static_ = base;
 	static_["attachments"][0] = json!({
-		"kind": "wired-static", "label": "lab", "interface": "eth0",
+		"kind": "wired-static", "label": "lab", "verify": true, "interface": "eth0",
 		"addresses": ["10.1.0.5/24"], "gateway": "10.1.0.1"
 	});
 	let changes = device.apply(&static_);

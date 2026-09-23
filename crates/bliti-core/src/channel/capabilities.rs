@@ -73,10 +73,17 @@ impl Context {
 fn required(context: Context, kind: Option<&str>, member: &str) -> bool {
 	match (context, kind) {
 		(Context::Document, _) => member == "attachments",
-		(Context::Attachment, Some("wireless")) => matches!(member, "label" | "ssid" | "security"),
-		(Context::Attachment, Some("wired-dynamic")) => matches!(member, "label" | "interface"),
+		(Context::Attachment, Some("wireless")) => {
+			matches!(member, "label" | "verify" | "ssid" | "security")
+		}
+		(Context::Attachment, Some("wired-dynamic")) => {
+			matches!(member, "label" | "verify" | "interface")
+		}
 		(Context::Attachment, Some("wired-static")) => {
-			matches!(member, "label" | "interface" | "addresses" | "gateway")
+			matches!(
+				member,
+				"label" | "verify" | "interface" | "addresses" | "gateway"
+			)
 		}
 		(Context::Security, Some("psk" | "sae" | "psk-sae")) => member == "passphrase",
 		(Context::Security, Some("enterprise")) => member != "eap",

@@ -58,7 +58,7 @@ fn check_on_pi(document: Json) -> Result<(), Invalid> {
 
 fn wireless(extra: Json) -> Json {
 	let mut candidate = object(json!({
-		"kind": "wireless", "label": "Clinic", "ssid": "Clinic",
+		"kind": "wireless", "label": "Clinic", "verify": true, "ssid": "Clinic",
 		"security": { "kind": "sae", "passphrase": "a good long passphrase" }
 	}));
 	candidate.extend(object(extra));
@@ -70,9 +70,9 @@ fn a_document_within_capabilities_passes() {
 	check_on_pi(json!({
 		"attachments": [
 			wireless(json!({ "interface": "wlan0", "hidden": true, "nameservers": ["1.1.1.1"] })),
-			{ "kind": "wired-static", "label": "Office", "interface": "eth0",
+			{ "kind": "wired-static", "label": "Office", "verify": true, "interface": "eth0",
 			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1" },
-			{ "kind": "wired-dynamic", "label": "Any port", "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "Any port", "verify": true, "interface": "eth0" }
 		],
 		"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlx00c0caa1b2c3",
 					 "band": "5ghz", "channel": 36, "channel-width": 80, "isolate-clients": false },
@@ -101,7 +101,7 @@ fn an_unlisted_optional_member_is_refused() {
 	} } }));
 	let err = check(
 		&object(json!({ "attachments": [
-			{ "kind": "wired-dynamic", "label": "p", "interface": "eth0", "nameservers": ["1.1.1.1"] }
+			{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0", "nameservers": ["1.1.1.1"] }
 		] })),
 		&caps,
 	)
@@ -127,7 +127,7 @@ fn an_unsupported_kind_is_refused() {
 #[test]
 fn a_value_outside_an_array_is_refused() {
 	let err = check_on_pi(json!({ "attachments": [
-		{ "kind": "wired-dynamic", "label": "p", "interface": "eth1" }
+		{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth1" }
 	] }))
 	.unwrap_err();
 	assert_eq!(err.at, "$['attachments'][0]['interface']");

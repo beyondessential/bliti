@@ -175,7 +175,7 @@ fn the_shape_is_the_one_net_gives() {
 }
 
 fn wireless(interface: &str, kind: &str) -> Json {
-	json!({ "kind": "wireless", "label": "Clinic", "ssid": "Clinic", "interface": interface,
+	json!({ "kind": "wireless", "label": "Clinic", "verify": true, "ssid": "Clinic", "interface": interface,
 		"security": { "kind": kind, "passphrase": "a good long passphrase" } })
 }
 
@@ -191,7 +191,7 @@ fn a_document_the_device_can_carry_passes() {
 		"attachments": [
 			wireless("wlx00c0caa1b2c3", "sae"),
 			wireless("wlan0", "psk"),
-			{ "kind": "wired-static", "label": "Office", "interface": "eth0",
+			{ "kind": "wired-static", "label": "Office", "verify": true, "interface": "eth0",
 			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1",
 			  "nameservers": ["1.1.1.1"] }
 		],

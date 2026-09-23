@@ -218,6 +218,7 @@ pub(super) fn joined_document(
 	let mut joined = json!({
 		"kind": "wireless",
 		"label": ssid,
+		"verify": true,
 		"ssid": ssid,
 		"security": { "kind": "psk", "passphrase": passphrase },
 	});

@@ -68,6 +68,8 @@ pub struct Document {
 pub struct Attachment {
 	/// What the operator calls this candidate.
 	pub label: String,
+	/// Whether a proposal fails where this candidate cannot be established (CFG).
+	pub verify: bool,
 	/// The resolvers of this link, in the order they are queried; a device queries these before any
 	/// the link supplies (LINK).
 	pub nameservers: Vec<String>,
@@ -281,6 +283,15 @@ impl Attachment {
 		let label = string(candidate, "label")
 			.map_err(|reason| Invalid::at(at("label"), reason))?
 			.to_owned();
+		let verify = match candidate.get("verify") {
+			Some(Json::Bool(verify)) => *verify,
+			_ => {
+				return Err(Invalid::at(
+					at("verify"),
+					"a candidate carries `verify`, a boolean",
+				));
+			}
+		};
 		let nameservers = string_array(candidate, "nameservers")
 			.map_err(|reason| Invalid::at(at("nameservers"), reason))?;
 
@@ -330,6 +341,7 @@ impl Attachment {
 
 		Ok(Self {
 			label,
+			verify,
 			nameservers,
 			kind,
 		})
@@ -339,6 +351,7 @@ impl Attachment {
 		let mut map = Map::new();
 		map.insert("kind".to_owned(), Json::String(self.kind.tag().to_owned()));
 		map.insert("label".to_owned(), Json::String(self.label.clone()));
+		map.insert("verify".to_owned(), Json::Bool(self.verify));
 		if !self.nameservers.is_empty() {
 			map.insert(
 				"nameservers".to_owned(),
@@ -674,6 +687,7 @@ mod tests {
 				{
 					"kind": "wireless",
 					"label": "clinic wifi",
+					"verify": true,
 					"nameservers": ["10.0.0.1"],
 					"ssid": "Clinic",
 					"security": { "kind": "sae", "passphrase": "a good long passphrase" },
@@ -682,11 +696,12 @@ mod tests {
 				{
 					"kind": "wired-static",
 					"label": "wall port",
+					"verify": true,
 					"interface": "eth0",
 					"addresses": ["192.168.1.10/24"],
 					"gateway": "192.168.1.1"
 				},
-				{ "kind": "wired-dynamic", "label": "spare port", "interface": "eth1" }
+				{ "kind": "wired-dynamic", "label": "spare port", "verify": true, "interface": "eth1" }
 			],
 			"hotspot": {
 				"ssid": "bliti-setup",
@@ -729,6 +744,7 @@ mod tests {
 			"attachments": [{
 				"kind": "wired-static",
 				"label": "wall port",
+				"verify": true,
 				"interface": "eth0",
 				"addresses": ["192.168.1.10/24"]
 			}]
@@ -743,9 +759,9 @@ mod tests {
 	fn several_statics_on_one_interface_are_allowed() {
 		let parsed = document(serde_json::json!({
 			"attachments": [
-				{ "kind": "wired-static", "label": "site a", "interface": "eth0",
+				{ "kind": "wired-static", "label": "site a", "verify": true, "interface": "eth0",
 				  "addresses": ["10.1.0.5/24"], "gateway": "10.1.0.1" },
-				{ "kind": "wired-static", "label": "site b", "interface": "eth0",
+				{ "kind": "wired-static", "label": "site b", "verify": true, "interface": "eth0",
 				  "addresses": ["10.2.0.5/24"], "gateway": "10.2.0.1" }
 			]
 		}))
@@ -758,8 +774,8 @@ mod tests {
 	fn two_dynamic_candidates_on_one_interface_are_invalid() {
 		let err = document(serde_json::json!({
 			"attachments": [
-				{ "kind": "wired-dynamic", "label": "a", "interface": "eth0" },
-				{ "kind": "wired-dynamic", "label": "b", "interface": "eth0" }
+				{ "kind": "wired-dynamic", "label": "a", "verify": true, "interface": "eth0" },
+				{ "kind": "wired-dynamic", "label": "b", "verify": true, "interface": "eth0" }
 			]
 		}))
 		.unwrap_err();
@@ -772,7 +788,7 @@ mod tests {
 		for kind in ["psk", "sae", "psk-sae"] {
 			let err = document(serde_json::json!({
 				"attachments": [{
-					"kind": "wireless", "label": "w", "ssid": "S",
+					"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
 					"security": { "kind": kind }
 				}]
 			}))
@@ -789,7 +805,7 @@ mod tests {
 	fn an_unknown_security_kind_is_invalid() {
 		let err = document(serde_json::json!({
 			"attachments": [{
-				"kind": "wireless", "label": "w", "ssid": "S",
+				"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
 				"security": { "kind": "wep", "passphrase": "x" }
 			}]
 		}))
@@ -802,7 +818,7 @@ mod tests {
 	fn enterprise_credentials_survive_the_round_trip() {
 		let parsed = document(serde_json::json!({
 			"attachments": [{
-				"kind": "wireless", "label": "eduroam", "ssid": "eduroam",
+				"kind": "wireless", "label": "eduroam", "verify": true, "ssid": "eduroam",
 				"security": {
 					"kind": "enterprise", "eap": "peap",
 					"identity": "user@site", "password": "secret"
@@ -820,11 +836,38 @@ mod tests {
 		assert_eq!(Document::parse(&parsed.to_json()).unwrap(), parsed);
 	}
 
+	/// Every candidate says whether it is verified, whatever its kind (LINK).
+	#[test]
+	fn a_candidate_without_verify_is_invalid() {
+		for verify in [None, Some(serde_json::json!("yes"))] {
+			let mut candidate =
+				serde_json::json!({ "kind": "wired-dynamic", "label": "a", "interface": "eth0" });
+			if let Some(verify) = verify {
+				candidate["verify"] = verify;
+			}
+			let err = document(serde_json::json!({ "attachments": [candidate] })).unwrap_err();
+			assert_eq!(err.at, "$['attachments'][0]['verify']");
+		}
+	}
+
+	/// `verify` is written whichever way it is set.
+	#[test]
+	fn verify_is_written_either_way() {
+		for verify in [true, false] {
+			let parsed = document(serde_json::json!({
+				"attachments": [{ "kind": "wired-dynamic", "label": "a", "verify": verify, "interface": "eth0" }]
+			}))
+			.unwrap();
+			assert_eq!(parsed.attachments[0].verify, verify);
+			assert_eq!(parsed.to_json()["attachments"][0]["verify"], verify);
+		}
+	}
+
 	/// An unknown attachment kind is rejected, naming the kind member.
 	#[test]
 	fn an_unknown_attachment_kind_is_invalid() {
 		let err = document(serde_json::json!({
-			"attachments": [{ "kind": "cellular", "label": "modem" }]
+			"attachments": [{ "kind": "cellular", "label": "modem", "verify": true }]
 		}))
 		.unwrap_err();
 		assert_eq!(err.at, "$['attachments'][0]['kind']");
@@ -892,9 +935,9 @@ mod tests {
 	fn wireless_and_hotspot_name_an_interface_or_leave_it_to_the_device() {
 		let parsed = document(serde_json::json!({
 			"attachments": [
-				{ "kind": "wireless", "label": "uplink", "ssid": "Clinic", "interface": "wlx00c0caa1b2c3",
+				{ "kind": "wireless", "label": "uplink", "verify": true, "ssid": "Clinic", "interface": "wlx00c0caa1b2c3",
 				  "security": { "kind": "sae", "passphrase": "a good long passphrase" } },
-				{ "kind": "wireless", "label": "either", "ssid": "Office",
+				{ "kind": "wireless", "label": "either", "verify": true, "ssid": "Office",
 				  "security": { "kind": "psk", "passphrase": "another passphrase" } }
 			],
 			"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlan0" }

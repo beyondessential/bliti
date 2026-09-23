@@ -624,13 +624,13 @@ mod tests {
 		let capabilities = r#"{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}"#;
 		assert_eq!(
 			capability_fault(
-				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","interface":"eth0"}]}"#,
+				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","verify":true,"interface":"eth0"}]}"#,
 				capabilities
 			),
 			Ok(None)
 		);
 		let fault = capability_fault(
-			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","interface":"eth1"}]}"#,
+			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","verify":true,"interface":"eth1"}]}"#,
 			capabilities,
 		)
 		.unwrap()
