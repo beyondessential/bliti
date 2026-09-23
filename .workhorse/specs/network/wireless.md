@@ -55,6 +55,8 @@ A device MUST join by WPS on request, by push-button and by PIN.
 
 A device MUST report which WPS methods each of its radios offers among its capabilities.
 
+A device asked to join by WPS naming no `interface` MUST join on a radio offering the method asked for.
+
 > [!NOTE]
 > A device with no keyboard is one an operator cannot type a passphrase into, and WPS is what a site's existing access point already offers for that.
 > Which mechanisms a site runs is the site's to decide. A device that refused one because the mechanism is weak would be imposing a judgement on a network it is a guest of, and would leave the operator holding a device that will not join.

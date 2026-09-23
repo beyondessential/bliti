@@ -61,9 +61,9 @@ The application MUST list what a scan heard by SSID, showing for each network th
 
 The application MUST leave out access points with no SSID unless the operator asks to see hidden networks.
 
-The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use.
+The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use, counting every channel a wide access point spans.
 
-The application MUST let the operator scan one adapter rather than every one.
+The application MUST let the operator scan or survey one adapter rather than every one, and join by WPS on a chosen adapter or on one the device picks.
 
 > [!NOTE]
 > Joining asks which network to add. Siting asks where the device's signal comes from and which channel a new access point should take, and it is the same scan read differently.

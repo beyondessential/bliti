@@ -24,7 +24,7 @@ A client MUST abandon a proposal by sending `discard`.
 
 A client MAY propose again on the same stream after any answer.
 
-A device MUST answer every proposal exactly once, and MUST answer one interrupted by `discard` or by a newer proposal before its answer with `invalid` at `$`, carrying no `reached`.
+A device MUST answer every proposal exactly once, counting a `wps` as a proposal from when it is sent, and MUST answer one interrupted by `discard` or by a newer proposal before its answer with `invalid` at `$`, carrying no `reached`.
 
 A device MUST NOT answer `discard`.
 

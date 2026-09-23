@@ -74,8 +74,8 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [x] Wire compatibility: the new message types go through `bliti-wire-compat` (generator arms added), and `configuration`'s critical `DOCUMENT` is recorded in `wire-breaks.toml` with a reason
 - [x] The device's configuration session, in `crates/bliti/src/network/session.rs`: one device-wide session behind a lock (`busy` otherwise), the recorded configuration held raw in one file replaced atomically on `confirm`, proposals applied through a `Backend` trait (`capabilities`, `check`, `apply`, `restore`, `scan`, `survey`, `wps`), and restore on discard, failure, and however the session ends. Runs on an `Inert` backend until the real one lands. The daemon restores the recorded configuration at start
   - [x] A session dropped from outside ends the streams it served (`JoinSet` and an abort-on-drop driver in `session::run`), so a configuration session cannot outlive a client that unsubscribed
-  - [ ] The recorded configuration of an unconfigured device: one `wired-dynamic` candidate per wired interface (CFG), read from `/sys/class/net` (in progress)
-  - [ ] `state`, `pin`, capabilities on `applied`, and the capabilities checked before a proposal or act reaches the backend (in progress)
+  - [x] The recorded configuration of an unconfigured device: one `wired-dynamic` candidate per wired interface (CFG), read from `/sys/class/net`
+  - [x] `state`, `pin`, capabilities on `applied` and on `state`, and the capabilities checked before a proposal or act reaches the backend
 - [x] Render a document, for a given selection of candidates, as the files iwd, hostapd and networkd read, in `crates/bliti/src/network/render.rs`. Pure: no filesystem, processes or D-Bus. `Paths::owns` tells the applier which files are bliti's so it can delete stale ones
 - [x] Candidate selection, in `network/select.rs`: a pure, event-driven selector placing candidates on interfaces and the hotspot on a radio by LINK and HOT, with per-candidate states and the changes to apply. No timers; a retry is an event the caller schedules
 - [ ] The event sources feeding it: carrier and addresses (rtnetlink), association and range (iwd over D-Bus), and the gateway answering
@@ -89,7 +89,7 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [ ] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
 - [x] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`, with the wireless and hotspot tiles placed where VIEW puts them
 - [x] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md): `Channel::configure` in the wasm crate, `Network.jsx` for the four stages, and `capabilities.js` as the only module that reads the capabilities shape
-  - [ ] The settled shapes on screen: the shared checker through wasm, adapter pickers, `state`, `pin`, capabilities on `applied`, scanning by SSID with hidden ones on request, one-adapter scans and the siting view (in progress)
+  - [x] The settled shapes on screen: the shared checker through wasm, adapter pickers, `state`, `pin`, capabilities on `applied` and `state`, scanning by SSID with hidden ones on request, one-adapter scans and the siting view
 - [ ] Privileges: whichever of the three options above is chosen
 
 ## Notes
@@ -147,4 +147,6 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [x] `scan`, `survey` and `wps` take an optional `interface` on the wire and through the `Backend` trait; unset, scan and survey run on every radio able to
 - [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
 - [ ] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
-- [ ] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`, once the capabilities shape is signed off
+- [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
+- [ ] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
+- [ ] The screen: a WPS adapter choice, a survey adapter choice, and the siting view counting every channel a wide access point spans (NSCR)
