@@ -586,7 +586,8 @@ fn rendered_files_are_owned() {
 	] {
 		assert!(!hardware.paths.owns(Path::new(foreign)), "{foreign}");
 	}
-	assert!(Paths::system().owns(Path::new("/var/lib/iwd/Old.psk")));
+	assert!(Paths::system().owns(Path::new("/run/bliti/iwd/Old.psk")));
+	assert!(!Paths::system().owns(Path::new("/var/lib/iwd/Old.psk")));
 }
 
 /// Rendering the same state twice gives the same files.
