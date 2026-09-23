@@ -117,8 +117,15 @@ fn mac80211() -> Vec<Nl80211Attr> {
 	]
 }
 
+fn driver(name: &str) -> Sysfs {
+	Sysfs {
+		driver: Some(name.into()),
+		..Sysfs::default()
+	}
+}
+
 fn radio(attributes: &[Nl80211Attr]) -> RadioInfo {
-	parse(attributes, "wlan0".into(), "test".into(), false)
+	parse(attributes, "wlan0".into(), &driver("test"), false)
 }
 
 fn numbers(info: &BandInfo) -> Vec<u32> {
@@ -343,6 +350,17 @@ fn sae_needs_the_akm_where_the_wiphy_lists_akms() {
 	assert!(radio(&listed).sae);
 }
 
+/// brcmfmac's external authentication fails against hash-to-element access points, so iwd is told
+/// not to run SAE there and the radio holds none.
+#[test]
+fn sae_is_withheld_on_brcmfmac() {
+	let attributes = with(
+		mac80211(),
+		Nl80211Attr::SupportedCommand(vec![Nl80211Command::Connect]),
+	);
+	assert!(!parse(&attributes, "wld0".into(), &driver("brcmfmac"), false).sae);
+}
+
 /// `NL80211_FEATURE_SAE` on a driver that only connects is external authentication, which iwd runs,
 /// as it does on the Pi's brcmfmac.
 #[test]
@@ -369,7 +387,7 @@ fn a_radio_scans_where_it_can_scan_for_an_ssid() {
 
 #[test]
 fn what_is_not_the_wiphys_is_carried_through() {
-	let radio = parse(&mac80211(), "wlp1s0".into(), "iwlwifi".into(), true);
+	let radio = parse(&mac80211(), "wlp1s0".into(), &driver("iwlwifi"), true);
 	assert_eq!(radio.station, "wlp1s0");
 	assert_eq!(radio.model, "iwlwifi");
 	assert!(radio.survey);

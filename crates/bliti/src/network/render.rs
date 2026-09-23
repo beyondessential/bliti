@@ -17,6 +17,8 @@ use std::{
 
 use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Segment, path};
 
+pub(crate) use iwd::SAE_DISABLED;
+
 mod hostapd;
 mod iwd;
 mod networkd;

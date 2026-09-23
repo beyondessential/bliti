@@ -71,11 +71,11 @@ impl Nl80211 {
 				continue;
 			};
 			let survey = self.surveys(station).await;
-			let model = Sysfs::read(Path::new("/sys"), &station.name).model();
+			let adapter = Sysfs::read(Path::new("/sys"), &station.name);
 			radios.push(wiphy::parse(
 				attributes,
 				station.name.clone(),
-				model,
+				&adapter,
 				survey,
 			));
 		}

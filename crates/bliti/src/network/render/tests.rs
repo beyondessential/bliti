@@ -499,6 +499,18 @@ fn secrets_are_0600() {
 	assert_eq!(file(&out, "hostapd.conf").mode, SECRET);
 }
 
+/// iwd runs no SAE on the drivers whose SAE fails, whatever the document.
+#[test]
+fn sae_is_disabled_on_brcmfmac() {
+	let doc = document(json!({ "attachments": [] }));
+	let out = rendered(&doc, &hardware(), &active(&[]));
+	assert!(
+		file(&out, "iwd.conf")
+			.contents
+			.ends_with("\n[DriverQuirks]\nSaeDisable=brcmfmac\n")
+	);
+}
+
 /// The regulatory domain reaches iwd, hostapd and cfg80211; unset, cfg80211 stays in the world domain.
 #[test]
 fn regulatory_domain() {

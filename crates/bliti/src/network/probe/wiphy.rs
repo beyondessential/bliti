@@ -1,8 +1,8 @@
 //! What a radio can do, read from the attributes nl80211 describes its wiphy with.
 //!
 //! Pure: [`parse`] takes the attributes of one wiphy, every message of a split dump concatenated,
-//! and the facts that do not come from the wiphy (its station interface, its model, whether its
-//! driver answered a survey).
+//! and the facts that do not come from the wiphy (its station interface, what sysfs says of its
+//! adapter, whether its driver answered a survey).
 //!
 //! HE capabilities are not read. wl-nl80211 0.7.0 parses `NL80211_BAND_ATTR_IFTYPE_DATA` one level
 //! too shallow, taking each nested iftype-data entry for one of its own attributes, so the HE PHY
@@ -18,14 +18,14 @@ use wl_nl80211::{
 	Nl80211InterfaceType,
 };
 
-use super::{Band, BandInfo, Channel, RadioInfo};
-use crate::network::select::Alongside;
+use super::{Band, BandInfo, Channel, RadioInfo, model::Sysfs};
+use crate::network::{render::SAE_DISABLED, select::Alongside};
 
 /// What the radio whose wiphy carries `attributes` can do.
 pub(super) fn parse(
 	attributes: &[Nl80211Attr],
 	station: String,
-	model: String,
+	adapter: &Sysfs,
 	survey: bool,
 ) -> RadioInfo {
 	let mut bands: BTreeMap<Band, Vec<Nl80211BandInfo>> = BTreeMap::new();
@@ -73,10 +73,14 @@ pub(super) fn parse(
 
 	RadioInfo {
 		station,
-		model,
+		model: adapter.model(),
 		bands,
 		alongside: access_point.then(|| alongside(&combinations)),
-		sae: sae(&ciphers, akms.as_deref(), features, &extended),
+		sae: !adapter
+			.driver
+			.as_deref()
+			.is_some_and(|driver| SAE_DISABLED.contains(&driver))
+			&& sae(&ciphers, akms.as_deref(), features, &extended),
 		scan,
 		survey,
 	}
@@ -268,7 +272,7 @@ fn rank(alongside: Alongside) -> u8 {
 /// in iwd): `NL80211_FEATURE_SAE`, run in userspace either through `NL80211_CMD_AUTHENTICATE` and
 /// `NL80211_CMD_ASSOCIATE` or, on a FullMAC driver that only connects, through external
 /// authentication; or `NL80211_EXT_FEATURE_SAE_OFFLOAD`, run in the driver. The Pi's brcmfmac is the
-/// external-authentication case.
+/// external-authentication case, though iwd is told not to use it there (see [`SAE_DISABLED`]).
 fn sae(
 	ciphers: &[Ieee80211CipherSuite],
 	akms: Option<&[Ieee80211AkmSuite]>,

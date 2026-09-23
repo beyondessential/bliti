@@ -9,6 +9,13 @@ use super::{File, Hardware, PUBLIC, Paths, SECRET, candidate_path, header, inval
 
 mod enterprise;
 
+/// The drivers iwd is told not to run SAE on, by name.
+///
+/// brcmfmac runs SAE by external authentication, and on the CYW43455 that fails against any access
+/// point using hash-to-element, which WPA3 access points increasingly require. iwd joins a
+/// transitional network over PSK on these drivers instead, and the probe offers no SAE on them.
+pub(crate) const SAE_DISABLED: &[&str] = &["brcmfmac"];
+
 /// The suffixes iwd gives its network files, all of which bliti owns in iwd's state directory.
 const SUFFIXES: [&str; 3] = [".psk", ".8021x", ".open"];
 
@@ -79,7 +86,8 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 	Ok(files.into_iter().map(|(_, file)| file).collect())
 }
 
-/// iwd's main configuration: networkd addresses every link, so iwd configures none.
+/// iwd's main configuration: networkd addresses every link, so iwd configures none, and SAE stays
+/// off the drivers in [`SAE_DISABLED`].
 pub(super) fn main_conf(paths: &Paths, domain: Option<&str>) -> File {
 	let mut contents = format!(
 		"{}\n[General]\nEnableNetworkConfiguration=false\n",
@@ -88,6 +96,11 @@ pub(super) fn main_conf(paths: &Paths, domain: Option<&str>) -> File {
 	if let Some(domain) = domain {
 		let _ = writeln!(contents, "Country={domain}");
 	}
+	let _ = write!(
+		contents,
+		"\n[DriverQuirks]\nSaeDisable={}\n",
+		SAE_DISABLED.join(",")
+	);
 	File {
 		path: paths.iwd_config.clone(),
 		contents,

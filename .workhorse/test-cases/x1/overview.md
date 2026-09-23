@@ -57,6 +57,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 ## Wireless
 
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
+- [x] A radio on a driver whose SAE is disabled offers no `sae` or `psk-sae`, and iwd is told not to run SAE on it. Verifies spec: WLAN, NET
+- [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
 - [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
 - [ ] A device does not join a network that cannot authenticate its access point to it, and says why in terms an operator can act on. Verifies spec: WLAN
 - [ ] An access point advertising both an unauthenticated network and an authenticated one is joined only on the authenticated one. Verifies spec: WLAN
