@@ -66,6 +66,22 @@ enum Command {
 	/// JSON. Only asks: nothing about the radios or the network is changed.
 	Probe,
 
+	/// Render a network configuration document and put it in force, for trying the stack on a
+	/// device by hand. Verifies nothing and records nothing, and the daemon replaces it on its next
+	/// apply.
+	NetworkApply {
+		/// The configuration document, as JSON.
+		document: PathBuf,
+
+		/// The candidates to bring up, by position in `attachments`.
+		#[arg(long, value_delimiter = ',')]
+		active: Vec<usize>,
+
+		/// The channel the wireless client is on, as `2.4ghz:6`, for a hotspot that has to follow it.
+		#[arg(long)]
+		station_channel: Option<String>,
+	},
+
 	/// Scan for the device a QR code belongs to. The client half of discovery, without a browser.
 	Scan {
 		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
@@ -113,6 +129,11 @@ async fn run(cli: Cli) -> Result<()> {
 	match cli.command {
 		Command::BoardId => board_id(),
 		Command::Probe => probe().await,
+		Command::NetworkApply {
+			document,
+			active,
+			station_channel,
+		} => network_apply(&document, active, station_channel.as_deref()).await,
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
 		Command::Daemon { adapter, network } => {
 			daemon(&cli.cache, &network, adapter.as_deref()).await
@@ -143,6 +164,68 @@ async fn probe() -> Result<()> {
 	}
 	println!("{}", serde_json::to_string_pretty(&capabilities)?);
 	Ok(())
+}
+
+/// Render `document` for the candidates named, and apply it with the running system's own stack.
+#[cfg(target_os = "linux")]
+async fn network_apply(
+	document: &std::path::Path,
+	active: Vec<usize>,
+	station_channel: Option<&str>,
+) -> Result<()> {
+	use bliti_core::channel::config::Document;
+	use network::{apply, probe, render, wired};
+
+	let text = std::fs::read_to_string(document).context("reading the document")?;
+	let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text)?;
+	let document =
+		Document::parse(&raw).map_err(|e| anyhow::anyhow!("{} (at {})", e.reason, e.at))?;
+
+	let radios = probe::Nl80211::connect()?.radios().await?;
+	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
+	let hardware = probe::render_hardware(radios.first(), &wired, "ap0", render::Paths::system());
+	let station_channel = station_channel
+		.map(|text| {
+			let (band, number) = text.split_once(':').context("a channel is `band:number`")?;
+			let band = match band {
+				"2.4ghz" => render::Band::TwoPointFour,
+				"5ghz" => render::Band::Five,
+				other => anyhow::bail!("{other:?} is not a band"),
+			};
+			Ok(render::Channel {
+				band,
+				number: number.parse()?,
+			})
+		})
+		.transpose()?;
+	let selection = render::Selection {
+		active,
+		station_channel,
+	};
+
+	let rendered = render::render(&document, &hardware, &selection)?;
+	let changes = tokio::task::spawn_blocking(move || {
+		let mut system = apply::Linux::new()?;
+		apply::apply(
+			&rendered,
+			&hardware,
+			std::path::Path::new(apply::STATE),
+			&mut system,
+		)
+		.map_err(anyhow::Error::from)
+	})
+	.await??;
+	println!("{changes:#?}");
+	Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn network_apply(
+	_document: &std::path::Path,
+	_active: Vec<usize>,
+	_station_channel: Option<&str>,
+) -> Result<()> {
+	anyhow::bail!("applying a network configuration needs Linux")
 }
 
 #[cfg(not(target_os = "linux"))]

@@ -5,9 +5,9 @@
 //! decides which candidates are up (LINK), [`apply`] puts rendered files in place, and [`probe`]
 //! asks each radio what it can do.
 
-mod apply;
+pub mod apply;
 pub mod probe;
-mod render;
+pub mod render;
 mod select;
 pub mod session;
 pub mod wired;
