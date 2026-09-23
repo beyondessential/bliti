@@ -100,8 +100,7 @@ enum Internal {
 	Scanned {
 		interface: String,
 		result: Result<BTreeMap<String, i32>, String>,
-		/// The sweep that asked for it, or `None` for a pending proposal's.
-		sweep: Option<u64>,
+		by: Scanner,
 	},
 	/// A sweep's wait before its next scan is over.
 	Sweep {
@@ -124,6 +123,17 @@ enum Internal {
 		candidate: usize,
 		generation: u64,
 	},
+}
+
+/// What asked for a scan.
+#[derive(Debug, Clone, Copy)]
+enum Scanner {
+	/// The pending proposal.
+	Pending,
+	/// The sweep this token started.
+	Sweep(u64),
+	/// An attempt a key-based network refused, to tell a wrong passphrase from a network gone.
+	Refused(Attempt),
 }
 
 /// A command waiting on its answer, and the render it waits to see applied.
@@ -335,11 +345,11 @@ impl Driver {
 				continue;
 			}
 			*self.scanning.entry(radio.station.clone()).or_default() += 1;
-			self.scan(radio.station, None);
+			self.scan(radio.station, Scanner::Pending);
 		}
 	}
 
-	fn scan(&self, station: String, sweep: Option<u64>) {
+	fn scan(&self, station: String, by: Scanner) {
 		let iwd = self.shared.platform.iwd.clone();
 		let internal = self.internal.clone();
 		tokio::spawn(async move {
@@ -347,7 +357,7 @@ impl Driver {
 			let _ = internal.send(Internal::Scanned {
 				interface: station,
 				result,
-				sweep,
+				by,
 			});
 		});
 	}
@@ -487,15 +497,16 @@ impl Driver {
 			Internal::Scanned {
 				interface,
 				result,
-				sweep,
+				by,
 			} => {
 				match result {
 					Ok(networks) => self.heard(interface.clone(), networks),
 					Err(reason) => tracing::warn!(interface, reason, "scanning failed"),
 				}
-				match sweep {
-					Some(token) => self.swept_on(&interface, token),
-					None => self.scanned_for_pending(&interface),
+				match by {
+					Scanner::Pending => self.scanned_for_pending(&interface),
+					Scanner::Sweep(token) => self.swept_on(&interface, token),
+					Scanner::Refused(attempt) => self.rescanned(attempt),
 				}
 			}
 			Internal::Sweep { radio, token } => self.sweep_now(radio, token),

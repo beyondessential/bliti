@@ -284,14 +284,32 @@ async fn a_wrong_key_fails_at_association() {
 		failed.reason,
 		"\"clinic\" refused the connection; the passphrase is most likely wrong"
 	);
+	let asked = rig.asked();
+	let joined = asked.iter().position(|call| call == "connect wld0 clinic");
 	assert!(
-		rig.iwd
-			.calls
-			.lock()
-			.unwrap()
-			.contains(&"connect wld0 clinic".to_owned())
+		joined.is_some_and(|at| asked[at..].contains(&"scan wld0".to_owned())),
+		"the radio is scanned after the refusal: {asked:?}"
 	);
 	assert_eq!(rig.states()[0]["reached"], "association");
+}
+
+/// Found on a device: with the access point switched off, iwd joined from what it heard while it
+/// was on, and the refusal read as a wrong passphrase.
+#[tokio::test(start_paused = true)]
+async fn a_refusal_from_a_network_gone_fails_at_carrier() {
+	let mut rig = Rig::wireless().await;
+	rig.hears(
+		"clinic",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+	rig.iwd.gone_on_join.lock().unwrap().insert("clinic".into());
+
+	let answer = applying(&mut rig, document(json!({"attachments": [clinic()]})));
+	let failed = answer.await.unwrap().unwrap_err();
+	assert_eq!(failed.at, "$['attachments'][0]");
+	assert_eq!(failed.reached.as_deref(), Some("carrier"));
+	assert_eq!(failed.reason, "\"clinic\" is out of range");
+	assert_eq!(rig.states()[0]["reached"], "carrier");
 }
 
 #[tokio::test(start_paused = true)]

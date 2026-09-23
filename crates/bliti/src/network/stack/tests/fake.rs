@@ -102,6 +102,8 @@ pub struct FakeIwd {
 	pub joins: Mutex<BTreeMap<String, Result<Joined, String>>>,
 	/// What every scan hears.
 	pub heard: Mutex<BTreeMap<String, i32>>,
+	/// Networks no longer heard once a join is tried, as an access point switched off after a scan.
+	pub gone_on_join: Mutex<BTreeSet<String>>,
 	/// How long a scan takes.
 	pub scan_takes: Mutex<Duration>,
 	/// How WPS goes.
@@ -131,6 +133,9 @@ impl crate::network::observe::Iwd for FakeIwd {
 		target: &Target,
 	) -> BoxFuture<'static, Result<Joined, String>> {
 		self.called(format!("connect {station} {}", target.ssid));
+		if self.gone_on_join.lock().unwrap().contains(&target.ssid) {
+			self.heard.lock().unwrap().remove(&target.ssid);
+		}
 		let result = self
 			.joins
 			.lock()

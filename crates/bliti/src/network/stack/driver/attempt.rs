@@ -3,25 +3,18 @@
 
 use std::time::Duration;
 
-use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE};
+use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE, Scanner};
 use crate::network::{
 	observe::{Joined, NetworkType, Station, render_channel},
 	select::{Attempt, Event, Stage},
 	stack::verify::{Addressing, Joining},
 };
 
-/// Why a join failed, in iwd's words except where they give an operator nothing to go on: iwd
-/// answers a key-based network refusing the handshake with a bare `Failed`, which is most often a
-/// wrong passphrase.
-pub(in crate::network::stack) fn refused(joining: &Joining, reason: String) -> String {
-	if joining.target.kind == NetworkType::Psk && reason.contains("net.connman.iwd.Failed") {
-		tracing::info!(reason, "iwd could not join");
-		return format!(
-			"{:?} refused the connection; the passphrase is most likely wrong",
-			joining.target.ssid
-		);
-	}
-	reason
+/// Whether iwd answered a join with the bare `Failed` it gives a key-based network refusing the
+/// handshake, which gives an operator nothing to go on. It is most often a wrong passphrase, and
+/// otherwise a network gone since it was heard, joined from what iwd heard before.
+fn refused(joining: &Joining, reason: &str) -> bool {
+	joining.target.kind == NetworkType::Psk && reason.contains("net.connman.iwd.Failed")
 }
 
 impl Driver {
@@ -123,12 +116,48 @@ impl Driver {
 				self.address_deadline(attempt);
 				self.evaluate(attempt);
 			}
+			Err(reason) if refused(&joining, &reason) => {
+				tracing::info!(reason, "iwd could not join");
+				let scans = self
+					.shared
+					.radios()
+					.iter()
+					.any(|radio| radio.station == interface && radio.scan);
+				if scans && !self.held.contains(&interface) {
+					self.scan(interface, Scanner::Refused(attempt));
+				} else {
+					self.rescanned(attempt);
+				}
+			}
 			Err(reason) => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
-				reason: refused(&joining, reason),
+				reason,
 			}),
 		}
+	}
+
+	/// Take in the scan after a refused join. A network no longer heard has already been taken out
+	/// of range, failing its candidate at carrier; one still heard refused the passphrase.
+	pub(super) fn rescanned(&mut self, attempt: Attempt) {
+		let Some(check) = self.checks.get(&attempt) else {
+			return;
+		};
+		if check.at != Some(Stage::Association) {
+			return;
+		}
+		let Some(joining) = &check.joining else {
+			return;
+		};
+		let reason = format!(
+			"{:?} refused the connection; the passphrase is most likely wrong",
+			joining.target.ssid
+		);
+		self.feed(Event::Failed {
+			attempt,
+			stage: Stage::Association,
+			reason,
+		});
 	}
 
 	/// Move an attempt on as far as what is observed of its link takes it.

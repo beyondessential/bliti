@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 
 use bliti_core::channel::config::AttachmentKind;
 
-use super::{Driver, Internal, backoff};
+use super::{Driver, Internal, Scanner, backoff};
 
 /// One radio's sweep.
 #[derive(Debug)]
@@ -115,7 +115,7 @@ impl Driver {
 			.is_some_and(|sweep| sweep.token == token)
 			&& !self.held.contains(&radio)
 		{
-			self.scan(radio, Some(token));
+			self.scan(radio, Scanner::Sweep(token));
 		}
 	}
 
