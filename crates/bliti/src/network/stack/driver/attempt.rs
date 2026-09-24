@@ -79,6 +79,52 @@ impl Driver {
 		});
 	}
 
+	/// Join again the network an attempt past association was knocked off.
+	pub(super) fn rejoin(&mut self, attempt: Attempt) {
+		let Some(check) = self.checks.get(&attempt) else {
+			return;
+		};
+		let Some(joining) = check.joining.clone() else {
+			return;
+		};
+		let station = check.interface.clone();
+		let iwd = self.shared.platform.iwd.clone();
+		let internal = self.internal.clone();
+		tokio::spawn(async move {
+			let ssid = &joining.target.ssid;
+			let result = tokio::time::timeout(ASSOCIATE, iwd.connect(&station, &joining.target))
+				.await
+				.unwrap_or_else(|_| {
+					Err(format!(
+						"{ssid:?} did not associate within {} seconds",
+						ASSOCIATE.as_secs()
+					))
+				});
+			let _ = internal.send(Internal::Rejoined { attempt, result });
+		});
+	}
+
+	pub(super) fn rejoined(&mut self, attempt: Attempt, result: Result<Joined, String>) {
+		let Some(check) = self.checks.get(&attempt) else {
+			return;
+		};
+		let interface = check.interface.clone();
+		match result {
+			Ok(joined) => self.feed(Event::StationChannel {
+				interface,
+				channel: joined.frequency.and_then(render_channel),
+			}),
+			Err(reason) => self.feed(Event::Failed {
+				attempt,
+				stage: Stage::Association,
+				member: &[],
+				reason: format!(
+					"{interface} could not join again after the hotspot started beside it: {reason}"
+				),
+			}),
+		}
+	}
+
 	pub(super) fn associated(&mut self, attempt: Attempt, result: Result<Joined, String>) {
 		let Some(check) = self.checks.get_mut(&attempt) else {
 			return;

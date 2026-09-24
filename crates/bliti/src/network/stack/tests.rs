@@ -566,6 +566,47 @@ async fn the_hotspot_waits_for_its_station_to_join() {
 	);
 }
 
+/// brcmfmac takes the station off its network as the hotspot starts beside it, and the station
+/// joins again on the same channel rather than the candidate failing.
+#[tokio::test(start_paused = true)]
+async fn a_station_knocked_off_as_the_hotspot_starts_joins_again() {
+	let mut rig = Rig::wireless().await;
+	rig.answers("192.0.2.1");
+	rig.hears("clinic", Ok(joined("clinic", 2412)));
+
+	let proposal = document(json!({
+		"attachments": [clinic()],
+		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+	}));
+	let answer = applying(&mut rig, proposal);
+	idle().await;
+	assert!(rig.calls().contains(&"hostapd Start".to_owned()));
+	rig.see([Observation::Station {
+		interface: "wld0".into(),
+		station: Station::Disconnected,
+	}])
+	.await;
+	idle().await;
+	rig.see([leased("wld0", "192.0.2.10"), routed("wld0", "192.0.2.1")])
+		.await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	let joins = rig
+		.asked()
+		.iter()
+		.filter(|call| call.starts_with("connect"))
+		.count();
+	assert_eq!(joins, 2, "{:?}", rig.asked());
+
+	// A later drop, with the hotspot running as rendered, is a drop.
+	let states = rig.stack.states();
+	rig.see([Observation::Station {
+		interface: "wld0".into(),
+		station: Station::Disconnected,
+	}])
+	.await;
+	assert_eq!(states.borrow().clone().unwrap()[0]["is"], "unavailable");
+}
+
 /// A client joined on a channel no access point may start on leaves a shared-channel radio's hotspot
 /// no channel to use, which fails the proposal at the hotspot, saying why.
 #[tokio::test(start_paused = true)]

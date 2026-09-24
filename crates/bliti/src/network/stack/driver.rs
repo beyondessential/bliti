@@ -111,6 +111,11 @@ enum Internal {
 		attempt: Attempt,
 		result: Result<Joined, String>,
 	},
+	/// A station knocked off its network by the hotspot starting has joined again, or not.
+	Rejoined {
+		attempt: Attempt,
+		result: Result<Joined, String>,
+	},
 	Deadline {
 		attempt: Attempt,
 		timer: u64,
@@ -170,6 +175,11 @@ pub(super) struct Driver {
 	scanning: BTreeMap<String, usize>,
 	/// The radio the last render held the hotspot back on until its scan is in.
 	hotspot_scanning: Option<String>,
+	/// hostapd's configuration as last rendered.
+	hostapd: Option<String>,
+	/// The station that starting or moving the hotspot beside it is to knock off its network once,
+	/// as brcmfmac does on its shared-channel radio. It joins again rather than failing.
+	bounce: Option<String>,
 	pending: Option<(Pending, u64)>,
 	links: Links,
 	heard: BTreeMap<String, BTreeMap<String, i32>>,
@@ -229,6 +239,8 @@ impl Driver {
 			reprobing: false,
 			scanning: BTreeMap::new(),
 			hotspot_scanning: None,
+			hostapd: None,
+			bounce: None,
 			pending: None,
 			links: Links::default(),
 			heard: BTreeMap::new(),
@@ -468,6 +480,15 @@ impl Driver {
 				channel: joined.frequency.and_then(render_channel),
 			}),
 			Station::Connected(_) | Station::Busy => {}
+			Station::Disconnected if self.bounce.as_ref() == Some(&interface) => {
+				self.bounce = None;
+				tracing::info!(
+					interface,
+					ssid,
+					"the hotspot starting beside it took the station off its network; joining again"
+				);
+				self.rejoin(attempt);
+			}
 			Station::Disconnected => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
@@ -542,6 +563,7 @@ impl Driver {
 			}
 			Internal::Sweep { radio, token } => self.sweep_now(radio, token),
 			Internal::Associated { attempt, result } => self.associated(attempt, result),
+			Internal::Rejoined { attempt, result } => self.rejoined(attempt, result),
 			Internal::Deadline { attempt, timer } => self.deadline_passed(attempt, timer),
 			Internal::Probed { attempt, result } => self.probed(attempt, result),
 			Internal::Retry {
@@ -796,6 +818,20 @@ impl Driver {
 		let Some(mut system) = self.system.take() else {
 			return;
 		};
+		let hostapd = rendered
+			.files
+			.iter()
+			.find(|file| file.path == self.shared.render.paths.hostapd)
+			.map(|file| file.contents.clone());
+		let beside = self
+			.selector
+			.decision()
+			.hotspot
+			.as_ref()
+			.filter(|_| selection.station_channel.is_some() && self.shared.render.shared_channel)
+			.map(|hotspot| hotspot.radio.clone());
+		self.bounce = beside.filter(|_| hostapd.is_some() && hostapd != self.hostapd);
+		self.hostapd = hostapd;
 		let taken = self.taken;
 		let attempts = self
 			.selector
