@@ -62,7 +62,7 @@ fn fixed(label: &str, address: &str, gateway: &str) -> Json {
 }
 
 fn hotspot(interface: Option<&str>) -> Json {
-	let mut hotspot = json!({ "ssid": "bliti", "passphrase": "read me aloud" });
+	let mut hotspot = json!({ "enabled": true, "ssid": "bliti", "passphrase": "read me aloud" });
 	if let Some(interface) = interface {
 		hotspot["interface"] = json!(interface);
 	}
@@ -852,7 +852,7 @@ fn a_two_radio_decision_names_the_radio_of_each_candidate_and_the_hotspot() {
 		shared.clone(),
 		json!({
 			"attachments": [pinned("clinic", "wlan0")],
-			"hotspot": { "ssid": "bliti", "passphrase": "read this aloud" }
+			"hotspot": { "enabled": true, "ssid": "bliti", "passphrase": "read this aloud" }
 		}),
 	);
 	hear(&mut selector, "wlan0", "clinic", -50);
@@ -876,7 +876,7 @@ fn a_two_radio_decision_names_the_radio_of_each_candidate_and_the_hotspot() {
 		shared,
 		json!({
 			"attachments": [pinned("clinic", "wlan0"), pinned("depot", "wlan1")],
-			"hotspot": { "ssid": "bliti", "passphrase": "read this aloud", "interface": "wlan1" }
+			"hotspot": { "enabled": true, "ssid": "bliti", "passphrase": "read this aloud", "interface": "wlan1" }
 		}),
 	);
 	hear(&mut selector, "wlan0", "clinic", -50);

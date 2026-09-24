@@ -298,7 +298,7 @@ fn network_selection(
 		links.insert(interface.to_owned(), index);
 	}
 
-	let hotspot = document.hotspot.as_ref().and_then(|document| {
+	let hotspot = document.enabled_hotspot().and_then(|document| {
 		hotspot
 			.or(document.interface.as_deref())
 			.or_else(|| {

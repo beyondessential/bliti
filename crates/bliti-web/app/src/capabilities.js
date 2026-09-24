@@ -204,6 +204,11 @@ export function joinWith(capabilities, advertised, candidate = {}) {
 
 // The hotspot
 
+/// Whether `document` carries a hotspot turned on, which is the only one using a radio (BLI-HOT).
+export function hotspotOn(document) {
+	return Boolean(document?.hotspot) && document.hotspot.enabled !== false
+}
+
 /// Whether the device can run a hotspot at all.
 export function offersHotspot(capabilities) {
 	return views(hotspotOf(capabilities)).length > 0
@@ -259,7 +264,7 @@ export function channels(capabilities, hotspot = {}, document = null) {
 /// where nothing says it cannot: what an adapter will join next is not known ahead.
 export function hotspotBlockedBy(capabilities, document, joined) {
 	const hotspot = document?.hotspot
-	if (!hotspot || CHANNEL_MEMBERS.some((member) => hotspot[member] !== undefined)) return null
+	if (!hotspotOn(document) || CHANNEL_MEMBERS.some((member) => hotspot[member] !== undefined)) return null
 	const usable = radios(capabilities).filter(
 		(radio) => radio.alongside && (hotspot.interface === undefined || hotspot.interface === radio.interface),
 	)
@@ -398,10 +403,10 @@ export function absent(capabilities, setting, document = null) {
 		}
 		return why('unreported')
 	}
-	if (setting === 'hotspot' && !document?.hotspot && clashes(capabilities, { attachments: [], ...document, hotspot: {} })) {
+	if (setting === 'hotspot' && !hotspotOn(document) && clashes(capabilities, { attachments: [], ...document, hotspot: { ...hotspot, enabled: true } })) {
 		return why('one-at-a-time')
 	}
-	if (setting === 'wireless' && document?.hotspot) {
+	if (setting === 'wireless' && hotspotOn(document)) {
 		const attachments = [...(document.attachments ?? []), { kind: 'wireless' }]
 		if (clashes(capabilities, { ...document, attachments })) return why('one-at-a-time')
 	}

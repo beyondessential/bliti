@@ -35,6 +35,7 @@ fn a_full_document_round_trips() {
 			{ "kind": "wired-dynamic", "label": "spare port", "enabled": true, "verify": true, "interface": "eth1" }
 		],
 		"hotspot": {
+			"enabled": true,
 			"ssid": "bliti-setup",
 			"passphrase": "read this aloud",
 			"share-upstream": false,
@@ -252,10 +253,34 @@ fn an_unknown_attachment_kind_is_invalid() {
 fn a_hotspot_without_a_passphrase_is_invalid() {
 	let err = document(serde_json::json!({
 		"attachments": [],
-		"hotspot": { "ssid": "setup" }
+		"hotspot": { "enabled": true, "ssid": "setup" }
 	}))
 	.unwrap_err();
 	assert_eq!(err.at, "$['hotspot']['passphrase']");
+}
+
+/// A hotspot says whether it runs, and one turned off keeps what it carries through a round trip
+/// (HOT).
+#[test]
+fn a_hotspot_carries_enabled_and_keeps_its_settings_when_off() {
+	let err = document(serde_json::json!({
+		"attachments": [],
+		"hotspot": { "ssid": "setup", "passphrase": "read this aloud" }
+	}))
+	.unwrap_err();
+	assert_eq!(err.at, "$['hotspot']['enabled']");
+
+	let parsed = document(serde_json::json!({
+		"attachments": [],
+		"hotspot": { "enabled": false, "ssid": "setup", "passphrase": "read this aloud", "channel": 6 }
+	}))
+	.unwrap();
+	let hotspot = parsed.hotspot.as_ref().unwrap();
+	assert!(!hotspot.enabled);
+	assert_eq!(hotspot.channel, Some(6));
+	assert_eq!(parsed.enabled_hotspot(), None);
+	assert_eq!(parsed.to_json()["hotspot"]["enabled"], Json::Bool(false));
+	assert_eq!(Document::parse(&parsed.to_json()).unwrap(), parsed);
 }
 
 /// An unset hotspot boolean parses to None, which HOT reads as its enabled default, and a set one
@@ -264,7 +289,7 @@ fn a_hotspot_without_a_passphrase_is_invalid() {
 fn unset_hotspot_switches_are_none() {
 	let parsed = document(serde_json::json!({
 		"attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "isolate-clients": false }
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "isolate-clients": false }
 	}))
 	.unwrap();
 	let hotspot = parsed.hotspot.unwrap();
@@ -314,7 +339,7 @@ fn wireless_and_hotspot_name_an_interface_or_leave_it_to_the_device() {
 			{ "kind": "wireless", "label": "either", "enabled": true, "verify": true, "ssid": "Office",
 			  "security": { "kind": "psk", "passphrase": "another passphrase" } }
 		],
-		"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlan0" }
+		"hotspot": { "enabled": true, "ssid": "setup", "passphrase": "read this aloud", "interface": "wlan0" }
 	}))
 	.unwrap();
 	let interfaces: Vec<_> = parsed
@@ -334,7 +359,7 @@ fn wireless_and_hotspot_name_an_interface_or_leave_it_to_the_device() {
 
 	let err = document(serde_json::json!({
 		"attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "interface": 0 }
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "interface": 0 }
 	}))
 	.unwrap_err();
 	assert_eq!(err.at, "$['hotspot']['interface']");

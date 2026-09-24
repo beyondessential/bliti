@@ -146,7 +146,7 @@ impl Selector {
 	/// Whether a wireless candidate taking `radio` leaves the hotspot a radio to run on (HOT). Only a
 	/// one-at-a-time radio can take one away.
 	fn spares_hotspot(&self, radio: &Radio, links: &BTreeMap<String, usize>) -> bool {
-		let Some(hotspot) = &self.document.hotspot else {
+		let Some(hotspot) = self.document.enabled_hotspot() else {
 			return true;
 		};
 		if radio.access_point != Some(Alongside::OneAtATime) {
@@ -166,7 +166,7 @@ impl Selector {
 	/// is among the best of those, so a candidate coming up elsewhere does not move it. One choosing
 	/// its own channel goes on no shared-channel radio a candidate may take (HOT).
 	pub(super) fn place_hotspot(&self) -> Option<Placement> {
-		let hotspot = self.document.hotspot.as_ref()?;
+		let hotspot = self.document.enabled_hotspot()?;
 		let current = self.decision.hotspot.as_ref().map(|placed| &placed.radio);
 		let options: Vec<(&Radio, u8)> = self
 			.hardware

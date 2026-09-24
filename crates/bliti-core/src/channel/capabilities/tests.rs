@@ -74,7 +74,7 @@ fn a_document_within_capabilities_passes() {
 			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1" },
 			{ "kind": "wired-dynamic", "label": "Any port", "enabled": true, "verify": true, "interface": "eth0" }
 		],
-		"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlx00c0caa1b2c3",
+		"hotspot": { "enabled": true, "ssid": "setup", "passphrase": "read this aloud", "interface": "wlx00c0caa1b2c3",
 					 "band": "5ghz", "channel": 36, "channel-width": 80, "isolate-clients": false },
 		"regulatory-domain": "VU"
 	}))
@@ -220,7 +220,7 @@ fn an_unknown_radio_is_refused() {
 #[test]
 fn a_band_is_refused_on_a_radio_that_does_not_offer_one() {
 	let err = check_on_pi(json!({ "attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "interface": "wlan0", "band": "5ghz" } }))
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "interface": "wlan0", "band": "5ghz" } }))
 	.unwrap_err();
 	assert_eq!(err.at, "$['hotspot']['band']");
 }
@@ -229,7 +229,7 @@ fn a_band_is_refused_on_a_radio_that_does_not_offer_one() {
 #[test]
 fn a_channel_is_checked_against_its_band() {
 	let err = check_on_pi(json!({ "attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "interface": "wlx00c0caa1b2c3",
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "interface": "wlx00c0caa1b2c3",
 		             "band": "2ghz", "channel": 36 } }))
 	.unwrap_err();
 	assert_eq!(err.at, "$['hotspot']['channel']");
@@ -239,10 +239,10 @@ fn a_channel_is_checked_against_its_band() {
 #[test]
 fn a_channel_with_nothing_else_set_passes_where_any_carries_it() {
 	check_on_pi(json!({ "attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "channel": 44 } }))
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "channel": 44 } }))
 	.unwrap();
 	let err = check_on_pi(json!({ "attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "p", "channel": 165 } }))
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "p", "channel": 165 } }))
 	.unwrap_err();
 	assert!(err.at.starts_with("$['hotspot']"), "{}", err.at);
 }
@@ -252,7 +252,9 @@ fn a_channel_with_nothing_else_set_passes_where_any_carries_it() {
 fn a_hotspot_is_refused_where_none_is_offered() {
 	let caps = object(json!({ "attachments": { "kind": {} } }));
 	let err = check(
-		&object(json!({ "attachments": [], "hotspot": { "ssid": "s", "passphrase": "p" } })),
+		&object(
+			json!({ "attachments": [], "hotspot": { "enabled": true, "ssid": "s", "passphrase": "p" } }),
+		),
 		&caps,
 	)
 	.unwrap_err();
@@ -300,7 +302,7 @@ fn admitted(document: Json, capabilities: &Map<String, Json>) -> Result<(), Refu
 }
 
 fn hotspot() -> Json {
-	json!({ "ssid": "s", "passphrase": "p" })
+	json!({ "enabled": true, "ssid": "s", "passphrase": "p" })
 }
 
 /// A hotspot and a wireless candidate only a radio running one at a time could carry are refused at
@@ -336,6 +338,16 @@ fn a_hotspot_beside_a_client_on_a_one_at_a_time_radio_is_refused() {
 fn a_hotspot_beside_a_client_turned_off_passes_on_a_one_at_a_time_radio() {
 	admitted(
 		json!({ "attachments": [wireless(json!({ "enabled": false }))], "hotspot": hotspot() }),
+		&one_at_a_time(),
+	)
+	.unwrap();
+}
+
+/// A hotspot turned off uses no radio, so it leaves a one-at-a-time radio to a client (HOT).
+#[test]
+fn a_hotspot_turned_off_passes_beside_a_client_on_a_one_at_a_time_radio() {
+	admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot_with(json!({ "enabled": false })) }),
 		&one_at_a_time(),
 	)
 	.unwrap();
@@ -524,6 +536,18 @@ fn an_unpinned_hotspot_chooses_its_channel_where_a_radio_lets_it() {
 	.unwrap_err();
 	assert_eq!(refused.rule, Rule::SharedChannel);
 	assert_eq!(refused.invalid.at, "$['hotspot']['channel']");
+}
+
+/// A hotspot turned off keeps a channel it could not choose beside a client, since it runs on no
+/// radio (HOT).
+#[test]
+fn a_hotspot_turned_off_keeps_its_channel_beside_a_client() {
+	admitted(
+		json!({ "attachments": [wireless(json!({}))],
+			"hotspot": hotspot_with(json!({ "enabled": false, "channel": 6 })) }),
+		&shared_and_independent(),
+	)
+	.unwrap();
 }
 
 /// Where the hotspot chooses its own channel and where it follows a client, as a client reads it to

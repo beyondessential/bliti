@@ -663,7 +663,7 @@ function Survey({ survey, capabilities, marks }) {
 /// A hotspot turned on, carrying what it requires and every setting whose absence would mean
 /// something: sharing and isolation are on where unset, so they are written on.
 export function blankHotspot(capabilities) {
-	const hotspot = { ssid: '', passphrase: '' }
+	const hotspot = { enabled: true, ssid: '', passphrase: '' }
 	if (offersHotspotSetting(capabilities, 'share-upstream')) hotspot['share-upstream'] = true
 	if (offersHotspotSetting(capabilities, 'isolate-clients')) hotspot['isolate-clients'] = true
 	return hotspot

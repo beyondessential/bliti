@@ -71,6 +71,12 @@ export function turning(edit, key, enabled) {
 	return updateCandidate(edit, key, (candidate) => ({ ...candidate, enabled }))
 }
 
+/// The hotspot turned off or back on: one turned off keeps what it carries, and is not run
+/// (BLI-HOT).
+export function turningHotspot(edit, enabled) {
+	return setMember(edit, 'hotspot', { ...edit.document.hotspot, enabled })
+}
+
 export function removeCandidate(edit, key) {
 	const index = edit.keys.indexOf(key)
 	if (index === -1) return edit

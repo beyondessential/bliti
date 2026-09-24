@@ -116,7 +116,7 @@ const wireless = {
 	nameservers: ['1.1.1.1'],
 }
 const staticPort = { kind: 'wired-static', label: 'Office', enabled: true, verify: true, interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1' }
-const hotspot = { ssid: 'iti-setup', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true }
+const hotspot = { enabled: true, ssid: 'iti-setup', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true }
 
 test.describe('paths', () => {
 	test('are RFC 9535 Normalized Paths', () => {
@@ -210,7 +210,7 @@ test.describe('check', () => {
 	})
 
 	test('holds a channel to the list for the band it sits on', () => {
-		const base = { ssid: 'a', passphrase: '12345678' }
+		const base = { enabled: true, ssid: 'a', passphrase: '12345678' }
 		expect(check({ attachments: [], hotspot: { ...base, band: '5ghz', channel: 40, 'channel-width': 80 } }, INDEPENDENT)).toBeNull()
 		expect(check({ attachments: [], hotspot: { ...base, band: '2ghz', channel: 40 } }, INDEPENDENT)?.at).toBe("$['hotspot']['channel']")
 		expect(check({ attachments: [], hotspot: { ...base, band: '2ghz', 'channel-width': 40 } }, INDEPENDENT)).toEqual({
@@ -233,6 +233,7 @@ test.describe('check', () => {
 			reason: 'The radio cannot run a hotspot while joined to a wireless network.',
 		})
 		expect(check({ attachments: [staticPort], hotspot }, ONE_AT_A_TIME)).toBeNull()
+		expect(check({ attachments: [wireless], hotspot: { ...hotspot, enabled: false } }, ONE_AT_A_TIME)).toBeNull()
 	})
 
 	test('lets a radio that runs one at a time carry the hotspot where another carries the network', () => {
@@ -315,6 +316,10 @@ test.describe('absent', () => {
 		expect(absent(ONE_AT_A_TIME, 'hotspot', { attachments: [wireless] })?.reason).toBe('one-at-a-time')
 		expect(absent(ONE_AT_A_TIME, 'hotspot', { attachments: [staticPort] })).toBeNull()
 		expect(absent(ONE_AT_A_TIME, 'wireless', { attachments: [], hotspot })?.reason).toBe('one-at-a-time')
+		// A hotspot turned off takes no radio, and turning it on again is what would clash.
+		const off = { ...hotspot, enabled: false }
+		expect(absent(ONE_AT_A_TIME, 'wireless', { attachments: [], hotspot: off })).toBeNull()
+		expect(absent(ONE_AT_A_TIME, 'hotspot', { attachments: [wireless], hotspot: off })?.reason).toBe('one-at-a-time')
 		expect(absent(PI, 'survey')?.reason).toBe('unreported')
 	})
 

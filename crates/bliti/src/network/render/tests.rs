@@ -58,8 +58,7 @@ fn select(document: &Document, active: &[usize]) -> Selection {
 	Selection {
 		links,
 		hotspot: document
-			.hotspot
-			.as_ref()
+			.enabled_hotspot()
 			.map(|hotspot| hotspot.interface.clone().unwrap_or_else(|| "wlan0".into())),
 		channels: BTreeMap::new(),
 	}
@@ -474,7 +473,7 @@ fn sae_disables_the_transition() {
 fn hotspot_defaults() {
 	let doc = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let network = &file(&out, "network/50-bliti-ap0.network").contents;
@@ -509,7 +508,7 @@ fn hotspot_overrides() {
 	let doc = document(json!({
 		"attachments": [],
 		"hotspot": {
-			"ssid": "bliti-setup", "passphrase": "read this aloud",
+			"enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud",
 			"share-upstream": false, "isolate-clients": false, "dhcp-range": "172.30.5.0/24",
 			"band": "5ghz", "channel": 44, "channel-width": 80
 		},
@@ -534,7 +533,7 @@ fn hotspot_overrides() {
 
 	let bad = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "s", "passphrase": "read this aloud", "dhcp-range": "10.41.0.9/24" }
+		"hotspot": { "enabled": true, "ssid": "s", "passphrase": "read this aloud", "dhcp-range": "10.41.0.9/24" }
 	}));
 	assert_eq!(invalid_at(&bad, &hardware()), "$['hotspot']['dhcp-range']");
 }
@@ -548,7 +547,7 @@ fn shared_channel_hardware_follows_the_station() {
 	};
 	let doc = document(json!({
 		"attachments": [wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" }))],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let following = Selection {
 		channels: [(
@@ -584,7 +583,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 	};
 	let doc = document(json!({
 		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud",
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud",
 			"band": "5ghz", "channel": 44, "channel-width": 80 }
 	}));
 	let out = rendered(&doc, &shared, &select(&doc, &[0]));
@@ -598,7 +597,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 
 	let band_only = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "band": "5ghz" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "band": "5ghz" }
 	}));
 	let out = rendered(&band_only, &shared, &select(&band_only, &[]));
 	assert!(
@@ -616,7 +615,7 @@ fn secrets_are_0600() {
 			wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
 			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }
 		],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let out = rendered(&doc, &hardware(), &select(&doc, &[0, 1]));
 	for file in &out.files {
@@ -684,7 +683,7 @@ fn what_the_hardware_lacks_is_refused() {
 
 	let hotspot = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	assert_eq!(invalid_at(&hotspot, &wired_only), "$['hotspot']");
 
@@ -713,7 +712,7 @@ fn rendered_files_are_owned() {
 			wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
 			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }
 		],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let out = rendered(&doc, &hardware, &select(&doc, &[0, 1]));
 	for file in &out.files {
@@ -756,7 +755,7 @@ fn a_radio_other_than_the_station_is_refused() {
 	let pinned = document(json!({
 		"attachments": [{ "kind": "wireless", "label": "w", "enabled": true, "verify": true, "ssid": "Clinic", "interface": "wlan0",
 			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
 	}));
 	assert!(render(&pinned, &hardware(), &select(&pinned, &[0])).is_ok());
 
@@ -772,7 +771,7 @@ fn a_radio_other_than_the_station_is_refused() {
 
 	let hotspot = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
 	}));
 	let Err(Error::Invalid(invalid)) = render(&hotspot, &hardware(), &select(&hotspot, &[])) else {
 		panic!("a hotspot on another radio is refused")
@@ -807,7 +806,7 @@ fn pinned(ssid: &str, interface: &str) -> Json {
 fn two_radios_carry_a_candidate_each_and_the_hotspot_on_the_second() {
 	let doc = document(json!({
 		"attachments": [pinned("Clinic", "wlan0"), pinned("Depot", "wlan1")],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
 	}));
 	let selection = Selection {
 		links: BTreeMap::from([("wlan0".to_owned(), 0), ("wlan1".to_owned(), 1)]),
@@ -861,7 +860,7 @@ fn two_radios_carry_a_candidate_each_and_the_hotspot_on_the_second() {
 fn two_radios_run_an_independent_hotspot_on_its_own_channel() {
 	let doc = document(json!({
 		"attachments": [wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" }))],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let selection = Selection {
 		links: BTreeMap::from([("wlan1".to_owned(), 0)]),
@@ -900,7 +899,7 @@ fn two_radios_refuse_a_selection_against_a_pin() {
 	};
 	let doc = document(json!({
 		"attachments": [pinned("Clinic", "wlan0")],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
 	}));
 	assert!(render(&doc, &hardware, &select(&doc, &[0])).is_ok());
 	for selection in [
@@ -924,7 +923,7 @@ fn two_radios_refuse_a_selection_against_a_pin() {
 
 	let unpinned = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let on_wlan1 = Selection {
 		hotspot: Some("wlan1".into()),
@@ -940,7 +939,7 @@ fn two_radios_refuse_a_selection_against_a_pin() {
 
 	let on_client = document(json!({
 		"attachments": [],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
 	}));
 	assert_eq!(
 		invalid_at(&on_client, &hardware),

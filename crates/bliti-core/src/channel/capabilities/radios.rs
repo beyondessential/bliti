@@ -18,8 +18,8 @@ const SHARED_CHANNEL: &str = "shared-channel";
 /// The hotspot's members choosing its channel, in the order a fault names the first set (HOT).
 const CHANNEL: [&str; 3] = ["band", "channel", "channel-width"];
 
-/// Refuse a document whose hotspot and an enabled wireless candidate could be carried only by one
-/// radio running one at a time (HOT).
+/// Refuse a document whose enabled hotspot and an enabled wireless candidate could be carried only by
+/// one radio running one at a time (HOT).
 ///
 /// A candidate may use the radio it names, or any radio; the hotspot the radio it names, or any able
 /// to run one. The fault is at the hotspot's `interface` where it names one, else at the hotspot.
@@ -27,7 +27,7 @@ pub fn placement(
 	document: &Map<String, Json>,
 	capabilities: &Map<String, Json>,
 ) -> Result<(), Invalid> {
-	let Some(hotspot) = document.get("hotspot").and_then(Json::as_object) else {
+	let Some(hotspot) = enabled_hotspot(document) else {
 		return Ok(());
 	};
 	let radios = Radios::of(capabilities);
@@ -99,15 +99,15 @@ pub fn channel_choice(
 	choice
 }
 
-/// Refuse a document whose hotspot sets its `band`, `channel` or `channel-width` where every radio
-/// it could run on with them is a shared-channel one a wireless candidate could be carried by (HOT).
+/// Refuse a document whose enabled hotspot sets its `band`, `channel` or `channel-width` where every
+/// radio it could run on with them is a shared-channel one a wireless candidate could be carried by (HOT).
 ///
 /// The fault is at the first of the three the hotspot sets.
 pub fn own_channel(
 	document: &Map<String, Json>,
 	capabilities: &Map<String, Json>,
 ) -> Result<(), Invalid> {
-	let Some(hotspot) = document.get("hotspot").and_then(Json::as_object) else {
+	let Some(hotspot) = enabled_hotspot(document) else {
 		return Ok(());
 	};
 	let Some(member) = CHANNEL
@@ -157,6 +157,14 @@ pub fn own_channel(
 		"the hotspot chooses its own channel only on {}, which does not offer this",
 		choice.own.join(", ")
 	)))
+}
+
+/// The document's hotspot, where it is not turned off: one turned off uses no radio (HOT).
+fn enabled_hotspot(document: &Map<String, Json>) -> Option<&Map<String, Json>> {
+	document
+		.get("hotspot")
+		.and_then(Json::as_object)
+		.filter(|hotspot| hotspot.get("enabled") != Some(&Json::Bool(false)))
 }
 
 /// A wireless candidate, as far as the radios it may use go.

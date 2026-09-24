@@ -921,7 +921,7 @@ async fn what_is_joined_and_run_is_reported() {
 		&mut rig,
 		document(json!({
 			"attachments": [clinic()],
-			"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+			"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 		})),
 	);
 	idle().await;

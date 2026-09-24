@@ -307,7 +307,7 @@ async fn a_hotspot_that_does_not_start_fails_at_the_hotspot_reaching_no_stage() 
 			&mut rig,
 			document(json!({
 				"attachments": attachments,
-				"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+				"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 			})),
 		);
 		let failed = answer.await.unwrap().unwrap_err();

@@ -20,7 +20,7 @@ async fn a_proposal_outside_the_capabilities_is_invalid_at_the_first_member_not_
 		&mut client,
 		with(
 			"hotspot",
-			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
+			json!({"enabled": true, "ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
 		),
 	)
 	.await;
@@ -71,7 +71,7 @@ async fn a_hotspot_a_one_at_a_time_radio_cannot_run_beside_a_client_is_invalid()
 		&mut client,
 		with(
 			"hotspot",
-			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
+			json!({"enabled": true, "ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
 		),
 	)
 	.await;
@@ -104,7 +104,7 @@ async fn a_chosen_channel_on_a_shared_channel_radio_beside_a_client_is_invalid()
 		&mut client,
 		with(
 			"hotspot",
-			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic", "channel": 36}),
+			json!({"enabled": true, "ssid": "bliti-setup", "passphrase": "stay clear of the clinic", "channel": 36}),
 		),
 	)
 	.await;
@@ -243,7 +243,7 @@ async fn applied_carries_the_capabilities_only_where_applying_changed_them() {
 		&mut client,
 		with(
 			"hotspot",
-			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
+			json!({"enabled": true, "ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
 		),
 	)
 	.await;
@@ -266,7 +266,10 @@ async fn an_invalid_proposal_after_one_it_superseded_restores_the_recorded_confi
 
 	propose(
 		&mut client,
-		with("hotspot", json!({"ssid": "x", "passphrase": "y"})),
+		with(
+			"hotspot",
+			json!({"enabled": true, "ssid": "x", "passphrase": "y"}),
+		),
 	)
 	.await;
 	assert!(matches!(

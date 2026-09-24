@@ -8,7 +8,9 @@ A device runs a wireless access point that clients join directly, described by t
 
 ## When it runs
 
-A device MUST run a hotspot only where its configuration carries one.
+A device MUST run a hotspot only where its configuration carries one whose `enabled` is true.
+
+A device MUST treat a hotspot whose `enabled` is false as it would an absent one in choosing what each radio carries and in every rule here relating the hotspot to a wireless candidate, and MUST keep it in the document as it is.
 
 > [!NOTE]
 > A device out of the box is reached over the channel of [CHN](../channel.md), which is what the QR code is for.
@@ -17,6 +19,7 @@ A device MUST run a hotspot only where its configuration carries one.
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
+| `enabled` | boolean | yes | whether the device runs this hotspot |
 | `ssid` | string | yes | the network the hotspot advertises |
 | `interface` | string | no | the wireless interface whose radio runs the hotspot |
 | `passphrase` | string | yes | what a client joins with |
