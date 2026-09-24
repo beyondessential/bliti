@@ -68,6 +68,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## Wireless
 
+- [x] Setting the country restarts iwd, and a network the radio still hears is not reported out of range for it: a wrong passphrase on a network heard well is refused at association, on the prototype. Verifies spec: LINK, WLAN
+- [x] Renaming a candidate, with nothing else about it changed, keeps the addresses and gateway its link holds, on the prototype. Verifies spec: LINK
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
 - [x] A radio on a driver whose SAE is disabled offers no `sae` or `psk-sae`, and iwd is told not to run SAE on it. Verifies spec: WLAN, NET
 - [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
@@ -100,6 +102,12 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## The screen
 
+- [x] Leaving the screen with a proposal applied keeps the session open, and the device view confirms or discards it. Verifies spec: NSCR
+- [x] Leaving the screen with nothing applied closes the session. Verifies spec: NSCR
+- [ ] A proposal kept open that fails while the operator is on the device view keeps its failure until they return to the screen. Verifies spec: NSCR
+- [x] A network picked from a scan is not hidden, and cannot be marked hidden. Verifies spec: NSCR
+- [ ] Applying, scanning, surveying and opening a session each show they are waiting on the device. Verifies spec: NSCR
+- [ ] The ordering says how the device chooses among the candidates, and the candidate being edited is plain to see, on a phone. Verifies spec: NSCR
 - [x] Editing puts nothing on the wire: a device watched through a session sees no proposal until apply is pressed. Verifies spec: NSCR
 - [x] A half-typed gateway is never proposed. Verifies spec: NSCR
 - [x] Reset during editing returns the fields to the configuration in force. Verifies spec: NSCR
@@ -124,6 +132,10 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## Reporting
 
+- [x] An entry the device stops reporting is sent once more as ended, and its tile and history go. Verifies spec: NFO, VIEW
+- [ ] A trial hotspot's tiles go when it reverts, without a reload, on the prototype. Verifies spec: NFO, VIEW
+- [x] While a proposal is being tried, the device says so, and the device view marks the network tiles and says they revert. Verifies spec: NFO, VIEW
+- [ ] A second client watching the device sees the trial marked too, on the prototype. Verifies spec: NFO, VIEW
 - [ ] NFO reports the wireless network joined, with its security and channel, and omits the entry where the device is joined to none. Verifies spec: NFO
 - [ ] NFO reports the hotspot and its client count, and omits both where no hotspot runs. Verifies spec: NFO
 - [ ] The NFO entries reflect the configuration in force immediately after a revert. Verifies spec: NFO
