@@ -115,6 +115,10 @@ The version marker of [VER](../../specs/version.md) covers the message encoding 
 
 This matters more than it looks. `identityKey` keys the tile grid as well as the history, and it is built from the distinguishing traits, so a trait the client does not know to be descriptive becomes part of an entry's identity. A `wireless-network` fact whose channel changed would key differently and appear as a second tile beside the first rather than replacing it, which is exactly what the shared-channel behaviour of [HOT](../../specs/network/hotspot.md) causes whenever the hotspot follows a client onto a new channel.
 
+### A wireless candidate carries no band
+
+The hotspot takes a band, channel and width and a wireless candidate takes none, which reads as an omission. It follows from iwd: a known network (`iwd.network`) has no band or BSSID setting, and the only band control is `[Rank] BandModifier2_4GHz`/`5GHz`/`6GHz` in `main.conf`, which applies to every radio and network and at 0.0 stops iwd scanning that band too. A per-candidate band would hold only while one candidate had the radio, and switching to another would mean rewriting `main.conf` and restarting iwd. Considered and left out on 24 September 2026. If a band is wanted, the fits are a device-wide preference rendered straight into the modifiers, or preferring 2.4 GHz where a hotspot shares the radio, folded into the bring-up ordering.
+
 ### Large responses are paced, not dropped
 
 [CHN](../../specs/channel.md) caps notification payload at a byte ceiling per second and requires a device that reaches it to hold the remainder rather than discard it. A scan across a busy site, or a spectrum survey, can be large enough to meet that ceiling. Nothing is lost, but a client waiting on `networks` or `spectrum` may wait longer than the device took to gather it, and must not read the delay as a failure.
