@@ -242,6 +242,7 @@ async fn network_apply(
 	let selection = render::Selection {
 		active,
 		station_channel,
+		hotspot_waits: false,
 	};
 
 	let rendered = render::render(&document, &hardware, &selection)?;

@@ -33,7 +33,7 @@ use crate::network::{
 	observe::{Joined, Observation, Station, render_channel},
 	probe::RadioInfo,
 	render,
-	select::{Attempt, Change, Event, Link, Selector, Stage, State},
+	select::{Alongside, Attempt, Change, Event, Link, Selector, Stage, State},
 	session::entry,
 };
 
@@ -168,6 +168,8 @@ pub(super) struct Driver {
 	reprobing: bool,
 	/// Scans a pending proposal waits on, by radio.
 	scanning: BTreeMap<String, usize>,
+	/// The radio the last render held the hotspot back on until its scan is in.
+	hotspot_scanning: Option<String>,
 	pending: Option<(Pending, u64)>,
 	links: Links,
 	heard: BTreeMap<String, BTreeMap<String, i32>>,
@@ -226,6 +228,7 @@ impl Driver {
 			done: 0,
 			reprobing: false,
 			scanning: BTreeMap::new(),
+			hotspot_scanning: None,
 			pending: None,
 			links: Links::default(),
 			heard: BTreeMap::new(),
@@ -702,13 +705,34 @@ impl Driver {
 		});
 	}
 
+	/// The shared-channel radio the hotspot is placed on, where a pending proposal's scan of it is
+	/// still out and a wireless candidate could go on it. Until the scan says what the radio hears, the
+	/// hotspot cannot tell whether it will have a client's channel to follow (HOT).
+	fn hotspot_awaits_scan(&self) -> Option<String> {
+		let radio = &self.selector.decision().hotspot.as_ref()?.radio;
+		if !self.scanning.contains_key(radio) {
+			return None;
+		}
+		let shared =
+			self.shared.radios().iter().any(|info| {
+				info.station == *radio && info.alongside == Some(Alongside::SharedChannel)
+			});
+		let candidate = self.document.attachments.iter().any(|attachment| {
+			matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
+				if wireless.interface.as_ref().is_none_or(|pin| pin == radio))
+		});
+		(shared && candidate).then(|| radio.clone())
+	}
+
 	/// Render and apply the decision, where it has changed and no apply is running.
 	fn kick(&mut self) {
 		if !self.configured || self.taken >= self.wanted || self.system.is_none() {
 			return;
 		}
 		self.taken = self.wanted;
-		let selection = self.selector.selection().unwrap_or_default();
+		let mut selection = self.selector.selection().unwrap_or_default();
+		self.hotspot_scanning = self.hotspot_awaits_scan();
+		selection.hotspot_waits |= self.hotspot_scanning.is_some();
 		let rendered = match render::render(&self.document, &self.shared.render, &selection) {
 			Ok(rendered) => rendered,
 			Err(error) => {

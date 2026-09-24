@@ -569,6 +569,10 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		})
 	};
 	assert_eq!(selector.decision().hotspot, follows(None));
+	assert!(
+		selector.selection().unwrap().hotspot_waits,
+		"the hotspot waits for its client to join"
+	);
 
 	pass(&mut selector, 0, Stage::Association);
 	let changes = selector
@@ -579,6 +583,7 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		.changes;
 	assert_eq!(changes, [Change::Hotspot(follows(Some(CHANNEL)))]);
 	assert_eq!(selector.selection().unwrap().station_channel, Some(CHANNEL));
+	assert!(!selector.selection().unwrap().hotspot_waits);
 
 	// The client leaving takes the channel with it.
 	lose(&mut selector, "wlan0", "clinic");
@@ -587,6 +592,7 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		HotspotChannel::Own
 	);
 	assert_eq!(selector.selection().unwrap().station_channel, None);
+	assert!(!selector.selection().unwrap().hotspot_waits);
 }
 
 #[test]
@@ -773,7 +779,8 @@ fn a_single_radio_decision_is_a_renderer_selection() {
 		selector.selection(),
 		Some(Selection {
 			active: vec![0, 2],
-			station_channel: None
+			station_channel: None,
+			hotspot_waits: false,
 		})
 	);
 

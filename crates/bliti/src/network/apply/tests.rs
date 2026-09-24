@@ -123,6 +123,7 @@ impl Device {
 			selection: Selection {
 				active: vec![0],
 				station_channel: None,
+				hotspot_waits: false,
 			},
 			system: Fake::default(),
 		}

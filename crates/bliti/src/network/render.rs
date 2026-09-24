@@ -104,6 +104,10 @@ pub struct Selection {
 	/// The channel the wireless client is associated on, which a shared-channel radio's hotspot has
 	/// to follow (HOT).
 	pub station_channel: Option<Channel>,
+	/// Whether the hotspot waits for the wireless client sharing its radio's channel to associate.
+	/// Started first, it would hold the radio on a channel of its own and the client could join only
+	/// there.
+	pub hotspot_waits: bool,
 }
 
 /// A 20 MHz channel on a band.
@@ -187,14 +191,18 @@ pub fn render(
 			)
 			.into());
 		};
-		files.push(networkd::hotspot(hotspot, interface, &hardware.paths)?);
-		files.push(hostapd::conf(
+		let network = networkd::hotspot(hotspot, interface, &hardware.paths)?;
+		let conf = hostapd::conf(
 			hotspot,
 			interface,
 			hardware,
 			selection.station_channel,
 			domain,
-		)?);
+		)?;
+		if !selection.hotspot_waits {
+			files.push(network);
+			files.push(conf);
+		}
 	}
 
 	let mut interfaces = Vec::new();

@@ -467,6 +467,13 @@ impl Selector {
 				.radios
 				.first()
 				.and_then(|radio| self.associated(&radio.station)),
+			hotspot_waits: matches!(
+				self.decision.hotspot,
+				Some(Placement {
+					channel: HotspotChannel::Follows { channel: None, .. },
+					..
+				})
+			),
 		})
 	}
 

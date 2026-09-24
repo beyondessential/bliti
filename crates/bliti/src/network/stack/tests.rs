@@ -527,6 +527,62 @@ async fn states_are_published_as_candidates_change() {
 	);
 }
 
+/// A shared-channel radio's hotspot starts once its station has joined, on the station's channel,
+/// rather than holding the radio on a channel of its own that the station could then join only on.
+#[tokio::test(start_paused = true)]
+async fn the_hotspot_waits_for_its_station_to_join() {
+	let mut rig = Rig::wireless().await;
+	rig.answers("192.0.2.1");
+	rig.hears("clinic", Ok(joined("clinic", 2462)));
+
+	let proposal = document(json!({
+		"attachments": [clinic()],
+		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+	}));
+	let answer = applying(&mut rig, proposal);
+	idle().await;
+	rig.see([leased("wld0", "192.0.2.10"), routed("wld0", "192.0.2.1")])
+		.await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	let hostapd: Vec<String> = rig
+		.calls()
+		.into_iter()
+		.filter(|call| call.starts_with("hostapd"))
+		.collect();
+	assert_eq!(hostapd, ["hostapd Start"]);
+	assert!(
+		rig.read("hostapd.conf").contains("\nchannel=11\n"),
+		"{}",
+		rig.read("hostapd.conf")
+	);
+}
+
+/// Where its station cannot join, the hotspot stops waiting and runs on a channel of its own.
+#[tokio::test(start_paused = true)]
+async fn the_hotspot_runs_where_its_station_does_not_join() {
+	let mut rig = Rig::wireless().await;
+	rig.hears(
+		"clinic",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+
+	let proposal = document(json!({
+		"attachments": [{
+			"kind": "wireless", "label": "clinic", "verify": false, "ssid": "clinic",
+			"security": {"kind": "psk", "passphrase": "correct horse"}
+		}],
+		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+	}));
+	let answer = applying(&mut rig, proposal);
+	idle().await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	assert!(
+		rig.read("hostapd.conf").contains("\nchannel=6\n"),
+		"{}",
+		rig.read("hostapd.conf")
+	);
+}
+
 /// A shared-channel radio's hotspot follows its station onto each channel it joins (HOT).
 #[tokio::test(start_paused = true)]
 async fn the_hotspot_follows_the_station_onto_a_new_channel() {

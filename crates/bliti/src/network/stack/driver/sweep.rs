@@ -141,6 +141,10 @@ impl Driver {
 			return;
 		}
 		self.scanning.remove(radio);
+		if self.hotspot_scanning.as_deref() == Some(radio) {
+			self.wanted += 1;
+			self.kick();
+		}
 		let waiting: Vec<_> = self
 			.checks
 			.values_mut()

@@ -32,6 +32,7 @@ fn active(active: &[usize]) -> Selection {
 	Selection {
 		active: active.to_vec(),
 		station_channel: None,
+		hotspot_waits: false,
 	}
 }
 
@@ -458,6 +459,7 @@ fn shared_channel_hardware_follows_the_station() {
 			band: Band::Five,
 			number: 149,
 		}),
+		hotspot_waits: false,
 	};
 	let out = rendered(&doc, &shared, &following);
 	let hostapd = &file(&out, "hostapd.conf").contents;
