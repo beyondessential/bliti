@@ -692,13 +692,13 @@ mod tests {
 			r#"{"document":{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}}"#;
 		assert_eq!(
 			capability_fault(
-				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","verify":true,"interface":"eth0"}]}"#,
+				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth0"}]}"#,
 				capabilities
 			),
 			Ok(None)
 		);
 		let fault = capability_fault(
-			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","verify":true,"interface":"eth1"}]}"#,
+			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth1"}]}"#,
 			capabilities,
 		)
 		.unwrap()
@@ -720,7 +720,7 @@ mod tests {
 			"radios": {"wlan0": {"model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time"}}
 		}"#;
 		let document = r#"{
-			"attachments": [{"kind": "wireless", "label": "a", "verify": true, "ssid": "a",
+			"attachments": [{"kind": "wireless", "label": "a", "enabled": true, "verify": true, "ssid": "a",
 			                 "security": {"kind": "psk", "passphrase": "12345678"}}],
 			"hotspot": {"ssid": "s", "passphrase": "12345678"}
 		}"#;

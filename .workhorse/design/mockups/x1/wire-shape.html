@@ -124,7 +124,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 		<tr><td>an object</td><td>Supported, and constrained member by member, recursively.</td></tr>
 		<tr><td>an object keyed by the member's values</td><td>Where what its siblings may carry depends on this member's value, each key is a value it may take, holding the constraints on its siblings under that value. The attachment <code>kind</code>, the security <code>kind</code>, a radio's <code>interface</code> and a hotspot's <code>band</code> all work this way, each wrapping its keys under its own name, as <code>"attachments": {"kind": {"wireless": …}}</code>. A key with nothing further to constrain holds <code>{}</code>. Left unset, the member is allowed where any key allows what the rest of the document asks.</td></tr>
 	</table>
-	<p style="margin:12px 0 0">A kind present supports its required members (<code>label</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed. For <code>enterprise</code> that means only <code>eap</code>: the credentials each method uses come with the method (WLAN).</p>
+	<p style="margin:12px 0 0">A kind present supports its required members (<code>label</code>, <code>enabled</code>, <code>verify</code>, <code>ssid</code>, <code>passphrase</code>); only its optional members and its constrained values are listed. For <code>enterprise</code> that means only <code>eap</code>: the credentials each method uses come with the method (WLAN).</p>
 	<p style="margin:8px 0 0">Because the rule is generic, one checker in <code>bliti-core</code> can serve both ends: the device rejects with it, and the client's pre-proposal check of NSCR is the same code through wasm. The <code>at</code> it reports is the Normalized Path of the first member not covered.</p>
 </div>
 
@@ -280,11 +280,14 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   <span class="k">"type"</span>: "configuration",
   <span class="crit">"DOCUMENT"</span>: {
     <span class="k">"attachments"</span>: [
-      { <span class="k">"kind"</span>: "wireless", <span class="k">"label"</span>: "Clinic", <span class="k">"ssid"</span>: "Clinic",
+      { <span class="k">"kind"</span>: "wireless", <span class="k">"label"</span>: "Clinic", <span class="k">"enabled"</span>: true, <span class="k">"verify"</span>: true,
+        <span class="k">"ssid"</span>: "Clinic",
         <span class="k">"security"</span>: { <span class="k">"kind"</span>: "psk-sae", <span class="k">"passphrase"</span>: "…" } },
-      { <span class="k">"kind"</span>: "wired-static", <span class="k">"label"</span>: "Admin office", <span class="k">"interface"</span>: "eth0",
+      { <span class="k">"kind"</span>: "wired-static", <span class="k">"label"</span>: "Admin office", <span class="k">"enabled"</span>: true, <span class="k">"verify"</span>: true,
+        <span class="k">"interface"</span>: "eth0",
         <span class="k">"addresses"</span>: ["192.168.60.20/24"], <span class="k">"gateway"</span>: "192.168.60.1" },
-      { <span class="k">"kind"</span>: "wired-dynamic", <span class="k">"label"</span>: "Any wall port", <span class="k">"interface"</span>: "eth0" }
+      { <span class="k">"kind"</span>: "wired-dynamic", <span class="k">"label"</span>: "Any wall port", <span class="k">"enabled"</span>: true, <span class="k">"verify"</span>: true,
+        <span class="k">"interface"</span>: "eth0" }
     ],
     <span class="k">"hotspot"</span>: { <span class="k">"ssid"</span>: "iti-setup", <span class="k">"passphrase"</span>: "…" },
     <span class="k">"regulatory-domain"</span>: "VU"
@@ -403,7 +406,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
     { <span class="k">"is"</span>: "standby" }
   ]
 }</pre>
-	<p style="margin-top:12px"><code>is</code> is <code>default-route</code>, <code>up</code>, <code>verifying</code>, <code>standby</code> (not tried, because a candidate above it holds the same interface) or <code>unavailable</code>. An unavailable candidate reuses <code>reached</code> and <code>reason</code> from <code>invalid</code>, so "No lease" is <code>reached: addressing</code> and "Out of range" is <code>reached: carrier</code> on a wireless candidate. The client words each; the device only names the stage.</p>
+	<p style="margin-top:12px"><code>is</code> is <code>default-route</code>, <code>up</code>, <code>verifying</code>, <code>standby</code> (not tried, because a candidate above it holds the same interface), <code>off</code> (turned off, its <code>enabled</code> false) or <code>unavailable</code>. An unavailable candidate reuses <code>reached</code> and <code>reason</code> from <code>invalid</code>, so "No lease" is <code>reached: addressing</code> and "Out of range" is <code>reached: carrier</code> on a wireless candidate. The client words each; the device only names the stage.</p>
 </div>
 
 <div class="card q">

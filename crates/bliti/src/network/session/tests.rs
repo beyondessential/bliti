@@ -29,7 +29,7 @@ mod wps;
 /// The recorded configuration the tests start from: a wall port, and a member a newer client added.
 fn recorded() -> Map<String, Json> {
 	object(json!({
-		"attachments": [{"kind": "wired-dynamic", "label": "Wall port", "verify": true, "interface": "eth0"}],
+		"attachments": [{"kind": "wired-dynamic", "label": "Wall port", "enabled": true, "verify": true, "interface": "eth0"}],
 		"x-added-by-a-newer-client": {"kept": true},
 	}))
 }
@@ -38,9 +38,9 @@ fn recorded() -> Map<String, Json> {
 fn proposal() -> Map<String, Json> {
 	object(json!({
 		"attachments": [
-			{"kind": "wireless", "label": "Clinic", "verify": true, "ssid": "Clinic",
+			{"kind": "wireless", "label": "Clinic", "enabled": true, "verify": true, "ssid": "Clinic",
 			 "security": {"kind": "psk", "passphrase": "correct horse"}},
-			{"kind": "wired-dynamic", "label": "Wall port", "verify": true, "interface": "eth0"},
+			{"kind": "wired-dynamic", "label": "Wall port", "enabled": true, "verify": true, "interface": "eth0"},
 		],
 		"regulatory-domain": "NZ",
 	}))
@@ -590,7 +590,7 @@ async fn a_document_that_cannot_be_accepted_is_invalid_with_no_stage_and_nothing
 	propose(
 		&mut client,
 		object(json!({"attachments": [
-			{"kind": "wired-static", "label": "Site A", "verify": true, "interface": "eth0",
+			{"kind": "wired-static", "label": "Site A", "enabled": true, "verify": true, "interface": "eth0",
 			 "addresses": ["10.0.0.5/24"]},
 		]})),
 	)

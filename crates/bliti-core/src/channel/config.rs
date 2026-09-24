@@ -21,6 +21,9 @@ use serde_json::{Map, Value as Json};
 
 use self::Segment::{Index, Name};
 
+#[cfg(test)]
+mod tests;
+
 /// Why a document, or a part of it, cannot be accepted.
 ///
 /// The shape of the `invalid` answer of CFG. `at` names the part at fault so a client can put an
@@ -68,6 +71,9 @@ pub struct Document {
 pub struct Attachment {
 	/// What the operator calls this candidate.
 	pub label: String,
+	/// Whether the device brings it up. One turned off is kept as it is and treated as absent from
+	/// the ordering (LINK).
+	pub enabled: bool,
 	/// Whether a proposal fails where this candidate cannot be established (CFG).
 	pub verify: bool,
 	/// The resolvers of this link, in the order they are queried; a device queries these before any
@@ -285,6 +291,15 @@ impl Attachment {
 		let label = string(candidate, "label")
 			.map_err(|reason| Invalid::at(at("label"), reason))?
 			.to_owned();
+		let enabled = match candidate.get("enabled") {
+			Some(Json::Bool(enabled)) => *enabled,
+			_ => {
+				return Err(Invalid::at(
+					at("enabled"),
+					"a candidate carries `enabled`, a boolean",
+				));
+			}
+		};
 		let verify = match candidate.get("verify") {
 			Some(Json::Bool(verify)) => *verify,
 			_ => {
@@ -343,6 +358,7 @@ impl Attachment {
 
 		Ok(Self {
 			label,
+			enabled,
 			verify,
 			nameservers,
 			kind,
@@ -353,6 +369,7 @@ impl Attachment {
 		let mut map = Map::new();
 		map.insert("kind".to_owned(), Json::String(self.kind.tag().to_owned()));
 		map.insert("label".to_owned(), Json::String(self.label.clone()));
+		map.insert("enabled".to_owned(), Json::Bool(self.enabled));
 		map.insert("verify".to_owned(), Json::Bool(self.verify));
 		if !self.nameservers.is_empty() {
 			map.insert(
@@ -689,321 +706,5 @@ fn u32_member(map: &Map<String, Json>, member: &str) -> Result<Option<u32>, Stri
 			.and_then(|n| u32::try_from(n).ok())
 			.map(Some)
 			.ok_or_else(|| format!("`{member}` is a whole number")),
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	fn document(json: Json) -> Result<Document, Invalid> {
-		let Json::Object(map) = json else {
-			panic!("a document is an object")
-		};
-		Document::parse(&map)
-	}
-
-	/// A full document parses, and serialising it and parsing it back is the same document.
-	#[test]
-	fn a_full_document_round_trips() {
-		let parsed = document(serde_json::json!({
-			"attachments": [
-				{
-					"kind": "wireless",
-					"label": "clinic wifi",
-					"verify": true,
-					"nameservers": ["10.0.0.1"],
-					"ssid": "Clinic",
-					"security": { "kind": "sae", "passphrase": "a good long passphrase" },
-					"hidden": true,
-					"bands": ["5ghz", "6ghz"]
-				},
-				{
-					"kind": "wired-static",
-					"label": "wall port",
-					"verify": true,
-					"interface": "eth0",
-					"addresses": ["192.168.1.10/24"],
-					"gateway": "192.168.1.1"
-				},
-				{ "kind": "wired-dynamic", "label": "spare port", "verify": true, "interface": "eth1" }
-			],
-			"hotspot": {
-				"ssid": "bliti-setup",
-				"passphrase": "read this aloud",
-				"share-upstream": false,
-				"channel": 6
-			},
-			"regulatory-domain": "NZ"
-		}))
-		.unwrap();
-
-		assert_eq!(parsed.attachments.len(), 3);
-		assert_eq!(parsed.regulatory_domain.as_deref(), Some("NZ"));
-		let round = Document::parse(&parsed.to_json()).unwrap();
-		assert_eq!(parsed, round);
-	}
-
-	/// An empty attachment list is a valid document: a device out of the box attaches to nothing and
-	/// is reached over the channel (NET, HOT).
-	#[test]
-	fn no_attachments_and_no_hotspot_is_valid() {
-		let parsed = document(serde_json::json!({ "attachments": [] })).unwrap();
-		assert!(parsed.attachments.is_empty());
-		assert!(parsed.hotspot.is_none());
-		assert!(parsed.regulatory_domain.is_none());
-	}
-
-	/// A document without `attachments` at all is malformed rather than empty.
-	#[test]
-	fn a_document_without_attachments_is_invalid() {
-		let err = document(serde_json::json!({})).unwrap_err();
-		assert_eq!(err.at, "$['attachments']");
-	}
-
-	/// A static candidate with no gateway cannot be told from any other, so LINK rejects it, and the
-	/// fault names the missing member.
-	#[test]
-	fn a_static_candidate_without_a_gateway_is_invalid() {
-		let err = document(serde_json::json!({
-			"attachments": [{
-				"kind": "wired-static",
-				"label": "wall port",
-				"verify": true,
-				"interface": "eth0",
-				"addresses": ["192.168.1.10/24"]
-			}]
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['attachments'][0]['gateway']");
-		assert!(err.reached.is_none());
-	}
-
-	/// Several statics on one interface are the site-switching case and stay legal (LINK).
-	#[test]
-	fn several_statics_on_one_interface_are_allowed() {
-		let parsed = document(serde_json::json!({
-			"attachments": [
-				{ "kind": "wired-static", "label": "site a", "verify": true, "interface": "eth0",
-				  "addresses": ["10.1.0.5/24"], "gateway": "10.1.0.1" },
-				{ "kind": "wired-static", "label": "site b", "verify": true, "interface": "eth0",
-				  "addresses": ["10.2.0.5/24"], "gateway": "10.2.0.1" }
-			]
-		}))
-		.unwrap();
-		assert_eq!(parsed.attachments.len(), 2);
-	}
-
-	/// Two dynamic candidates on one interface are not (LINK).
-	#[test]
-	fn two_dynamic_candidates_on_one_interface_are_invalid() {
-		let err = document(serde_json::json!({
-			"attachments": [
-				{ "kind": "wired-dynamic", "label": "a", "verify": true, "interface": "eth0" },
-				{ "kind": "wired-dynamic", "label": "b", "verify": true, "interface": "eth0" }
-			]
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['attachments'][1]['interface']");
-	}
-
-	/// Each key-based security kind requires a passphrase, and the fault names it.
-	#[test]
-	fn a_key_network_without_a_passphrase_is_invalid() {
-		for kind in ["psk", "sae", "psk-sae"] {
-			let err = document(serde_json::json!({
-				"attachments": [{
-					"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
-					"security": { "kind": kind }
-				}]
-			}))
-			.unwrap_err();
-			assert_eq!(
-				err.at, "$['attachments'][0]['security']['passphrase']",
-				"{kind}"
-			);
-		}
-	}
-
-	/// A set of bands names at least one, and none twice (WLAN).
-	#[test]
-	fn bands_name_at_least_one_and_none_twice() {
-		for bands in [serde_json::json!([]), serde_json::json!(["5ghz", "5ghz"])] {
-			let err = document(serde_json::json!({
-				"attachments": [{
-					"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
-					"security": { "kind": "psk", "passphrase": "a good long passphrase" },
-					"bands": bands
-				}]
-			}))
-			.unwrap_err();
-			assert_eq!(err.at, "$['attachments'][0]['bands']", "{bands}");
-		}
-	}
-
-	/// An unknown security kind is rejected.
-	#[test]
-	fn an_unknown_security_kind_is_invalid() {
-		let err = document(serde_json::json!({
-			"attachments": [{
-				"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
-				"security": { "kind": "wep", "passphrase": "x" }
-			}]
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['attachments'][0]['security']['kind']");
-	}
-
-	/// Enterprise keeps its method and credentials as raw members, and they survive the round trip.
-	#[test]
-	fn enterprise_credentials_survive_the_round_trip() {
-		let parsed = document(serde_json::json!({
-			"attachments": [{
-				"kind": "wireless", "label": "eduroam", "verify": true, "ssid": "eduroam",
-				"security": {
-					"kind": "enterprise", "eap": "peap",
-					"identity": "user@site", "password": "secret"
-				}
-			}]
-		}))
-		.unwrap();
-		let AttachmentKind::Wireless(wireless) = &parsed.attachments[0].kind else {
-			panic!("expected a wireless candidate")
-		};
-		let Security::Enterprise { members } = &wireless.security else {
-			panic!("expected enterprise security")
-		};
-		assert_eq!(members.get("eap").and_then(Json::as_str), Some("peap"));
-		assert_eq!(Document::parse(&parsed.to_json()).unwrap(), parsed);
-	}
-
-	/// Every candidate says whether it is verified, whatever its kind (LINK).
-	#[test]
-	fn a_candidate_without_verify_is_invalid() {
-		for verify in [None, Some(serde_json::json!("yes"))] {
-			let mut candidate =
-				serde_json::json!({ "kind": "wired-dynamic", "label": "a", "interface": "eth0" });
-			if let Some(verify) = verify {
-				candidate["verify"] = verify;
-			}
-			let err = document(serde_json::json!({ "attachments": [candidate] })).unwrap_err();
-			assert_eq!(err.at, "$['attachments'][0]['verify']");
-		}
-	}
-
-	/// `verify` is written whichever way it is set.
-	#[test]
-	fn verify_is_written_either_way() {
-		for verify in [true, false] {
-			let parsed = document(serde_json::json!({
-				"attachments": [{ "kind": "wired-dynamic", "label": "a", "verify": verify, "interface": "eth0" }]
-			}))
-			.unwrap();
-			assert_eq!(parsed.attachments[0].verify, verify);
-			assert_eq!(parsed.to_json()["attachments"][0]["verify"], verify);
-		}
-	}
-
-	/// An unknown attachment kind is rejected, naming the kind member.
-	#[test]
-	fn an_unknown_attachment_kind_is_invalid() {
-		let err = document(serde_json::json!({
-			"attachments": [{ "kind": "cellular", "label": "modem", "verify": true }]
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['attachments'][0]['kind']");
-	}
-
-	/// A hotspot carries an SSID and a passphrase, both required, and the fault names the missing one.
-	#[test]
-	fn a_hotspot_without_a_passphrase_is_invalid() {
-		let err = document(serde_json::json!({
-			"attachments": [],
-			"hotspot": { "ssid": "setup" }
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['hotspot']['passphrase']");
-	}
-
-	/// An unset hotspot boolean parses to None, which HOT reads as its enabled default, and a set one
-	/// carries through.
-	#[test]
-	fn unset_hotspot_switches_are_none() {
-		let parsed = document(serde_json::json!({
-			"attachments": [],
-			"hotspot": { "ssid": "s", "passphrase": "p", "isolate-clients": false }
-		}))
-		.unwrap();
-		let hotspot = parsed.hotspot.unwrap();
-		assert_eq!(hotspot.share_upstream, None);
-		assert_eq!(hotspot.isolate_clients, Some(false));
-		assert_eq!(hotspot.dhcp_range, None);
-	}
-
-	/// An absent optional member is left out of the serialisation, which is how a device reads unset.
-	#[test]
-	fn absent_optionals_are_omitted_on_write() {
-		let doc = Document {
-			attachments: vec![],
-			hotspot: None,
-			regulatory_domain: None,
-		};
-		let json = doc.to_json();
-		assert!(!json.contains_key("hotspot"));
-		assert!(!json.contains_key("regulatory-domain"));
-		assert_eq!(json.get("attachments"), Some(&Json::Array(vec![])));
-	}
-
-	/// Paths are RFC 9535 Normalized Paths: bracketed, single-quoted, with its escapes, so a hyphenated
-	/// name the dot shorthand cannot carry is spelled one way only.
-	#[test]
-	fn paths_are_normalized_jsonpath() {
-		assert_eq!(path(&[]), "$");
-		assert_eq!(
-			path(&[Name("hotspot"), Name("share-upstream")]),
-			"$['hotspot']['share-upstream']"
-		);
-		assert_eq!(
-			path(&[Name("attachments"), Index(2), Name("gateway")]),
-			"$['attachments'][2]['gateway']"
-		);
-		assert_eq!(path(&[Name("it's\\\n\u{1}")]), r"$['it\'s\\\n\u0001']");
-	}
-
-	/// A wireless candidate and the hotspot may name the interface that carries them, and naming none
-	/// leaves the choice to the device (LINK, HOT).
-	#[test]
-	fn wireless_and_hotspot_name_an_interface_or_leave_it_to_the_device() {
-		let parsed = document(serde_json::json!({
-			"attachments": [
-				{ "kind": "wireless", "label": "uplink", "verify": true, "ssid": "Clinic", "interface": "wlx00c0caa1b2c3",
-				  "security": { "kind": "sae", "passphrase": "a good long passphrase" } },
-				{ "kind": "wireless", "label": "either", "verify": true, "ssid": "Office",
-				  "security": { "kind": "psk", "passphrase": "another passphrase" } }
-			],
-			"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlan0" }
-		}))
-		.unwrap();
-		let interfaces: Vec<_> = parsed
-			.attachments
-			.iter()
-			.map(|a| match &a.kind {
-				AttachmentKind::Wireless(w) => w.interface.as_deref(),
-				_ => panic!("expected wireless candidates"),
-			})
-			.collect();
-		assert_eq!(interfaces, [Some("wlx00c0caa1b2c3"), None]);
-		assert_eq!(
-			parsed.hotspot.as_ref().unwrap().interface.as_deref(),
-			Some("wlan0")
-		);
-		assert_eq!(Document::parse(&parsed.to_json()).unwrap(), parsed);
-
-		let err = document(serde_json::json!({
-			"attachments": [],
-			"hotspot": { "ssid": "s", "passphrase": "p", "interface": 0 }
-		}))
-		.unwrap_err();
-		assert_eq!(err.at, "$['hotspot']['interface']");
 	}
 }

@@ -37,7 +37,7 @@ fn two_radios() -> Hardware {
 
 fn wireless(ssid: &str) -> Json {
 	json!({
-		"kind": "wireless", "label": ssid, "verify": true, "ssid": ssid,
+		"kind": "wireless", "label": ssid, "enabled": true, "verify": true, "ssid": ssid,
 		"security": { "kind": "psk", "passphrase": "correct horse" }
 	})
 }
@@ -49,12 +49,12 @@ fn pinned(ssid: &str, interface: &str) -> Json {
 }
 
 fn dynamic(interface: &str) -> Json {
-	json!({ "kind": "wired-dynamic", "label": interface, "verify": true, "interface": interface })
+	json!({ "kind": "wired-dynamic", "label": interface, "enabled": true, "verify": true, "interface": interface })
 }
 
 fn fixed(label: &str, address: &str, gateway: &str) -> Json {
 	json!({
-		"kind": "wired-static", "label": label, "verify": true, "interface": "eth0",
+		"kind": "wired-static", "label": label, "enabled": true, "verify": true, "interface": "eth0",
 		"addresses": [address], "gateway": gateway
 	})
 }

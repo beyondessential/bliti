@@ -129,15 +129,15 @@ fn required(context: Context, kind: Option<&str>, member: &str) -> bool {
 	match (context, kind) {
 		(Context::Document, _) => member == "attachments",
 		(Context::Attachment, Some("wireless")) => {
-			matches!(member, "label" | "verify" | "ssid" | "security")
+			matches!(member, "label" | "enabled" | "verify" | "ssid" | "security")
 		}
 		(Context::Attachment, Some("wired-dynamic")) => {
-			matches!(member, "label" | "verify" | "interface")
+			matches!(member, "label" | "enabled" | "verify" | "interface")
 		}
 		(Context::Attachment, Some("wired-static")) => {
 			matches!(
 				member,
-				"label" | "verify" | "interface" | "addresses" | "gateway"
+				"label" | "enabled" | "verify" | "interface" | "addresses" | "gateway"
 			)
 		}
 		(Context::Security, Some("psk" | "sae" | "psk-sae")) => member == "passphrase",

@@ -18,8 +18,8 @@ const SHARED_CHANNEL: &str = "shared-channel";
 /// The hotspot's members choosing its channel, in the order a fault names the first set (HOT).
 const CHANNEL: [&str; 3] = ["band", "channel", "channel-width"];
 
-/// Refuse a document whose hotspot and a wireless candidate could be carried only by one radio
-/// running one at a time (HOT).
+/// Refuse a document whose hotspot and an enabled wireless candidate could be carried only by one
+/// radio running one at a time (HOT).
 ///
 /// A candidate may use the radio it names, or any radio; the hotspot the radio it names, or any able
 /// to run one. The fault is at the hotspot's `interface` where it names one, else at the hotspot.
@@ -165,7 +165,7 @@ struct Candidate<'a> {
 	interface: Option<&'a str>,
 }
 
-/// The document's wireless candidates.
+/// The document's wireless candidates a radio could carry: those not turned off (HOT).
 fn wireless(document: &Map<String, Json>) -> impl Iterator<Item = Candidate<'_>> {
 	document
 		.get("attachments")
@@ -174,6 +174,7 @@ fn wireless(document: &Map<String, Json>) -> impl Iterator<Item = Candidate<'_>>
 		.flatten()
 		.filter_map(Json::as_object)
 		.filter(|attachment| attachment.get("kind").and_then(Json::as_str) == Some("wireless"))
+		.filter(|attachment| attachment.get("enabled") != Some(&Json::Bool(false)))
 		.map(|attachment| Candidate {
 			label: attachment
 				.get("label")

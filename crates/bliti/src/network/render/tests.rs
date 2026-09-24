@@ -93,7 +93,7 @@ fn invalid_at(document: &Document, hardware: &Hardware) -> String {
 }
 
 fn wireless(ssid: &str, security: Json) -> Json {
-	json!({ "kind": "wireless", "label": ssid, "verify": true, "ssid": ssid, "security": security })
+	json!({ "kind": "wireless", "label": ssid, "enabled": true, "verify": true, "ssid": ssid, "security": security })
 }
 
 fn peap() -> serde_json::Map<String, Json> {
@@ -111,7 +111,7 @@ fn peap() -> serde_json::Map<String, Json> {
 #[test]
 fn wired_dynamic_only() {
 	let doc = document(json!({
-		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }]
+		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }]
 	}));
 	let out = rendered(&doc, &hardware(), &select(&doc, &[0]));
 	let network = &file(&out, "network/50-bliti-eth0.network").contents;
@@ -136,9 +136,9 @@ fn wired_dynamic_only() {
 fn two_statics_on_one_interface() {
 	let doc = document(json!({
 		"attachments": [
-			{ "kind": "wired-static", "label": "site a", "verify": true, "interface": "eth0",
+			{ "kind": "wired-static", "label": "site a", "enabled": true, "verify": true, "interface": "eth0",
 			  "addresses": ["10.1.0.5/24"], "gateway": "10.1.0.1" },
-			{ "kind": "wired-static", "label": "site b", "verify": true, "interface": "eth0",
+			{ "kind": "wired-static", "label": "site b", "enabled": true, "verify": true, "interface": "eth0",
 			  "addresses": ["10.2.0.5/24", "fd00:2::5/64"], "gateway": "10.2.0.1" }
 		]
 	}));
@@ -189,8 +189,8 @@ fn two_statics_on_one_interface() {
 fn an_unselected_candidate_is_still_checked() {
 	let doc = document(json!({
 		"attachments": [
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" },
-			{ "kind": "wired-static", "label": "bad", "verify": true, "interface": "eth1",
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" },
+			{ "kind": "wired-static", "label": "bad", "enabled": true, "verify": true, "interface": "eth1",
 			  "addresses": ["10.2.0.5"], "gateway": "10.2.0.1" }
 		]
 	}));
@@ -206,7 +206,7 @@ fn wireless_and_wired_order_by_metric() {
 	let doc = document(json!({
 		"attachments": [
 			wireless("Clinic", json!({ "kind": "psk-sae", "passphrase": "a long passphrase" })),
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }
 		]
 	}));
 	let out = rendered(&doc, &hardware(), &select(&doc, &[0, 1]));
@@ -226,9 +226,9 @@ fn wireless_and_wired_order_by_metric() {
 fn per_link_nameservers() {
 	let doc = document(json!({
 		"attachments": [
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0",
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0",
 			  "nameservers": ["10.0.9.53", "2606:4700:4700::1111"] },
-			{ "kind": "wired-static", "label": "lab", "verify": true, "interface": "eth1",
+			{ "kind": "wired-static", "label": "lab", "enabled": true, "verify": true, "interface": "eth1",
 			  "addresses": ["192.0.2.5/24"], "gateway": "192.0.2.1", "nameservers": ["192.0.2.53"] }
 		]
 	}));
@@ -249,7 +249,7 @@ fn per_link_nameservers() {
 	assert!(fixed.contains("DNS=192.0.2.53\n"));
 
 	let bad = document(json!({
-		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0",
+		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0",
 		  "nameservers": ["1.1.1.1", "dns.example"] }]
 	}));
 	assert_eq!(
@@ -346,7 +346,7 @@ fn enterprise_members_are_checked() {
 #[test]
 fn a_hidden_network() {
 	let doc = document(json!({ "attachments": [
-		{ "kind": "wireless", "label": "back office", "verify": true, "ssid": "Office", "hidden": true,
+		{ "kind": "wireless", "label": "back office", "enabled": true, "verify": true, "ssid": "Office", "hidden": true,
 		  "security": { "kind": "psk", "passphrase": "a long passphrase" } },
 		wireless("Front", json!({ "kind": "psk", "passphrase": "another passphrase" }))
 	] }));
@@ -581,7 +581,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 		..hardware()
 	};
 	let doc = document(json!({
-		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }],
+		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud",
 			"band": "5ghz", "channel": 44, "channel-width": 80 }
 	}));
@@ -612,7 +612,7 @@ fn secrets_are_0600() {
 	let doc = document(json!({
 		"attachments": [
 			wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
@@ -687,7 +687,7 @@ fn what_the_hardware_lacks_is_refused() {
 	assert_eq!(invalid_at(&hotspot, &wired_only), "$['hotspot']");
 
 	let port = document(json!({ "attachments": [
-		{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth7" }
+		{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth7" }
 	] }));
 	assert_eq!(
 		invalid_at(&port, &hardware()),
@@ -709,7 +709,7 @@ fn rendered_files_are_owned() {
 	let doc = document(json!({
 		"attachments": [
 			wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0" }
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
@@ -737,9 +737,9 @@ fn rendered_files_are_owned() {
 fn rendering_is_deterministic() {
 	let doc = document(json!({
 		"attachments": [
-			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth1" },
+			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth1" },
 			wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
-			{ "kind": "wired-dynamic", "label": "spare", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "spare", "enabled": true, "verify": true, "interface": "eth0" }
 		]
 	}));
 	let a = rendered(&doc, &hardware(), &select(&doc, &[2, 0, 1]));
@@ -752,14 +752,14 @@ fn rendering_is_deterministic() {
 #[test]
 fn a_radio_other_than_the_station_is_refused() {
 	let pinned = document(json!({
-		"attachments": [{ "kind": "wireless", "label": "w", "verify": true, "ssid": "Clinic", "interface": "wlan0",
+		"attachments": [{ "kind": "wireless", "label": "w", "enabled": true, "verify": true, "ssid": "Clinic", "interface": "wlan0",
 			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
 	}));
 	assert!(render(&pinned, &hardware(), &select(&pinned, &[0])).is_ok());
 
 	let elsewhere = document(json!({
-		"attachments": [{ "kind": "wireless", "label": "w", "verify": true, "ssid": "Clinic", "interface": "wlan1",
+		"attachments": [{ "kind": "wireless", "label": "w", "enabled": true, "verify": true, "ssid": "Clinic", "interface": "wlan1",
 			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }]
 	}));
 	let Err(Error::Invalid(invalid)) = render(&elsewhere, &hardware(), &select(&elsewhere, &[]))

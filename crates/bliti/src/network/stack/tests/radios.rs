@@ -21,7 +21,7 @@ fn two_radios(alongside: Alongside) -> FakeAir {
 
 fn pinned(ssid: &str, interface: &str) -> Json {
 	json!({
-		"kind": "wireless", "label": ssid, "verify": true, "ssid": ssid, "interface": interface,
+		"kind": "wireless", "label": ssid, "enabled": true, "verify": true, "ssid": ssid, "interface": interface,
 		"security": {"kind": "psk", "passphrase": "correct horse"}
 	})
 }

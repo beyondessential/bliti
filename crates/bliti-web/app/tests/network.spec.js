@@ -358,6 +358,7 @@ test.describe('applying without checking', () => {
 		const [proposal] = await proposals(page)
 		expect(proposal.verify).toBeUndefined()
 		expect(proposal.document.attachments.map((each) => each.verify)).toEqual([true, true, true, true, true, true])
+		expect(proposal.document.attachments.map((each) => each.enabled)).toEqual([true, true, true, true, true, true])
 		await expect(page.locator('.order')).not.toContainText('not checked')
 	})
 
@@ -605,7 +606,7 @@ test.describe('validating before proposing', () => {
 	})
 
 	test('a device with no radio offers no wireless, hotspot or country, and says why', async ({ page }) => {
-		const wired = { attachments: [{ kind: 'wired-dynamic', label: 'eth0 automatic', verify: true, interface: 'eth0' }] }
+		const wired = { attachments: [{ kind: 'wired-dynamic', label: 'eth0 automatic', enabled: true, verify: true, interface: 'eth0' }] }
 		await openNetwork(page, { document: wired, capabilities: WIRED_ONLY })
 		await expect(page.locator('.hotspot')).toContainText('This device has no wireless radio.')
 		await expect(page.getByRole('button', { name: 'Turn on' })).toHaveCount(0)
@@ -616,7 +617,7 @@ test.describe('validating before proposing', () => {
 
 	test('a document outside the capabilities is not proposed', async ({ page }) => {
 		const withEth1 = {
-			attachments: [{ kind: 'wired-dynamic', label: 'eth1 automatic', verify: true, interface: 'eth1' }],
+			attachments: [{ kind: 'wired-dynamic', label: 'eth1 automatic', enabled: true, verify: true, interface: 'eth1' }],
 		}
 		await openNetwork(page, { document: withEth1, capabilities: PI })
 		await open(page, 'eth1 automatic')
@@ -656,6 +657,7 @@ test.describe('the ordering', () => {
 		expect(proposal.document.attachments[5]).toEqual({
 			kind: 'wired-static',
 			label: 'South site',
+			enabled: true,
 			verify: true,
 			interface: 'eth0',
 			addresses: ['172.16.4.20/24'],
@@ -768,6 +770,7 @@ test.describe('adapters', () => {
 		expect(proposal.document.attachments[5]).toEqual({
 			kind: 'wireless',
 			label: 'Clinic',
+			enabled: true,
 			verify: true,
 			ssid: 'Clinic',
 			interface: 'wlan0',

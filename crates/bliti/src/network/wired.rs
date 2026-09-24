@@ -40,7 +40,7 @@ pub fn unconfigured(root: &Path) -> Map<String, Json> {
 	let attachments = interfaces(root)
 		.into_iter()
 		.map(
-			|interface| json!({"kind": "wired-dynamic", "label": interface, "verify": true, "interface": interface}),
+			|interface| json!({"kind": "wired-dynamic", "label": interface, "enabled": true, "verify": true, "interface": interface}),
 		)
 		.collect();
 	Map::from_iter([("attachments".to_owned(), Json::Array(attachments))])
@@ -112,7 +112,7 @@ mod tests {
 		assert_eq!(
 			Json::Object(unconfigured(&sys.0)),
 			json!({"attachments": [
-				{"kind": "wired-dynamic", "label": "eth0", "verify": true, "interface": "eth0"},
+				{"kind": "wired-dynamic", "label": "eth0", "enabled": true, "verify": true, "interface": "eth0"},
 			]})
 		);
 		assert!(bliti_core::channel::config::Document::parse(&unconfigured(&sys.0)).is_ok());

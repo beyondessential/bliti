@@ -166,19 +166,19 @@ fn document(json: Json) -> Document {
 }
 
 fn dynamic() -> Json {
-	json!({"kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0"})
+	json!({"kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0"})
 }
 
 fn fixed(address: &str, gateway: &str) -> Json {
 	json!({
-		"kind": "wired-static", "label": gateway, "verify": true, "interface": "eth0",
+		"kind": "wired-static", "label": gateway, "enabled": true, "verify": true, "interface": "eth0",
 		"addresses": [address], "gateway": gateway
 	})
 }
 
 fn clinic() -> Json {
 	json!({
-		"kind": "wireless", "label": "clinic", "verify": true, "ssid": "clinic",
+		"kind": "wireless", "label": "clinic", "enabled": true, "verify": true, "ssid": "clinic",
 		"security": {"kind": "psk", "passphrase": "correct horse"}
 	})
 }
@@ -312,7 +312,7 @@ async fn a_refused_enterprise_join_names_what_to_check() {
 	);
 
 	let office = json!({
-		"kind": "wireless", "label": "office", "verify": true, "ssid": "office",
+		"kind": "wireless", "label": "office", "enabled": true, "verify": true, "ssid": "office",
 		"security": {
 			"kind": "enterprise", "eap": "peap", "identity": "tester", "password": "secret",
 			"phase2": "mschapv2", "ca-certificate": "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n",
@@ -786,7 +786,7 @@ async fn the_hotspot_runs_where_its_station_does_not_join() {
 
 	let proposal = document(json!({
 		"attachments": [{
-			"kind": "wireless", "label": "clinic", "verify": false, "ssid": "clinic",
+			"kind": "wireless", "label": "clinic", "enabled": true, "verify": false, "ssid": "clinic",
 			"security": {"kind": "psk", "passphrase": "correct horse"}
 		}],
 		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
@@ -979,7 +979,7 @@ async fn wps_passes_on_the_pin_and_answers_the_joined_document() {
 		Json::Object(joined),
 		json!({"attachments": [
 			{
-				"kind": "wireless", "label": "clinic", "verify": true, "ssid": "clinic",
+				"kind": "wireless", "label": "clinic", "enabled": true, "verify": true, "ssid": "clinic",
 				"security": {"kind": "psk", "passphrase": "correct horse"}
 			},
 			dynamic(),
@@ -1103,7 +1103,7 @@ async fn a_wps_join_that_finds_nothing_fails_at_carrier() {
 async fn check_refuses_what_the_renderer_would() {
 	let rig = Rig::wireless().await;
 	let short = document(json!({"attachments": [{
-		"kind": "wireless", "label": "x", "verify": true, "ssid": "x",
+		"kind": "wireless", "label": "x", "enabled": true, "verify": true, "ssid": "x",
 		"security": {"kind": "psk", "passphrase": "short"}
 	}]}));
 	let refused = rig.stack.check(&short).unwrap_err();

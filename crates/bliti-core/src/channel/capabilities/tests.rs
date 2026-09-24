@@ -58,7 +58,7 @@ fn check_on_pi(document: Json) -> Result<(), Invalid> {
 
 fn wireless(extra: Json) -> Json {
 	let mut candidate = object(json!({
-		"kind": "wireless", "label": "Clinic", "verify": true, "ssid": "Clinic",
+		"kind": "wireless", "label": "Clinic", "enabled": true, "verify": true, "ssid": "Clinic",
 		"security": { "kind": "sae", "passphrase": "a good long passphrase" }
 	}));
 	candidate.extend(object(extra));
@@ -70,9 +70,9 @@ fn a_document_within_capabilities_passes() {
 	check_on_pi(json!({
 		"attachments": [
 			wireless(json!({ "interface": "wlan0", "hidden": true, "nameservers": ["1.1.1.1"] })),
-			{ "kind": "wired-static", "label": "Office", "verify": true, "interface": "eth0",
+			{ "kind": "wired-static", "label": "Office", "enabled": true, "verify": true, "interface": "eth0",
 			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1" },
-			{ "kind": "wired-dynamic", "label": "Any port", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "Any port", "enabled": true, "verify": true, "interface": "eth0" }
 		],
 		"hotspot": { "ssid": "setup", "passphrase": "read this aloud", "interface": "wlx00c0caa1b2c3",
 					 "band": "5ghz", "channel": 36, "channel-width": 80, "isolate-clients": false },
@@ -87,10 +87,20 @@ fn nothing_asked_passes() {
 	check_on_pi(json!({ "attachments": [] })).unwrap();
 }
 
-/// Required members pass without being listed: a kind supports what the document requires of it.
+/// Required members pass without being listed: a kind supports what the document requires of it,
+/// `enabled` and `verify` either way on every kind.
 #[test]
 fn required_members_are_implied_by_their_kind() {
 	check_on_pi(json!({ "attachments": [wireless(json!({}))] })).unwrap();
+	for flag in [true, false] {
+		check_on_pi(json!({ "attachments": [
+			wireless(json!({ "enabled": flag, "verify": flag })),
+			{ "kind": "wired-dynamic", "label": "p", "enabled": flag, "verify": flag, "interface": "eth0" },
+			{ "kind": "wired-static", "label": "s", "enabled": flag, "verify": flag, "interface": "eth0",
+			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1" }
+		] }))
+		.unwrap();
+	}
 }
 
 /// A member capabilities do not carry is not supported.
@@ -101,7 +111,7 @@ fn an_unlisted_optional_member_is_refused() {
 	} } }));
 	let err = check(
 		&object(json!({ "attachments": [
-			{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0", "nameservers": ["1.1.1.1"] }
+			{ "kind": "wired-dynamic", "label": "p", "enabled": true, "verify": true, "interface": "eth0", "nameservers": ["1.1.1.1"] }
 		] })),
 		&caps,
 	)
@@ -158,7 +168,7 @@ fn an_unsupported_kind_is_refused() {
 #[test]
 fn a_value_outside_an_array_is_refused() {
 	let err = check_on_pi(json!({ "attachments": [
-		{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth1" }
+		{ "kind": "wired-dynamic", "label": "p", "enabled": true, "verify": true, "interface": "eth1" }
 	] }))
 	.unwrap_err();
 	assert_eq!(err.at, "$['attachments'][0]['interface']");
@@ -320,12 +330,23 @@ fn a_hotspot_beside_a_client_on_a_one_at_a_time_radio_is_refused() {
 	assert_eq!(refused.invalid.at, "$['hotspot']['interface']");
 }
 
+/// A wireless candidate turned off could be carried by no radio, so it leaves a one-at-a-time radio
+/// to the hotspot (HOT).
+#[test]
+fn a_hotspot_beside_a_client_turned_off_passes_on_a_one_at_a_time_radio() {
+	admitted(
+		json!({ "attachments": [wireless(json!({ "enabled": false }))], "hotspot": hotspot() }),
+		&one_at_a_time(),
+	)
+	.unwrap();
+}
+
 /// Wired candidates never take the radio, so they sit beside the hotspot on any radio.
 #[test]
 fn a_hotspot_beside_wired_candidates_passes_on_a_one_at_a_time_radio() {
 	admitted(
 		json!({ "attachments": [
-			{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0" }
+			{ "kind": "wired-dynamic", "label": "p", "enabled": true, "verify": true, "interface": "eth0" }
 		], "hotspot": hotspot() }),
 		&one_at_a_time(),
 	)
@@ -410,8 +431,7 @@ fn hotspot_with(extra: Json) -> Json {
 /// (HOT).
 #[test]
 fn a_shared_channel_hotspot_with_no_client_to_follow_chooses_its_channel() {
-	let wired =
-		json!({ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0" });
+	let wired = json!({ "kind": "wired-dynamic", "label": "p", "enabled": true, "verify": true, "interface": "eth0" });
 	for attachments in [json!([]), json!([wired])] {
 		admitted(
 			json!({ "attachments": attachments,
@@ -451,6 +471,19 @@ fn a_shared_channel_hotspot_beside_a_client_cannot_choose_its_channel() {
 		&shared_only(),
 	)
 	.unwrap();
+}
+
+/// A wireless candidate turned off leaves the shared-channel radio's hotspot its choice (HOT).
+#[test]
+fn a_client_turned_off_leaves_a_shared_channel_hotspot_its_channel() {
+	let document = json!({ "attachments": [wireless(json!({ "enabled": false }))],
+		"hotspot": hotspot_with(json!({ "band": "2ghz", "channel": 6, "channel-width": 20 })) });
+	admitted(document.clone(), &shared_only()).unwrap();
+	assert!(
+		channel_choice(&object(document), &shared_only())
+			.follows
+			.is_empty()
+	);
 }
 
 /// A client pinned to another radio leaves the shared-channel radio's hotspot its choice, and an

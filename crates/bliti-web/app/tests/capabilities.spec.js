@@ -108,13 +108,14 @@ const TWO_RADIOS = {
 const wireless = {
 	kind: 'wireless',
 	label: 'Clinic',
+	enabled: true,
 	verify: true,
 	ssid: 'Clinic',
 	security: { kind: 'psk-sae', passphrase: 'correct horse battery' },
 	hidden: false,
 	nameservers: ['1.1.1.1'],
 }
-const staticPort = { kind: 'wired-static', label: 'Office', verify: true, interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1' }
+const staticPort = { kind: 'wired-static', label: 'Office', enabled: true, verify: true, interface: 'eth0', addresses: ['192.168.60.20/24'], gateway: '192.168.60.1' }
 const hotspot = { ssid: 'iti-setup', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true }
 
 test.describe('paths', () => {
@@ -167,7 +168,7 @@ test.describe('check', () => {
 
 	test('names a security kind the device cannot join', () => {
 		const saeOnly = { document: { attachments: { kind: { wireless: { security: { kind: { sae: {} } } } } } } }
-		expect(check({ attachments: [{ kind: 'wireless', label: 'a', verify: true, ssid: 'a', security: { kind: 'psk', passphrase: '12345678' } }] }, saeOnly)).toEqual({
+		expect(check({ attachments: [{ kind: 'wireless', label: 'a', enabled: true, verify: true, ssid: 'a', security: { kind: 'psk', passphrase: '12345678' } }] }, saeOnly)).toEqual({
 			at: "$['attachments'][0]['security']['kind']",
 			reason: 'This device cannot join a network secured this way.',
 		})
@@ -177,6 +178,7 @@ test.describe('check', () => {
 		const enterprise = (eap) => ({
 			kind: 'wireless',
 			label: 'Staff',
+			enabled: true,
 			verify: true,
 			ssid: 'Staff',
 			security: { kind: 'enterprise', eap, identity: 'tech', password: 'x', 'ca-certificate': 'PEM', domain: 'radius.example' },
@@ -346,7 +348,7 @@ test.describe('validate', () => {
 	})
 
 	test('a second DHCP candidate on one interface is caught', () => {
-		const dynamic = { kind: 'wired-dynamic', label: 'a', verify: true, interface: 'eth0' }
+		const dynamic = { kind: 'wired-dynamic', label: 'a', enabled: true, verify: true, interface: 'eth0' }
 		expect(validate({ attachments: [dynamic, { ...dynamic, label: 'b' }] })?.at).toBe("$['attachments'][1]['interface']")
 	})
 
