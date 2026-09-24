@@ -120,10 +120,36 @@ test.describe('editing is the application\'s own', () => {
 		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
 	})
 
-	test('leaving the screen ends the session', async ({ page }) => {
+	test('leaving the screen with nothing changed ends the session', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+	})
+
+	// Edits not applied are neither lost on leaving nor forgotten about (NSCR).
+	test('leaving with edits not applied keeps them, and the device view says so', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+		const held = page.locator('.bar-state:visible')
+		await expect(held).toContainText('1 network change not applied.')
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
+
+		await held.getByRole('button', { name: 'Review' }).click()
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
+		await expect(bar(page)).toContainText('1 change not applied.')
+	})
+
+	test('edits left not applied are discarded from the device view', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+		await page.locator('.bar-state:visible').getByRole('button', { name: 'Discard' }).click()
+		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure'])
 	})
 
 	// A proposal left running goes on running while the operator looks at the device, and is confirmed

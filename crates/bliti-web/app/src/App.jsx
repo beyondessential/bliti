@@ -33,8 +33,9 @@ export default function App() {
 	// Which screen of a connected device is showing: its readings, or its network configuration.
 	const [screen, setScreen] = useState('device')
 	// Where the configuration session stands, as the network screen reports it, and whether to keep
-	// that screen, and its session, while the operator is on the device view: from leaving it with a
-	// proposal applying or applied, until it is confirmed or discarded, or its failure reviewed (NSCR).
+	// that screen, and its session, while the operator is on the device view: from leaving it with edits
+	// not applied or a proposal applying or applied, until there is nothing left to apply, confirm or
+	// review (NSCR).
 	const [held, setHeld] = useState(null)
 	const [keep, setKeep] = useState(false)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
@@ -225,7 +226,7 @@ export default function App() {
 
 	// Done with what it was kept for: confirmed or discarded, or the session gone.
 	useEffect(() => {
-		if (screen !== 'network' && keep && (!held || held.stage === 'editing')) setKeep(false)
+		if (screen !== 'network' && keep && (!held || (held.stage === 'editing' && held.changes === 0))) setKeep(false)
 	}, [screen, keep, held])
 
 	if (unsupported) {
@@ -242,7 +243,7 @@ export default function App() {
 
 	function leaveNetwork() {
 		setScreen('device')
-		setKeep(held?.stage === 'applying' || held?.stage === 'applied')
+		setKeep(held?.stage === 'applying' || held?.stage === 'applied' || held?.changes > 0)
 	}
 
 	const network = connected && (screen === 'network' || keep) && (

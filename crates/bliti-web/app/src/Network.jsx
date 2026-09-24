@@ -87,13 +87,21 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 	}
 
 	// Where the session stands, and what can be done about it from elsewhere in the application.
+	const edits = state.status === 'open' ? changes(state.edit, state.inForce, state.inForceKeys) : 0
 	useEffect(() => {
 		onStage?.(
 			state.status === 'open'
-				? { stage: state.stage, confirming: !!state.confirming, confirm, cancel }
+				? {
+						stage: state.stage,
+						confirming: !!state.confirming,
+						changes: edits,
+						confirm,
+						cancel,
+						reset: () => dispatch({ type: 'reset' }),
+					}
 				: null,
 		)
-	}, [state.status, state.stage, state.confirming])
+	}, [state.status, state.stage, state.confirming, edits])
 	useEffect(() => () => onStage?.(null), [])
 
 	const change = (edit) => dispatch({ type: 'edit', change: edit })
@@ -385,9 +393,14 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 	)
 }
 
-/// The session's state on the device view, while a proposal the operator left the screen with is still
-/// being applied, is applied, or has failed there (NSCR).
+/// The session's state on the device view, while the operator is away from the screen with edits not
+/// applied, a proposal being applied or applied, or one that failed there (NSCR).
 export function HeldBar({ held, onReview }) {
+	const discard = (
+		<button className="secondary" onClick={held.reset}>
+			Discard
+		</button>
+	)
 	const review = (
 		<button className="secondary" onClick={onReview}>
 			Review
@@ -423,12 +436,31 @@ export function HeldBar({ held, onReview }) {
 			</section>
 		)
 	}
+	if (held.stage === 'errored') {
+		return (
+			<section className="bar-state failed" role="status">
+				<p>
+					<strong>Could not apply the network settings.</strong> The device is back on its saved configuration.
+				</p>
+				<div className="row">
+					{review}
+					{discard}
+				</div>
+			</section>
+		)
+	}
 	return (
-		<section className="bar-state failed" role="status">
+		<section className="bar-state" role="status">
 			<p>
-				<strong>Could not apply the network settings.</strong> The device is back on its saved configuration.
+				<strong>
+					{held.changes} network {held.changes === 1 ? 'change' : 'changes'} not applied.
+				</strong>{' '}
+				Nobody else can change the network meanwhile.
 			</p>
-			<div className="row">{review}</div>
+			<div className="row">
+				{review}
+				{discard}
+			</div>
 		</section>
 	)
 }
