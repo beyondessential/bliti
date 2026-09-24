@@ -165,9 +165,9 @@ fn the_shape_is_the_one_net_gives() {
 			"scan": { "interface": { "wlan0": {}, "wlx00c0caa1b2c3": {}, "wlan1": {} } },
 			"survey": { "interface": { "wlx00c0caa1b2c3": {} } },
 			"wps": { "interface": {
-				"wlan0": { "method": ["push-button", "pin"] },
-				"wlx00c0caa1b2c3": { "method": ["push-button", "pin"] },
-				"wlan1": { "method": ["push-button", "pin"] }
+				"wlan0": { "method": ["push-button", "pin"], "ssid": true },
+				"wlx00c0caa1b2c3": { "method": ["push-button", "pin"], "ssid": true },
+				"wlan1": { "method": ["push-button", "pin"], "ssid": true }
 			} }
 		}
 	});
@@ -278,6 +278,16 @@ fn wps_is_offered_by_method_on_every_radio() {
 	check_act("wps", json!({ "method": "push-button" })).unwrap();
 	let err = check_act("wps", json!({ "method": "nfc" })).unwrap_err();
 	assert_eq!(err.at, "$['method']");
+}
+
+#[test]
+fn wps_may_name_any_network() {
+	check_act("wps", json!({ "method": "pin", "ssid": "Clinic" })).unwrap();
+	check_act(
+		"wps",
+		json!({ "interface": "wlan1", "method": "push-button", "ssid": "Anything at all" }),
+	)
+	.unwrap();
 }
 
 #[test]

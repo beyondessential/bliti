@@ -807,7 +807,11 @@ async fn wps_passes_on_the_pin_and_answers_the_joined_document() {
 		unreachable!()
 	};
 	let (pin, generated) = oneshot::channel();
-	let joined = rig.stack.wps("pin", None, &base, pin).await.unwrap();
+	let joined = rig
+		.stack
+		.wps(&asked("pin", None, None), &base, pin)
+		.await
+		.unwrap();
 	assert_eq!(generated.await.unwrap(), "12345670");
 	assert_eq!(
 		Json::Object(joined),
@@ -830,13 +834,99 @@ async fn wps_passes_on_the_pin_and_answers_the_joined_document() {
 	assert_eq!(rig.states()[0], json!({"is": "default-route"}));
 }
 
+fn asked(method: &str, interface: Option<&str>, ssid: Option<&str>) -> Wps {
+	Wps {
+		method: method.to_owned(),
+		interface: interface.map(ToOwned::to_owned),
+		ssid: ssid.map(ToOwned::to_owned),
+	}
+}
+
+/// Have WPS hand over `ssid`'s credentials, and joining it answer as a network in range would.
+async fn wps_yields(rig: &Rig, ssid: &str) {
+	rig.answers("192.0.2.1");
+	*rig.iwd.wps.lock().unwrap() = Some(Ok(joined(ssid, 2437)));
+	*rig.iwd.passphrase.lock().unwrap() = Some("correct horse".into());
+	rig.hears(ssid, Ok(joined(ssid, 2437)));
+	rig.see([
+		Observation::Station {
+			interface: "wld0".into(),
+			station: Station::Connected(joined(ssid, 2437)),
+		},
+		leased("wld0", "192.0.2.10"),
+		routed("wld0", "192.0.2.1"),
+	])
+	.await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn wps_for_a_named_network_joins_it_where_it_is_what_was_handed_over() {
+	let mut rig = Rig::wireless().await;
+	wps_yields(&rig, "clinic").await;
+	let (pin, _) = oneshot::channel();
+	let joined = rig
+		.stack
+		.wps(
+			&asked("push-button", None, Some("clinic")),
+			&Map::new(),
+			pin,
+		)
+		.await
+		.unwrap();
+	assert_eq!(joined["attachments"][0]["ssid"], "clinic");
+	assert!(rig.iwd.known.lock().unwrap().contains("clinic"));
+	assert!(!rig.asked().iter().any(|call| call.starts_with("forget")));
+}
+
+/// iwd's WPS takes no network, so what it hands over for another is forgotten rather than joined
+/// (WLAN), refused at the act's `ssid` with no stage reached (CFG).
+#[tokio::test(start_paused = true)]
+async fn wps_for_a_named_network_forgets_credentials_for_another() {
+	let mut rig = Rig::wireless().await;
+	rig.stack
+		.restore(&document(json!({"attachments": [dynamic()]})))
+		.await
+		.unwrap();
+	wps_yields(&rig, "office").await;
+	let before = rig.calls();
+	let Json::Object(base) = json!({"attachments": [dynamic()]}) else {
+		unreachable!()
+	};
+	let (pin, _) = oneshot::channel();
+	let refused = rig
+		.stack
+		.wps(
+			&asked("push-button", Some("wld0"), Some("clinic")),
+			&base,
+			pin,
+		)
+		.await
+		.unwrap_err();
+	assert_eq!(refused.at, "$['ssid']");
+	assert_eq!(refused.reached, None);
+	assert!(
+		refused.reason.contains("\"office\"") && refused.reason.contains("\"clinic\""),
+		"{}",
+		refused.reason
+	);
+	let asked = rig.asked();
+	let wps = asked.iter().position(|call| call == "push-button wld0");
+	let forgot = asked.iter().position(|call| call == "forget office");
+	assert!(wps.is_some() && forgot > wps, "{asked:?}");
+	assert!(
+		rig.iwd.known.lock().unwrap().is_empty(),
+		"nothing of them kept"
+	);
+	assert_eq!(rig.calls(), before, "nothing was applied");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_wps_join_that_finds_nothing_fails_at_carrier() {
 	let mut rig = Rig::wireless().await;
 	let (pin, _) = oneshot::channel();
 	let failed = rig
 		.stack
-		.wps("push-button", Some("wld0"), &Map::new(), pin)
+		.wps(&asked("push-button", Some("wld0"), None), &Map::new(), pin)
 		.await
 		.unwrap_err();
 	assert_eq!(failed.reached.as_deref(), Some("carrier"));

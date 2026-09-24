@@ -27,7 +27,7 @@ use super::{
 	observe::{Air, Gateway, Iwd, Observation},
 	probe::{self, RadioInfo},
 	render, select,
-	session::{Backend, Inert},
+	session::{Backend, Inert, Wps},
 };
 
 pub use self::report::Report;
@@ -274,12 +274,11 @@ impl Backend for Stack {
 
 	async fn wps(
 		&mut self,
-		method: &str,
-		interface: Option<&str>,
+		asked: &Wps,
 		base: &Map<String, Json>,
 		pin: oneshot::Sender<String>,
 	) -> Result<Map<String, Json>, Invalid> {
-		acts::wps(self, method, interface, base, pin).await
+		acts::wps(self, asked, base, pin).await
 	}
 }
 
@@ -356,14 +355,13 @@ impl Backend for Chosen {
 
 	async fn wps(
 		&mut self,
-		method: &str,
-		interface: Option<&str>,
+		asked: &Wps,
 		base: &Map<String, Json>,
 		pin: oneshot::Sender<String>,
 	) -> Result<Map<String, Json>, Invalid> {
 		match self {
-			Self::Inert(backend) => backend.wps(method, interface, base, pin).await,
-			Self::Stack(backend) => backend.wps(method, interface, base, pin).await,
+			Self::Inert(backend) => backend.wps(asked, base, pin).await,
+			Self::Stack(backend) => backend.wps(asked, base, pin).await,
 		}
 	}
 }

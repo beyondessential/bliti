@@ -184,7 +184,10 @@ fn acts(radios: &[RadioInfo], backend: &Backend) -> Map<String, Json> {
 	let mut acts = Map::new();
 	let scan = keyed(&|radio| radio.scan.then(|| json!({})));
 	let survey = keyed(&|radio| radio.survey.then(|| json!({})));
-	let wps = keyed(&|_| (!backend.wps.is_empty()).then(|| json!({ "method": backend.wps })));
+	// Any network may be named: the device holds the join to it on what the exchange yields (WLAN).
+	let wps = keyed(&|_| {
+		(!backend.wps.is_empty()).then(|| json!({ "method": backend.wps, "ssid": true }))
+	});
 	for (act, value) in [("scan", scan), ("survey", survey), ("wps", wps)] {
 		if let Some(value) = value {
 			acts.insert(act.into(), value);

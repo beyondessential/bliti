@@ -438,9 +438,22 @@ impl ConfigurationHandle {
 	}
 
 	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN), on one wireless interface or,
-	/// where none is named, on one the device chooses.
-	pub fn wps(&self, method: String, interface: Option<String>) -> Result<(), JsError> {
-		self.send(Message::Wps { method, interface }.to_json())
+	/// where none is named, on one the device chooses, for the network `ssid` names or, where none is
+	/// named, for whichever the access point hands over.
+	pub fn wps(
+		&self,
+		method: String,
+		interface: Option<String>,
+		ssid: Option<String>,
+	) -> Result<(), JsError> {
+		self.send(
+			Message::Wps {
+				method,
+				interface,
+				ssid,
+			}
+			.to_json(),
+		)
 	}
 
 	/// End the session. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.

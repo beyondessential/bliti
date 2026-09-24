@@ -92,6 +92,7 @@ async fn an_act_not_offered_is_invalid_at_the_act_or_the_member_at_fault() {
 		Message::Wps {
 			method: "nfc".to_owned(),
 			interface: None,
+			ssid: None,
 		},
 	)
 	.await;
@@ -104,12 +105,34 @@ async fn an_act_not_offered_is_invalid_at_the_act_or_the_member_at_fault() {
 		Message::Wps {
 			method: "push-button".to_owned(),
 			interface: Some("wlx00c0caa1b2c3".to_owned()),
+			ssid: None,
 		},
 	)
 	.await;
 	assert!(matches!(
 		recv(&mut client).await,
 		Message::Invalid { at, reached: None, .. } if at == "$['interface']"
+	));
+
+	// A network named where the device joins by WPS for none in particular.
+	let mut unnamed = capabilities();
+	unnamed["acts"]["wps"]["interface"]["wlan0"]
+		.as_object_mut()
+		.unwrap()
+		.remove("ssid");
+	device.log.capabilities(unnamed);
+	send(
+		&mut client,
+		Message::Wps {
+			method: "push-button".to_owned(),
+			interface: None,
+			ssid: Some("Clinic".to_owned()),
+		},
+	)
+	.await;
+	assert!(matches!(
+		recv(&mut client).await,
+		Message::Invalid { at, reached: None, .. } if at == "$['ssid']"
 	));
 
 	// An act the device does not offer at all.

@@ -9,7 +9,7 @@ use crate::network::{
 	observe::{Iwd, WpsFailed, channel},
 	probe::RadioInfo,
 	select::Stage,
-	session::Backend,
+	session::{Backend, Wps},
 };
 
 /// An act that could not be carried out, before anything was applied.
@@ -132,13 +132,16 @@ pub(super) async fn survey(
 }
 
 /// Join by WPS, then apply `base` with the joined network added first, as a proposal (CFG).
+///
+/// iwd's WPS takes no network, so a join for a named network is held to it on what the exchange
+/// yielded: credentials for any other are forgotten before the radio goes back (WLAN).
 pub(super) async fn wps(
 	stack: &mut Stack,
-	method: &str,
-	interface: Option<&str>,
+	asked: &Wps,
 	base: &Map<String, Json>,
 	pin: oneshot::Sender<String>,
 ) -> Result<Map<String, Json>, Invalid> {
+	let (method, interface) = (asked.method.as_str(), asked.interface.as_deref());
 	let Some(station) = radios(&stack.shared, interface, |_| true)
 		.first()
 		.map(|radio| radio.station.clone())
@@ -176,6 +179,31 @@ pub(super) async fn wps(
 		};
 		stage.failed(path(&[]), format!("WPS on {station} failed: {reason}"))
 	})?;
+	if let Some(ssid) = asked.ssid.as_deref()
+		&& joined.ssid != ssid
+	{
+		// spec: WLAN
+		let _ = iwd.disconnect(&station).await;
+		let forgotten = iwd.forget(&joined.ssid).await;
+		hold.finished();
+		let handed = format!(
+			"the access point handed over credentials for {:?}, not {ssid:?}",
+			joined.ssid
+		);
+		let reason = match forgotten {
+			Ok(()) => format!("{handed}, and they were discarded"),
+			Err(error) => {
+				tracing::error!(
+					ssid = joined.ssid,
+					error,
+					"could not forget a network WPS joined"
+				);
+				format!("{handed}, and discarding them failed: {error}")
+			}
+		};
+		// Not the joined network's verification failing, so it reaches no stage (CFG).
+		return Err(refused(&[Segment::Name("ssid")], reason));
+	}
 	hold.finished();
 
 	// Not the joined network's verification failing, so it reaches no stage (CFG).

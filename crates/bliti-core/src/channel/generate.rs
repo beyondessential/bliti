@@ -167,10 +167,12 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => (
 			prop::sample::select(vec!["push-button", "pin"]),
 			prop::option::of("[a-z0-9]{1,15}"),
+			prop::option::of("[a-zA-Z0-9 -]{1,32}"),
 		)
-			.prop_map(|(method, interface)| Message::Wps {
+			.prop_map(|(method, interface, ssid)| Message::Wps {
 				method: method.to_owned(),
 				interface,
+				ssid,
 			}),
 		1 => prop::collection::vec(json(), 0..3)
 			.prop_map(|access_points| Message::Networks { access_points }),
@@ -252,6 +254,7 @@ mod tests {
 	#[test]
 	fn the_configuration_optional_members_are_reached() {
 		let (mut capabilities, mut reached, mut addressed, mut unaddressed) = (0, 0, 0, 0);
+		let (mut named, mut unnamed) = (0, 0);
 		for message in sample(4000) {
 			match &message {
 				Message::Configuration {
@@ -272,6 +275,13 @@ mod tests {
 					} else {
 						unaddressed += 1;
 					}
+					if let Message::Wps { ssid, .. } = &message {
+						if ssid.is_some() {
+							named += 1;
+						} else {
+							unnamed += 1;
+						}
+					}
 				}
 				_ => {}
 			}
@@ -283,6 +293,8 @@ mod tests {
 		assert!(reached > 20, "failures carrying a stage: {reached}");
 		assert!(addressed > 20, "acts naming an interface: {addressed}");
 		assert!(unaddressed > 20, "acts naming none: {unaddressed}");
+		assert!(named > 20, "joins by WPS naming a network: {named}");
+		assert!(unnamed > 20, "joins by WPS naming none: {unnamed}");
 	}
 
 	/// Every type this build knows is generated. A type in the set but not in the strategy is a type

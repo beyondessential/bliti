@@ -60,22 +60,34 @@ pub trait Backend: Send + 'static {
 		interface: Option<&str>,
 	) -> impl Future<Output = Result<Option<Map<String, Json>>, Invalid>> + Send;
 
-	/// Join a wireless network by WPS, leaving the result applied and unrecorded like any proposal.
+	/// Join a wireless network by WPS as `asked`, leaving the result applied and unrecorded like any
+	/// proposal.
 	///
 	/// `base` is the document in force; the answer is that document with the joined network added as a
 	/// candidate carrying the credentials WPS yielded. Dropping the future aborts the attempt.
 	///
-	/// `interface` names the radio to join on; unset, the backend chooses one offering `method`.
+	/// Where `asked` names an `ssid`, credentials for any other network are discarded, leaving nothing
+	/// of them behind, and the join refused at `$['ssid']` (WLAN).
 	///
 	/// Joining by PIN, the backend sends the PIN it generated on `pin` as soon as it has one, for the
 	/// session to pass to the operator while the join goes on. Push-button drops it unsent.
 	fn wps(
 		&mut self,
-		method: &str,
-		interface: Option<&str>,
+		asked: &Wps,
 		base: &Map<String, Json>,
 		pin: oneshot::Sender<String>,
 	) -> impl Future<Output = Result<Map<String, Json>, Invalid>> + Send;
+}
+
+/// A `wps` act, as the session hands it to the backend (CFG).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wps {
+	/// `push-button` or `pin`.
+	pub method: String,
+	/// The radio to join on; unset, the backend chooses one offering `method`.
+	pub interface: Option<String>,
+	/// The one network whose credentials may be accepted; unset, any.
+	pub ssid: Option<String>,
 }
 
 /// A candidate's state as an entry of `state` (CFG).
@@ -155,8 +167,7 @@ impl Backend for Inert {
 
 	async fn wps(
 		&mut self,
-		_method: &str,
-		_interface: Option<&str>,
+		_asked: &Wps,
 		_base: &Map<String, Json>,
 		_pin: oneshot::Sender<String>,
 	) -> Result<Map<String, Json>, Invalid> {

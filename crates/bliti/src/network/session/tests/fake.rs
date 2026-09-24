@@ -9,7 +9,10 @@ use bliti_core::channel::config::{Document, Invalid, path};
 use serde_json::{Map, Value as Json, json};
 use tokio::sync::{oneshot, watch};
 
-use super::{super::Backend, object};
+use super::{
+	super::{Backend, Wps},
+	object,
+};
 
 /// What the fake backend was asked to do, in order.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +21,7 @@ pub enum Call {
 	/// An apply whose future was dropped before it finished.
 	Aborted,
 	Restore(Document),
-	Wps(String, Option<String>),
+	Wps(Wps),
 }
 
 /// How the fake answers `apply`.
@@ -87,7 +90,7 @@ pub fn capabilities() -> Map<String, Json> {
 		"acts": {
 			"scan": {"interface": {"wlan0": {}, "wlx00c0caa1b2c3": {}}},
 			"survey": {"interface": {"wlan0": {}}},
-			"wps": {"interface": {"wlan0": {"method": ["push-button", "pin"]}}},
+			"wps": {"interface": {"wlan0": {"method": ["push-button", "pin"], "ssid": true}}},
 		},
 	}))
 }
@@ -248,18 +251,14 @@ impl Backend for Fake {
 
 	async fn wps(
 		&mut self,
-		method: &str,
-		interface: Option<&str>,
+		asked: &Wps,
 		_base: &Map<String, Json>,
 		pin: oneshot::Sender<String>,
 	) -> Result<Map<String, Json>, Invalid> {
 		let (joined, hang) = {
 			let mut shared = self.0.lock().unwrap();
-			shared.calls.push(Call::Wps(
-				method.to_owned(),
-				interface.map(ToOwned::to_owned),
-			));
-			if method == "pin"
+			shared.calls.push(Call::Wps(asked.clone()));
+			if asked.method == "pin"
 				&& let Some(generated) = shared.pin.clone()
 			{
 				let _ = pin.send(generated);

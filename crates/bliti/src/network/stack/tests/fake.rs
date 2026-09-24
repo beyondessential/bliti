@@ -110,6 +110,8 @@ pub struct FakeIwd {
 	pub wps: Mutex<Option<Result<Joined, WpsFailed>>>,
 	/// What a WPS join left behind.
 	pub passphrase: Mutex<Option<String>>,
+	/// The networks iwd holds credentials for from a WPS join, until forgotten.
+	pub known: Mutex<BTreeSet<String>>,
 	pub calls: Mutex<Vec<String>>,
 }
 
@@ -119,10 +121,14 @@ impl FakeIwd {
 	}
 
 	fn wps_result(&self) -> Result<Joined, WpsFailed> {
-		self.wps.lock().unwrap().clone().unwrap_or(Err(WpsFailed {
+		let result = self.wps.lock().unwrap().clone().unwrap_or(Err(WpsFailed {
 			found: false,
 			reason: "no access point in push-button mode".into(),
-		}))
+		}));
+		if let Ok(joined) = &result {
+			self.known.lock().unwrap().insert(joined.ssid.clone());
+		}
+		result
 	}
 }
 
@@ -185,6 +191,12 @@ impl crate::network::observe::Iwd for FakeIwd {
 	fn passphrase(&self, _ssid: &str) -> BoxFuture<'static, Result<String, String>> {
 		let passphrase = self.passphrase.lock().unwrap().clone();
 		Box::pin(async move { passphrase.ok_or_else(|| "a raw key".to_owned()) })
+	}
+
+	fn forget(&self, ssid: &str) -> BoxFuture<'static, Result<(), String>> {
+		self.called(format!("forget {ssid}"));
+		self.known.lock().unwrap().remove(ssid);
+		Box::pin(async { Ok(()) })
 	}
 }
 

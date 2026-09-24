@@ -176,6 +176,10 @@ pub trait Iwd: Send + Sync + 'static {
 
 	/// The passphrase iwd holds for the pre-shared-key network `ssid`, as a WPS join left it.
 	fn passphrase(&self, ssid: &str) -> BoxFuture<'static, Result<String, String>>;
+
+	/// Have iwd forget the pre-shared-key network `ssid`, as a WPS join left it, so none of its
+	/// credentials remain. Succeeds where iwd holds nothing for it.
+	fn forget(&self, ssid: &str) -> BoxFuture<'static, Result<(), String>>;
 }
 
 /// Why a WPS join failed.

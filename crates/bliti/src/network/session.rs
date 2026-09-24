@@ -39,7 +39,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard, oneshot, watch};
 use crate::session::SessionError;
 
 pub use self::{
-	backend::{Backend, Inert, entry},
+	backend::{Backend, Inert, Wps, entry},
 	store::{Store, default_path},
 };
 
@@ -217,7 +217,7 @@ struct Open<B: Backend> {
 /// What a session does to the running system, which a `discard` or a newer one interrupts.
 enum Attempt {
 	Propose(Map<String, Json>),
-	Wps(String, Option<String>),
+	Wps(Wps),
 }
 
 /// How an attempt ended.
@@ -353,8 +353,16 @@ async fn verify<T>(
 				Some(Message::Configuration { document, .. }) => {
 					return Ok(Outcome::Superseded(Attempt::Propose(document)));
 				}
-				Some(Message::Wps { method, interface }) => {
-					return Ok(Outcome::Superseded(Attempt::Wps(method, interface)));
+				Some(Message::Wps {
+					method,
+					interface,
+					ssid,
+				}) => {
+					return Ok(Outcome::Superseded(Attempt::Wps(Wps {
+						method,
+						interface,
+						ssid,
+					})));
 				}
 				Some(other) => deferred.push_back(other),
 			},
@@ -549,9 +557,18 @@ impl<B: Backend> Open<B> {
 					.attempt(Attempt::Propose(document), writer, incoming, deferred)
 					.await;
 			}
-			Message::Wps { method, interface } => {
+			Message::Wps {
+				method,
+				interface,
+				ssid,
+			} => {
+				let asked = Wps {
+					method,
+					interface,
+					ssid,
+				};
 				return self
-					.attempt(Attempt::Wps(method, interface), writer, incoming, deferred)
+					.attempt(Attempt::Wps(asked), writer, incoming, deferred)
 					.await;
 			}
 			Message::Confirm => self.confirm(writer).await?,
@@ -685,29 +702,32 @@ impl<B: Backend> Open<B> {
 						Outcome::Ended => Outcome::Ended,
 					}
 				}
-				Attempt::Wps(method, interface) => {
+				Attempt::Wps(asked) => {
 					let capabilities = self.state().backend.capabilities();
 					if let Err(invalid) = offered(
 						&capabilities,
 						"wps",
 						&[
-							("method", Some(&method)),
-							("interface", interface.as_deref()),
+							("method", Some(&asked.method)),
+							("interface", asked.interface.as_deref()),
+							("ssid", asked.ssid.as_deref()),
 						],
 					) {
 						self.refuse(writer, invalid).await?;
 						continue;
 					}
-					tracing::info!(%method, ?interface, "joining by WPS");
+					tracing::info!(
+						method = asked.method,
+						interface = ?asked.interface,
+						ssid = ?asked.ssid,
+						"joining by WPS"
+					);
 					let base = self.in_force();
 					self.applied = None;
 					self.set_provisional(true);
 					self.sent = None;
 					let (pin, generated) = oneshot::channel();
-					let joining =
-						self.state()
-							.backend
-							.wps(&method, interface.as_deref(), &base, pin);
+					let joining = self.state().backend.wps(&asked, &base, pin);
 					match verify(joining, Some(generated), writer, incoming, deferred).await? {
 						Outcome::Finished(Ok(raw)) => {
 							Outcome::Finished(Proposal::parse(raw).map(|proposal| (proposal, true)))

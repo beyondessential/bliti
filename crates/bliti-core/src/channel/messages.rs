@@ -124,6 +124,8 @@ pub enum Message {
 		method: String,
 		/// The wireless interface to join on; the device chooses where absent.
 		interface: Option<String>,
+		/// The one network whose credentials the device may accept; any where absent.
+		ssid: Option<String>,
 	},
 
 	/// A device's answer to `scan`: one entry per access point each radio scanned heard (CFG), kept
@@ -240,10 +242,17 @@ impl Message {
 				map.insert("type".to_owned(), "survey".into());
 				insert_interface(&mut map, interface);
 			}
-			Self::Wps { method, interface } => {
+			Self::Wps {
+				method,
+				interface,
+				ssid,
+			} => {
 				map.insert("type".to_owned(), "wps".into());
 				map.insert("method".to_owned(), method.clone().into());
 				insert_interface(&mut map, interface);
+				if let Some(ssid) = ssid {
+					map.insert("ssid".to_owned(), ssid.clone().into());
+				}
 			}
 			Self::Networks { access_points } => {
 				map.insert("type".to_owned(), "networks".into());
@@ -345,6 +354,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"wps" => Ok(Message::Wps {
 				method: string(&map, "method")?,
 				interface: optional_string(&map, "interface")?,
+				ssid: optional_string(&map, "ssid")?,
 			}),
 			"networks" => Ok(Message::Networks {
 				access_points: array(&map, "access-points")?,
@@ -584,6 +594,11 @@ mod tests {
 				"fraction",
 				"no answer from the gauge",
 			)),
+			Message::Wps {
+				method: "push-button".to_owned(),
+				interface: Some("wlan0".to_owned()),
+				ssid: Some("clinic".to_owned()),
+			},
 		];
 		for message in &messages {
 			assert_eq!(
@@ -592,6 +607,29 @@ mod tests {
 				"{message:?}"
 			);
 		}
+	}
+
+	/// `wps` names the network it is for by `ssid`, and leaves it out where it is for any (CFG).
+	#[test]
+	fn wps_carries_its_ssid_where_it_names_one() {
+		let named = Message::Wps {
+			method: "pin".to_owned(),
+			interface: None,
+			ssid: Some("clinic".to_owned()),
+		};
+		assert_eq!(
+			serde_json::from_slice::<Json>(&named.to_json()).unwrap(),
+			serde_json::json!({"type": "wps", "method": "pin", "ssid": "clinic"})
+		);
+		assert!(matches!(
+			parse(r#"{"type":"wps","method":"pin","ssid":"clinic"}"#).unwrap(),
+			Reading::Message(message) if message == named
+		));
+		assert!(matches!(
+			parse(r#"{"type":"wps","method":"pin"}"#).unwrap(),
+			Reading::Message(Message::Wps { ssid: None, .. })
+		));
+		assert!(parse(r#"{"type":"wps","method":"pin","ssid":7}"#).is_err());
 	}
 
 	/// `subscribe` pins its selector critical: arriving plain is a fault, as is any other critical

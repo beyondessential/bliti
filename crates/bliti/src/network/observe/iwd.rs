@@ -6,9 +6,9 @@
 //! `doc/station-diagnostic-api.txt` in iwd's tree): `Station.State`, `Station.Scanning`,
 //! `Station.ConnectedNetwork`, `Station.Scan`, `Station.GetOrderedNetworks`, `Station.Disconnect`,
 //! `Station.ConnectHiddenNetwork`, `Network.Connect` with `Name`, `Type` and `Device`, `Device.Name`,
-//! `StationDiagnostic.GetDiagnostics` for `Frequency` and `Security`, and `SimpleConfiguration`'s
-//! `PushButton`, `GeneratePin`, `StartPin` and `Cancel`, and `AgentManager.RegisterAgent` for the
-//! [`agent`].
+//! `StationDiagnostic.GetDiagnostics` for `Frequency` and `Security`, `SimpleConfiguration`'s
+//! `PushButton`, `GeneratePin`, `StartPin` and `Cancel`, `KnownNetwork.Forget` with `Name` and
+//! `Type`, and `AgentManager.RegisterAgent` for the [`agent`].
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -40,6 +40,7 @@ const NETWORK: &str = "net.connman.iwd.Network";
 const DEVICE: &str = "net.connman.iwd.Device";
 const DIAGNOSTIC: &str = "net.connman.iwd.StationDiagnostic";
 const WPS: &str = "net.connman.iwd.SimpleConfiguration";
+const KNOWN_NETWORK: &str = "net.connman.iwd.KnownNetwork";
 const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
 const OBJECT_MANAGER: &str = "org.freedesktop.DBus.ObjectManager";
 
@@ -591,6 +592,34 @@ impl super::Iwd for Iwd {
 					.proxy(path, CALL)
 					.method_call::<(), _, _, _>(WPS, "Cancel", ())
 					.await;
+			}
+		})
+	}
+
+	fn forget(&self, ssid: &str) -> BoxFuture<'static, Result<(), String>> {
+		let (iwd, ssid) = (self.clone(), ssid.to_owned());
+		let file: PathBuf = render::known_psk(&self.paths, &ssid);
+		Box::pin(async move {
+			let known = iwd.objects().await?.into_iter().find(|(_, interfaces)| {
+				interfaces.get(KNOWN_NETWORK).is_some_and(|known| {
+					string(known, "Name").as_deref() == Some(ssid.as_str())
+						&& string(known, "Type").as_deref() == Some("psk")
+				})
+			});
+			let forgotten = match known {
+				Some((path, _)) => iwd
+					.proxy(path, CALL)
+					.method_call::<(), _, _, _>(KNOWN_NETWORK, "Forget", ())
+					.await
+					.map_err(failed),
+				None => Ok(()),
+			};
+			// iwd removes the file as it forgets; one it left, or never loaded, goes here, and iwd,
+			// which watches its directory, drops what it held of it.
+			match std::fs::remove_file(&file) {
+				Ok(()) => Ok(()),
+				Err(error) if error.kind() == std::io::ErrorKind::NotFound => forgotten,
+				Err(error) => Err(format!("{} could not be removed: {error}", file.display())),
 			}
 		})
 	}
