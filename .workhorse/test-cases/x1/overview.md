@@ -28,6 +28,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A session the daemon drops when its client unsubscribes ends its configuration session, so the next client is not told the device is busy. Verifies spec: CFG
 - [ ] A client that walks away with a proposal applied and its feed closed leaves the device back on its recorded configuration, on real hardware. Verifies spec: CFG
 - [x] An act on an adapter or with a method the device did not offer is invalid at the act's own path. Verifies spec: NET, CFG
+- [x] A `wps` naming an `ssid` where the device does not offer one is invalid at `$['ssid']`, and nothing is joined. Verifies spec: NET, CFG
 - [x] `applied` carries capabilities only where applying changed them, and the next `state` carries them where a revert changed them back. Verifies spec: CFG
 - [x] `state` follows the opening configuration, each change, the proposal once applied, and the recorded configuration after a revert, and is held while a proposal is verified. Verifies spec: CFG
 - [x] Joining by WPS PIN sends the PIN before the joined result, while the join is under way. Verifies spec: CFG
@@ -77,6 +78,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
 - [x] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
 - [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
+- [x] Joining by WPS for a named network joins it where the access point hands over that network's credentials. Verifies spec: WLAN, CFG
+- [x] Joining by WPS for a named network refuses credentials for another network at `$['ssid']` with no stage reached and a reason naming the network handed over, forgetting them and adding nothing to the configuration. Verifies spec: WLAN, CFG
+- [ ] Joining by WPS for a named network with another access point's button pressed leaves iwd holding nothing for that network and the device on its recorded configuration, on real hardware. Verifies spec: WLAN, CFG
 - [ ] A device does not join a network that cannot authenticate its access point to it, and says why in terms an operator can act on. Verifies spec: WLAN
 - [ ] An access point advertising both an unauthenticated network and an authenticated one is joined only on the authenticated one. Verifies spec: WLAN
 - [ ] A device's own hotspot offers no WPS to its clients. Verifies spec: WLAN
@@ -132,6 +136,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] With several radios, each wireless candidate and the hotspot offer an adapter, and only what that adapter supports. Verifies spec: NSCR, NET
 - [ ] The siting view counts every channel a wide access point spans. Verifies spec: NSCR
 - [ ] A survey can go to one adapter, and WPS can join on a chosen adapter. Verifies spec: NSCR
+- [x] A network the scan lists by SSID, and the device can join, offers joining it by WPS for that network alone, on the adapter the candidate is pinned to, where the device takes a named network; a refusal names the network and shows the device's reason. Verifies spec: NSCR
 
 ## Reporting
 
