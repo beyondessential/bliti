@@ -607,6 +607,54 @@ async fn a_station_knocked_off_as_the_hotspot_starts_joins_again() {
 	assert_eq!(states.borrow().clone().unwrap()[0]["is"], "unavailable");
 }
 
+/// iwd's diagnostics can answer without a frequency. The channel is then read from nl80211, and a
+/// station reported joined with none leaves the hotspot where it is.
+#[tokio::test(start_paused = true)]
+async fn a_join_reported_without_a_channel_takes_it_from_the_radio() {
+	let mut rig = Rig::new(FakeAir {
+		radios: vec![radio()],
+		operating: BTreeMap::from([(
+			"wld0".into(),
+			Operating {
+				frequency: 2412,
+				width: Some(20),
+			},
+		)]),
+		..FakeAir::default()
+	})
+	.await;
+	rig.answers("192.0.2.1");
+	let unknown = Joined {
+		frequency: None,
+		..joined("clinic", 2412)
+	};
+	rig.hears("clinic", Ok(unknown.clone()));
+
+	let proposal = document(json!({
+		"attachments": [clinic()],
+		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+	}));
+	let answer = applying(&mut rig, proposal);
+	idle().await;
+	rig.see([leased("wld0", "192.0.2.10"), routed("wld0", "192.0.2.1")])
+		.await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	assert!(
+		rig.read("hostapd.conf").contains("\nchannel=1\n"),
+		"{}",
+		rig.read("hostapd.conf")
+	);
+
+	rig.system.lock().unwrap().clear();
+	rig.see([Observation::Station {
+		interface: "wld0".into(),
+		station: Station::Connected(unknown),
+	}])
+	.await;
+	idle().await;
+	assert_eq!(rig.calls(), Vec::<String>::new());
+}
+
 /// A client joined on a channel no access point may start on leaves a shared-channel radio's hotspot
 /// no channel to use, which fails the proposal at the hotspot, saying why.
 #[tokio::test(start_paused = true)]

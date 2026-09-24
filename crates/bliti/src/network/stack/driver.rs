@@ -111,6 +111,11 @@ enum Internal {
 		attempt: Attempt,
 		result: Result<Joined, String>,
 	},
+	/// The channel a station operates on, read from nl80211 where iwd did not say.
+	Operating {
+		interface: String,
+		frequency: Option<u32>,
+	},
 	/// A station knocked off its network by the hotspot starting has joined again, or not.
 	Rejoined {
 		attempt: Attempt,
@@ -475,10 +480,9 @@ impl Driver {
 			.map(|joining| joining.target.ssid.clone())
 			.unwrap_or_default();
 		match station {
-			Station::Connected(joined) if joined.ssid == ssid => self.feed(Event::StationChannel {
-				interface,
-				channel: joined.frequency.and_then(render_channel),
-			}),
+			Station::Connected(joined) if joined.ssid == ssid => {
+				self.station_channel(interface, joined.frequency);
+			}
 			Station::Connected(_) | Station::Busy => {}
 			Station::Disconnected if self.bounce.as_ref() == Some(&interface) => {
 				self.bounce = None;
@@ -564,6 +568,16 @@ impl Driver {
 			Internal::Sweep { radio, token } => self.sweep_now(radio, token),
 			Internal::Associated { attempt, result } => self.associated(attempt, result),
 			Internal::Rejoined { attempt, result } => self.rejoined(attempt, result),
+			Internal::Operating {
+				interface,
+				frequency: Some(frequency),
+			} => self.feed(Event::StationChannel {
+				interface,
+				channel: render_channel(frequency),
+			}),
+			Internal::Operating {
+				frequency: None, ..
+			} => {}
 			Internal::Deadline { attempt, timer } => self.deadline_passed(attempt, timer),
 			Internal::Probed { attempt, result } => self.probed(attempt, result),
 			Internal::Retry {
@@ -778,6 +792,33 @@ impl Driver {
 			"the hotspot has to share {}'s channel, {name} channel {}, which {why}",
 			radio.station, channel.number
 		))
+	}
+
+	/// Take in the channel `interface` joined on. iwd's diagnostics sometimes answer without a
+	/// frequency, which says nothing about the channel, so nl80211 is asked instead.
+	fn station_channel(&mut self, interface: String, frequency: Option<u32>) {
+		if let Some(frequency) = frequency {
+			self.feed(Event::StationChannel {
+				interface,
+				channel: render_channel(frequency),
+			});
+			return;
+		}
+		let air = self.shared.platform.air.clone();
+		let internal = self.internal.clone();
+		tokio::spawn(async move {
+			let frequency = match air.operating(&interface).await {
+				Ok(operating) => operating.map(|operating| operating.frequency),
+				Err(reason) => {
+					tracing::warn!(interface, reason, "cannot read the station's channel");
+					None
+				}
+			};
+			let _ = internal.send(Internal::Operating {
+				interface,
+				frequency,
+			});
+		});
 	}
 
 	/// Render and apply the decision, where it has changed and no apply is running.

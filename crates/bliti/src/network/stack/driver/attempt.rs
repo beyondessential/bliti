@@ -7,7 +7,7 @@ use bliti_core::channel::config::Segment;
 
 use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE, Scanner};
 use crate::network::{
-	observe::{Joined, NetworkType, Station, render_channel},
+	observe::{Joined, NetworkType, Station},
 	select::{Attempt, Event, Stage},
 	stack::verify::{Addressing, Joining},
 };
@@ -110,10 +110,7 @@ impl Driver {
 		};
 		let interface = check.interface.clone();
 		match result {
-			Ok(joined) => self.feed(Event::StationChannel {
-				interface,
-				channel: joined.frequency.and_then(render_channel),
-			}),
+			Ok(joined) => self.station_channel(interface, joined.frequency),
 			Err(reason) => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
@@ -161,10 +158,7 @@ impl Driver {
 					attempt,
 					stage: Stage::Association,
 				});
-				self.feed(Event::StationChannel {
-					interface,
-					channel: joined.frequency.and_then(render_channel),
-				});
+				self.station_channel(interface, joined.frequency);
 				self.address_deadline(attempt);
 				self.evaluate(attempt);
 			}
