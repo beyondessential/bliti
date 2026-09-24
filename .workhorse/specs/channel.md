@@ -37,7 +37,7 @@ The security properties this upholds, and their limits, are specified in [SEC](s
 
 ## Send rate
 
-A device MUST NOT put more than 40 KiB of notification payload on the air in any one-second window.
+A device MUST NOT put more than 40 KiB of notification payload on the air in any one-second window, across all its channels.
 
 A device that reaches the ceiling MUST hold the remainder until the window allows it, and MUST NOT discard it.
 
@@ -69,6 +69,15 @@ A Noise message is at most 65535 bytes, including its 16-byte authentication tag
 > [!NOTE]
 > A two-byte prefix expresses exactly the range a Noise message can occupy, so a receiver cannot be asked to buffer more than the maximum and needs no rule refusing one.
 > The prefix is also what lets a message exceed the negotiated ATT_MTU.
+
+## Several clients at once
+
+A device MUST serve a channel to each client connected to it, each independently of the others.
+What a client writes MUST reach only that client's channel, and what the device sends on a channel MUST reach only that channel's client.
+A client connecting, failing its handshake, or leaving MUST NOT end or disturb another client's channel.
+
+> [!NOTE]
+> Any number of operators can watch one device at once. Configuring it is exclusive, as [CFG](network/session.md) specifies.
 
 ## The device is a peripheral only
 

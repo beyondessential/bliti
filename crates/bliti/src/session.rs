@@ -32,6 +32,7 @@ use bliti_core::{
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::task::{AbortHandle, JoinSet};
+use tracing::Instrument;
 
 use crate::{
 	facts,
@@ -80,15 +81,18 @@ where
 	tracing::info!("handshake complete");
 
 	let (mut streams, driver) = multiplex(encrypted, Mode::Server);
-	let mut driving = tokio::spawn(async move {
-		if let Err(err) = driver.await {
-			if is_peer_fault(&err) {
-				tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
-			} else {
-				tracing::debug!(%err, "connection closed");
+	let mut driving = tokio::spawn(
+		async move {
+			if let Err(err) = driver.await {
+				if is_peer_fault(&err) {
+					tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
+				} else {
+					tracing::debug!(%err, "connection closed");
+				}
 			}
 		}
-	});
+		.in_current_span(),
+	);
 	// A session can be dropped from outside, as the daemon does when its client unsubscribes, and the
 	// connection must end with it rather than keep serving streams nobody reads.
 	let _driving = AbortOnDrop(driving.abort_handle());
@@ -146,12 +150,15 @@ async fn converse<B: Backend>(
 	{
 		let sampler = sampler.clone();
 		let served = served.clone();
-		tasks.spawn(async move {
-			let mut feed = feed;
-			if let Err(err) = serve_default(&mut feed, &sampler, &served).await {
-				tracing::debug!(%err, "the pushed feed ended");
+		tasks.spawn(
+			async move {
+				let mut feed = feed;
+				if let Err(err) = serve_default(&mut feed, &sampler, &served).await {
+					tracing::debug!(%err, "the pushed feed ended");
+				}
 			}
-		});
+			.in_current_span(),
+		);
 	}
 
 	loop {
@@ -167,16 +174,20 @@ async fn converse<B: Backend>(
 		let sampler = sampler.clone();
 		let served = served.clone();
 		let configurator = configurator.clone();
-		tasks.spawn(async move {
-			if let Err(err) = serve_stream(&mut stream, &sampler, &served, &configurator).await {
-				tracing::debug!(%err, "stream ended");
+		tasks.spawn(
+			async move {
+				if let Err(err) = serve_stream(&mut stream, &sampler, &served, &configurator).await
+				{
+					tracing::debug!(%err, "stream ended");
+				}
 			}
-		});
+			.in_current_span(),
+		);
 	}
 }
 
-/// Aborts a task when dropped.
-struct AbortOnDrop(AbortHandle);
+/// Aborts a task when dropped, so it ends with whatever holds this rather than outliving it.
+pub(crate) struct AbortOnDrop(pub(crate) AbortHandle);
 
 impl Drop for AbortOnDrop {
 	fn drop(&mut self) {

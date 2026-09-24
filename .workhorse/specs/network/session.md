@@ -32,7 +32,7 @@ A device MUST carry `capabilities` on `applied` where applying the proposal chan
 
 A client MUST check what it proposes next against the capabilities it was last sent.
 
-A device MUST serve at most one configuration session at a time, and MUST answer `configure` on a second stream with `busy` while one is open.
+A device MUST serve at most one configuration session at a time across all its channels, and MUST answer `configure` on any other stream, on the same channel or another, with `busy` while one is open.
 
 > [!NOTE]
 > A configuration is a conversation with state rather than a request and its answer, which is why it holds one stream open rather than pairing messages. The channel already offers a bidirectional stream, so nothing is gained by pretending otherwise.

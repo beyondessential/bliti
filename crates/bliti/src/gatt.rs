@@ -7,12 +7,14 @@
 //! later, or in a browser over Web Bluetooth, without changing.
 
 use std::{
+	collections::HashMap,
 	io,
 	pin::Pin,
 	sync::{Arc, Mutex},
 	task::{Context, Poll},
 };
 
+use bluer::Address;
 use futures::{AsyncRead, AsyncWrite, SinkExt, StreamExt, channel::mpsc};
 
 /// How many bytes to put in one notification. The negotiated attribute size is usually larger, but a
@@ -23,35 +25,48 @@ const NOTIFY_CHUNK: usize = 20;
 /// How many chunks to buffer in each direction before applying backpressure.
 const QUEUE_DEPTH: usize = 64;
 
-/// The client-write end, shared with the GATT characteristic callback so that bytes written by a
-/// client reach whichever session is currently running.
+/// The client-write end, shared with the GATT characteristic callback so that bytes a client writes
+/// reach that client's session, and no other (CHN, "Several clients at once").
 #[derive(Clone, Default)]
-pub struct InboundSink(Arc<Mutex<Option<mpsc::Sender<Vec<u8>>>>>);
+pub struct InboundSink(Arc<Mutex<HashMap<Address, mpsc::Sender<Vec<u8>>>>>);
 
 impl InboundSink {
-	/// Deliver bytes written by the client to the running session, if there is one. Bytes arriving
-	/// with no session are dropped: a client that writes before subscribing has not opened a channel.
-	pub fn deliver(&self, bytes: Vec<u8>) {
-		let mut guard = self.0.lock().expect("inbound sink is not poisoned");
-		if let Some(sender) = guard.as_mut() {
+	/// Deliver bytes written by a client to its session, if it has one. Bytes arriving with no
+	/// session are dropped: a client that writes before subscribing has not opened a channel.
+	pub fn deliver(&self, client: Address, bytes: Vec<u8>) {
+		let mut sessions = self.0.lock().expect("inbound sink is not poisoned");
+		if let Some(sender) = sessions.get_mut(&client) {
 			if sender.try_send(bytes).is_err() {
 				// The session has gone away, or is not keeping up. Either way the channel is done.
-				*guard = None;
+				sessions.remove(&client);
 			}
 		}
 	}
 
-	fn install(&self, sender: mpsc::Sender<Vec<u8>>) {
-		*self.0.lock().expect("inbound sink is not poisoned") = Some(sender);
+	/// A client subscribing again replaces its own earlier session, which then reads end of stream.
+	fn install(&self, client: Address, sender: mpsc::Sender<Vec<u8>>) {
+		self.0
+			.lock()
+			.expect("inbound sink is not poisoned")
+			.insert(client, sender);
 	}
 
-	fn clear(&self) {
-		*self.0.lock().expect("inbound sink is not poisoned") = None;
+	/// Stop delivering to `receiver`'s session, unless a later session for the same client has
+	/// already replaced it.
+	fn remove(&self, client: Address, receiver: &mpsc::Receiver<Vec<u8>>) {
+		let mut sessions = self.0.lock().expect("inbound sink is not poisoned");
+		if sessions
+			.get(&client)
+			.is_some_and(|sender| sender.is_connected_to(receiver))
+		{
+			sessions.remove(&client);
+		}
 	}
 }
 
-/// A byte stream over the two characteristics.
+/// A byte stream over the two characteristics, for one client.
 pub struct GattTransport {
+	client: Address,
 	inbound: mpsc::Receiver<Vec<u8>>,
 	outbound: mpsc::Sender<Vec<u8>>,
 	sink: InboundSink,
@@ -60,13 +75,15 @@ pub struct GattTransport {
 }
 
 impl GattTransport {
-	/// Open a transport for one session, returning it alongside the receiver a notifier task drains.
-	pub fn open(sink: &InboundSink) -> (Self, mpsc::Receiver<Vec<u8>>) {
+	/// Open a transport for one client's session, returning it alongside the receiver a notifier task
+	/// drains.
+	pub fn open(sink: &InboundSink, client: Address) -> (Self, mpsc::Receiver<Vec<u8>>) {
 		let (inbound_tx, inbound_rx) = mpsc::channel(QUEUE_DEPTH);
 		let (outbound_tx, outbound_rx) = mpsc::channel(QUEUE_DEPTH);
-		sink.install(inbound_tx);
+		sink.install(client, inbound_tx);
 		(
 			Self {
+				client,
 				inbound: inbound_rx,
 				outbound: outbound_tx,
 				sink: sink.clone(),
@@ -80,8 +97,8 @@ impl GattTransport {
 
 impl Drop for GattTransport {
 	fn drop(&mut self) {
-		// A finished session must not keep receiving a later client's bytes.
-		self.sink.clear();
+		// A finished session must not keep receiving its client's later bytes.
+		self.sink.remove(self.client, &self.inbound);
 	}
 }
 
@@ -160,11 +177,14 @@ mod tests {
 
 	use super::*;
 
+	const A: Address = Address::new([0, 0, 0, 0, 0, 1]);
+	const B: Address = Address::new([0, 0, 0, 0, 0, 2]);
+
 	#[tokio::test]
 	async fn bytes_written_by_a_client_are_read_from_the_transport() {
 		let sink = InboundSink::default();
-		let (mut transport, _outbound) = GattTransport::open(&sink);
-		sink.deliver(b"hello".to_vec());
+		let (mut transport, _outbound) = GattTransport::open(&sink, A);
+		sink.deliver(A, b"hello".to_vec());
 
 		let mut buf = [0u8; 5];
 		transport.read_exact(&mut buf).await.unwrap();
@@ -172,9 +192,55 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn each_client_reaches_only_its_own_session() {
+		let sink = InboundSink::default();
+		let (mut a, _a_out) = GattTransport::open(&sink, A);
+		let (mut b, _b_out) = GattTransport::open(&sink, B);
+		sink.deliver(B, b"from b".to_vec());
+		sink.deliver(A, b"from a".to_vec());
+
+		let mut buf = [0u8; 6];
+		a.read_exact(&mut buf).await.unwrap();
+		assert_eq!(&buf, b"from a");
+		b.read_exact(&mut buf).await.unwrap();
+		assert_eq!(&buf, b"from b");
+	}
+
+	#[tokio::test]
+	async fn one_session_ending_leaves_another_clients_running() {
+		let sink = InboundSink::default();
+		let (a, _a_out) = GattTransport::open(&sink, A);
+		let (mut b, _b_out) = GattTransport::open(&sink, B);
+		drop(a);
+		sink.deliver(B, b"still".to_vec());
+
+		let mut buf = [0u8; 5];
+		b.read_exact(&mut buf).await.unwrap();
+		assert_eq!(&buf, b"still");
+	}
+
+	#[tokio::test]
+	async fn a_replaced_session_ending_leaves_its_replacement_running() {
+		let sink = InboundSink::default();
+		let (mut first, _first_out) = GattTransport::open(&sink, A);
+		let (mut second, _second_out) = GattTransport::open(&sink, A);
+
+		let mut buf = [0u8; 4];
+		assert_eq!(
+			first.read(&mut buf).await.unwrap(),
+			0,
+			"the replaced session reads end of stream"
+		);
+		drop(first);
+		sink.deliver(A, b"next".to_vec());
+		second.read_exact(&mut buf).await.unwrap();
+		assert_eq!(&buf, b"next");
+	}
+
+	#[tokio::test]
 	async fn writes_are_chunked_for_notification() {
 		let sink = InboundSink::default();
-		let (mut transport, mut outbound) = GattTransport::open(&sink);
+		let (mut transport, mut outbound) = GattTransport::open(&sink, A);
 
 		let payload = vec![7u8; NOTIFY_CHUNK * 2 + 5];
 		transport.write_all(&payload).await.unwrap();
@@ -195,19 +261,9 @@ mod tests {
 	#[tokio::test]
 	async fn a_finished_session_stops_receiving_client_bytes() {
 		let sink = InboundSink::default();
-		let (transport, _outbound) = GattTransport::open(&sink);
+		let (transport, _outbound) = GattTransport::open(&sink, A);
 		drop(transport);
 		// Delivering after the session ended must not panic, and must go nowhere.
-		sink.deliver(b"late".to_vec());
-	}
-
-	#[tokio::test]
-	async fn the_client_going_away_ends_the_stream() {
-		let sink = InboundSink::default();
-		let (mut transport, _outbound) = GattTransport::open(&sink);
-		sink.clear();
-
-		let mut buf = [0u8; 4];
-		assert_eq!(transport.read(&mut buf).await.unwrap(), 0);
+		sink.deliver(A, b"late".to_vec());
 	}
 }

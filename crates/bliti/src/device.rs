@@ -2,7 +2,10 @@
 //!
 //! This is the only module that talks to BlueZ. Behaviour is specified in ADV and CHN.
 
-use std::{path::Path, sync::Arc};
+use std::{
+	path::Path,
+	sync::{Arc, Mutex},
+};
 
 use anyhow::{Context, Result};
 use bliti_core::{
@@ -13,12 +16,17 @@ use bliti_core::{
 };
 use bluer::{
 	adv::Advertisement,
-	gatt::local::{
-		Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
-		CharacteristicWrite, CharacteristicWriteMethod, Service,
+	gatt::{
+		CharacteristicWriter,
+		local::{
+			Application, Characteristic, CharacteristicControl, CharacteristicControlEvent,
+			CharacteristicControlHandle, CharacteristicNotify, CharacteristicNotifyMethod,
+			CharacteristicWrite, CharacteristicWriteMethod, Service, characteristic_control,
+		},
 	},
 };
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
+use tracing::Instrument;
 
 use crate::{
 	NetworkBackend, SALT_ROTATION,
@@ -29,7 +37,7 @@ use crate::{
 		stack::{Chosen, Stack},
 		wired,
 	},
-	session,
+	session::{self, AbortOnDrop},
 };
 
 /// Run the daemon until interrupted.
@@ -79,26 +87,34 @@ pub async fn run(
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
 
 	let sink = InboundSink::default();
-	// A legacy controller stops advertising the instant a client connects and does not resume when it
-	// leaves: the advertisement stays registered with BlueZ, so nothing reports an error, but nothing
-	// goes out and the device is undiscoverable to the next client. A session fires this when it ends,
-	// and the loop re-registers the advertisement in response, which is what puts the device back on
-	// the air.
+	// A legacy controller stops advertising the instant a client connects and does not resume by
+	// itself: the advertisement stays registered with BlueZ, so nothing reports an error, but nothing
+	// goes out and the device is undiscoverable to the next client. A session fires this when it opens
+	// and when it ends, and the loop re-registers the advertisement in response, which is what puts the
+	// device back on the air for the next client (ADV, CHN).
 	let readvertise = Arc::new(tokio::sync::Notify::new());
 
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless);
+	let (writes, writes_handle) = characteristic_control();
+	let (subscriptions, subscriptions_handle) = characteristic_control();
 	let _application = adapter
-		.serve_gatt_application(application(
-			&sink,
-			secret.clone(),
-			readvertise.clone(),
-			sampler.clone(),
-			configurator,
-		))
+		.serve_gatt_application(application(writes_handle, subscriptions_handle))
 		.await
 		.context("registering the GATT application")?;
+	let _writes = AbortOnDrop(tokio::spawn(serve_writes(writes, sink.clone())).abort_handle());
+	let _sessions = AbortOnDrop(
+		tokio::spawn(serve_sessions(
+			subscriptions,
+			sink,
+			secret.clone(),
+			readvertise.clone(),
+			sampler,
+			configurator,
+		))
+		.abort_handle(),
+	);
 
 	// A device advertises whenever it is running, re-registering the advertisement each time the salt
 	// rolls and each time a session ends. Anyone in range can connect and begin a handshake that will
@@ -141,10 +157,11 @@ pub async fn run(
 
 		tokio::select! {
 			_ = rotation.tick() => {}
-			// A session just ended, so the controller has stopped advertising: drop this advertisement
-			// and register a fresh one, which resumes it. A fresh salt comes with it, which is harmless.
+			// A client connected or left, so the controller has stopped advertising: drop this
+			// advertisement and register a fresh one, which resumes it. A fresh salt comes with it,
+			// which is harmless.
 			_ = readvertise.notified() => {
-				tracing::info!("a session ended; resuming advertising");
+				tracing::info!("a session opened or ended; resuming advertising");
 			}
 			result = &mut shutdown => {
 				result?;
@@ -179,9 +196,6 @@ async fn shutdown() -> Result<()> {
 	Ok(())
 }
 
-/// How often to check whether the client is still subscribed, while it is sending nothing.
-const UNSUBSCRIBE_POLL: std::time::Duration = std::time::Duration::from_millis(500);
-
 /// How long to leave BlueZ to withdraw an advertisement before registering the next.
 const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
@@ -190,7 +204,7 @@ const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(2
 const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
 const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// What a device may put on the air in any one second (CHN, "Send rate").
+/// What a device may put on the air in any one second, across every session (CHN, "Send rate").
 ///
 /// Payload bytes rather than a count of notifications: a peer may coalesce several of them into one
 /// ATT protocol data unit, so the same count occupies the link for very different lengths of time
@@ -282,19 +296,13 @@ fn advertisement(advertised: Advertised) -> Advertisement {
 /// The GATT application: one service with the characteristic a client writes and the one the device
 /// notifies on.
 ///
-/// `readvertise` is fired whenever a session ends, so the daemon can resume advertising: a client
-/// connecting stops the controller advertising, and only re-registering the advertisement brings it
-/// back.
+/// Both run over sockets BlueZ acquires for each client: one carrying that client's writes in the
+/// order it made them, the other what the device notifies to that client alone. Each arrives on the
+/// characteristic's control, `writes` and `subscriptions` (CHN, "Several clients at once").
 fn application(
-	sink: &InboundSink,
-	secret: Arc<PresenceToken>,
-	readvertise: Arc<tokio::sync::Notify>,
-	sampler: crate::sampler::Sampler,
-	configurator: Configurator<Chosen>,
+	writes: CharacteristicControlHandle,
+	subscriptions: CharacteristicControlHandle,
 ) -> Application {
-	let write_sink = sink.clone();
-	let notify_sink = sink.clone();
-
 	Application {
 		services: vec![Service {
 			uuid: SERVICE_UUID,
@@ -305,89 +313,20 @@ fn application(
 					write: Some(CharacteristicWrite {
 						write: true,
 						write_without_response: true,
-						method: CharacteristicWriteMethod::Fun(Box::new(move |bytes, _req| {
-							let sink = write_sink.clone();
-							async move {
-								sink.deliver(bytes);
-								Ok(())
-							}
-							.boxed()
-						})),
+						method: CharacteristicWriteMethod::Io,
 						..Default::default()
 					}),
+					control_handle: writes,
 					..Default::default()
 				},
 				Characteristic {
 					uuid: CHARACTERISTIC_UUID_DEVICE_TX,
 					notify: Some(CharacteristicNotify {
 						notify: true,
-						method: CharacteristicNotifyMethod::Fun(Box::new(move |mut notifier| {
-							// A client subscribing is what opens a session: it is the point at which
-							// the device can send, so it is the point at which a handshake can run.
-							let sink = notify_sink.clone();
-							let secret = secret.clone();
-							let readvertise = readvertise.clone();
-							let sampler = sampler.clone();
-							let configurator = configurator.clone();
-							async move {
-								tracing::info!("client subscribed; opening a session");
-								let (transport, mut outbound) = GattTransport::open(&sink);
-
-								// Pump the device's bytes out as notifications for as long as the
-								// client is subscribed, and notice when it stops being subscribed.
-								//
-								// Noticing matters: nothing else tells the device the client has gone.
-								// The session reads until its transport ends, and the transport only
-								// ends when the session drops it, so without this the two wait on each
-								// other and the device stays busy with a client that left.
-								let (left, gone) = tokio::sync::oneshot::channel();
-								let pump = tokio::spawn(async move {
-									let mut pacer = Pacer::new(std::time::Instant::now());
-									loop {
-										tokio::select! {
-											chunk = outbound.next() => {
-												let Some(chunk) = chunk else { break };
-
-												// Out of allowance: hold the rest back rather than
-												// pushing on and swamping the link. Nothing is
-												// dropped, only delayed (CHN, "Send rate").
-												let now = std::time::Instant::now();
-												if let Some(wait) = pacer.wait_for(now, chunk.len()) {
-													tokio::time::sleep(wait).await;
-												}
-
-												if notifier.notify(chunk).await.is_err() {
-													break;
-												}
-											}
-											_ = tokio::time::sleep(UNSUBSCRIBE_POLL) => {
-												if notifier.is_stopped() {
-													break;
-												}
-											}
-										}
-									}
-									let _ = left.send(());
-								});
-
-								// A failed handshake is an ordinary outcome: anyone in range can
-								// connect and try, and the device stays reachable afterwards.
-								tokio::select! {
-									result = session::run(transport, &secret, sampler, configurator) => match result {
-										Ok(()) => tracing::info!("session ended"),
-										Err(err) => tracing::info!(%err, "session ended"),
-									},
-									_ = gone => tracing::info!("client unsubscribed; session ended"),
-								}
-								pump.abort();
-								// The controller stopped advertising when this client connected. Now the
-								// session is over, ask the daemon to put the device back on the air.
-								readvertise.notify_one();
-							}
-							.boxed()
-						})),
+						method: CharacteristicNotifyMethod::Io,
 						..Default::default()
 					}),
+					control_handle: subscriptions,
 					..Default::default()
 				},
 			],
@@ -395,6 +334,137 @@ fn application(
 		}],
 		..Default::default()
 	}
+}
+
+/// Hand each client's writes to its session, in the order the client made them.
+///
+/// One socket per client, read by one task, is what keeps them in order: handled one call at a time,
+/// writes a client makes without waiting for a response can be taken up out of order.
+async fn serve_writes(mut writes: CharacteristicControl, sink: InboundSink) {
+	while let Some(event) = writes.next().await {
+		let CharacteristicControlEvent::Write(request) = event else {
+			continue;
+		};
+		let client = request.device_address();
+		let reader = match request.accept() {
+			Ok(reader) => reader,
+			Err(err) => {
+				tracing::warn!(%client, %err, "could not take a client's writes");
+				continue;
+			}
+		};
+		let sink = sink.clone();
+		tokio::spawn(async move {
+			// An empty read is the socket closing, as the client disconnects.
+			while let Ok(bytes) = reader.recv().await {
+				if bytes.is_empty() {
+					break;
+				}
+				sink.deliver(client, bytes);
+			}
+		});
+	}
+	tracing::error!("BlueZ stopped reporting writes; clients can no longer reach a session");
+}
+
+/// Open a session for each client that subscribes, and run them side by side.
+async fn serve_sessions(
+	mut subscriptions: CharacteristicControl,
+	sink: InboundSink,
+	secret: Arc<PresenceToken>,
+	readvertise: Arc<tokio::sync::Notify>,
+	sampler: crate::sampler::Sampler,
+	configurator: Configurator<Chosen>,
+) {
+	// One allowance for the whole device, since every session shares the one radio.
+	let pacer = Arc::new(Mutex::new(Pacer::new(std::time::Instant::now())));
+	while let Some(event) = subscriptions.next().await {
+		let CharacteristicControlEvent::Notify(notifier) = event else {
+			continue;
+		};
+		// Every line a session logs names its client, so sessions running side by side read apart.
+		let span = tracing::info_span!("session", client = %notifier.device_address());
+		tokio::spawn(
+			serve_session(
+				notifier,
+				sink.clone(),
+				secret.clone(),
+				readvertise.clone(),
+				sampler.clone(),
+				configurator.clone(),
+				pacer.clone(),
+			)
+			.instrument(span),
+		);
+	}
+	tracing::error!("BlueZ stopped reporting subscriptions; no further sessions can open");
+}
+
+/// Serve one client's session, from its subscribing to its leaving or the session ending.
+///
+/// `readvertise` is fired as the session opens and as it ends, so the daemon can resume advertising:
+/// a client connecting stops the controller advertising, and only re-registering the advertisement
+/// brings it back.
+async fn serve_session(
+	notifier: CharacteristicWriter,
+	sink: InboundSink,
+	secret: Arc<PresenceToken>,
+	readvertise: Arc<tokio::sync::Notify>,
+	sampler: crate::sampler::Sampler,
+	configurator: Configurator<Chosen>,
+	pacer: Arc<Mutex<Pacer>>,
+) {
+	// A client subscribing is what opens a session: it is the point at which the device can send, so
+	// it is the point at which a handshake can run.
+	let client = notifier.device_address();
+	tracing::info!("client subscribed; opening a session");
+	readvertise.notify_one();
+	let (transport, mut outbound) = GattTransport::open(&sink, client);
+
+	// Pump the device's bytes out as notifications for as long as the client is subscribed, and notice
+	// when it stops being subscribed.
+	//
+	// Noticing matters: nothing else tells the device the client has gone. The session reads until its
+	// transport ends, and the transport only ends when the session drops it, so without this the two
+	// wait on each other and the device stays busy with a client that left.
+	let (left, gone) = tokio::sync::oneshot::channel();
+	let pump = tokio::spawn(async move {
+		loop {
+			tokio::select! {
+				chunk = outbound.next() => {
+					let Some(chunk) = chunk else { break };
+
+					// Out of allowance: hold the rest back rather than pushing on and swamping the
+					// link. Nothing is dropped, only delayed (CHN, "Send rate").
+					let wait = pacer
+						.lock()
+						.expect("the pacer is never held across a panic")
+						.wait_for(std::time::Instant::now(), chunk.len());
+					if let Some(wait) = wait {
+						tokio::time::sleep(wait).await;
+					}
+
+					if notifier.send(&chunk).await.is_err() {
+						break;
+					}
+				}
+				_ = notifier.closed() => break,
+			}
+		}
+		let _ = left.send(());
+	});
+
+	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
+	// stays reachable afterwards.
+	tokio::select! {
+		result = session::run(transport, &secret, sampler, configurator) => match result {
+			Ok(()) => tracing::info!("session ended"),
+			Err(err) => tracing::info!(%err, "session ended"),
+		},
+		_ = gone => tracing::info!("client unsubscribed; session ended"),
+	}
+	pump.abort();
+	readvertise.notify_one();
 }
 
 /// Scan for bliti devices and report which one the QR code in hand belongs to.
