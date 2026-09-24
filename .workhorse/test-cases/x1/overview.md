@@ -101,6 +101,12 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] An unpinned hotspot takes a radio carrying no wireless candidate, stays put while it has no better one, and follows its client's channel on a shared-channel radio. Verifies spec: HOT
 - [x] Capabilities offer only hotspot channels the device can start an access point on and renders. Verifies spec: NET, HOT
 
+- [x] On a shared-channel radio the hotspot starts once its wireless client has associated, on the client's channel, and on its own channel where the client does not join. Verifies spec: HOT
+- [x] A wireless client associated on a channel no access point may start on fails the proposal at the hotspot, naming the channel. Verifies spec: HOT
+- [x] A station knocked off its network as the hotspot starts beside it joins again, and the proposal does not fail for it.
+- [x] A join iwd reports without a channel takes the channel from the radio, and leaves a running hotspot where it is.
+- [ ] A proposal carrying a hotspot and a wireless network on the Pi ends applied, with both up on the network's channel. Verifies spec: HOT
+
 ## The document
 
 - [ ] A wireless network absent from a document is forgotten by the device. Verifies spec: NET
