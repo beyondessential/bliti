@@ -51,10 +51,18 @@ A device MUST run a hotspot whose `band`, `channel` or `channel-width` is set on
 
 A device MUST report, for each radio able to run an access point, whether it runs one beside a wireless client at once, only one at a time, or at once only on one channel.
 
+A wireless candidate could be carried by the radio whose interface it names, or by any radio where it names none.
+
 A radio that runs only one at a time MUST NOT carry the hotspot and a wireless candidate together, and a device MUST treat as invalid a document whose hotspot and a wireless candidate could be carried only by such a radio.
 
-For a radio that runs an access point and a wireless client only on one channel, a device MUST omit `band`, `channel` and `channel-width` from that radio's capabilities, and MUST operate a hotspot it runs there on the channel of the wireless client that radio carries, whenever one is associated.
+For a radio that runs an access point and a wireless client only on one channel, a device MUST offer in that radio's capabilities the `band`, `channel` and `channel-width` values it can run a hotspot on with no wireless client beside it.
+
+Such a radio MUST carry a hotspot setting `band`, `channel` or `channel-width` only where no wireless candidate in the document could be carried by that radio, and MUST then run the hotspot on the channel the document chooses.
+
+A device MUST treat as invalid a document whose hotspot sets any of the three where every radio the hotspot could run on with them is such a radio and could carry a wireless candidate in the document, and MUST name in `at` the first of `band`, `channel` and `channel-width`, in that order, that the hotspot sets.
+
+A device MUST operate a hotspot that sets none of the three on such a radio on the channel of the wireless client that radio carries, whenever one is associated.
 
 > [!NOTE]
-> Reporting the constraint rather than accepting a channel and overriding it is what keeps a setting that appears from being one that silently stops holding, in this case depending on whether a client happened to associate.
+> Holding the choice to what the document says rather than to whether a client happens to be associated is what keeps a setting that appears from being one that silently stops holding.
 > The channel a hotspot is on is reported under [NFO](../device-info.md), so an operator who cannot choose it can still see it.

@@ -83,6 +83,9 @@ A document leaving a keyed member unset MUST be treated as within capabilities w
 
 A device treating a document as outside its capabilities MUST name in `at` the first member capabilities do not cover.
 
+Two rules of [HOT](hotspot.md) relate the hotspot to the wireless candidates, which the mirror cannot express: a radio whose `alongside` is `one-at-a-time` carrying both, and a radio whose `alongside` is `shared-channel` carrying a hotspot's `band`, `channel` or `channel-width` beside a wireless candidate it could carry.
+A device MUST treat a document within the mirror but breaking either rule as outside its capabilities, naming in `at` the member [HOT](hotspot.md) gives.
+
 Each entry of `radios` MUST carry:
 
 | member | type | required | meaning |

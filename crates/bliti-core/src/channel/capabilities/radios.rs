@@ -6,10 +6,17 @@
 
 use serde_json::{Map, Value as Json};
 
-use super::super::config::{Invalid, Segment, path};
+use super::{
+	super::config::{Invalid, Segment, path},
+	check,
+};
 
 /// How a radio runs an access point beside a wireless client, as `alongside` names it (HOT).
 const ONE_AT_A_TIME: &str = "one-at-a-time";
+const SHARED_CHANNEL: &str = "shared-channel";
+
+/// The hotspot's members choosing its channel, in the order a fault names the first set (HOT).
+const CHANNEL: [&str; 3] = ["band", "channel", "channel-width"];
 
 /// Refuse a document whose hotspot and a wireless candidate could be carried only by one radio
 /// running one at a time (HOT).
@@ -51,6 +58,105 @@ pub fn placement(
 		}
 	}
 	Ok(())
+}
+
+/// The radios the hotspot may run on, split by whether it chooses its own channel there (HOT).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChannelChoice {
+	/// Where it chooses its own: a radio not sharing one channel between an access point and a
+	/// client, or a shared-channel one no wireless candidate could be carried by.
+	pub own: Vec<String>,
+	/// Where it follows a client: a shared-channel radio a wireless candidate could be carried by.
+	pub follows: Vec<String>,
+}
+
+/// Where a document's hotspot, or an unpinned one where it carries none, may choose its own band,
+/// channel and width, and where it would follow a client's channel (HOT).
+pub fn channel_choice(
+	document: &Map<String, Json>,
+	capabilities: &Map<String, Json>,
+) -> ChannelChoice {
+	let unpinned = Map::new();
+	let hotspot = document
+		.get("hotspot")
+		.and_then(Json::as_object)
+		.unwrap_or(&unpinned);
+	let radios = Radios::of(capabilities);
+	let candidates: Vec<Candidate<'_>> = wireless(document).collect();
+	let mut choice = ChannelChoice::default();
+	for radio in radios.hotspot(hotspot) {
+		let shared = radios.alongside(radio) == Some(SHARED_CHANNEL)
+			&& candidates
+				.iter()
+				.any(|candidate| candidate.interface.is_none_or(|named| named == radio));
+		let side = if shared {
+			&mut choice.follows
+		} else {
+			&mut choice.own
+		};
+		side.push(radio.to_owned());
+	}
+	choice
+}
+
+/// Refuse a document whose hotspot sets its `band`, `channel` or `channel-width` where every radio
+/// it could run on with them is a shared-channel one a wireless candidate could be carried by (HOT).
+///
+/// The fault is at the first of the three the hotspot sets.
+pub fn own_channel(
+	document: &Map<String, Json>,
+	capabilities: &Map<String, Json>,
+) -> Result<(), Invalid> {
+	let Some(hotspot) = document.get("hotspot").and_then(Json::as_object) else {
+		return Ok(());
+	};
+	let Some(member) = CHANNEL
+		.into_iter()
+		.find(|member| hotspot.get(*member).is_some_and(|value| !value.is_null()))
+	else {
+		return Ok(());
+	};
+	let choice = channel_choice(document, capabilities);
+	if choice.follows.is_empty() {
+		return Ok(());
+	}
+	let fault = |reason| Invalid {
+		at: path(&[Segment::Name("hotspot"), Segment::Name(member)]),
+		reason,
+		reached: None,
+	};
+	if choice.own.is_empty() {
+		return Err(fault(format!(
+			"the hotspot runs on the channel of the wireless client {} carries",
+			choice.follows[0]
+		)));
+	}
+	if named(hotspot).is_some() {
+		return Ok(());
+	}
+
+	// Unpinned, the hotspot must be able to run with its settings on a radio choosing its own.
+	if Radios::of(capabilities).hotspot_keys.is_none() {
+		return Ok(());
+	}
+	let empty = Map::new();
+	let mirror = capabilities
+		.get("document")
+		.and_then(Json::as_object)
+		.unwrap_or(&empty);
+	let admitted = choice.own.iter().any(|radio| {
+		let mut pinned = hotspot.clone();
+		pinned.insert("interface".to_owned(), radio.clone().into());
+		let document = Map::from_iter([("hotspot".to_owned(), Json::Object(pinned))]);
+		check(&document, mirror).is_ok()
+	});
+	if admitted {
+		return Ok(());
+	}
+	Err(fault(format!(
+		"the hotspot chooses its own channel only on {}, which does not offer this",
+		choice.own.join(", ")
+	)))
 }
 
 /// A wireless candidate, as far as the radios it may use go.

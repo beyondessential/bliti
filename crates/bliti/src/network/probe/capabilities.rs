@@ -123,42 +123,43 @@ fn security(radio: &RadioInfo, backend: &Backend) -> Map<String, Json> {
 
 /// What a hotspot on `radio` may carry, or `None` where the radio cannot run one.
 ///
-/// A shared-channel radio's hotspot follows its client's channel, so it offers no `band` (HOT).
-/// Elsewhere each band carries the channels an access point can start on and the renderer renders,
-/// and the widths the radio, the regulatory domain and the stack all allow.
+/// Each band carries the channels an access point can start on and the renderer renders, and the
+/// widths the radio, the regulatory domain and the stack all allow. A shared-channel radio offers
+/// them too, for a hotspot with no client to follow (HOT), and runs one on its client's channel
+/// where it offers none.
 fn hotspot(radio: &RadioInfo, backend: &Backend) -> Option<Map<String, Json>> {
-	match radio.alongside? {
-		Alongside::SharedChannel => Some(Map::new()),
-		Alongside::Independent | Alongside::OneAtATime => {
-			let mut bands = Map::new();
-			for (band, info) in &radio.bands {
-				let Some(carried) = backend.hotspot.get(band) else {
-					continue;
-				};
-				let channels: Vec<_> = info
-					.channels
-					.iter()
-					.filter(|channel| channel.can_start_ap())
-					.filter(|channel| render::hotspot_channel(band.as_str(), channel.number))
-					.collect();
-				let widths: Vec<u32> = info
-					.widths
-					.iter()
-					.copied()
-					.filter(|width| carried.contains(width))
-					.filter(|width| channels.iter().any(|channel| channel.max_width >= *width))
-					.collect();
-				if channels.is_empty() {
-					continue;
-				}
-				let numbers: Vec<u32> = channels.iter().map(|channel| channel.number).collect();
-				bands.insert(
-					band.as_str().into(),
-					json!({ "channel": numbers, "channel-width": widths }),
-				);
-			}
-			(!bands.is_empty()).then(|| Map::from_iter([("band".to_owned(), bands.into())]))
+	let alongside = radio.alongside?;
+	let mut bands = Map::new();
+	for (band, info) in &radio.bands {
+		let Some(carried) = backend.hotspot.get(band) else {
+			continue;
+		};
+		let channels: Vec<_> = info
+			.channels
+			.iter()
+			.filter(|channel| channel.can_start_ap())
+			.filter(|channel| render::hotspot_channel(band.as_str(), channel.number))
+			.collect();
+		let widths: Vec<u32> = info
+			.widths
+			.iter()
+			.copied()
+			.filter(|width| carried.contains(width))
+			.filter(|width| channels.iter().any(|channel| channel.max_width >= *width))
+			.collect();
+		if channels.is_empty() {
+			continue;
 		}
+		let numbers: Vec<u32> = channels.iter().map(|channel| channel.number).collect();
+		bands.insert(
+			band.as_str().into(),
+			json!({ "channel": numbers, "channel-width": widths }),
+		);
+	}
+	match (bands.is_empty(), alongside) {
+		(false, _) => Some(Map::from_iter([("band".to_owned(), bands.into())])),
+		(true, Alongside::SharedChannel) => Some(Map::new()),
+		(true, Alongside::Independent | Alongside::OneAtATime) => None,
 	}
 }
 

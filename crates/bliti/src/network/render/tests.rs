@@ -442,7 +442,7 @@ fn hotspot_overrides() {
 	assert_eq!(invalid_at(&bad, &hardware()), "$['hotspot']['dhcp-range']");
 }
 
-/// On a shared-channel radio the hotspot follows the station and takes no channel of its own.
+/// On a shared-channel radio the hotspot follows the station while one is associated.
 #[test]
 fn shared_channel_hardware_follows_the_station() {
 	let shared = Hardware {
@@ -450,11 +450,11 @@ fn shared_channel_hardware_follows_the_station() {
 		..hardware()
 	};
 	let doc = document(json!({
-		"attachments": [],
+		"attachments": [wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" }))],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let following = Selection {
-		active: vec![],
+		active: vec![0],
 		station_channel: Some(Channel {
 			band: Band::Five,
 			number: 149,
@@ -470,23 +470,42 @@ fn shared_channel_hardware_follows_the_station() {
 	assert!(
 		file(&alone, "hostapd.conf")
 			.contents
-			.contains("channel=6\n")
+			.contains("hw_mode=g\nchannel=6\n")
 	);
+}
 
-	for member in ["band", "channel", "channel-width"] {
-		let value = if member == "band" {
-			json!("2.4ghz")
-		} else {
-			json!(1)
-		};
-		let mut hotspot = json!({ "ssid": "bliti-setup", "passphrase": "read this aloud" });
-		hotspot[member] = value;
-		let doc = document(json!({ "attachments": [], "hotspot": hotspot }));
-		assert_eq!(
-			invalid_at(&doc, &shared),
-			format!("$['hotspot']['{member}']")
-		);
+/// With no client to follow, a shared-channel radio's hotspot runs on the band, channel and width
+/// the document chooses (HOT).
+#[test]
+fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
+	let shared = Hardware {
+		shared_channel: true,
+		..hardware()
+	};
+	let doc = document(json!({
+		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud",
+			"band": "5ghz", "channel": 44, "channel-width": 80 }
+	}));
+	let out = rendered(&doc, &shared, &active(&[0]));
+	let hostapd = &file(&out, "hostapd.conf").contents;
+	for line in [
+		"hw_mode=a\nchannel=44\n",
+		"vht_oper_chwidth=1\nvht_oper_centr_freq_seg0_idx=42\n",
+	] {
+		assert!(hostapd.contains(line), "{line:?} in {hostapd}");
 	}
+
+	let band_only = document(json!({
+		"attachments": [],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "band": "5ghz" }
+	}));
+	let out = rendered(&band_only, &shared, &active(&[]));
+	assert!(
+		file(&out, "hostapd.conf")
+			.contents
+			.contains("hw_mode=a\nchannel=36\n")
+	);
 }
 
 /// Every file carrying a secret is readable by root alone, and the rest by anyone.

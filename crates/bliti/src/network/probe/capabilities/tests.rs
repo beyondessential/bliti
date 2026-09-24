@@ -1,4 +1,7 @@
-use bliti_core::channel::{capabilities::check, config::Invalid};
+use bliti_core::channel::{
+	capabilities::{Rule, admits, check},
+	config::Invalid,
+};
 
 use super::*;
 use crate::network::probe::{BandInfo, Channel};
@@ -142,7 +145,10 @@ fn the_shape_is_the_one_net_gives() {
 			} },
 			"hotspot": {
 				"interface": {
-					"wlan0": {},
+					"wlan0": { "band": {
+						"2.4ghz": { "channel": [1, 6], "channel-width": [20, 40] },
+						"5ghz": { "channel": [36], "channel-width": [20, 40, 80] }
+					} },
 					"wlx00c0caa1b2c3": { "band": {
 						"2.4ghz": { "channel": [1, 6, 11], "channel-width": [20, 40] },
 						"5ghz": { "channel": [36, 40], "channel-width": [20, 40, 80] }
@@ -211,11 +217,33 @@ fn a_shared_channel_hotspot_passes_without_a_band() {
 	.unwrap();
 }
 
+/// A shared-channel radio offers its hotspot a channel, which it may choose only where no wireless
+/// candidate could take the radio (HOT).
 #[test]
-fn a_band_on_a_shared_channel_radio_is_refused_at_the_band() {
-	let err =
-		check_document(hotspot(json!({ "interface": "wlan0", "band": "2.4ghz" }))).unwrap_err();
-	assert_eq!(err.at, "$['hotspot']['band']");
+fn a_shared_channel_hotspot_chooses_its_channel_only_with_no_client_to_follow() {
+	let chosen =
+		json!({ "interface": "wlan0", "band": "2.4ghz", "channel": 6, "channel-width": 40 });
+	admits(&object(hotspot(chosen.clone())), &device()).unwrap();
+
+	let mut beside = hotspot(chosen);
+	beside["attachments"] = json!([wireless("wlan0", "psk")]);
+	let refused = admits(&object(beside), &device()).unwrap_err();
+	assert_eq!(refused.rule, Rule::SharedChannel);
+	assert_eq!(refused.invalid.at, "$['hotspot']['band']");
+}
+
+/// A shared-channel radio with no channel to start an access point on still runs a hotspot on its
+/// client's.
+#[test]
+fn a_shared_channel_radio_with_no_channel_of_its_own_still_offers_a_hotspot() {
+	let mut radio = builtin();
+	for info in radio.bands.values_mut() {
+		for channel in &mut info.channels {
+			channel.no_ir = true;
+		}
+	}
+	let caps = capabilities(&[radio], &[], &Backend::stack());
+	assert_eq!(caps["document"]["hotspot"]["interface"]["wlan0"], json!({}));
 }
 
 #[test]

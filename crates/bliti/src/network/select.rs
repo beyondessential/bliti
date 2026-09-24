@@ -323,6 +323,25 @@ impl Hardware {
 		self.radios_for(hotspot.interface.as_deref())
 			.filter(|radio| radio.access_point.is_some())
 	}
+
+	/// The radios the hotspot may run on beside `document`'s wireless candidates: a hotspot choosing
+	/// its own band, channel or width goes on no shared-channel radio a candidate may go on (HOT).
+	fn hotspot_hosts<'a>(
+		&'a self,
+		document: &'a Document,
+		hotspot: &'a Hotspot,
+	) -> impl Iterator<Item = &'a Radio> {
+		let chooses =
+			hotspot.band.is_some() || hotspot.channel.is_some() || hotspot.channel_width.is_some();
+		self.hotspot_radios(hotspot).filter(move |radio| {
+			!chooses
+				|| radio.access_point != Some(Alongside::SharedChannel)
+				|| !document.attachments.iter().any(|attachment| {
+					matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
+						if wireless.interface.as_deref().is_none_or(|name| name == radio.station))
+				})
+		})
+	}
 }
 
 impl Stage {

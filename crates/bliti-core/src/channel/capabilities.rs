@@ -24,7 +24,7 @@ use serde_json::{Map, Value as Json};
 
 use super::config::{Invalid, Segment, path};
 
-pub use self::radios::placement;
+pub use self::radios::{ChannelChoice, channel_choice, own_channel, placement};
 
 mod radios;
 /// The rule a document broke.
@@ -35,6 +35,9 @@ pub enum Rule {
 	/// Its hotspot and a wireless candidate could be carried only by one radio running one at a time
 	/// (HOT).
 	OneAtATime,
+	/// Its hotspot chooses a channel only a shared-channel radio a wireless candidate could be
+	/// carried by would run it on (HOT).
+	SharedChannel,
 }
 
 impl Rule {
@@ -43,6 +46,7 @@ impl Rule {
 		match self {
 			Self::Mirror => "mirror",
 			Self::OneAtATime => "one-at-a-time",
+			Self::SharedChannel => "shared-channel",
 		}
 	}
 }
@@ -67,7 +71,8 @@ pub fn admits(
 		.and_then(Json::as_object)
 		.unwrap_or(&empty);
 	check(document, mirror).map_err(refused(Rule::Mirror))?;
-	placement(document, capabilities).map_err(refused(Rule::OneAtATime))
+	placement(document, capabilities).map_err(refused(Rule::OneAtATime))?;
+	own_channel(document, capabilities).map_err(refused(Rule::SharedChannel))
 }
 
 /// The members whose value decides what their siblings may carry (NET).

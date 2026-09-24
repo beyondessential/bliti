@@ -74,27 +74,18 @@ fn widen(out: &mut String, channel: Channel, width: u32) -> Result<(), String> {
 
 /// The channel and width the hotspot operates on.
 ///
-/// A shared-channel radio's hotspot runs on the station's channel whenever it is associated, and
-/// accepts no choice of its own (HOT). hostapd cannot follow a channel by itself, so the applier
-/// renders again, and restarts hostapd, whenever the station's channel changes.
+/// A shared-channel radio's hotspot runs on the station's channel whenever it is associated (HOT).
+/// hostapd cannot follow a channel by itself, so the applier renders again, and restarts hostapd,
+/// whenever the station's channel changes. With no station associated it runs on the channel the
+/// document chooses, which it may only where no wireless candidate could take the radio, or on the
+/// device's own.
 fn operating(
 	hotspot: &Hotspot,
 	shared: bool,
 	station: Option<Channel>,
 ) -> Result<(Channel, u32), Invalid> {
-	if shared {
-		let chosen = [
-			("band", hotspot.band.is_some()),
-			("channel", hotspot.channel.is_some()),
-			("channel-width", hotspot.channel_width.is_some()),
-		];
-		if let Some((member, _)) = chosen.into_iter().find(|(_, set)| *set) {
-			return Err(invalid(
-				&at(member),
-				"this radio runs its hotspot on the channel its wireless client is using",
-			));
-		}
-		return Ok((station.unwrap_or(DEFAULT_CHANNEL), 20));
+	if shared && let Some(station) = station {
+		return Ok((station, 20));
 	}
 
 	let chosen_band = hotspot

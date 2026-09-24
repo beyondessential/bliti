@@ -83,6 +83,35 @@ async fn a_hotspot_a_one_at_a_time_radio_cannot_run_beside_a_client_is_invalid()
 	assert_eq!(device.log.calls(), [], "nothing was applied");
 }
 
+/// A hotspot choosing its channel on the shared-channel radio a wireless candidate could take is
+/// refused at the first of band, channel and width it sets (HOT).
+#[tokio::test]
+async fn a_chosen_channel_on_a_shared_channel_radio_beside_a_client_is_invalid() {
+	let device = Device::new().await;
+	let mut one_radio = capabilities();
+	one_radio["document"]["hotspot"] = json!({"interface": {"wlan0": {"band": {
+		"5ghz": {"channel": [36, 40], "channel-width": [20]}
+	}}}});
+	one_radio["radios"] =
+		json!({"wlan0": {"model": "onboard", "bands": ["5ghz"], "alongside": "shared-channel"}});
+	device.log.capabilities(one_radio);
+	let (mut client, _task, _) = device.opened().await;
+
+	propose(
+		&mut client,
+		with(
+			"hotspot",
+			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic", "channel": 36}),
+		),
+	)
+	.await;
+	assert!(matches!(
+		recv(&mut client).await,
+		Message::Invalid { at, reached: None, .. } if at == "$['hotspot']['channel']"
+	));
+	assert_eq!(device.log.calls(), [], "nothing was applied");
+}
+
 #[tokio::test]
 async fn an_act_not_offered_is_invalid_at_the_act_or_the_member_at_fault() {
 	let device = Device::new().await;

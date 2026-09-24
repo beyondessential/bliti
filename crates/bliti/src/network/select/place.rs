@@ -148,22 +148,25 @@ impl Selector {
 		if radio.access_point != Some(Alongside::OneAtATime) {
 			return true;
 		}
-		self.hardware.hotspot_radios(hotspot).any(|other| {
-			other.station != radio.station
-				&& !(other.access_point == Some(Alongside::OneAtATime)
-					&& links.contains_key(&other.station))
-		})
+		self.hardware
+			.hotspot_hosts(&self.document, hotspot)
+			.any(|other| {
+				other.station != radio.station
+					&& !(other.access_point == Some(Alongside::OneAtATime)
+						&& links.contains_key(&other.station))
+			})
 	}
 
 	/// The hotspot goes on the radio it names, or else on a radio carrying no wireless candidate,
 	/// then one running both independently, then one sharing its client's channel. It stays where it
-	/// is among the best of those, so a candidate coming up elsewhere does not move it.
+	/// is among the best of those, so a candidate coming up elsewhere does not move it. One choosing
+	/// its own channel goes on no shared-channel radio a candidate may take (HOT).
 	pub(super) fn place_hotspot(&self) -> Option<Placement> {
 		let hotspot = self.document.hotspot.as_ref()?;
 		let current = self.decision.hotspot.as_ref().map(|placed| &placed.radio);
 		let options: Vec<(&Radio, u8)> = self
 			.hardware
-			.hotspot_radios(hotspot)
+			.hotspot_hosts(&self.document, hotspot)
 			.filter_map(|radio| {
 				let tier = match (self.held.contains_key(&radio.station), radio.access_point?) {
 					(false, _) => 0,

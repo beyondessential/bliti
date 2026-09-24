@@ -638,6 +638,52 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 	assert!(!selector.selection().unwrap().hotspot_waits);
 }
 
+/// With no candidate the radio could carry, a shared-channel radio's hotspot keeps the channel it
+/// chose (HOT).
+#[test]
+fn a_hotspot_choosing_its_channel_on_a_shared_channel_radio_keeps_it() {
+	let mut chosen = hotspot(None);
+	chosen["channel"] = json!(6);
+	let mut selector = selector(
+		hardware(vec![radio("wlan0", Some(Alongside::SharedChannel))]),
+		json!({ "attachments": [dynamic("eth0")], "hotspot": chosen }),
+	);
+	carrier(&mut selector, "eth0", true);
+	assert_eq!(
+		selector.decision().hotspot,
+		Some(Placement {
+			radio: "wlan0".into(),
+			channel: HotspotChannel::Own
+		})
+	);
+}
+
+/// A hotspot choosing its own channel goes on no shared-channel radio a candidate may take, even one
+/// carrying nothing yet.
+#[test]
+fn a_hotspot_choosing_its_channel_avoids_a_shared_channel_radio_a_client_may_take() {
+	let hardware = || {
+		hardware(vec![
+			radio("wlan0", Some(Alongside::SharedChannel)),
+			radio("wlan1", Some(Alongside::Independent)),
+		])
+	};
+	let mut chosen = hotspot(None);
+	chosen["channel"] = json!(36);
+	let selector = selector(
+		hardware(),
+		json!({ "attachments": [wireless("clinic")], "hotspot": chosen }),
+	);
+	assert_eq!(hotspot_radio(&selector), Some("wlan1"));
+
+	// Following instead, it takes the first radio carrying nothing.
+	let selector = self::selector(
+		hardware(),
+		json!({ "attachments": [wireless("clinic")], "hotspot": hotspot(None) }),
+	);
+	assert_eq!(hotspot_radio(&selector), Some("wlan0"));
+}
+
 #[test]
 fn a_client_never_takes_the_one_at_a_time_radio_the_hotspot_needs() {
 	let mut selector = selector(

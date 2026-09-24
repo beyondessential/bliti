@@ -206,7 +206,7 @@ fn an_unknown_radio_is_refused() {
 	assert_eq!(err.at, "$['attachments'][0]['interface']");
 }
 
-/// On the shared-channel radio a hotspot has no band to set.
+/// A radio offering the hotspot no band refuses one.
 #[test]
 fn a_band_is_refused_on_a_radio_that_does_not_offer_one() {
 	let err = check_on_pi(json!({ "attachments": [],
@@ -373,4 +373,152 @@ fn the_mirror_is_checked_before_the_radios() {
 	.unwrap_err();
 	assert_eq!(refused.rule, Rule::Mirror);
 	assert_eq!(refused.invalid.at, "$['x-proxy']");
+}
+
+/// The Pi with a USB adapter where the built-in shared-channel radio offers 2.4 GHz channels for the
+/// hotspot and the adapter 5 GHz ones.
+fn shared_and_independent() -> Map<String, Json> {
+	let mut caps = with_radios(json!({
+		"wlan0": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "shared-channel" },
+		"wlx00c0caa1b2c3": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "independent" }
+	}));
+	caps["document"]["hotspot"]["interface"] = json!({
+		"wlan0": { "band": { "2.4ghz": { "channel": [1, 6, 11], "channel-width": [20] } } },
+		"wlx00c0caa1b2c3": { "band": { "5ghz": { "channel": [36, 40], "channel-width": [20, 40] } } }
+	});
+	caps
+}
+
+/// The Pi alone: one shared-channel radio offering 2.4 GHz channels for the hotspot.
+fn shared_only() -> Map<String, Json> {
+	let mut caps = with_radios(json!({
+		"wlan0": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "shared-channel" }
+	}));
+	caps["document"]["hotspot"]["interface"] = json!({
+		"wlan0": { "band": { "2.4ghz": { "channel": [1, 6, 11], "channel-width": [20] } } }
+	});
+	caps
+}
+
+fn hotspot_with(extra: Json) -> Json {
+	let mut out = object(hotspot());
+	out.extend(object(extra));
+	Json::Object(out)
+}
+
+/// With no wireless candidate to follow, a hotspot on a shared-channel radio chooses its own channel
+/// (HOT).
+#[test]
+fn a_shared_channel_hotspot_with_no_client_to_follow_chooses_its_channel() {
+	let wired =
+		json!({ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0" });
+	for attachments in [json!([]), json!([wired])] {
+		admitted(
+			json!({ "attachments": attachments,
+				"hotspot": hotspot_with(json!({ "band": "2.4ghz", "channel": 6, "channel-width": 20 })) }),
+			&shared_only(),
+		)
+		.unwrap();
+	}
+}
+
+/// A wireless candidate the radio could carry takes the choice away, and the fault is at the first
+/// of band, channel and width the hotspot sets (HOT).
+#[test]
+fn a_shared_channel_hotspot_beside_a_client_cannot_choose_its_channel() {
+	let refused = |extra: Json| {
+		admitted(
+			json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot_with(extra) }),
+			&shared_only(),
+		)
+		.unwrap_err()
+	};
+	let both = refused(json!({ "band": "2.4ghz", "channel": 6 }));
+	assert_eq!(both.rule, Rule::SharedChannel);
+	assert_eq!(both.invalid.at, "$['hotspot']['band']");
+	assert_eq!(
+		refused(json!({ "channel": 6 })).invalid.at,
+		"$['hotspot']['channel']"
+	);
+	assert_eq!(
+		refused(json!({ "channel-width": 20 })).invalid.at,
+		"$['hotspot']['channel-width']"
+	);
+
+	// Setting none of them, it follows the client and is fine.
+	admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot() }),
+		&shared_only(),
+	)
+	.unwrap();
+}
+
+/// A client pinned to another radio leaves the shared-channel radio's hotspot its choice, and an
+/// unpinned one does not.
+#[test]
+fn only_a_client_the_shared_channel_radio_could_carry_takes_the_choice_away() {
+	let caps = shared_and_independent();
+	let on_builtin = hotspot_with(json!({ "interface": "wlan0", "channel": 6 }));
+	admitted(
+		json!({ "attachments": [wireless(json!({ "interface": "wlx00c0caa1b2c3" }))],
+			"hotspot": on_builtin.clone() }),
+		&caps,
+	)
+	.unwrap();
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": on_builtin }),
+		&caps,
+	)
+	.unwrap_err();
+	assert_eq!(refused.rule, Rule::SharedChannel);
+	assert_eq!(refused.invalid.at, "$['hotspot']['channel']");
+}
+
+/// Unpinned, the hotspot's settings must suit a radio where it chooses its own channel, not merely
+/// the shared-channel radio a client could take.
+#[test]
+fn an_unpinned_hotspot_chooses_its_channel_where_a_radio_lets_it() {
+	let caps = shared_and_independent();
+	admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot_with(json!({ "channel": 36 })) }),
+		&caps,
+	)
+	.unwrap();
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot_with(json!({ "channel": 6 })) }),
+		&caps,
+	)
+	.unwrap_err();
+	assert_eq!(refused.rule, Rule::SharedChannel);
+	assert_eq!(refused.invalid.at, "$['hotspot']['channel']");
+}
+
+/// Where the hotspot chooses its own channel and where it follows a client, as a client reads it to
+/// decide what to offer.
+#[test]
+fn the_channel_choice_splits_the_hotspot_radios() {
+	let caps = shared_and_independent();
+	let choice = |document: Json| channel_choice(&object(document), &caps);
+	assert_eq!(
+		choice(json!({ "attachments": [] })),
+		ChannelChoice {
+			own: vec!["wlan0".into(), "wlx00c0caa1b2c3".into()],
+			follows: vec![],
+		}
+	);
+	assert_eq!(
+		choice(json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot() })),
+		ChannelChoice {
+			own: vec!["wlx00c0caa1b2c3".into()],
+			follows: vec!["wlan0".into()],
+		}
+	);
+	assert_eq!(
+		choice(json!({ "attachments": [wireless(json!({}))],
+			"hotspot": hotspot_with(json!({ "interface": "wlan0" })) })),
+		ChannelChoice {
+			own: vec![],
+			follows: vec!["wlan0".into()],
+		}
+	);
 }

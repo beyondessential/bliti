@@ -48,6 +48,9 @@ The application MUST NOT offer a setting the device did not report supporting.
 
 The application MUST say why a setting is absent where the device's capabilities exclude it, except that where the device offers none of the hotspot's band, channel and width on any of its adapters, the application MUST leave all three out without comment.
 
+The application MUST offer the hotspot's band, channel and width on a shared-channel adapter only while no wireless candidate could be carried by that adapter, as [HOT](hotspot.md) has it.
+Once one could, the application MUST take those settings out of the hotspot, and MUST say in their place that the hotspot runs on the channel of that wireless connection.
+
 > [!NOTE]
 > A setting absent from among others the device does offer is one an operator goes looking for, and is better served by a sentence than by an absence they have to work out.
 > A device offering no radio setting for its hotspot at all leaves nothing to look for: the radio is not the operator's to tune there, and a sentence about it is noise.
