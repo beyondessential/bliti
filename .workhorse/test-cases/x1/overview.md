@@ -30,7 +30,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A failure carries the part of the document at fault, a reason in the device's words, and the verification stage reached. Verifies spec: CFG
 - [x] A configuration that cannot work, by wrong passphrase and by absent SSID, is reported with the stage it failed at. Verifies spec: CFG
 - [x] A session the daemon drops when its client unsubscribes ends its configuration session, so the next client is not told the device is busy. Verifies spec: CFG
-- [ ] A client that walks away with a proposal applied and its feed closed leaves the device back on its recorded configuration, on real hardware. Verifies spec: CFG
+- [x] A client that walks away with a proposal applied and its feed closed leaves the device back on its recorded configuration, on real hardware. Checked on the prototype with a country change and the client killed. Verifies spec: CFG
 - [x] An act on an adapter or with a method the device did not offer is invalid at the act's own path. Verifies spec: NET, CFG
 - [x] A `wps` naming an `ssid` where the device does not offer one is invalid at `$['ssid']`, and nothing is joined. Verifies spec: NET, CFG
 - [x] `applied` carries capabilities only where applying changed them, and the next `state` carries them where a revert changed them back. Verifies spec: CFG
