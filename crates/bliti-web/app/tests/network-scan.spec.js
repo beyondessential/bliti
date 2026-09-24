@@ -56,6 +56,18 @@ test('a network picked from the scan is not hidden, and cannot be marked hidden'
 	await expect(page.getByText('The scan heard it by name')).toBeVisible()
 })
 
+// Two access points from one vendor differ only in their last octets, so a BSSID is never cut short.
+test('a BSSID is shown whole on a phone', async ({ page }) => {
+	await page.setViewportSize({ width: 360, height: 800 })
+	await scanned(page)
+	await page.getByRole('button', { name: 'Access points of Clinic' }).click()
+	const bssids = networks(page).nth(0).locator('.points .code')
+	await expect(bssids).toHaveCount(4)
+	for (const bssid of await bssids.all()) {
+		expect(await bssid.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+	}
+})
+
 test('an access point with no SSID is left out until hidden networks are shown', async ({ page }) => {
 	await scanned(page)
 	await expect(page.getByRole('button', { name: 'Hidden network', exact: true })).toHaveCount(0)
