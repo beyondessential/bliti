@@ -77,6 +77,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Setting the country restarts iwd, and a network the radio still hears is not reported out of range for it: a wrong passphrase on a network heard well is refused at association, on the prototype. Verifies spec: LINK, WLAN
 - [x] Renaming a candidate, with nothing else about it changed, keeps the addresses and gateway its link holds, on the prototype. Verifies spec: LINK
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
+- [x] A device joins an 802.1X network by PEAP with MSCHAPv2, checking the server by certificate authority and domain, on the prototype (hostapd's own EAP server on the laptop). Verifies spec: WLAN
+- [x] A device refuses an 802.1X network whose server does not carry the domain given, at association, naming what to check, on the prototype. Verifies spec: WLAN
 - [x] A radio on a driver whose SAE is disabled offers no `sae` or `psk-sae`, and iwd is told not to run SAE on it. Verifies spec: WLAN, NET
 - [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
 - [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
