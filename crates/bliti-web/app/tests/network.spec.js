@@ -617,6 +617,35 @@ test.describe('the session as the device speaks it', () => {
 		await expect(row(page, 'BackupLink').locator('.state')).toHaveText('Default route')
 	})
 
+	// What went wrong before an apply is not left standing beside it.
+	test('a new apply clears what the last WPS join failed with', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByRole('button', { name: 'Add' }).click()
+		await page.getByRole('button', { name: 'WPS button' }).click()
+		await say(page, message({ type: 'invalid', at: '$', reason: 'No usable credentials obtained' }))
+		await expect(page.getByText('Could not join by WPS.')).toBeVisible()
+
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(page.getByText('Could not join by WPS.')).toHaveCount(0)
+		// The activity log keeps it, as the record of what the device said.
+		await expect(page.locator('.network').getByText('No usable credentials obtained')).toHaveCount(0)
+	})
+
+	test('the states of the last configuration are not shown while a new one is checked', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI, states: STATES })
+		await expect(page.locator('.order .state')).toHaveCount(5)
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(page.locator('.order .state')).toHaveCount(0)
+
+		await say(page, message({ type: 'applied' }))
+		await say(page, message({ type: 'state', attachments: [{ is: 'up' }, { is: 'default-route' }, { is: 'standby' }, { is: 'up' }, { is: 'up' }] }))
+		await expect(row(page, 'North site').locator('.state')).toHaveText('Default route')
+	})
+
 	test('joining by PIN shows the PIN the device generated', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.getByRole('button', { name: 'Add' }).click()

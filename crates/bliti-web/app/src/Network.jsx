@@ -522,7 +522,9 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 			<ul className="order" ref={list}>
 				{keys.map((key, index) => {
 					const candidate = document.attachments[index]
-					const observed = stateWording(stateFor(state, key), candidate?.kind)
+					// The states held are the last configuration's, and the device holds them back while it
+					// checks a new one, so they are left unsaid until it answers (CFG).
+					const observed = state.stage === 'applying' ? null : stateWording(stateFor(state, key), candidate?.kind)
 					const name = candidate?.label || 'Unnamed'
 					return (
 						<li key={key} className={state.selected === key ? 'selected' : undefined}>

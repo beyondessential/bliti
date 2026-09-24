@@ -219,6 +219,8 @@ export function reduce(state, action) {
 				awaiting: state.awaiting + 1,
 				failure: null,
 				problem: null,
+				// What a scan, survey or WPS join failed with belongs to before this attempt.
+				act: null,
 			}
 		case 'wps':
 			return {
