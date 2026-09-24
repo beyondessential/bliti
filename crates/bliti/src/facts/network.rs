@@ -86,9 +86,37 @@ fn by_interface() -> BTreeMap<String, Vec<IpAddr>> {
 	held
 }
 
-/// The interface carrying the default route, which is the one most likely to reach this device.
+/// The interface carrying the default route, which is the one most likely to reach this device: the
+/// IPv4 default route's, else, on a network with none, the IPv6 default route's.
 pub(super) fn default_route() -> Option<String> {
-	default_route_in(&fs::read_to_string("/proc/net/route").ok()?)
+	let v4 = fs::read_to_string("/proc/net/route").ok();
+	let v6 = fs::read_to_string("/proc/net/ipv6_route").ok();
+	v4.as_deref()
+		.and_then(default_route_in)
+		.or_else(|| v6.as_deref().and_then(default_ipv6_route_in))
+}
+
+/// The interface of the IPv6 default route with the lowest metric in a `/proc/net/ipv6_route` table,
+/// leaving out the kernel's own unreachable defaults on `lo`.
+fn default_ipv6_route_in(table: &str) -> Option<String> {
+	/// `RTF_UP` and `RTF_REJECT`, in the flags field.
+	const UP: u32 = 0x0001;
+	const REJECT: u32 = 0x0200;
+	table
+		.lines()
+		.filter_map(|line| {
+			let fields: Vec<&str> = line.split_whitespace().collect();
+			let [destination, length, _, _, _, metric, _, _, flags, name] = fields[..] else {
+				return None;
+			};
+			let flags = u32::from_str_radix(flags, 16).ok()?;
+			let default = destination.bytes().all(|b| b == b'0') && length == "00";
+			(default && flags & UP != 0 && flags & REJECT == 0 && name != "lo")
+				.then(|| Some((u32::from_str_radix(metric, 16).ok()?, name)))
+				.flatten()
+		})
+		.min_by_key(|(metric, _)| *metric)
+		.map(|(_, name)| name.to_owned())
 }
 
 /// The interface of the default route with the lowest metric in a `/proc/net/route` table. A device
@@ -239,6 +267,25 @@ mod tests {
 			end0\t0064000A\t00000000\t0001\t0\t0\t100\t00FEFFFF\t0\t0\t0\n";
 		assert_eq!(default_route_in(table).as_deref(), Some("end0"));
 		assert_eq!(default_route_in("Iface\tDestination\n"), None);
+	}
+
+	/// A network with no IPv4 route still names the interface its IPv6 default route is on.
+	#[test]
+	fn the_ipv6_default_route_is_the_one_with_the_lowest_metric() {
+		let zero = "00000000000000000000000000000000";
+		let table = format!(
+			"{zero} 00 {zero} 00 {zero} ffffffff 00000001 00000000 00200200       lo\n\
+			 {zero} 00 {zero} 00 fe800000000000004a8f5afffea363c9 00000065 00000005 00000000 00400003    wlan0\n\
+			 {zero} 00 {zero} 00 fe800000000000004a8f5afffea363c9 00000064 00000005 00000000 00400003     end0\n\
+			 fe800000000000000000000000000000 40 {zero} 00 {zero} 00000100 00000001 00000000 00000001     end0\n"
+		);
+		assert_eq!(default_ipv6_route_in(&table).as_deref(), Some("end0"));
+		assert_eq!(
+			default_ipv6_route_in(&format!(
+				"{zero} 00 {zero} 00 {zero} ffffffff 00000001 00000000 00200200       lo\n"
+			)),
+			None
+		);
 	}
 
 	#[test]
