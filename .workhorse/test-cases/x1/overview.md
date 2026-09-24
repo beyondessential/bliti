@@ -133,7 +133,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A hotspot is not refused up front beside a connection joined now whose candidate the proposal turns off. Verifies spec: HOT
 - [x] A wireless candidate turned off leaves a one-at-a-time radio to the hotspot, and leaves a shared-channel radio's hotspot its own band, channel and width. Verifies spec: HOT, NET
 - [x] The screen says, beside the hotspot, that it cannot run beside the connection joined now and that turning it off lets it run, and still lets the operator apply; turning that connection off takes the notice away. Verifies spec: NSCR
-- [ ] Proposing a hotspot beside a 5 GHz connection on a radar channel is refused at once on the prototype, with nothing applied. Verifies spec: HOT
+- [x] Proposing a hotspot beside a 5 GHz connection on a radar channel is refused at once on the prototype, with nothing applied. Verifies spec: HOT
 
 ## The document
 
@@ -192,7 +192,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] VIEW renders the new entries as tiles in its own order. Verifies spec: VIEW
 
 - [x] Every address an interface holds is its own entry, on device and client alike, and one that goes is sent as ended with its value and dropped alone. Verifies spec: NFO, VIEW
-- [ ] The Address tile reveals an interface's IPv4 and every IPv6 address it holds, on the prototype. Once showed only the last one sampled per interface. Verifies spec: NFO, VIEW
+- [x] The Address tile reveals an interface's IPv4 and every IPv6 address it holds, on the prototype. Once showed only the last one sampled per interface. Verifies spec: NFO, VIEW
 - [x] The Address tile headlines at most two addresses, one per line with no interface: the default route's IPv4, else global IPv6, else unique local IPv6, and the overlay's IPv4, else global IPv6. Verifies spec: VIEW
 
 ## Operations
