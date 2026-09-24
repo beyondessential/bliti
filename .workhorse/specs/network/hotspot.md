@@ -53,9 +53,9 @@ A device MUST treat as invalid a hotspot whose `channel-width` spans, from its `
 
 A device MUST report, for each radio able to run an access point, whether it runs one beside a wireless client at once, only one at a time, or at once only on one channel.
 
-A wireless candidate could be carried by the radio whose interface it names, or by any radio where it names none.
+A wireless candidate whose `enabled` is true could be carried by the radio whose interface it names, or by any radio where it names none, and one whose `enabled` is false could be carried by none.
 
-A radio that runs only one at a time MUST NOT carry the hotspot and a wireless candidate together, and a device MUST treat as invalid a document whose hotspot and a wireless candidate could be carried only by such a radio.
+A radio that runs only one at a time MUST NOT carry the hotspot and a wireless candidate together, and a device MUST treat as invalid a document whose hotspot and an enabled wireless candidate could be carried only by such a radio.
 
 For a radio that runs an access point and a wireless client only on one channel, a device MUST offer in that radio's capabilities the `band`, `channel` and `channel-width` values it can run a hotspot on with no wireless client beside it.
 
@@ -69,7 +69,7 @@ A device MUST NOT start such a hotspot until the wireless client that radio carr
 
 A device MUST NOT run such a hotspot while that client is associated on a channel the regulatory domain lets no access point start on, and MUST treat a proposal bringing that about as failing at `hotspot`, with a reason naming the channel.
 
-Where every radio the hotspot could run on is such a radio, and its wireless client is associated now, on such a channel, to a network the proposal keeps, a device MUST refuse the proposal at `hotspot` before applying any of it.
+Where every radio the hotspot could run on is such a radio, and its wireless client is associated now, on such a channel, to a network the proposal keeps an enabled candidate for, a device MUST refuse the proposal at `hotspot` before applying any of it.
 
 > [!NOTE]
 > Holding the choice to what the document says rather than to whether a client happens to be associated is what keeps a setting that appears from being one that silently stops holding.

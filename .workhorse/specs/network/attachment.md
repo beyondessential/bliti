@@ -24,6 +24,7 @@ Each candidate MUST carry:
 | --- | --- | --- | --- |
 | `kind` | string | yes | `wireless`, `wired-dynamic` or `wired-static` |
 | `label` | string | yes | what the operator calls this candidate |
+| `enabled` | boolean | yes | whether the device brings this candidate up |
 | `verify` | boolean | yes | whether a proposal fails where this candidate cannot be established (CFG) |
 | `nameservers` | array | no | the resolvers of this link, in the order they are queried |
 
@@ -52,9 +53,14 @@ A device MUST bring up a `wireless` candidate naming no `interface` on a wireles
 
 A device MUST take the candidate highest in the ordering among those it has brought up as the one carrying the default route.
 
+A device MUST treat a candidate whose `enabled` is false as it would one absent from the ordering in everything it selects, verifies and scans for, and MUST keep it in the document as it is.
+
+A device MUST NOT leave the network of a wireless candidate whose `enabled` is false where its wireless client could join it.
+
 > [!NOTE]
 > The ordering decides which attachment carries traffic, not which exists. A device reachable on both a wall port and a wireless network at the same time is easier to find than one reachable on whichever it preferred.
 > A wireless candidate naming no interface means the same on devices whose interfaces are named differently, as a USB adapter's commonly carries its address. Naming one is for an operator who wants a particular adapter to carry a particular network.
+> A candidate turned off keeps what it carries, credentials and all, so turning it on again is one change rather than typing it in anew. It stays in the document, which is what tells it from one removed: a device forgets a network the document does not carry ([NET](overview.md)). Keeping it only in the document, and not among the networks the wireless client knows, is what stops anything joining it.
 
 ## Verification
 

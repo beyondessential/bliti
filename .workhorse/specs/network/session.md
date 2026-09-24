@@ -58,7 +58,9 @@ A device MUST serve at most one configuration session at a time across all its c
 
 ## When a proposal fails
 
-A device MUST judge a proposal on the candidates it adds or changes against the configuration running that carry `verify` true, and on no others.
+A device MUST judge a proposal on the candidates it adds or changes against the configuration running that carry `enabled` and `verify` true, and on no others.
+
+A candidate differing from one of the configuration running only in `enabled` is one the proposal changes.
 
 A device MUST answer a proposal with `applied` where, on every interface carrying a candidate it is judged on, some candidate is established.
 
@@ -103,18 +105,20 @@ A device MUST NOT send `state` while a proposal is being verified, and MUST send
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
-| `is` | string | yes | `default-route`, `up`, `verifying`, `standby` or `unavailable` |
+| `is` | string | yes | `default-route`, `up`, `verifying`, `standby`, `off` or `unavailable` |
 | `reached` | string | where `is` is `unavailable` | the stage of [LINK](attachment.md) at which it stopped, as `invalid` carries it |
 | `reason` | string | where `is` is `unavailable` | what the device observed, in its own words |
 
 `standby` MUST mean a candidate not tried because every interface it could be brought up on carries a candidate above it, or is kept for the hotspot.
+
+`off` MUST mean a candidate whose `enabled` is false.
 
 > [!NOTE]
 > The stage says what the device observed of a candidate that is not up, and a client words it: stopping at `addressing` is no lease, and a wireless candidate stopping at `carrier` is out of range.
 
 ## Provisional and confirmed
 
-A device that has never recorded a configuration MUST hold as its recorded configuration one `wired-dynamic` candidate for each wired interface, labelled by the interface, and no hotspot.
+A device that has never recorded a configuration MUST hold as its recorded configuration one `wired-dynamic` candidate for each wired interface, labelled by the interface and carrying `enabled` and `verify` true, and no hotspot.
 
 A device MUST apply a proposal to its running system without recording it.
 
