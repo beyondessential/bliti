@@ -100,6 +100,7 @@ pub fn entry(state: &State) -> Json {
 		State::Up => json!({"is": "up"}),
 		State::Verifying { .. } => json!({"is": "verifying"}),
 		State::Standby => json!({"is": "standby"}),
+		State::Off => json!({"is": "off"}),
 		State::Unavailable {
 			reached, reason, ..
 		} => {
@@ -216,6 +217,7 @@ mod tests {
 			json!({"is": "verifying"})
 		);
 		assert_eq!(entry(&State::Standby), json!({"is": "standby"}));
+		assert_eq!(entry(&State::Off), json!({"is": "off"}));
 		assert_eq!(
 			entry(&State::Unavailable {
 				reached: Stage::Carrier,

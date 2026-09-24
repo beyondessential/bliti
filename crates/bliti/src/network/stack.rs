@@ -382,10 +382,13 @@ impl Backend for Chosen {
 	}
 }
 
-/// Whether `document` keeps a wireless candidate for `ssid` that `station`'s radio could carry.
+/// Whether `document` keeps a wireless candidate for `ssid` that `station`'s radio could carry: one
+/// turned on (HOT).
 fn keeps(document: &Document, ssid: &str, station: &str) -> bool {
 	document.attachments.iter().any(|attachment| {
 		matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
-			if wireless.ssid == ssid && wireless.interface.as_ref().is_none_or(|pin| pin == station))
+			if attachment.enabled
+				&& wireless.ssid == ssid
+				&& wireless.interface.as_ref().is_none_or(|pin| pin == station))
 	})
 }

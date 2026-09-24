@@ -17,7 +17,7 @@ impl Driver {
 	}
 
 	/// The shared-channel radio the hotspot is placed on, where a pending proposal's scan of it is
-	/// still out and a wireless candidate could go on it. Until the scan says what the radio hears, the
+	/// still out and a wireless candidate turned on could go on it. Until the scan says what the radio hears, the
 	/// hotspot cannot tell whether it will have a client's channel to follow (HOT).
 	pub(super) fn hotspot_awaits_scan(&self) -> Option<String> {
 		let radio = &self.selector.decision().hotspot.as_ref()?.radio;
@@ -26,7 +26,7 @@ impl Driver {
 		}
 		let candidate = self.document.attachments.iter().any(|attachment| {
 			matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
-				if wireless.interface.as_ref().is_none_or(|pin| pin == radio))
+				if attachment.enabled && wireless.interface.as_ref().is_none_or(|pin| pin == radio))
 		});
 		candidate.then(|| radio.clone())
 	}

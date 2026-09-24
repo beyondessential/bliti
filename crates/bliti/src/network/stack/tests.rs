@@ -18,6 +18,7 @@ use crate::network::{
 };
 
 mod fake;
+mod off;
 mod radios;
 mod sweep;
 mod verdict;
@@ -772,6 +773,15 @@ async fn a_hotspot_beside_a_connection_on_a_radar_channel_is_refused_up_front() 
 		)),
 		Ok(()),
 		"without that connection the hotspot can run"
+	);
+	let mut off = clinic();
+	off["enabled"] = json!(false);
+	assert_eq!(
+		rig.stack.check(&document(
+			json!({"attachments": [off, dynamic()], "hotspot": hotspot})
+		)),
+		Ok(()),
+		"with that connection turned off the hotspot can run"
 	);
 }
 

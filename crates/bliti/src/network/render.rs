@@ -270,6 +270,11 @@ pub fn render(
 				"candidate {index} is selected on more than one interface"
 			)));
 		}
+		if !attachment.enabled {
+			return Err(Error::Selection(format!(
+				"candidate {index} is turned off and is selected on {interface:?}"
+			)));
+		}
 		match &attachment.kind {
 			AttachmentKind::Wireless(wireless) => {
 				if hardware.radio(interface).is_none() {

@@ -2,6 +2,8 @@ use serde_json::{Value as Json, json};
 
 use super::*;
 
+mod off;
+
 const CA: &str = "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----";
 
 fn document(json: Json) -> Document {

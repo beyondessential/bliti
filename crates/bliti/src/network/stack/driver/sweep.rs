@@ -1,5 +1,6 @@
 //! Scanning for a wireless candidate ranked above the one carrying the default route while its
-//! network is out of range, which is the one change nothing announces (LINK).
+//! network is out of range, which is the one change nothing announces (LINK). A candidate turned
+//! off is not looked for.
 //!
 //! A radio is swept while it is free to carry such a candidate: it carries nothing ranked above it,
 //! WPS is not running on it, and it can scan. Where nothing carries the default route, every
@@ -59,6 +60,9 @@ impl Driver {
 			let AttachmentKind::Wireless(wireless) = &attachment.kind else {
 				continue;
 			};
+			if !attachment.enabled {
+				continue;
+			}
 			// A hidden network is taken to be in range, since it cannot be heard by name.
 			if wireless.hidden == Some(true) {
 				continue;

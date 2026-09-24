@@ -23,8 +23,9 @@ pub(super) fn owns(name: &str) -> bool {
 	!name.starts_with('.') && SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
 
-/// A network file per wireless candidate, whether or not it is selected: iwd joins only what bliti
-/// tells it to, so every candidate can be known to it at once.
+/// A network file per wireless candidate turned on, whether or not it is selected: iwd joins only
+/// what bliti tells it to, so every candidate can be known to it at once. One turned off is checked
+/// as any other and left out, so iwd does not know it and nothing joins it (LINK).
 ///
 /// iwd holds one network per SSID and kind of key, for every radio at once, so candidates for one
 /// SSID on different radios share a file. They may only where the file would say the same for each.
@@ -60,6 +61,9 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 			Security::Enterprise { members } => (".8021x", enterprise::security(members, rank)?),
 		};
 
+		if !attachment.enabled {
+			continue;
+		}
 		let path = hardware
 			.paths
 			.iwd_state

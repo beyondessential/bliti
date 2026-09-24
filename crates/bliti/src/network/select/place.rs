@@ -25,11 +25,15 @@ fn unavailable(reached: Stage, reason: String) -> State {
 
 impl Selector {
 	/// Place each candidate in order on an interface carrying none above it, so each interface
-	/// carries the highest candidate available on it.
+	/// carries the highest candidate available on it. One turned off goes nowhere (LINK).
 	pub(super) fn place(&self) -> Placed {
 		let mut links = BTreeMap::new();
 		let mut idle = BTreeMap::new();
 		for (rank, attachment) in self.document.attachments.iter().enumerate() {
+			if !attachment.enabled {
+				idle.insert(rank, State::Off);
+				continue;
+			}
 			let placed = match &attachment.kind {
 				AttachmentKind::WiredDynamic { interface }
 				| AttachmentKind::WiredStatic { interface, .. } => self.wired(rank, interface, &links),

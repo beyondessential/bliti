@@ -190,6 +190,8 @@ pub enum State {
 	/// Available, but not tried: every interface it could go on carries a candidate above it, or
 	/// the hotspot.
 	Standby,
+	/// Turned off: its `enabled` is false, so it is not tried (LINK).
+	Off,
 	/// Not available: it failed at `reached`, or has not reached it (no carrier, out of range).
 	Unavailable {
 		/// The stage it stopped at.
@@ -325,7 +327,8 @@ impl Hardware {
 	}
 
 	/// The radios the hotspot may run on beside `document`'s wireless candidates: a hotspot choosing
-	/// its own band, channel or width goes on no shared-channel radio a candidate may go on (HOT).
+	/// its own band, channel or width goes on no shared-channel radio a candidate turned on may go on
+	/// (HOT).
 	fn hotspot_hosts<'a>(
 		&'a self,
 		document: &'a Document,
@@ -338,7 +341,8 @@ impl Hardware {
 				|| radio.access_point != Some(Alongside::SharedChannel)
 				|| !document.attachments.iter().any(|attachment| {
 					matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
-						if wireless.interface.as_deref().is_none_or(|name| name == radio.station))
+						if attachment.enabled
+							&& wireless.interface.as_deref().is_none_or(|name| name == radio.station))
 				})
 		})
 	}

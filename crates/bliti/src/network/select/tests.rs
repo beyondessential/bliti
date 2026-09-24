@@ -3,6 +3,8 @@ use serde_json::{Value as Json, json};
 use super::*;
 use crate::network::render::Band;
 
+mod off;
+
 fn document(json: Json) -> Document {
 	let Json::Object(map) = json else {
 		panic!("a document is an object")

@@ -192,8 +192,9 @@ pub(super) struct Driver {
 	heard: BTreeMap<String, BTreeMap<String, i32>>,
 	stations: BTreeMap<String, Station>,
 	checks: BTreeMap<Attempt, Check>,
-	/// The candidate each interface last brought up.
-	last: BTreeMap<String, Attachment>,
+	/// The candidate each interface last brought up, or `None` where the document has since stopped
+	/// bringing it up, so that what the interface holds is not taken as that candidate's.
+	last: BTreeMap<String, Option<Attachment>>,
 	/// Stations WPS is running on.
 	held: BTreeSet<String>,
 	/// How many times in a row each candidate has been retried.
@@ -210,7 +211,8 @@ pub(super) struct Driver {
 
 /// Whether two candidates put the same thing on their interface. What the operator calls one, and
 /// whether a proposal is held to it, change nothing there, so the addresses and gateway it already
-/// holds still stand: nothing will announce them again.
+/// holds still stand: nothing will announce them again. Whether it is turned on is not compared
+/// here, since only one turned on is brought up; turning it off is followed in `configure`.
 fn same_link(a: &Attachment, b: &Attachment) -> bool {
 	a.kind == b.kind && a.nameservers == b.nameservers
 }
@@ -337,6 +339,19 @@ impl Driver {
 	fn configure(&mut self, document: Document) -> Result<(), Invalid> {
 		let changes = self.selector.configure(document.clone())?.changes;
 		self.document = document;
+		// A candidate turned off or removed lets go of its interface, so one turned on or added again
+		// is brought up anew rather than taking what the interface still holds.
+		for previous in self.last.values_mut() {
+			let kept = previous.as_ref().is_some_and(|previous| {
+				self.document
+					.attachments
+					.iter()
+					.any(|attachment| attachment.enabled && same_link(attachment, previous))
+			});
+			if !kept {
+				*previous = None;
+			}
+		}
 		self.configured = true;
 		self.generation += 1;
 		self.backoff.clear();
@@ -361,11 +376,9 @@ impl Driver {
 	}
 
 	fn scan_for_pending(&mut self) {
-		let wireless = self
-			.document
-			.attachments
-			.iter()
-			.any(|attachment| matches!(attachment.kind, AttachmentKind::Wireless(_)));
+		let wireless = self.document.attachments.iter().any(|attachment| {
+			attachment.enabled && matches!(attachment.kind, AttachmentKind::Wireless(_))
+		});
 		if !wireless {
 			return;
 		}
@@ -653,9 +666,13 @@ impl Driver {
 		if matches!(attachment.kind, AttachmentKind::Wireless(_)) {
 			self.placed.insert(link.candidate, interface.clone());
 		}
-		let stale = match self.last.insert(interface.clone(), attachment.clone()) {
-			Some(previous) if !same_link(&previous, attachment) => self.links.held(&interface),
-			_ => BTreeSet::new(),
+		let stale = match self
+			.last
+			.insert(interface.clone(), Some(attachment.clone()))
+		{
+			Some(Some(previous)) if same_link(&previous, attachment) => BTreeSet::new(),
+			Some(_) => self.links.held(&interface),
+			None => BTreeSet::new(),
 		};
 		let check = Check::new(
 			link.attempt,
