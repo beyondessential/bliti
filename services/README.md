@@ -28,11 +28,6 @@ one failure at a time.
   behaviour an unset domain is specified to fall back to rather than something
   to rely on. `crda` is obsolete on any kernel this targets and is not wanted:
   the kernel reads `/lib/firmware/regulatory.db` itself.
-- **`iw`** for the settings bliti makes on the radio at runtime: the regulatory
-  domain (`iw reg set`), since the modprobe file only takes effect when cfg80211
-  loads, and creating and deleting the hotspot's access point interface. bliti
-  runs it rather than speaking nl80211 itself, until a netlink crate is chosen.
-  It is a dependency for as long as that holds.
 - **`iwd`** for the wireless client, with `bliti-iwd-dropin.conf` beside this
   file keeping it off the hotspot's interface.
 - **`systemd-resolved`**, at systemd 258 or later, for per-link resolvers. A
@@ -90,6 +85,3 @@ an image is believed to carry it.
 `hostapd` was the only one missing. It is installed on that board now, and
 masked so it does not start on its own, since the network module is meant to
 drive it rather than have it come up from a unit file of its own.
-
-The daemon runs `iw` for now, which is why it is listed among the packages
-above; it stops being a dependency if bliti comes to speak nl80211 itself.

@@ -190,7 +190,7 @@ impl Stack {
 			.context("watching the network")?;
 		let system = tokio::task::spawn_blocking(super::apply::Linux::new)
 			.await?
-			.context("connecting the applier to the system bus")?;
+			.context("connecting the applier to the system bus and nl80211")?;
 		let config = Config {
 			wired,
 			paths: render::Paths::system(),

@@ -18,11 +18,10 @@ use wl_nl80211::{
 
 use super::{RadioInfo, model::Sysfs, wiphy};
 
+#[cfg(test)]
+mod tests;
+
 /// `NL80211_ATTR_REG_ALPHA2`, which wl-nl80211 does not name.
-#[expect(
-	dead_code,
-	reason = "the applier sets this through iw until its System speaks nl80211"
-)]
 const REG_ALPHA2: u16 = 33;
 
 /// `EOPNOTSUPP`, which a driver with no survey to give answers `NL80211_CMD_GET_SURVEY` with.
@@ -93,80 +92,32 @@ impl Nl80211 {
 	}
 
 	/// Put every radio under `domain`, `00` being the world domain.
-	#[expect(
-		dead_code,
-		reason = "the applier sets this through iw until its System speaks nl80211"
-	)]
 	pub async fn set_regulatory_domain(&self, domain: &str) -> anyhow::Result<()> {
-		let valid =
-			domain == "00" || domain.len() == 2 && domain.bytes().all(|b| b.is_ascii_uppercase());
-		if !valid {
-			bail!("{domain:?} is neither an ISO 3166-1 alpha-2 code nor the world domain 00");
-		}
-		let mut alpha2 = domain.as_bytes().to_vec();
-		alpha2.push(0);
-		self.acknowledged(Nl80211Message {
-			cmd: Nl80211Command::ReqSetReg,
-			attributes: vec![Nl80211Attr::Other(DefaultNla::new(REG_ALPHA2, alpha2))],
-		})
-		.await
-		.with_context(|| format!("cannot set the regulatory domain to {domain}"))
+		self.acknowledged(set_regulatory_domain(domain)?)
+			.await
+			.with_context(|| format!("cannot set the regulatory domain to {domain}"))
 	}
 
 	/// Create the access point interface `interface` on the radio whose station interface is
-	/// `radio`, doing nothing where it exists as an access point already.
-	#[expect(
-		dead_code,
-		reason = "the applier sets this through iw until its System speaks nl80211"
-	)]
+	/// `radio`, doing nothing where it exists.
 	pub async fn create_access_point(&self, radio: &str, interface: &str) -> anyhow::Result<()> {
-		let interfaces = self.interfaces().await?;
-		if let Some(existing) = interfaces
-			.iter()
-			.find(|candidate| candidate.name == interface)
-		{
-			if existing.kind == Nl80211InterfaceType::Ap {
-				return Ok(());
-			}
-			bail!(
-				"{interface} exists and is not an access point ({:?})",
-				existing.kind
-			);
-		}
-		let Some(station) = interfaces.iter().find(|candidate| candidate.name == radio) else {
-			bail!("{radio} is not a wireless interface");
-		};
-		self.acknowledged(Nl80211Message {
-			cmd: Nl80211Command::NewInterface,
-			attributes: vec![
-				Nl80211Attr::Wiphy(station.wiphy),
-				Nl80211Attr::IfType(Nl80211InterfaceType::Ap),
-				Nl80211Attr::IfName(interface.to_owned()),
-			],
-		})
-		.await
-		.with_context(|| format!("cannot create {interface} on {radio}'s radio"))
-	}
-
-	/// Delete the interface `interface`, doing nothing where it does not exist.
-	#[expect(
-		dead_code,
-		reason = "the applier sets this through iw until its System speaks nl80211"
-	)]
-	pub async fn delete_access_point(&self, interface: &str) -> anyhow::Result<()> {
-		let interfaces = self.interfaces().await?;
-		let Some(existing) = interfaces
-			.iter()
-			.find(|candidate| candidate.name == interface)
+		let Some(message) = create_access_point(&self.interfaces().await?, radio, interface)?
 		else {
 			return Ok(());
 		};
-		self.acknowledged(Nl80211Message {
-			cmd: Nl80211Command::DelInterface,
-			attributes: vec![Nl80211Attr::IfIndex(existing.index)],
-		})
-		.await
-		.with_context(|| format!("cannot delete {interface}"))
+		self.acknowledged(message)
+			.await
+			.with_context(|| format!("cannot create {interface} on {radio}'s radio"))
+	}
+
+	/// Delete the interface `interface`, doing nothing where it does not exist.
+	pub async fn delete_access_point(&self, interface: &str) -> anyhow::Result<()> {
+		let Some(message) = delete_access_point(&self.interfaces().await?, interface) else {
+			return Ok(());
+		};
+		self.acknowledged(message)
+			.await
+			.with_context(|| format!("cannot delete {interface}"))
 	}
 
 	async fn interfaces(&self) -> anyhow::Result<Vec<Interface>> {
@@ -257,10 +208,6 @@ impl Nl80211 {
 	}
 
 	/// Send `message` and wait for the kernel to acknowledge it.
-	#[expect(
-		dead_code,
-		reason = "the applier sets this through iw until its System speaks nl80211"
-	)]
 	async fn acknowledged(&self, message: Nl80211Message) -> anyhow::Result<()> {
 		let mut request = NetlinkMessage::from(GenlMessage::from_payload(message));
 		request.header.flags = NLM_F_REQUEST | NLM_F_ACK;
@@ -275,4 +222,61 @@ impl Nl80211 {
 		}
 		Ok(())
 	}
+}
+
+/// The request putting every radio under `domain`, refusing anything but an alpha-2 code or `00`.
+fn set_regulatory_domain(domain: &str) -> anyhow::Result<Nl80211Message> {
+	let valid =
+		domain == "00" || domain.len() == 2 && domain.bytes().all(|b| b.is_ascii_uppercase());
+	if !valid {
+		bail!("{domain:?} is neither an ISO 3166-1 alpha-2 code nor the world domain 00");
+	}
+	let mut alpha2 = domain.as_bytes().to_vec();
+	alpha2.push(0);
+	Ok(Nl80211Message {
+		cmd: Nl80211Command::ReqSetReg,
+		attributes: vec![Nl80211Attr::Other(DefaultNla::new(REG_ALPHA2, alpha2))],
+	})
+}
+
+/// The request creating `interface` as an access point on `radio`'s wiphy, or `None` where an
+/// interface of that name exists.
+///
+/// One that exists as another type is left for hostapd, which sets the type it needs as it starts.
+fn create_access_point(
+	interfaces: &[Interface],
+	radio: &str,
+	interface: &str,
+) -> anyhow::Result<Option<Nl80211Message>> {
+	if let Some(existing) = interfaces
+		.iter()
+		.find(|candidate| candidate.name == interface)
+	{
+		if existing.kind != Nl80211InterfaceType::Ap {
+			tracing::debug!(interface, kind = ?existing.kind, "exists as another type, left for hostapd");
+		}
+		return Ok(None);
+	}
+	let Some(station) = interfaces.iter().find(|candidate| candidate.name == radio) else {
+		bail!("{radio} is not a wireless interface");
+	};
+	Ok(Some(Nl80211Message {
+		cmd: Nl80211Command::NewInterface,
+		attributes: vec![
+			Nl80211Attr::Wiphy(station.wiphy),
+			Nl80211Attr::IfType(Nl80211InterfaceType::Ap),
+			Nl80211Attr::IfName(interface.to_owned()),
+		],
+	}))
+}
+
+/// The request deleting `interface`, or `None` where it does not exist.
+fn delete_access_point(interfaces: &[Interface], interface: &str) -> Option<Nl80211Message> {
+	let existing = interfaces
+		.iter()
+		.find(|candidate| candidate.name == interface)?;
+	Some(Nl80211Message {
+		cmd: Nl80211Command::DelInterface,
+		attributes: vec![Nl80211Attr::IfIndex(existing.index)],
+	})
 }

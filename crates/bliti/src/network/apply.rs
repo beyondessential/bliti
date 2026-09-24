@@ -26,8 +26,6 @@ use super::render::{File, Hardware, Paths, Rendered};
 use record::Record;
 
 mod files;
-#[cfg(target_os = "linux")]
-mod iw;
 mod record;
 #[cfg(target_os = "linux")]
 mod system;

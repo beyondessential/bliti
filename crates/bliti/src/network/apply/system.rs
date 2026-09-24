@@ -1,4 +1,8 @@
-//! The device's [`System`]: systemd and networkd over D-Bus, and the radio through [`iw`].
+//! The device's [`System`]: systemd and networkd over D-Bus, and the radio over nl80211.
+//!
+//! The nl80211 setters are async and [`System`] is not, so [`Linux`] blocks on them through the
+//! runtime it was made on. That is legal only off the runtime's worker threads, which is where apply
+//! runs.
 
 use std::{
 	collections::HashMap,
@@ -8,8 +12,10 @@ use std::{
 
 use anyhow::{Context as _, bail};
 use dbus::{Path as ObjectPath, blocking::Connection, message::MatchRule};
+use tokio::runtime::Handle;
 
-use super::{Hostapd, System, iw};
+use super::{Hostapd, System};
+use crate::network::probe::Nl80211;
 
 const SYSTEMD: &str = "org.freedesktop.systemd1";
 const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";
@@ -33,20 +39,30 @@ const CALL: Duration = Duration::from_secs(25);
 /// How long a unit's job may take, beyond systemd's own default start timeout of 90 seconds.
 const JOB: Duration = Duration::from_secs(120);
 
-/// The device's stack, over the system bus.
+/// The device's stack, over the system bus and nl80211.
 pub struct Linux {
 	bus: Connection,
+	nl80211: Nl80211,
+	runtime: Handle,
 }
 
 impl Linux {
-	/// Connect to the system bus.
+	/// Connect to the system bus, and to nl80211 driven by the current tokio runtime.
+	///
+	/// Made and used off the runtime's worker threads, on its blocking pool say.
 	pub fn new() -> anyhow::Result<Self> {
+		let runtime = Handle::try_current().context("the applier needs a tokio runtime")?;
+		let nl80211 = Nl80211::connect().context("cannot connect to nl80211")?;
 		let bus = Connection::new_system().context("cannot connect to the system bus")?;
 		// systemd sends job signals only once some client has subscribed.
 		bus.with_proxy(SYSTEMD, SYSTEMD_PATH, CALL)
 			.method_call::<(), _, _, _>(SYSTEMD_MANAGER, "Subscribe", ())
 			.context("cannot subscribe to systemd")?;
-		Ok(Self { bus })
+		Ok(Self {
+			bus,
+			nl80211,
+			runtime,
+		})
 	}
 }
 
@@ -105,15 +121,18 @@ impl Linux {
 
 impl System for Linux {
 	fn set_regulatory_domain(&mut self, domain: &str) -> anyhow::Result<()> {
-		iw::set_regulatory_domain(domain)
+		self.runtime
+			.block_on(self.nl80211.set_regulatory_domain(domain))
 	}
 
 	fn create_access_point(&mut self, radio: &str, interface: &str) -> anyhow::Result<()> {
-		iw::create_access_point(radio, interface)
+		self.runtime
+			.block_on(self.nl80211.create_access_point(radio, interface))
 	}
 
 	fn delete_access_point(&mut self, interface: &str) -> anyhow::Result<()> {
-		iw::delete_access_point(interface)
+		self.runtime
+			.block_on(self.nl80211.delete_access_point(interface))
 	}
 
 	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()> {
