@@ -40,6 +40,14 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A failure that is not a candidate's, such as a hotspot that does not start, carries no `reached`. Verifies spec: CFG
 - [x] A wrong passphrase beside a working wall port is refused, and applying it again unchecked is applied, on real hardware. Verifies spec: CFG
 
+## Several clients at once
+
+- [x] What a client writes reaches only its own session, and one client's session ending leaves another's running. Verifies spec: CHN
+- [ ] A client's writes reach its session in the order it made them, both with and without a response, on the prototype. Verifies spec: CHN
+- [ ] Two clients connected at once each hold a session of their own, and one leaving or failing its handshake leaves the other's running, on the prototype. Verifies spec: CHN
+- [ ] A device serving a session goes on advertising, so a second client finds it, on the prototype. Verifies spec: ADV
+- [ ] A second client opening the network settings while another holds a configuration session is told the device is busy, on the prototype. Verifies spec: CFG
+
 ## Attachment and selection
 
 - [ ] A device verifies a candidate through carrier, association, addressing and the gateway answering, in that order. Verifies spec: LINK
