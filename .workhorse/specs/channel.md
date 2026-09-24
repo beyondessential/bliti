@@ -130,6 +130,9 @@ The streams above carry application messages, as specified in [MSG](messages.md)
 
 A client MUST report a channel that has closed, and SHOULD offer to open it again.
 
+A device MUST, as it starts, end every connection made to it before it started, since it holds a channel for none of them.
+
 > [!NOTE]
 > A channel closes with nothing having gone wrong, when the operator walks out of range or the device restarts, as readily as it closes on a fault.
 > An operator is served by knowing the view has stopped either way, and by a way back to it short of reading the code again.
+> A connection can outlive the device's own restart, and a client holding one would otherwise wait on a channel nothing answers, with no sign that it has gone.

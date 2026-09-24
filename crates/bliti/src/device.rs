@@ -85,6 +85,7 @@ pub async fn run(
 	};
 	adapter.set_powered(true).await?;
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
+	end_earlier_connections(&adapter).await?;
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume by
@@ -641,4 +642,21 @@ mod tests {
 			"same bytes took {small_span:?} at {CHUNK}B but {large_span:?} at 500B"
 		);
 	}
+}
+
+/// End every connection made before this start: the channel its client held was served by an
+/// earlier daemon, and the client would otherwise wait on it with nothing to tell it the channel is
+/// gone (CHN).
+async fn end_earlier_connections(adapter: &bluer::Adapter) -> Result<()> {
+	for address in adapter.device_addresses().await? {
+		let device = adapter.device(address)?;
+		if !device.is_connected().await.unwrap_or(false) {
+			continue;
+		}
+		tracing::info!(%address, "ending a connection made before this start");
+		if let Err(error) = device.disconnect().await {
+			tracing::warn!(%address, %error, "could not end a connection made before this start");
+		}
+	}
+	Ok(())
 }
