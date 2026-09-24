@@ -79,6 +79,8 @@ The application MUST offer, from a scan, a view for siting an access point: ever
 
 The application MUST let the operator scan or survey one adapter rather than every one, and join by WPS on a chosen adapter or on one the device picks.
 
+The application MUST offer to join by WPS from a network the scan lists by SSID, asking the device to join that network alone.
+
 > [!NOTE]
 > Joining asks which network to add. Siting asks where the device's signal comes from and which channel a new access point should take, and it is the same scan read differently.
 > Scanning takes a radio off its channel for a moment, so scanning one adapter spares a radio carrying the uplink or the hotspot.

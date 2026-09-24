@@ -71,6 +71,8 @@ A device MUST report which WPS methods each of its radios offers among its capab
 
 A device asked to join by WPS naming no `interface` MUST join on a radio offering the method asked for.
 
+A device asked to join by WPS for a named network MUST add only that network, and MUST NOT keep credentials the exchange yields for any other, nor stay joined to it.
+
 > [!NOTE]
 > A device with no keyboard is one an operator cannot type a passphrase into, and WPS is what a site's existing access point already offers for that.
 > Which mechanisms a site runs is the site's to decide. A device that refused one because the mechanism is weak would be imposing a judgement on a network it is a guest of, and would leave the operator holding a device that will not join.

@@ -141,11 +141,13 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 | --- | --- | --- | --- |
 | `scan` | client | `interface` where the client names one wireless interface | report the wireless networks it can see |
 | `survey` | client | `interface` where the client names one wireless interface | report what its radios can see of the occupied and usable spectrum |
-| `wps` | client | `method`, and `interface` where the client names the wireless interface to join on | join by WPS, as [WLAN](wireless.md) specifies |
+| `wps` | client | `method`, `interface` where the client names the wireless interface to join on, and `ssid` where it names the network to join | join by WPS, as [WLAN](wireless.md) specifies |
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
 A device MUST answer `wps` as it answers a proposal: with `configuration` carrying the configuration in force with the joined network added first among its attachments, then with `applied` or `invalid`, after which it is a proposal like any other.
+
+A device asked to join by WPS for a named `ssid` whose exchange yields credentials for another network MUST discard them as [WLAN](wireless.md) requires, and MUST answer with `invalid` at `$['ssid']`, carrying no `reached` and a `reason` naming the network the access point handed over.
 
 A device joining by PIN MUST first send `pin`, carrying as `pin` the PIN it generated for the operator to enter at the access point.
 

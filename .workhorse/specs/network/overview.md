@@ -91,7 +91,7 @@ Each entry of `radios` MUST carry:
 | `bands` | array | yes | the bands the radio can use, as [HOT](hotspot.md) names bands |
 | `alongside` | string | where the radio can run an access point | `independent`, `shared-channel` or `one-at-a-time`, as [HOT](hotspot.md) requires it be reported |
 
-`acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each, and `wps` keyed by `interface` with the `method` values each radio offers.
+`acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each, and `wps` keyed by `interface` with the `method` values each radio offers and `ssid` where it joins by WPS for a named network.
 
 > [!NOTE]
 > A client that has been told what a device supports has no reason to ask for more, which is what removes partial application and the unhonoured setting as outcomes, and what makes the document's declarative reading true rather than aspirational.
