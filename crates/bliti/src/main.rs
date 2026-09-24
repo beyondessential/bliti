@@ -91,7 +91,7 @@ enum Command {
 		#[arg(long, value_delimiter = ',')]
 		active: Vec<usize>,
 
-		/// The channel the wireless client is on, as `2.4ghz:6`, for a hotspot that has to follow it.
+		/// The channel the wireless client is on, as `2ghz:6`, for a hotspot that has to follow it.
 		#[arg(long)]
 		station_channel: Option<String>,
 	},
@@ -229,7 +229,7 @@ async fn network_apply(
 		.map(|text| {
 			let (band, number) = text.split_once(':').context("a channel is `band:number`")?;
 			let band = match band {
-				"2.4ghz" => render::Band::TwoPointFour,
+				"2ghz" => render::Band::TwoPointFour,
 				"5ghz" => render::Band::Five,
 				other => anyhow::bail!("{other:?} is not a band"),
 			};

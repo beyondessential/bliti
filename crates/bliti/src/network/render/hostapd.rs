@@ -24,10 +24,10 @@ fn at(member: &str) -> [Segment<'_>; 2] {
 /// trait. Kept to this one function because HOT does not pin its values.
 pub(super) fn band(band: &str) -> Result<Band, String> {
 	match band {
-		"2.4ghz" => Ok(Band::TwoPointFour),
+		"2ghz" => Ok(Band::TwoPointFour),
 		"5ghz" => Ok(Band::Five),
 		other => Err(format!(
-			"{other:?} is not a band; bands are \"2.4ghz\" and \"5ghz\""
+			"{other:?} is not a band; bands are \"2ghz\" and \"5ghz\""
 		)),
 	}
 }
@@ -222,7 +222,7 @@ mod tests {
 	/// A band is `2.4` or `5`.
 	#[test]
 	fn bands_parse() {
-		assert_eq!(band("2.4ghz"), Ok(Band::TwoPointFour));
+		assert_eq!(band("2ghz"), Ok(Band::TwoPointFour));
 		assert_eq!(band("5ghz"), Ok(Band::Five));
 		assert!(band("6ghz").is_err());
 	}

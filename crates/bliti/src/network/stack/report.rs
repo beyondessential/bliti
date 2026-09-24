@@ -189,7 +189,7 @@ mod tests {
 				frequency: 2437,
 				width: None
 			}),
-			Some(json!({"number": 6, "band": "2.4ghz"}))
+			Some(json!({"number": 6, "band": "2ghz"}))
 		);
 	}
 }

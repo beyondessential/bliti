@@ -453,7 +453,7 @@ test.describe('validating before proposing', () => {
 	// Every band on is any band, so nothing is written until one is turned off, and the last stays on.
 	test('the bands a device offers are narrowed and proposed', async ({ page }) => {
 		const offering = structuredClone(PI)
-		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2.4ghz', '5ghz']
+		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2ghz', '5ghz']
 		await openNetwork(page, { document: IN_FORCE, capabilities: offering })
 		await open(page, 'Clinic-Staff')
 		const candidate = page.locator('.candidate')
@@ -471,7 +471,7 @@ test.describe('validating before proposing', () => {
 
 	test('every band left on proposes no bands', async ({ page }) => {
 		const offering = structuredClone(PI)
-		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2.4ghz', '5ghz']
+		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2ghz', '5ghz']
 		await openNetwork(page, { document: IN_FORCE, capabilities: offering })
 		await open(page, 'Clinic-Staff')
 		const low = page.locator('.candidate').getByRole('checkbox', { name: '2.4 GHz' })
@@ -515,11 +515,11 @@ test.describe('validating before proposing', () => {
 		await openNetwork(page, { document: wiredOnly, capabilities: PI })
 		const hotspot = page.locator('.hotspot')
 		await hotspot.getByText('Radio and addressing').click()
-		await hotspot.getByLabel('Band').selectOption('2.4ghz')
+		await hotspot.getByLabel('Band').selectOption('2ghz')
 		await hotspot.getByLabel('Channel').selectOption('11')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		const [proposal] = await proposals(page)
-		expect(proposal.document.hotspot).toMatchObject({ band: '2.4ghz', channel: 11 })
+		expect(proposal.document.hotspot).toMatchObject({ band: '2ghz', channel: 11 })
 	})
 
 	test('a radio with independent channels offers them, keyed by band', async ({ page }) => {
@@ -603,7 +603,7 @@ test.describe('the ordering', () => {
 			type: 'networks',
 			'access-points': [
 				ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', security: ['psk', 'sae'], signal: -52 }),
-				ap({ bssid: '5c:a6:e6:02:71:9b', ssid: 'Guest', security: ['open'], signal: -61, band: '2.4ghz', channel: 6 }),
+				ap({ bssid: '5c:a6:e6:02:71:9b', ssid: 'Guest', security: ['open'], signal: -61, band: '2ghz', channel: 6 }),
 			],
 		}))
 		await addWireless(page)
@@ -696,12 +696,12 @@ test.describe('adapters', () => {
 		await expect(hotspot).toContainText('The Cypress CYW43455 runs the hotspot on the same channel as its wireless connection.')
 
 		await hotspot.getByLabel('Adapter').selectOption('wlx00c0caa1b2c3')
-		await hotspot.getByLabel('Band').selectOption('2.4ghz')
+		await hotspot.getByLabel('Band').selectOption('2ghz')
 		await expect(options(hotspot.getByLabel('Channel'))).toHaveText(['Device picks', '1', '6', '11'])
 		await hotspot.getByLabel('Channel').selectOption('6')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		const [proposal] = await proposals(page)
-		expect(proposal.document.hotspot).toMatchObject({ interface: 'wlx00c0caa1b2c3', band: '2.4ghz', channel: 6 })
+		expect(proposal.document.hotspot).toMatchObject({ interface: 'wlx00c0caa1b2c3', band: '2ghz', channel: 6 })
 	})
 
 	test('a single radio offers no adapter to choose', async ({ page }) => {

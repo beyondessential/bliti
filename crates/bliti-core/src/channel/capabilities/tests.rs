@@ -39,7 +39,7 @@ fn pi_with_adapter() -> Map<String, Json> {
 				"wlan0": {},
 				"wlx00c0caa1b2c3": {
 					"band": {
-						"2.4ghz": { "channel": [1, 6, 11], "channel-width": [20] },
+						"2ghz": { "channel": [1, 6, 11], "channel-width": [20] },
 						"5ghz": { "channel": [36, 40, 44, 48], "channel-width": [20, 40, 80] }
 					}
 				}
@@ -125,7 +125,7 @@ fn bands_the_device_does_not_offer_are_refused() {
 fn bands_are_held_to_those_offered() {
 	let mut caps = Json::Object(pi_with_adapter());
 	caps["attachments"]["kind"]["wireless"]["interface"]["wlan0"]["bands"] =
-		json!(["2.4ghz", "5ghz"]);
+		json!(["2ghz", "5ghz"]);
 	let caps = object(caps);
 	let within = object(
 		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "bands": ["5ghz"] }))] }),
@@ -220,7 +220,7 @@ fn a_band_is_refused_on_a_radio_that_does_not_offer_one() {
 fn a_channel_is_checked_against_its_band() {
 	let err = check_on_pi(json!({ "attachments": [],
 		"hotspot": { "ssid": "s", "passphrase": "p", "interface": "wlx00c0caa1b2c3",
-		             "band": "2.4ghz", "channel": 36 } }))
+		             "band": "2ghz", "channel": 36 } }))
 	.unwrap_err();
 	assert_eq!(err.at, "$['hotspot']['channel']");
 }
@@ -281,7 +281,7 @@ fn with_radios(radios: Json) -> Map<String, Json> {
 
 fn one_at_a_time() -> Map<String, Json> {
 	with_radios(
-		json!({ "wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" } }),
+		json!({ "wlan0": { "model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time" } }),
 	)
 }
 
@@ -336,8 +336,8 @@ fn a_hotspot_beside_wired_candidates_passes_on_a_one_at_a_time_radio() {
 #[test]
 fn a_second_radio_keeps_the_hotspot_and_a_client_apart() {
 	let caps = with_radios(json!({
-		"wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" },
-		"wlan1": { "model": "m", "bands": ["2.4ghz"] }
+		"wlan0": { "model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time" },
+		"wlan1": { "model": "m", "bands": ["2ghz"] }
 	}));
 	admitted(
 		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot() }),
@@ -353,8 +353,8 @@ fn a_second_radio_keeps_the_hotspot_and_a_client_apart() {
 	assert_eq!(refused.invalid.at, "$['hotspot']");
 
 	let both = with_radios(json!({
-		"wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" },
-		"wlan1": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" }
+		"wlan0": { "model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time" },
+		"wlan1": { "model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time" }
 	}));
 	admitted(
 		json!({ "attachments": [wireless(json!({ "interface": "wlan0" }))], "hotspot": hotspot() }),
@@ -379,11 +379,11 @@ fn the_mirror_is_checked_before_the_radios() {
 /// hotspot and the adapter 5 GHz ones.
 fn shared_and_independent() -> Map<String, Json> {
 	let mut caps = with_radios(json!({
-		"wlan0": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "shared-channel" },
-		"wlx00c0caa1b2c3": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "independent" }
+		"wlan0": { "model": "m", "bands": ["2ghz", "5ghz"], "alongside": "shared-channel" },
+		"wlx00c0caa1b2c3": { "model": "m", "bands": ["2ghz", "5ghz"], "alongside": "independent" }
 	}));
 	caps["document"]["hotspot"]["interface"] = json!({
-		"wlan0": { "band": { "2.4ghz": { "channel": [1, 6, 11], "channel-width": [20] } } },
+		"wlan0": { "band": { "2ghz": { "channel": [1, 6, 11], "channel-width": [20] } } },
 		"wlx00c0caa1b2c3": { "band": { "5ghz": { "channel": [36, 40], "channel-width": [20, 40] } } }
 	});
 	caps
@@ -392,10 +392,10 @@ fn shared_and_independent() -> Map<String, Json> {
 /// The Pi alone: one shared-channel radio offering 2.4 GHz channels for the hotspot.
 fn shared_only() -> Map<String, Json> {
 	let mut caps = with_radios(json!({
-		"wlan0": { "model": "m", "bands": ["2.4ghz", "5ghz"], "alongside": "shared-channel" }
+		"wlan0": { "model": "m", "bands": ["2ghz", "5ghz"], "alongside": "shared-channel" }
 	}));
 	caps["document"]["hotspot"]["interface"] = json!({
-		"wlan0": { "band": { "2.4ghz": { "channel": [1, 6, 11], "channel-width": [20] } } }
+		"wlan0": { "band": { "2ghz": { "channel": [1, 6, 11], "channel-width": [20] } } }
 	});
 	caps
 }
@@ -415,7 +415,7 @@ fn a_shared_channel_hotspot_with_no_client_to_follow_chooses_its_channel() {
 	for attachments in [json!([]), json!([wired])] {
 		admitted(
 			json!({ "attachments": attachments,
-				"hotspot": hotspot_with(json!({ "band": "2.4ghz", "channel": 6, "channel-width": 20 })) }),
+				"hotspot": hotspot_with(json!({ "band": "2ghz", "channel": 6, "channel-width": 20 })) }),
 			&shared_only(),
 		)
 		.unwrap();
@@ -433,7 +433,7 @@ fn a_shared_channel_hotspot_beside_a_client_cannot_choose_its_channel() {
 		)
 		.unwrap_err()
 	};
-	let both = refused(json!({ "band": "2.4ghz", "channel": 6 }));
+	let both = refused(json!({ "band": "2ghz", "channel": 6 }));
 	assert_eq!(both.rule, Rule::SharedChannel);
 	assert_eq!(both.invalid.at, "$['hotspot']['band']");
 	assert_eq!(

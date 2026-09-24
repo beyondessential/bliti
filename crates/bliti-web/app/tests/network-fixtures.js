@@ -8,11 +8,11 @@ export const WIRED = {
 	'wired-dynamic': { interface: ['eth0'], nameservers: true },
 	'wired-static': { interface: ['eth0'], nameservers: true },
 }
-export const BUILT_IN = { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' }
-export const USB = { model: 'MediaTek MT7921AU', bands: ['2.4ghz', '5ghz', '6ghz'], alongside: 'independent' }
+export const BUILT_IN = { model: 'Cypress CYW43455', bands: ['2ghz', '5ghz'], alongside: 'shared-channel' }
+export const USB = { model: 'MediaTek MT7921AU', bands: ['2ghz', '5ghz', '6ghz'], alongside: 'independent' }
 export const BAND = {
 	band: {
-		'2.4ghz': { channel: [1, 6, 11], 'channel-width': [20] },
+		'2ghz': { channel: [1, 6, 11], 'channel-width': [20] },
 		'5ghz': { channel: [36, 40, 44, 48], 'channel-width': [20, 40, 80] },
 	},
 }

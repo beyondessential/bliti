@@ -717,7 +717,7 @@ mod tests {
 				"attachments": {"kind": {"wireless": {"security": {"kind": {"psk": {}}}}}},
 				"hotspot": {"interface": {"wlan0": {}}}
 			},
-			"radios": {"wlan0": {"model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time"}}
+			"radios": {"wlan0": {"model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time"}}
 		}"#;
 		let document = r#"{
 			"attachments": [{"kind": "wireless", "label": "a", "verify": true, "ssid": "a",

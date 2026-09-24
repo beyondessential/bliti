@@ -25,7 +25,7 @@ import { bandName, widthName } from './wireless.js'
 const KINDS = ['wireless', 'wired-dynamic', 'wired-static']
 const SECURITY_KINDS = ['psk-sae', 'sae', 'psk', 'enterprise']
 const WPS_METHODS = ['push-button', 'pin']
-const BANDS = ['2.4ghz', '5ghz', '6ghz']
+const BANDS = ['2ghz', '5ghz', '6ghz']
 const SELECTORS = ['kind', 'interface', 'band']
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)

@@ -146,11 +146,11 @@ fn the_shape_is_the_one_net_gives() {
 			"hotspot": {
 				"interface": {
 					"wlan0": { "band": {
-						"2.4ghz": { "channel": [1, 6], "channel-width": [20, 40] },
+						"2ghz": { "channel": [1, 6], "channel-width": [20, 40] },
 						"5ghz": { "channel": [36], "channel-width": [20, 40, 80] }
 					} },
 					"wlx00c0caa1b2c3": { "band": {
-						"2.4ghz": { "channel": [1, 6, 11], "channel-width": [20, 40] },
+						"2ghz": { "channel": [1, 6, 11], "channel-width": [20, 40] },
 						"5ghz": { "channel": [36, 40], "channel-width": [20, 40, 80] }
 					} }
 				},
@@ -161,11 +161,11 @@ fn the_shape_is_the_one_net_gives() {
 			"regulatory-domain": true
 		},
 		"radios": {
-			"wlan0": { "model": "brcmfmac (SDIO 02d0:a9a6)", "bands": ["2.4ghz", "5ghz"],
+			"wlan0": { "model": "brcmfmac (SDIO 02d0:a9a6)", "bands": ["2ghz", "5ghz"],
 				"alongside": "shared-channel" },
 			"wlx00c0caa1b2c3": { "model": "mt7921u (USB 0e8d:7961, Wireless_Device)",
-				"bands": ["2.4ghz", "5ghz", "6ghz"], "alongside": "independent" },
-			"wlan1": { "model": "rtl8xxxu (USB 0bda:8179)", "bands": ["2.4ghz"] }
+				"bands": ["2ghz", "5ghz", "6ghz"], "alongside": "independent" },
+			"wlan1": { "model": "rtl8xxxu (USB 0bda:8179)", "bands": ["2ghz"] }
 		},
 		"acts": {
 			"scan": { "interface": { "wlan0": {}, "wlx00c0caa1b2c3": {}, "wlan1": {} } },
@@ -221,8 +221,7 @@ fn a_shared_channel_hotspot_passes_without_a_band() {
 /// candidate could take the radio (HOT).
 #[test]
 fn a_shared_channel_hotspot_chooses_its_channel_only_with_no_client_to_follow() {
-	let chosen =
-		json!({ "interface": "wlan0", "band": "2.4ghz", "channel": 6, "channel-width": 40 });
+	let chosen = json!({ "interface": "wlan0", "band": "2ghz", "channel": 6, "channel-width": 40 });
 	admits(&object(hotspot(chosen.clone())), &device()).unwrap();
 
 	let mut beside = hotspot(chosen);
@@ -272,7 +271,7 @@ fn a_width_the_stack_cannot_run_is_refused() {
 
 #[test]
 fn a_channel_an_access_point_cannot_start_on_is_refused() {
-	for (band, channel) in [("5ghz", 52), ("2.4ghz", 13)] {
+	for (band, channel) in [("5ghz", 52), ("2ghz", 13)] {
 		let err = check_document(hotspot(
 			json!({ "interface": "wlx00c0caa1b2c3", "band": band,
 			"channel": channel }),
@@ -360,4 +359,25 @@ fn a_channel_the_renderer_refuses_is_not_offered() {
 	let channels =
 		&caps["document"]["hotspot"]["interface"]["wlx00c0caa1b2c3"]["band"]["5ghz"]["channel"];
 	assert_eq!(channels, &json!([36, 40]));
+}
+
+/// Every member name the capabilities carry is one MSG admits, band keys included, so a client can
+/// read the message carrying them.
+#[test]
+fn the_capabilities_cross_the_wire() {
+	use bliti_core::channel::{
+		envelope::{Reading, read, write},
+		messages::Message,
+	};
+
+	let sent = Message::Configuration {
+		document: object(json!({ "attachments": [] })),
+		capabilities: Some(device()),
+	};
+	let Ok(Reading::Message(Message::Configuration { capabilities, .. })) =
+		read::<Message>(&write(&sent))
+	else {
+		panic!("the configuration reads back");
+	};
+	assert_eq!(capabilities, Some(device()));
 }

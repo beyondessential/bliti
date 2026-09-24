@@ -23,7 +23,7 @@ A device MUST run a hotspot only where its configuration carries one.
 | `share-upstream` | boolean | no | whether clients reach the device's own network; enabled where unset |
 | `isolate-clients` | boolean | no | whether clients are kept from reaching each other; enabled where unset |
 | `dhcp-range` | string | no | the subnet clients are addressed from |
-| `band` | string | no | the band the hotspot operates on: `2.4ghz`, `5ghz` or `6ghz` |
+| `band` | string | no | the band the hotspot operates on: `2ghz` for 2.4 GHz, `5ghz` or `6ghz` |
 | `channel` | number | no | the channel it operates on |
 | `channel-width` | number | no | the width of that channel, in megahertz |
 

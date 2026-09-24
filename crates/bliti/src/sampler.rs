@@ -370,7 +370,7 @@ mod tests {
 			Entry::text(1, "wireless-network", "clinic")
 				.with_trait("interface", interface)
 				.with_trait("security", json!("psk"))
-				.with_trait("channel", json!({ "number": channel, "band": "2.4ghz" }))
+				.with_trait("channel", json!({ "number": channel, "band": "2ghz" }))
 		};
 		assert_eq!(
 			identity_key(&joined(1, false)),

@@ -13,10 +13,10 @@ const USB = 'wlx00c0caa1b2c3'
 const HEARD = [
 	ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', signal: -52 }),
 	ap({ interface: USB, bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', signal: -44 }),
-	ap({ bssid: 'a4:2b:b0:11:2c:41', ssid: 'Clinic', band: '2.4ghz', channel: 1, 'channel-width': 20, signal: -47 }),
+	ap({ bssid: 'a4:2b:b0:11:2c:41', ssid: 'Clinic', band: '2ghz', channel: 1, 'channel-width': 20, signal: -47 }),
 	ap({ bssid: 'a4:2b:b0:3e:90:e0', ssid: 'Clinic', security: ['psk'], channel: 149, signal: -78 }),
 	ap({ bssid: 'a4:2b:b0:11:2c:42', ssid: null, hidden: true, security: ['sae'], signal: -53 }),
-	ap({ bssid: '5c:a6:e6:02:71:9b', ssid: 'Guest', security: ['open'], band: '2.4ghz', channel: 6, 'channel-width': 20, signal: -61 }),
+	ap({ bssid: '5c:a6:e6:02:71:9b', ssid: 'Guest', security: ['open'], band: '2ghz', channel: 6, 'channel-width': 20, signal: -61 }),
 ]
 
 async function scanned(page, capabilities = TWO_RADIOS, heard = HEARD) {

@@ -789,12 +789,12 @@ async fn a_scan_answers_each_access_point_but_the_devices_own() {
 		[
 			json!({
 				"interface": "wld0", "bssid": "02:00:00:00:00:01", "ssid": "clinic",
-				"hidden": false, "security": ["open"], "band": "2.4ghz", "channel": 6,
+				"hidden": false, "security": ["open"], "band": "2ghz", "channel": 6,
 				"channel-width": 20, "signal": -48,
 			}),
 			json!({
 				"interface": "wld0", "bssid": "02:00:00:00:00:02", "ssid": null,
-				"hidden": true, "security": ["open"], "band": "2.4ghz", "channel": 6,
+				"hidden": true, "security": ["open"], "band": "2ghz", "channel": 6,
 				"channel-width": 20, "signal": -48,
 			}),
 		]
@@ -820,9 +820,9 @@ async fn a_survey_counts_networks_and_busy_time_per_usable_channel() {
 	assert_eq!(
 		Json::Object(spectrum),
 		json!({"channels": [
-			{"interface": "wld0", "band": "2.4ghz", "channel": 1, "networks": 1, "busy": 0.25},
-			{"interface": "wld0", "band": "2.4ghz", "channel": 6, "networks": 0, "busy": 0.0},
-			{"interface": "wld0", "band": "2.4ghz", "channel": 11, "networks": 0, "busy": 0.0},
+			{"interface": "wld0", "band": "2ghz", "channel": 1, "networks": 1, "busy": 0.25},
+			{"interface": "wld0", "band": "2ghz", "channel": 6, "networks": 0, "busy": 0.0},
+			{"interface": "wld0", "band": "2ghz", "channel": 11, "networks": 0, "busy": 0.0},
 		]})
 	);
 }
@@ -1097,7 +1097,7 @@ async fn what_is_joined_and_run_is_reported() {
 		.into_iter()
 		.map(|entry| (entry.name, entry.value.unwrap_or_default(), entry.traits))
 		.collect();
-	let channel = json!({"number": 1, "band": "2.4ghz", "width": 20});
+	let channel = json!({"number": 1, "band": "2ghz", "width": 20});
 	assert_eq!(entries_now[0].0, "wireless-network");
 	assert_eq!(entries_now[0].1, "clinic");
 	assert_eq!(entries_now[0].2["interface"], json!({"name": "wld0"}));

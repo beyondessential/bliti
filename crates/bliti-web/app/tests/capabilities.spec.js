@@ -40,7 +40,7 @@ const WIRED = {
 
 const BAND = {
 	band: {
-		'2.4ghz': { channel: [1, 6, 11], 'channel-width': [20] },
+		'2ghz': { channel: [1, 6, 11], 'channel-width': [20] },
 		'5ghz': { channel: [36, 40, 44, 48], 'channel-width': [20, 40, 80] },
 	},
 }
@@ -57,7 +57,7 @@ const PI = {
 		hotspot: { interface: { wlan0: BAND }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
 		'regulatory-domain': true,
 	},
-	radios: { wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' } },
+	radios: { wlan0: { model: 'Cypress CYW43455', bands: ['2ghz', '5ghz'], alongside: 'shared-channel' } },
 	acts: {
 		scan: { interface: { wlan0: {} } },
 		wps: { interface: { wlan0: { method: ['push-button', 'pin'] } } },
@@ -70,7 +70,7 @@ const INDEPENDENT = {
 		attachments: PI.document.attachments,
 		hotspot: { interface: { wlan0: BAND } },
 	},
-	radios: { wlan0: { model: 'MediaTek MT7921AU', bands: ['2.4ghz', '5ghz'], alongside: 'independent' } },
+	radios: { wlan0: { model: 'MediaTek MT7921AU', bands: ['2ghz', '5ghz'], alongside: 'independent' } },
 	acts: {},
 }
 
@@ -94,8 +94,8 @@ const TWO_RADIOS = {
 		hotspot: { interface: { wlan0: BAND, wlx00c0caa1b2c3: BAND }, 'share-upstream': true },
 	},
 	radios: {
-		wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' },
-		wlx00c0caa1b2c3: { model: 'MediaTek MT7921AU', bands: ['2.4ghz', '5ghz', '6ghz'], alongside: 'independent' },
+		wlan0: { model: 'Cypress CYW43455', bands: ['2ghz', '5ghz'], alongside: 'shared-channel' },
+		wlx00c0caa1b2c3: { model: 'MediaTek MT7921AU', bands: ['2ghz', '5ghz', '6ghz'], alongside: 'independent' },
 	},
 	acts: {
 		scan: { interface: { wlan0: {}, wlx00c0caa1b2c3: {} } },
@@ -209,8 +209,8 @@ test.describe('check', () => {
 	test('holds a channel to the list for the band it sits on', () => {
 		const base = { ssid: 'a', passphrase: '12345678' }
 		expect(check({ attachments: [], hotspot: { ...base, band: '5ghz', channel: 40, 'channel-width': 80 } }, INDEPENDENT)).toBeNull()
-		expect(check({ attachments: [], hotspot: { ...base, band: '2.4ghz', channel: 40 } }, INDEPENDENT)?.at).toBe("$['hotspot']['channel']")
-		expect(check({ attachments: [], hotspot: { ...base, band: '2.4ghz', 'channel-width': 40 } }, INDEPENDENT)).toEqual({
+		expect(check({ attachments: [], hotspot: { ...base, band: '2ghz', channel: 40 } }, INDEPENDENT)?.at).toBe("$['hotspot']['channel']")
+		expect(check({ attachments: [], hotspot: { ...base, band: '2ghz', 'channel-width': 40 } }, INDEPENDENT)).toEqual({
 			at: "$['hotspot']['channel-width']",
 			reason: 'This device does not support 40 MHz here.',
 		})
@@ -250,7 +250,7 @@ test.describe('reading capabilities', () => {
 		expect(adapterName(TWO_RADIOS, 'wlx00c0caa1b2c3')).toBe('MediaTek MT7921AU')
 		const twins = { radios: { wlan0: { model: 'X', bands: [] }, wlan1: { model: 'X', bands: [] } } }
 		expect(adapterName(twins, 'wlan1')).toBe('X (wlan1)')
-		expect(radioBands(TWO_RADIOS)).toEqual(['2.4ghz', '5ghz', '6ghz'])
+		expect(radioBands(TWO_RADIOS)).toEqual(['2ghz', '5ghz', '6ghz'])
 	})
 
 	test('an adapter is offered only where there is more than one', () => {
@@ -270,11 +270,11 @@ test.describe('reading capabilities', () => {
 	})
 
 	test('the hotspot is offered what its adapter and band carry', () => {
-		expect(bands(TWO_RADIOS, { interface: 'wlan0' })).toEqual(['2.4ghz', '5ghz'])
+		expect(bands(TWO_RADIOS, { interface: 'wlan0' })).toEqual(['2ghz', '5ghz'])
 		expect(bands(TWO_RADIOS, { interface: 'wlan0' }, { attachments: [wireless] })).toEqual([])
-		expect(bands(TWO_RADIOS, {}, { attachments: [wireless] })).toEqual(['2.4ghz', '5ghz'])
-		expect(bands(TWO_RADIOS, {})).toEqual(['2.4ghz', '5ghz'])
-		expect(channels(TWO_RADIOS, { band: '2.4ghz' })).toEqual([1, 6, 11])
+		expect(bands(TWO_RADIOS, {}, { attachments: [wireless] })).toEqual(['2ghz', '5ghz'])
+		expect(bands(TWO_RADIOS, {})).toEqual(['2ghz', '5ghz'])
+		expect(channels(TWO_RADIOS, { band: '2ghz' })).toEqual([1, 6, 11])
 		expect(channels(TWO_RADIOS, {})).toEqual([1, 6, 11, 36, 40, 44, 48])
 		expect(widths(TWO_RADIOS, { interface: 'wlx00c0caa1b2c3', band: '5ghz' })).toEqual([20, 40, 80])
 		expect(channels(TWO_RADIOS, { interface: 'wlan0' }, { attachments: [wireless] })).toEqual([])

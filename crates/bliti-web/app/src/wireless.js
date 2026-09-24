@@ -8,8 +8,12 @@ export function securityName(kind) {
 	return SECURITY[kind] ?? String(kind)
 }
 
-/// A band as written on an access point's label: `5ghz` reads as 5 GHz.
+/// What the wire's band tokens stand for where the number alone is not what a label says.
+const BAND_NAMES = { '2ghz': '2.4 GHz' }
+
+/// A band as written on an access point's label: `2ghz` reads as 2.4 GHz, `5ghz` as 5 GHz.
 export function bandName(band) {
+	if (BAND_NAMES[band]) return BAND_NAMES[band]
 	const match = /^(\d+(?:\.\d+)?)ghz$/.exec(String(band))
 	return match ? `${match[1]} GHz` : String(band)
 }

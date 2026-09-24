@@ -2,7 +2,7 @@
 // and channels around the device, for siting a new access point. The device reports one entry per
 // access point each radio heard (BLI-CFG); which of them form one network is ours to draw.
 
-const BANDS = ['2.4ghz', '5ghz', '6ghz']
+const BANDS = ['2ghz', '5ghz', '6ghz']
 
 const bySignal = (a, b) => (b.signal ?? -Infinity) - (a.signal ?? -Infinity)
 const named = (point) => typeof point?.ssid === 'string' && point.ssid !== ''

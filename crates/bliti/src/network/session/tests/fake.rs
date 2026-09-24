@@ -84,8 +84,8 @@ pub fn capabilities() -> Map<String, Json> {
 			"x-added-by-this-client": true,
 		},
 		"radios": {
-			"wlan0": {"model": "onboard", "bands": ["2.4GHz"]},
-			"wlx00c0caa1b2c3": {"model": "dongle", "bands": ["2.4GHz", "5GHz"]},
+			"wlan0": {"model": "onboard", "bands": ["2ghz"]},
+			"wlx00c0caa1b2c3": {"model": "dongle", "bands": ["2ghz", "5ghz"]},
 		},
 		"acts": {
 			"scan": {"interface": {"wlan0": {}, "wlx00c0caa1b2c3": {}}},

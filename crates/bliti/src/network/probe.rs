@@ -60,7 +60,7 @@ impl Band {
 	/// The band as HOT names it.
 	pub fn as_str(self) -> &'static str {
 		match self {
-			Self::TwoPointFour => "2.4ghz",
+			Self::TwoPointFour => "2ghz",
 			Self::Five => "5ghz",
 			Self::Six => "6ghz",
 		}

@@ -63,7 +63,7 @@ async fn a_hotspot_a_one_at_a_time_radio_cannot_run_beside_a_client_is_invalid()
 	let mut one_radio = capabilities();
 	one_radio["document"]["hotspot"] = json!({"interface": {"wlan0": {}}});
 	one_radio["radios"] =
-		json!({"wlan0": {"model": "onboard", "bands": ["2.4ghz"], "alongside": "one-at-a-time"}});
+		json!({"wlan0": {"model": "onboard", "bands": ["2ghz"], "alongside": "one-at-a-time"}});
 	device.log.capabilities(one_radio);
 	let (mut client, _task, _) = device.opened().await;
 
@@ -84,16 +84,19 @@ async fn a_hotspot_a_one_at_a_time_radio_cannot_run_beside_a_client_is_invalid()
 }
 
 /// A hotspot choosing its channel on the shared-channel radio a wireless candidate could take is
-/// refused at the first of band, channel and width it sets (HOT).
+/// refused at the first of band, channel and width it sets (HOT). The capabilities, band keys and all,
+/// reach the client readable as they open the session.
 #[tokio::test]
 async fn a_chosen_channel_on_a_shared_channel_radio_beside_a_client_is_invalid() {
 	let device = Device::new().await;
 	let mut one_radio = capabilities();
 	one_radio["document"]["hotspot"] = json!({"interface": {"wlan0": {"band": {
+		"2ghz": {"channel": [1, 6, 11], "channel-width": [20]},
 		"5ghz": {"channel": [36, 40], "channel-width": [20]}
 	}}}});
-	one_radio["radios"] =
-		json!({"wlan0": {"model": "onboard", "bands": ["5ghz"], "alongside": "shared-channel"}});
+	one_radio["radios"] = json!({"wlan0": {
+		"model": "onboard", "bands": ["2ghz", "5ghz"], "alongside": "shared-channel"
+	}});
 	device.log.capabilities(one_radio);
 	let (mut client, _task, _) = device.opened().await;
 

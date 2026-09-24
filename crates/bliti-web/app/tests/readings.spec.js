@@ -339,7 +339,7 @@ test.describe('wireless', () => {
 	// a shared-channel hotspot following the client onto a new channel must not leave two tiles (VIEW).
 	test('a wireless-network fact whose channel changes replaces its tile rather than adding a second', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, joined(6, '2.4ghz'))
+		await emit(page, joined(6, '2ghz'))
 		await emit(page, joined(36, '5ghz'))
 		const tile = page.locator('.tile').filter({ hasText: 'Wireless' })
 		await expect(tile).toHaveCount(1)
@@ -355,7 +355,7 @@ test.describe('wireless', () => {
 		await emit(page, reading('cpu-usage', fraction(0.12)))
 		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
 		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
-		await emit(page, joined(6, '2.4ghz'))
+		await emit(page, joined(6, '2ghz'))
 		await emit(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'wlan0', route: 'default' } } }))
 		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Wireless', 'Hotspot', 'Hotspot clients', 'Processor'])
 		await expect(page.getByText('3 clients')).toBeVisible()
