@@ -90,7 +90,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
 - [x] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
 - [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
-- [ ] A device joins by WPS push-button against a MikroTik access point. Fails today: iwd drops the router's M4, whose WFA vendor extension comes before its encrypted settings. A known limitation of iwd, taken up on L2. Verifies spec: WLAN
+- [ ] A device joins by WPS push-button against a MikroTik access point, on 2.4 GHz and on 5 GHz. Fails today on both: iwd drops the router's M4, whose WFA vendor extension comes before its encrypted settings. A known limitation of iwd, taken up on L2. Verifies spec: WLAN
 - [x] A WPS push-button join that finds no access point in push-button mode is reported at carrier.
 - [x] Joining by WPS for a named network joins it where the access point hands over that network's credentials. Verifies spec: WLAN, CFG
 - [x] Joining by WPS for a named network refuses credentials for another network at `$['ssid']` with no stage reached and a reason naming the network handed over, forgetting them and adding nothing to the configuration. Verifies spec: WLAN, CFG
