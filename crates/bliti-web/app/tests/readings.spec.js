@@ -244,6 +244,12 @@ test.describe('aggregation', () => {
 		// An IPv4 address on the default route comes before any IPv6 one.
 		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
 		await expect(face).toHaveText(['10.0.101.3', '100.93.132.114'])
+
+		// The reveal names the overlay's interface without repeating the overlay its name says.
+		const tile = page.locator('.tile').filter({ hasText: 'Address' })
+		await tile.click()
+		const overlay = tile.locator('.detail').getByText('tailscale0').first()
+		await expect(overlay).toHaveText('tailscale0')
 	})
 })
 

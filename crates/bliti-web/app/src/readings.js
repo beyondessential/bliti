@@ -394,9 +394,18 @@ export function qualifierOf(entry) {
 	const parts = []
 	for (const [name, value] of Object.entries(entry.traits ?? {})) {
 		if (DESCRIPTIVE.has(name)) continue
-		parts.push(traitText(value))
+		parts.push(traitText(name === 'interface' ? withoutEchoedOverlay(value) : value))
 	}
 	return parts.filter(Boolean).join(' · ')
+}
+
+/// An interface trait without its overlay where the interface's name already says it, as
+/// `tailscale0` says `tailscale`.
+function withoutEchoedOverlay(value) {
+	if (!value || typeof value !== 'object' || typeof value.overlay !== 'string') return value
+	if (!String(value.name ?? '').startsWith(value.overlay)) return value
+	const { overlay: _, ...rest } = value
+	return rest
 }
 
 function traitText(value) {
