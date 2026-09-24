@@ -65,6 +65,12 @@ export function checking(edit, key, verify) {
 	return updateCandidate(edit, key, (candidate) => ({ ...candidate, verify }))
 }
 
+/// The candidate under `key` turned off or back on: one turned off keeps what it carries, and is not
+/// brought up (BLI-LINK).
+export function turning(edit, key, enabled) {
+	return updateCandidate(edit, key, (candidate) => ({ ...candidate, enabled }))
+}
+
 export function removeCandidate(edit, key) {
 	const index = edit.keys.indexOf(key)
 	if (index === -1) return edit
@@ -358,7 +364,7 @@ function invalid(state, message) {
 	}
 }
 
-const STATES = new Set(['default-route', 'up', 'verifying', 'standby', 'unavailable'])
+const STATES = new Set(['default-route', 'up', 'verifying', 'standby', 'off', 'unavailable'])
 
 /// A `state` message: what the device observes of each candidate, matched by position to the
 /// attachments of the configuration it is running (BLI-CFG). An entry whose `is` this build does not
@@ -397,6 +403,8 @@ export function stateWording(observed, kind) {
 			return { text: 'Checking', tone: 'muted' }
 		case 'standby':
 			return { text: 'Standby', tone: 'muted' }
+		case 'off':
+			return { text: 'Off', tone: 'muted' }
 		case 'unavailable':
 			return { text: unavailable(observed.reached, kind), tone: 'muted' }
 		default:

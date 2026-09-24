@@ -271,6 +271,7 @@ export function hotspotBlockedBy(capabilities, document, joined) {
 			(document.attachments ?? []).some(
 				(attachment) =>
 					attachment.kind === 'wireless' &&
+					attachment.enabled !== false &&
 					attachment.ssid === link.ssid &&
 					(attachment.interface === undefined || attachment.interface === radio.interface),
 			)

@@ -56,7 +56,7 @@ test.describe('editing is the application\'s own', () => {
 		await open(page, 'North site')
 		await page.getByLabel('Gateway').fill('10.9.9.9')
 		await page.getByLabel('Resolvers').fill('1.1.1.1, 9.9.9.9')
-		await page.getByRole('button', { name: 'Turn off' }).click()
+		await page.locator('section.hotspot').getByRole('button', { name: 'Turn off' }).click()
 		await page.getByRole('button', { name: 'Reset' }).click()
 
 		await expect(bar(page)).toContainText('Saved.')
@@ -609,7 +609,7 @@ test.describe('validating before proposing', () => {
 		const wired = { attachments: [{ kind: 'wired-dynamic', label: 'eth0 automatic', enabled: true, verify: true, interface: 'eth0' }] }
 		await openNetwork(page, { document: wired, capabilities: WIRED_ONLY })
 		await expect(page.locator('.hotspot')).toContainText('This device has no wireless radio.')
-		await expect(page.getByRole('button', { name: 'Turn on' })).toHaveCount(0)
+		await expect(page.locator('section.hotspot').getByRole('button', { name: 'Turn on' })).toHaveCount(0)
 		await expect(page.getByRole('heading', { name: 'Country' })).toHaveCount(0)
 		await page.getByRole('button', { name: 'Add' }).click()
 		await expect(page.locator('.adding button')).toHaveText(['Wired, DHCP', 'Wired, static'])
@@ -700,7 +700,7 @@ test.describe('the hotspot beside a connection', () => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.evaluate((event) => window.__blitiEmit(event), joinedOn(136))
 		const notice = page.locator('section.hotspot .notice')
-		await expect(notice).toHaveText("Can't run beside Clinic-Staff on 5 GHz channel 136; removing that connection lets it run.")
+		await expect(notice).toHaveText("Can't run beside Clinic-Staff on 5 GHz channel 136; turning that connection off lets it run.")
 		await page.locator('section.hotspot').getByLabel('SSID').fill('Clinic-Field-05')
 		await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled()
 
@@ -730,13 +730,14 @@ test.describe('the state of the session', () => {
 	test('the vocabulary of the wire does not appear on screen', async ({ page }) => {
 		const document = structuredClone(IN_FORCE)
 		document.attachments[4].verify = false
+		document.attachments[3].enabled = false
 		await openNetwork(page, { document, capabilities: PI, states: STATES })
 		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: 'no answer', reached: 'gateway' }))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await page.getByText('Radio and addressing').click()
 		const shown = await page.locator('.network').innerText()
-		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', '$[']) {
+		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', 'enabled', '$[']) {
 			expect(shown.toLowerCase()).not.toContain(word)
 		}
 	})

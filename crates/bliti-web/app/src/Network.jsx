@@ -21,6 +21,7 @@ import {
 	stagesOf,
 	stateFor,
 	stateWording,
+	turning,
 	uncheckable,
 	unedited,
 	updateCandidate,
@@ -624,6 +625,7 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 								<span className="kind">
 									{describeCandidate(candidate)}
 									{candidate?.verify === false && ', not checked'}
+									{candidate?.enabled === false && ', off'}
 								</span>
 							</button>
 							{observed && <span className={`state ${observed.tone}`}>{observed.text}</span>}
@@ -635,23 +637,35 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 	)
 }
 
-/// One candidate's fields, opened from its row. After its checking failed a proposal, it offers to
-/// apply that again without checking it; one not checked says so, and can be checked again (NSCR).
+/// One candidate's fields, opened from its row. It is turned off and on again from here, keeping its
+/// fields. After its checking failed a proposal, it offers to apply that again without checking it;
+/// one not checked says so, and can be checked again (NSCR).
 function Candidate({ state, candidateKey, readOnly, change, marks, failure, unchecked, scan, onRemove }) {
 	const index = state.edit.keys.indexOf(candidateKey)
 	const candidate = state.edit.document.attachments[index]
 	const observed = stateFor(state, candidateKey)
 	const edit = (update) => change((held) => updateCandidate(held, candidateKey, update))
 	const known = ['wireless', 'wired-dynamic', 'wired-static'].includes(candidate.kind)
+	const off = candidate.enabled === false
 
 	return (
 		<section className="candidate" aria-label={candidate.label || 'Unnamed'}>
 			<div className="heading">
 				<h2>{candidate.label || 'Unnamed'}</h2>
-				<button className="secondary small" onClick={onRemove} disabled={readOnly}>
-					Remove
-				</button>
+				<div className="actions">
+					<button
+						className="secondary small"
+						onClick={() => change((held) => turning(held, candidateKey, off))}
+						disabled={readOnly}
+					>
+						{off ? 'Turn on' : 'Turn off'}
+					</button>
+					<button className="secondary small" onClick={onRemove} disabled={readOnly}>
+						Remove
+					</button>
+				</div>
 			</div>
+			{off && <p className="muted">Off. Kept, but not used until turned on.</p>}
 			{failure && <Failure failure={failure} kind={candidate.kind} />}
 			{unchecked && (
 				<div className="unchecked">
@@ -706,7 +720,7 @@ function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 			{failure && <Failure failure={failure} />}
 			{blocked && (
 				<p className="notice">
-					Can't run beside {blocked.ssid} on {bandName(blocked.band)} channel {blocked.channel}; removing that connection lets it run.
+					Can't run beside {blocked.ssid} on {bandName(blocked.band)} channel {blocked.channel}; turning that connection off lets it run.
 				</p>
 			)}
 			{why && <p className="muted absent">{why.sentence}</p>}
