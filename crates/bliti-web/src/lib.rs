@@ -65,28 +65,63 @@ pub fn device_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
 }
 
-/// Whether a document stays within a device's `capabilities.document`, checked before it is proposed
-/// (NSCR) with the checker the device rejects with (NET), so the two cannot disagree.
+/// Whether a document is within a device's capabilities, checked before it is proposed (NSCR) with
+/// the checker the device rejects with (NET), so the two cannot disagree.
 ///
-/// Both are plain objects. Null where the document is within them, or `{ at, reason }` naming the
-/// first member they do not cover. The reason is the checker's, for logs; a screen words its own.
+/// Both are plain objects, the capabilities whole. Null where they admit the document, or
+/// `{ at, reason, rule }` naming the first part they do not: `rule` is `mirror` where
+/// `capabilities.document` does not cover it, or the rule of HOT it breaks. The reason is the
+/// checker's, for logs; a screen words its own.
 #[wasm_bindgen]
 pub fn check_capabilities(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, capability_fault)
+}
+
+/// Whether a document's hotspot and a wireless candidate could be carried only by one radio running
+/// one at a time (HOT), alone, so a screen can ask it of a document it is considering. Null where
+/// not, or `{ at, reason }`.
+#[wasm_bindgen]
+pub fn check_placement(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, placement_fault)
+}
+
+/// Call `answer` on a document and capabilities given as plain objects, and hand back what it
+/// answers as one, or null for nothing.
+fn across(
+	document: &JsValue,
+	capabilities: &JsValue,
+	answer: fn(&str, &str) -> Result<Option<serde_json::Value>, String>,
+) -> Result<JsValue, JsError> {
 	let text = |value: &JsValue, what: &str| {
 		JSON::stringify(value)
 			.map(String::from)
 			.map_err(|_| JsError::new(&format!("the {what} cannot be written as JSON")))
 	};
-	let fault = capability_fault(
-		&text(&document, "document")?,
-		&text(&capabilities, "capabilities")?,
+	let answer = answer(
+		&text(document, "document")?,
+		&text(capabilities, "capabilities")?,
 	)
 	.map_err(|why| JsError::new(&why))?;
-	match fault {
-		Some(fault) => JSON::parse(&fault.to_string())
-			.map_err(|_| JsError::new("the fault cannot be read back as JSON")),
+	match answer {
+		Some(answer) => JSON::parse(&answer.to_string())
+			.map_err(|_| JsError::new("the answer cannot be read back as JSON")),
 		None => Ok(JsValue::NULL),
 	}
+}
+
+type Object = serde_json::Map<String, serde_json::Value>;
+
+/// The document and capabilities, each a JSON object.
+fn objects(document: &str, capabilities: &str) -> Result<(Object, Object), String> {
+	let object = |json: &str, what: &str| match serde_json::from_str(json) {
+		Ok(serde_json::Value::Object(map)) => Ok(map),
+		Ok(_) => Err(format!("the {what} is not an object")),
+		Err(err) => Err(format!("the {what} is not JSON: {err}")),
+	};
+	Ok((
+		object(document, "document")?,
+		object(capabilities, "capabilities")?,
+	))
 }
 
 /// The fault [`check_capabilities`] reports, from the document and capabilities as JSON text.
@@ -94,14 +129,25 @@ fn capability_fault(
 	document: &str,
 	capabilities: &str,
 ) -> Result<Option<serde_json::Value>, String> {
-	let object = |json: &str, what: &str| match serde_json::from_str(json) {
-		Ok(serde_json::Value::Object(map)) => Ok(map),
-		Ok(_) => Err(format!("the {what} is an object")),
-		Err(err) => Err(format!("the {what} is not JSON: {err}")),
-	};
-	let document = object(document, "document")?;
-	let capabilities = object(capabilities, "capabilities")?;
-	Ok(capabilities::check(&document, &capabilities)
+	let (document, capabilities) = objects(document, capabilities)?;
+	Ok(capabilities::admits(&document, &capabilities)
+		.err()
+		.map(|refused| {
+			serde_json::json!({
+				"at": refused.invalid.at,
+				"reason": refused.invalid.reason,
+				"rule": refused.rule.as_str(),
+			})
+		}))
+}
+
+/// The fault [`check_placement`] reports, from the document and capabilities as JSON text.
+fn placement_fault(
+	document: &str,
+	capabilities: &str,
+) -> Result<Option<serde_json::Value>, String> {
+	let (document, capabilities) = objects(document, capabilities)?;
+	Ok(capabilities::placement(&document, &capabilities)
 		.err()
 		.map(|invalid| serde_json::json!({ "at": invalid.at, "reason": invalid.reason })))
 }
@@ -625,7 +671,8 @@ mod tests {
 	/// The pre-proposal check is the core's, naming the first member capabilities do not cover.
 	#[test]
 	fn the_capability_check_names_what_is_not_covered() {
-		let capabilities = r#"{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}"#;
+		let capabilities =
+			r#"{"document":{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}}"#;
 		assert_eq!(
 			capability_fault(
 				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","verify":true,"interface":"eth0"}]}"#,
@@ -640,8 +687,35 @@ mod tests {
 		.unwrap()
 		.unwrap();
 		assert_eq!(fault["at"], "$['attachments'][0]['interface']");
+		assert_eq!(fault["rule"], "mirror");
 		assert!(fault["reason"].is_string());
 		assert!(capability_fault("[]", capabilities).is_err());
+	}
+
+	/// The radio rules of HOT are the core's too, named by the rule they break.
+	#[test]
+	fn the_capability_check_names_the_radio_rule_broken() {
+		let capabilities = r#"{
+			"document": {
+				"attachments": {"kind": {"wireless": {"security": {"kind": {"psk": {}}}}}},
+				"hotspot": {"interface": {"wlan0": {}}}
+			},
+			"radios": {"wlan0": {"model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time"}}
+		}"#;
+		let document = r#"{
+			"attachments": [{"kind": "wireless", "label": "a", "verify": true, "ssid": "a",
+			                 "security": {"kind": "psk", "passphrase": "12345678"}}],
+			"hotspot": {"ssid": "s", "passphrase": "12345678"}
+		}"#;
+		let fault = capability_fault(document, capabilities).unwrap().unwrap();
+		assert_eq!(fault["at"], "$['hotspot']");
+		assert_eq!(fault["rule"], "one-at-a-time");
+		let placed = placement_fault(document, capabilities).unwrap().unwrap();
+		assert_eq!(placed["at"], "$['hotspot']");
+		assert_eq!(
+			placement_fault(r#"{"attachments": []}"#, capabilities),
+			Ok(None)
+		);
 	}
 
 	#[test]

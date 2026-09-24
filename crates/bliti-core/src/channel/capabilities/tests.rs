@@ -256,3 +256,121 @@ fn an_unknown_member_is_refused() {
 	let err = check_on_pi(json!({ "attachments": [], "x-proxy": "on" })).unwrap_err();
 	assert_eq!(err.at, "$['x-proxy']");
 }
+
+/// Whole capabilities with `radios` as given, the hotspot keyed by every radio able to run one.
+fn with_radios(radios: Json) -> Map<String, Json> {
+	let mut mirror = Json::Object(pi_with_adapter());
+	let keys: Map<String, Json> = radios
+		.as_object()
+		.unwrap()
+		.iter()
+		.filter(|(_, radio)| radio.get("alongside").is_some())
+		.map(|(name, _)| (name.clone(), json!({})))
+		.collect();
+	mirror["hotspot"]["interface"] = Json::Object(keys);
+	let mut wireless = Map::new();
+	for name in radios.as_object().unwrap().keys() {
+		wireless.insert(
+			name.clone(),
+			json!({ "security": { "kind": { "psk": {}, "sae": {}, "psk-sae": {} } }, "hidden": true }),
+		);
+	}
+	mirror["attachments"]["kind"]["wireless"]["interface"] = Json::Object(wireless);
+	object(json!({ "document": mirror, "radios": radios, "acts": {} }))
+}
+
+fn one_at_a_time() -> Map<String, Json> {
+	with_radios(
+		json!({ "wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" } }),
+	)
+}
+
+fn admitted(document: Json, capabilities: &Map<String, Json>) -> Result<(), Refused> {
+	admits(&object(document), capabilities)
+}
+
+fn hotspot() -> Json {
+	json!({ "ssid": "s", "passphrase": "p" })
+}
+
+/// A hotspot and a wireless candidate only a radio running one at a time could carry are refused at
+/// the hotspot, or at its `interface` where it names one (HOT).
+#[test]
+fn a_hotspot_beside_a_client_on_a_one_at_a_time_radio_is_refused() {
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot() }),
+		&one_at_a_time(),
+	)
+	.unwrap_err();
+	assert_eq!(refused.rule, Rule::OneAtATime);
+	assert_eq!(refused.invalid.at, "$['hotspot']");
+	assert!(
+		refused.invalid.reason.contains("\"Clinic\""),
+		"{}",
+		refused.invalid.reason
+	);
+
+	let mut pinned = object(hotspot());
+	pinned.insert("interface".into(), "wlan0".into());
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0" }))], "hotspot": pinned }),
+		&one_at_a_time(),
+	)
+	.unwrap_err();
+	assert_eq!(refused.invalid.at, "$['hotspot']['interface']");
+}
+
+/// Wired candidates never take the radio, so they sit beside the hotspot on any radio.
+#[test]
+fn a_hotspot_beside_wired_candidates_passes_on_a_one_at_a_time_radio() {
+	admitted(
+		json!({ "attachments": [
+			{ "kind": "wired-dynamic", "label": "p", "verify": true, "interface": "eth0" }
+		], "hotspot": hotspot() }),
+		&one_at_a_time(),
+	)
+	.unwrap();
+}
+
+/// A second radio the candidate or the hotspot could go on keeps them apart.
+#[test]
+fn a_second_radio_keeps_the_hotspot_and_a_client_apart() {
+	let caps = with_radios(json!({
+		"wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" },
+		"wlan1": { "model": "m", "bands": ["2.4ghz"] }
+	}));
+	admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot() }),
+		&caps,
+	)
+	.unwrap();
+	// Pinned to the radio the hotspot needs, the candidate has nowhere else to go.
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0" }))], "hotspot": hotspot() }),
+		&caps,
+	)
+	.unwrap_err();
+	assert_eq!(refused.invalid.at, "$['hotspot']");
+
+	let both = with_radios(json!({
+		"wlan0": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" },
+		"wlan1": { "model": "m", "bands": ["2.4ghz"], "alongside": "one-at-a-time" }
+	}));
+	admitted(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0" }))], "hotspot": hotspot() }),
+		&both,
+	)
+	.unwrap();
+}
+
+/// The mirror is checked first, and its fault is told apart from a rule's.
+#[test]
+fn the_mirror_is_checked_before_the_radios() {
+	let refused = admitted(
+		json!({ "attachments": [wireless(json!({}))], "hotspot": hotspot(), "x-proxy": "on" }),
+		&one_at_a_time(),
+	)
+	.unwrap_err();
+	assert_eq!(refused.rule, Rule::Mirror);
+	assert_eq!(refused.invalid.at, "$['x-proxy']");
+}

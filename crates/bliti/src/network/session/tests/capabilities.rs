@@ -55,6 +55,34 @@ async fn a_proposal_outside_the_capabilities_is_invalid_at_the_first_member_not_
 	assert_eq!(confirmed(&mut client).await, recorded());
 }
 
+/// A hotspot on the one radio beside a wireless candidate that radio would have to leave for it is
+/// refused before anything is applied (HOT).
+#[tokio::test]
+async fn a_hotspot_a_one_at_a_time_radio_cannot_run_beside_a_client_is_invalid() {
+	let device = Device::new().await;
+	let mut one_radio = capabilities();
+	one_radio["document"]["hotspot"] = json!({"interface": {"wlan0": {}}});
+	one_radio["radios"] =
+		json!({"wlan0": {"model": "onboard", "bands": ["2.4ghz"], "alongside": "one-at-a-time"}});
+	device.log.capabilities(one_radio);
+	let (mut client, _task, _) = device.opened().await;
+
+	propose(
+		&mut client,
+		with(
+			"hotspot",
+			json!({"ssid": "bliti-setup", "passphrase": "stay clear of the clinic"}),
+		),
+	)
+	.await;
+	assert!(matches!(
+		recv(&mut client).await,
+		Message::Invalid { at, reason, reached: None }
+			if at == "$['hotspot']" && reason.contains("\"Clinic\"")
+	));
+	assert_eq!(device.log.calls(), [], "nothing was applied");
+}
+
 #[tokio::test]
 async fn an_act_not_offered_is_invalid_at_the_act_or_the_member_at_fault() {
 	let device = Device::new().await;

@@ -639,46 +639,6 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 }
 
 #[test]
-fn a_hotspot_and_a_client_only_one_at_a_time_radio_could_carry_are_refused() {
-	let hardware = || hardware(vec![radio("wlan0", Some(Alongside::OneAtATime))]);
-	let refused = |document: Json| {
-		Selector::new(hardware(), self::document(document))
-			.unwrap_err()
-			.at
-	};
-	assert_eq!(
-		refused(json!({ "attachments": [wireless("clinic")], "hotspot": hotspot(None) })),
-		"$['hotspot']"
-	);
-	assert_eq!(
-		refused(json!({
-			"attachments": [pinned("clinic", "wlan0")],
-			"hotspot": hotspot(Some("wlan0"))
-		})),
-		"$['hotspot']['interface']"
-	);
-
-	// Wired alone beside the hotspot is fine, and so is a client with a second radio to go on.
-	assert!(
-		Selector::new(
-			hardware(),
-			document(json!({ "attachments": [dynamic("eth0")], "hotspot": hotspot(None) }))
-		)
-		.is_ok()
-	);
-	assert!(
-		Selector::new(
-			self::hardware(vec![
-				radio("wlan0", Some(Alongside::OneAtATime)),
-				radio("wlan1", None),
-			]),
-			document(json!({ "attachments": [wireless("clinic")], "hotspot": hotspot(None) }))
-		)
-		.is_ok()
-	);
-}
-
-#[test]
 fn a_client_never_takes_the_one_at_a_time_radio_the_hotspot_needs() {
 	let mut selector = selector(
 		hardware(vec![

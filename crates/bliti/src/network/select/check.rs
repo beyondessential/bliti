@@ -2,7 +2,7 @@
 
 use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Segment, path};
 
-use super::{Alongside, Hardware};
+use super::Hardware;
 
 fn invalid(at: &[Segment<'_>], reason: String) -> Invalid {
 	Invalid {
@@ -13,8 +13,10 @@ fn invalid(at: &[Segment<'_>], reason: String) -> Invalid {
 }
 
 /// Refuse a document selection could not carry out on `hardware`: a candidate naming an interface
-/// the device does not have, a hotspot with no radio able to run it, or a hotspot and a wireless
-/// candidate that could be carried only by one radio running one at a time (HOT).
+/// the device does not have, or a hotspot with no radio able to run it.
+///
+/// A hotspot and a wireless candidate that only a radio running one at a time could carry are the
+/// capabilities' to refuse, as [`bliti_core::channel::capabilities::placement`] does.
 pub fn check(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 	for (rank, attachment) in document.attachments.iter().enumerate() {
 		let at = |member| [Segment::Name("attachments"), Segment::Index(rank), member];
@@ -72,31 +74,5 @@ pub fn check(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 		return Err(invalid(at, "this device cannot run a hotspot".to_owned()));
 	}
 
-	for attachment in &document.attachments {
-		let AttachmentKind::Wireless(wireless) = &attachment.kind else {
-			continue;
-		};
-		let apart = hardware
-			.radios_for(wireless.interface.as_deref())
-			.any(|radio| {
-				hardware.hotspot_radios(hotspot).any(|ap| {
-					ap.station != radio.station || ap.access_point != Some(Alongside::OneAtATime)
-				})
-			});
-		if !apart {
-			let radio = hardware
-				.hotspot_radios(hotspot)
-				.next()
-				.map(|radio| radio.station.as_str())
-				.unwrap_or_default();
-			return Err(invalid(
-				at,
-				format!(
-					"the hotspot and {:?} could only run on {radio}, which cannot run both at once",
-					attachment.label
-				),
-			));
-		}
-	}
 	Ok(())
 }

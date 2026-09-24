@@ -165,7 +165,7 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [x] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
 - [x] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
 - [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
-- [ ] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
+- [x] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
 - [ ] The screen: a WPS adapter choice, a survey adapter choice, and the siting view counting every channel a wide access point spans (NSCR)
 
 ### What the prototype showed

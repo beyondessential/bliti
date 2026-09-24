@@ -13,12 +13,13 @@
 // request, mirroring each act's message as `document` mirrors the document.
 //
 // Whether a document is within capabilities is answered by the checker the device rejects with,
-// compiled in through wasm, so the two cannot disagree. The readers here resolve selectors the same
-// way it does: a selector the document sets picks its key, and one left unset admits whatever any of
-// its keys admits.
+// compiled in through wasm, so the two cannot disagree; so are the rules of BLI-HOT that turn on the
+// radios, which relate one part of a document to another. The readers here resolve selectors the
+// same way the checker does: a selector the document sets picks its key, and one left unset admits
+// whatever any of its keys admits.
 
-import { pathOf, segmentsOf } from './path.js'
-import { check_capabilities as sharedCheck } from './wasm/bliti_web.js'
+import { segmentsOf } from './path.js'
+import { check_capabilities as sharedCheck, check_placement as sharedPlacement } from './wasm/bliti_web.js'
 import { bandName, widthName } from './wireless.js'
 
 const KINDS = ['wireless', 'wired-dynamic', 'wired-static']
@@ -319,21 +320,10 @@ function hotspotRadios(capabilities, hotspot) {
 	return keys ?? radios(capabilities).filter((each) => each.alongside).map((each) => each.interface)
 }
 
-/// The index of the first wireless candidate that could be carried, with the hotspot, only by one
-/// radio running one or the other at a time (BLI-HOT), or null where there is none.
-function clash(capabilities, document) {
-	const hotspot = document?.hotspot
-	const all = radios(capabilities)
-	if (!hotspot || all.length === 0) return null
-	const aps = hotspotRadios(capabilities, hotspot)
-	const alongside = (name) => radio(capabilities, name)?.alongside
-	for (const [index, candidate] of (document.attachments ?? []).entries()) {
-		if (candidate?.kind !== 'wireless') continue
-		const stations = unset(candidate.interface) ? all.map((each) => each.interface) : [candidate.interface]
-		const apart = stations.some((station) => aps.some((ap) => ap !== station || alongside(ap) !== 'one-at-a-time'))
-		if (!apart) return index
-	}
-	return null
+/// Whether the hotspot and a wireless candidate of `document` could be carried only by one radio
+/// running one at a time (BLI-HOT), by the rule the device holds a document to.
+function clashes(capabilities, document) {
+	return sharedPlacement(document, capabilities) !== null
 }
 
 /// Why a setting is not offered, or null where it is. `setting` is one of `wireless`, `hotspot`,
@@ -361,12 +351,12 @@ export function absent(capabilities, setting, document = null) {
 		}
 		return why('unreported')
 	}
-	if (setting === 'hotspot' && !document?.hotspot && clash(capabilities, { ...document, hotspot: {} }) !== null) {
+	if (setting === 'hotspot' && !document?.hotspot && clashes(capabilities, { attachments: [], ...document, hotspot: {} })) {
 		return why('one-at-a-time')
 	}
 	if (setting === 'wireless' && document?.hotspot) {
 		const attachments = [...(document.attachments ?? []), { kind: 'wireless' }]
-		if (clash(capabilities, { ...document, attachments }) !== null) return why('one-at-a-time')
+		if (clashes(capabilities, { ...document, attachments })) return why('one-at-a-time')
 	}
 	return null
 }
@@ -384,19 +374,13 @@ function offered(capabilities, setting, hotspot) {
 // Checking before proposing
 
 /// Whether a document is within what the device said it supports, checked before it is proposed
-/// (BLI-NSCR). Null where it is, or the first part that is not: `at` is its Normalized Path, the form a
-/// device names the part it rejects by, and `reason` is ours.
-///
-/// The mirror rule is the device's own checker; a hotspot and a wireless network that only a radio
-/// running one at a time could carry together turns on the radios, which that checker does not read.
+/// (BLI-NSCR) by the device's own checker. Null where it is, or the first part that is not: `at` is
+/// its Normalized Path, the form a device names the part it rejects by, and `reason` is ours.
 export function check(document, capabilities) {
-	const found = sharedCheck(document ?? { attachments: [] }, documentOf(capabilities))
-	if (found) return { at: found.at, reason: wording(found.at, document) }
-	if (clash(capabilities, document) !== null) {
-		const at = unset(document.hotspot.interface) ? ['hotspot'] : ['hotspot', 'interface']
-		return { at: pathOf(at), reason: SENTENCES['one-at-a-time'] }
-	}
-	return null
+	const found = sharedCheck(document ?? { attachments: [] }, isObject(capabilities) ? capabilities : {})
+	if (!found) return null
+	const reason = found.rule === 'mirror' ? wording(found.at, document) : SENTENCES[found.rule] ?? UNSUPPORTED
+	return { at: found.at, reason }
 }
 
 const UNSUPPORTED = 'This device does not support this setting.'

@@ -15,10 +15,60 @@
 //! from capabilities. What is structurally wrong with a document (a member of the wrong type, one
 //! missing) is [`super::config::Document::parse`]'s to find; this answers only whether it asks for
 //! more than the device offers.
+//!
+//! Some of what a device offers turns on how one part of a document relates to another, which a
+//! mirror cannot express. Those rules are in [`radios`], and [`admits`] applies them after the
+//! mirror.
 
 use serde_json::{Map, Value as Json};
 
 use super::config::{Invalid, Segment, path};
+
+pub use self::radios::placement;
+
+mod radios;
+/// The rule a document broke.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rule {
+	/// It asks for a member or value `capabilities.document` does not cover.
+	Mirror,
+	/// Its hotspot and a wireless candidate could be carried only by one radio running one at a time
+	/// (HOT).
+	OneAtATime,
+}
+
+impl Rule {
+	/// The rule as a client names it.
+	pub fn as_str(self) -> &'static str {
+		match self {
+			Self::Mirror => "mirror",
+			Self::OneAtATime => "one-at-a-time",
+		}
+	}
+}
+
+/// A document a device's capabilities do not admit: the rule it broke, and where.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refused {
+	pub rule: Rule,
+	pub invalid: Invalid,
+}
+
+/// Check `document` against a device's whole capabilities (NET): the mirror of
+/// `capabilities.document`, then the rules of [`radios`].
+pub fn admits(
+	document: &Map<String, Json>,
+	capabilities: &Map<String, Json>,
+) -> Result<(), Refused> {
+	let refused = |rule| move |invalid| Refused { rule, invalid };
+	let empty = Map::new();
+	let mirror = capabilities
+		.get("document")
+		.and_then(Json::as_object)
+		.unwrap_or(&empty);
+	check(document, mirror).map_err(refused(Rule::Mirror))?;
+	placement(document, capabilities).map_err(refused(Rule::OneAtATime))
+}
 
 /// The members whose value decides what their siblings may carry (NET).
 const SELECTORS: &[&str] = &["kind", "interface", "band"];

@@ -408,14 +408,9 @@ fn offered(
 	}
 }
 
-/// Refuse a document asking for anything `capabilities.document` does not cover (NET).
+/// Refuse a document the capabilities do not admit (NET, HOT).
 fn within(capabilities: &Map<String, Json>, document: &Map<String, Json>) -> Result<(), Invalid> {
-	let empty = Map::new();
-	let mirror = capabilities
-		.get("document")
-		.and_then(Json::as_object)
-		.unwrap_or(&empty);
-	capabilities::check(document, mirror)
+	capabilities::admits(document, capabilities).map_err(|refused| refused.invalid)
 }
 
 /// How many candidates a document carries, which is how many entries its `state` has.
