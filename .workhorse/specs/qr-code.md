@@ -43,6 +43,9 @@ A QR code SHOULD be produced at error correction level H.
 
 A human-readable rendering of the payload SHOULD be printed alongside the code, in the same characters as the fragment.
 
+A generator MUST offer the code as an SVG image, for sending to a printer.
+The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
+
 > [!NOTE]
 > Level H tolerates the most damage of the four, which is what a code fixed to an enclosure needs.
 > The rendering is what keeps a device reachable once the code itself is scuffed.
