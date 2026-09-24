@@ -24,6 +24,7 @@ import {
 	widths,
 	wpsMethods,
 	wpsMethodsFor,
+	wpsRadios,
 } from '../src/capabilities.js'
 import { stagesOf, validate } from '../src/network.js'
 import { pathOf, segmentsOf } from '../src/path.js'
@@ -285,6 +286,7 @@ test.describe('reading capabilities', () => {
 		expect(acts(PI).survey).toBe(false)
 		expect(scanners(TWO_RADIOS)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
 		expect(surveyors(TWO_RADIOS)).toEqual(['wlx00c0caa1b2c3'])
+		expect(wpsRadios(TWO_RADIOS)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
 		expect(wpsMethods(TWO_RADIOS, 'wlx00c0caa1b2c3')).toEqual(['push-button'])
 	})
 

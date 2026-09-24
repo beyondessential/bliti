@@ -19,6 +19,7 @@ import {
 	radios,
 	scanners,
 	securityKinds,
+	surveyors,
 	widths,
 	wirelessBands,
 } from './capabilities.js'
@@ -199,6 +200,12 @@ function AdapterField({ part, value, path, capabilities, marks, onChange }) {
 		...[...new Set([...names, value].filter(Boolean))].map((name) => ({ value: name, label: adapterName(capabilities, name) })),
 	]
 	return <SelectField label="Adapter" path={path} value={value ?? ''} options={options} onChange={(name) => onChange(name || undefined)} marks={marks} />
+}
+
+/// The choices of adapter to address an act to: `none` first, standing for every adapter or for the
+/// device's own pick, then each of `names` by what it is.
+export function adapterOptions(capabilities, names, none) {
+	return [{ value: '', label: none }, ...names.map((name) => ({ value: name, label: adapterName(capabilities, name) }))]
 }
 
 const KIND_NAMES = { wireless: 'Wireless', 'wired-dynamic': 'Wired, DHCP', 'wired-static': 'Wired, static' }
@@ -420,7 +427,7 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan,
 				<SelectField
 					label="Scan with"
 					value={adapter}
-					options={[{ value: '', label: 'All adapters' }, ...able.map((name) => ({ value: name, label: adapterName(capabilities, name) }))]}
+					options={adapterOptions(capabilities, able, 'All adapters')}
 					onChange={setAdapter}
 					marks={marks}
 				/>
@@ -571,7 +578,7 @@ export function HotspotFields({ document, change, capabilities, marks, survey })
 						{sentence}
 					</p>
 				))}
-				{survey && radio.includes('channel') && <Survey survey={survey} capabilities={capabilities} />}
+				{survey && radio.includes('channel') && <Survey survey={survey} capabilities={capabilities} marks={marks} />}
 				{offers('dhcp-range') && (
 					<TextField label="DHCP range" path={at('dhcp-range')} value={hotspot['dhcp-range']} onChange={set('dhcp-range')} marks={marks} placeholder="10.42.0.0/24" />
 				)}
@@ -605,12 +612,15 @@ function PassphraseField({ value, path, onChange, marks }) {
 	)
 }
 
-function Survey({ survey, capabilities }) {
+function Survey({ survey, capabilities, marks }) {
+	const [picked, setPicked] = useState('')
 	const channels = survey.spectrum?.channels
 	const several = radios(capabilities).length > 1
+	const able = surveyors(capabilities)
+	const adapter = able.includes(picked) ? picked : ''
 	return (
 		<>
-			<button type="button" className="secondary small survey" onClick={survey.start} disabled={survey.busy}>
+			<button type="button" className="secondary small survey" onClick={() => survey.start(adapter || undefined)} disabled={survey.busy}>
 				{survey.busy ? (
 					<>
 						<span className="spinner" aria-hidden="true" />
@@ -620,6 +630,15 @@ function Survey({ survey, capabilities }) {
 					'Survey the spectrum'
 				)}
 			</button>
+			{able.length > 1 && (
+				<SelectField
+					label="Survey with"
+					value={adapter}
+					options={adapterOptions(capabilities, able, 'All adapters')}
+					onChange={setPicked}
+					marks={marks}
+				/>
+			)}
 			{survey.failure && <p className="why">{survey.failure.reason}</p>}
 			{Array.isArray(channels) && (
 				<ul className="spectrum">

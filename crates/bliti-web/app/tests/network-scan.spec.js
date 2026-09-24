@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test'
 
 import { answer, message, openNetwork, say, sent } from './fake-client.js'
 import { INDEPENDENT, IN_FORCE, PI, TWO_RADIOS, addWireless, ap, bar } from './network-fixtures.js'
+import { spanned } from '../src/scan.js'
 
 const USB = 'wlx00c0caa1b2c3'
 
@@ -111,7 +112,17 @@ test('the siting view lists every access point by signal, and the channels taken
 
 	const taken = (band) => page.getByLabel(`Channels taken on ${band}`).locator('li')
 	await expect(taken('2.4 GHz')).toHaveText(['ch 11 AP, 20 MHz', 'ch 61 AP, 20 MHz'])
-	await expect(taken('5 GHz')).toHaveText(['ch 362 APs, 80 MHz', 'ch 1491 AP, 80 MHz'])
+	// An 80 MHz access point takes the three channels bonded with its primary as well.
+	await expect(taken('5 GHz')).toHaveText([
+		'ch 362 APs, 80 MHz',
+		'ch 402 APs, 80 MHz',
+		'ch 442 APs, 80 MHz',
+		'ch 482 APs, 80 MHz',
+		'ch 1491 AP, 80 MHz',
+		'ch 1531 AP, 80 MHz',
+		'ch 1571 AP, 80 MHz',
+		'ch 1611 AP, 80 MHz',
+	])
 	// The adapter can use 6 GHz, and nothing is heard there.
 	await expect(taken('6 GHz')).toHaveText(['None heard.'])
 })
@@ -165,4 +176,112 @@ test('WPS from the scan joins on the adapter the candidate is pinned to', async 
 	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
 	await clinic.getByRole('button', { name: 'WPS button' }).click()
 	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'push-button', interface: 'wlan0', ssid: 'Clinic' })
+})
+
+// NSCR: the channels taken count every channel a wide access point spans, not its primary alone.
+test('the siting view counts every channel a wide access point spans', async ({ page }) => {
+	const heard = [
+		ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', band: '2ghz', channel: 6, 'channel-width': 40, 'secondary-channel': 2, signal: -50 }),
+		ap({ bssid: 'a4:2b:b0:11:2c:41', ssid: 'Clinic', band: '2ghz', channel: 1, 'channel-width': 20, signal: -60 }),
+		ap({ bssid: 'a4:2b:b0:11:2c:42', ssid: 'Clinic', channel: 60, 'channel-width': 40, signal: -55 }),
+		ap({ bssid: 'a4:2b:b0:11:2c:43', ssid: 'Clinic', channel: 64, 'channel-width': 20, signal: -65 }),
+	]
+	await scanned(page, PI, heard)
+	await page.getByRole('button', { name: 'Siting' }).click()
+	const taken = (band) => page.getByLabel(`Channels taken on ${band}`).locator('li')
+	await expect(taken('2.4 GHz')).toHaveText(['ch 11 AP, 20 MHz', 'ch 21 AP, 40 MHz', 'ch 61 AP, 40 MHz'])
+	await expect(taken('5 GHz')).toHaveText(['ch 601 AP, 40 MHz', 'ch 642 APs, 40 MHz'])
+})
+
+test.describe('the channels an access point spans', () => {
+	const at = (band, channel, width, more = {}) => spanned({ band, channel, 'channel-width': width, ...more })
+
+	test('a 20 MHz access point takes its primary alone', () => {
+		expect(at('5ghz', 44, 20)).toEqual([44])
+		expect(at('2ghz', 6, 20)).toEqual([6])
+	})
+
+	test('on 2.4 GHz a wide one takes the secondary channel it names', () => {
+		expect(at('2ghz', 6, 40, { 'secondary-channel': 2 })).toEqual([2, 6])
+		expect(at('2ghz', 1, 40, { 'secondary-channel': 5 })).toEqual([1, 5])
+		// Where it does not say which side, only its primary is known to be taken.
+		expect(at('2ghz', 6, 40)).toEqual([6])
+	})
+
+	test('on 5 GHz a wide one takes its bonded group', () => {
+		expect(at('5ghz', 40, 40)).toEqual([36, 40])
+		expect(at('5ghz', 144, 40)).toEqual([140, 144])
+		expect(at('5ghz', 157, 40)).toEqual([157, 161])
+		expect(at('5ghz', 44, 80)).toEqual([36, 40, 44, 48])
+		expect(at('5ghz', 60, 80)).toEqual([52, 56, 60, 64])
+		expect(at('5ghz', 132, 80)).toEqual([132, 136, 140, 144])
+		expect(at('5ghz', 161, 80)).toEqual([149, 153, 157, 161])
+		expect(at('5ghz', 52, 160)).toEqual([36, 40, 44, 48, 52, 56, 60, 64])
+		expect(at('5ghz', 116, 160)).toEqual([100, 104, 108, 112, 116, 120, 124, 128])
+	})
+
+	test('on 6 GHz a wide one takes its group counted from channel 1', () => {
+		expect(at('6ghz', 5, 40)).toEqual([1, 5])
+		expect(at('6ghz', 37, 80)).toEqual([33, 37, 41, 45])
+		expect(at('6ghz', 37, 160)).toEqual([33, 37, 41, 45, 49, 53, 57, 61])
+	})
+})
+
+// Two radios able to survey, so the survey can go to one.
+const SURVEYING = structuredClone(TWO_RADIOS)
+SURVEYING.acts.survey = { interface: { wlan0: {}, [USB]: {} } }
+
+// NSCR: a survey goes to one adapter where one is picked, among those able to, and to all otherwise.
+test('a survey goes to one adapter where one is picked, and to all otherwise', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: SURVEYING })
+	const hotspot = page.locator('.hotspot')
+	await hotspot.getByText('Radio and addressing').click()
+	await expect(hotspot.getByLabel('Survey with').locator('option')).toHaveText(['All adapters', 'Cypress CYW43455', 'MediaTek MT7921AU'])
+	const spectrum = message({ type: 'spectrum', spectrum: { channels: [] } })
+	await answer(page, 'survey', spectrum, spectrum)
+	await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
+	await expect(hotspot.getByRole('button', { name: 'Survey the spectrum' })).toBeEnabled()
+	await hotspot.getByLabel('Survey with').selectOption(USB)
+	await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
+	const surveys = (await sent(page)).filter((each) => each.type === 'survey')
+	expect(surveys).toEqual([{ type: 'survey' }, { type: 'survey', interface: USB }])
+})
+
+// Only adapters the device surveys with are offered; one alone is no choice.
+test('one adapter able to survey offers no choice', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: TWO_RADIOS })
+	const hotspot = page.locator('.hotspot')
+	await hotspot.getByText('Radio and addressing').click()
+	await expect(hotspot.getByRole('button', { name: 'Survey the spectrum' })).toBeVisible()
+	await expect(hotspot.getByLabel('Survey with')).toHaveCount(0)
+	await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
+	expect((await sent(page)).at(-1)).toEqual({ type: 'survey' })
+})
+
+// NSCR: WPS joins on a chosen adapter or on one the device picks, offering what that adapter does.
+test('WPS joins on a chosen adapter, or on one the device picks', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: TWO_RADIOS })
+	await page.getByRole('button', { name: 'Add' }).click()
+	const adding = page.locator('.adding')
+	await expect(page.getByLabel('WPS with').locator('option')).toHaveText(['Device chooses', 'Cypress CYW43455', 'MediaTek MT7921AU'])
+	await expect(adding.getByRole('button', { name: /^WPS / })).toHaveText(['WPS button', 'WPS PIN'])
+
+	// The adapter joins by push-button alone.
+	await page.getByLabel('WPS with').selectOption(USB)
+	await expect(adding.getByRole('button', { name: /^WPS / })).toHaveText(['WPS button'])
+	await page.getByRole('button', { name: 'WPS button' }).click()
+	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'push-button', interface: USB })
+	await bar(page).getByRole('button', { name: 'Cancel' }).click()
+
+	await page.getByRole('button', { name: 'Add' }).click()
+	await page.getByLabel('WPS with').selectOption('')
+	await page.getByRole('button', { name: 'WPS PIN' }).click()
+	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin' })
+})
+
+test('one radio offers no adapter to join by WPS with', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	await page.getByRole('button', { name: 'Add' }).click()
+	await expect(page.getByRole('button', { name: 'WPS button' })).toBeVisible()
+	await expect(page.getByLabel('WPS with')).toHaveCount(0)
 })

@@ -4,7 +4,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { absent, acts, attachmentKinds, check, countries, surveyors } from './capabilities.js'
+import { absent, acts, attachmentKinds, check, countries, wpsMethods, wpsRadios } from './capabilities.js'
 import {
 	candidateAt,
 	changes,
@@ -31,6 +31,8 @@ import {
 	CandidateFields,
 	CountryField,
 	HotspotFields,
+	SelectField,
+	adapterOptions,
 	blankCandidate,
 	blankHotspot,
 	fitted,
@@ -114,7 +116,6 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 	const change = (edit) => dispatch({ type: 'edit', change: (held) => fitted(edit(held), state.capabilities) })
 	const readOnly = !writable(state)
 	const caps = state.capabilities
-	const surveyWith = state.edit.document.hotspot?.interface
 
 	function propose(edit) {
 		const document = edit.document
@@ -254,9 +255,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 								busy: state.act?.type === 'survey' && !state.act.failure,
 								failure: state.act?.type === 'survey' ? state.act.failure : null,
 								spectrum: state.spectrum,
-								// A hotspot pinned to an adapter able to survey is surveyed there, sparing the rest.
-								start: () => {
-									const name = surveyors(caps).includes(surveyWith) ? surveyWith : undefined
+								start: (name) => {
 									if (send((handle) => handle.survey(name))) dispatch({ type: 'act', act: 'survey', interface: name })
 								},
 							}
@@ -475,12 +474,15 @@ export function HeldBar({ held, onReview }) {
 /// reports of it.
 function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps }) {
 	const [adding, setAdding] = useState(false)
+	const [picked, setPicked] = useState('')
 	const list = useRef(null)
 	const dragging = useRef(null)
 	const caps = state.capabilities
 	const { keys, document } = state.edit
 	const kinds = attachmentKinds(caps).filter((kind) => kind !== 'wireless' || !absent(caps, 'wireless', document))
-	const wps = kinds.includes('wireless') ? acts(caps).wps : []
+	const joiners = kinds.includes('wireless') && acts(caps).wps.length > 0 ? wpsRadios(caps) : []
+	const wpsWith = joiners.includes(picked) ? picked : ''
+	const wps = joiners.length > 0 ? wpsMethods(caps, wpsWith || undefined) : []
 
 	const move = (from, to) => change((edit) => moveCandidate(edit, from, to))
 
@@ -547,12 +549,23 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 							className="secondary small"
 							onClick={() => {
 								setAdding(false)
-								joinByWps(method)
+								joinByWps(method, undefined, wpsWith || undefined)
 							}}
 						>
 							{method === 'pin' ? 'WPS PIN' : 'WPS button'}
 						</button>
 					))}
+				</div>
+			)}
+			{adding && !readOnly && joiners.length > 1 && (
+				<div className="adding">
+					<SelectField
+						label="WPS with"
+						value={wpsWith}
+						options={adapterOptions(caps, joiners, 'Device chooses')}
+						onChange={setPicked}
+						marks={{}}
+					/>
 				</div>
 			)}
 			{adding && absent(caps, 'wireless', document) && (

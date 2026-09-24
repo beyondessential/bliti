@@ -148,8 +148,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Scan results are listed by SSID with the strongest signal and access-point count, access points with no SSID are left out until asked for, and a scan can go to one adapter. Verifies spec: NSCR
 - [x] The siting view lists every access point by signal, with its channel and the adapter that heard it. Verifies spec: NSCR
 - [x] With several radios, each wireless candidate and the hotspot offer an adapter, and only what that adapter supports. Verifies spec: NSCR, NET
-- [ ] The siting view counts every channel a wide access point spans. Verifies spec: NSCR
-- [ ] A survey can go to one adapter, and WPS can join on a chosen adapter. Verifies spec: NSCR
+- [x] The siting view counts every channel a wide access point spans. Verifies spec: NSCR
+- [x] A survey can go to one adapter, and WPS can join on a chosen adapter. Verifies spec: NSCR
 - [x] A network the scan lists by SSID, and the device can join, offers joining it by WPS for that network alone, on the adapter the candidate is pinned to, where the device takes a named network; a refusal names the network and shows the device's reason. Verifies spec: NSCR
 
 ## Reporting

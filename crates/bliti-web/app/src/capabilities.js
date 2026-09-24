@@ -300,6 +300,11 @@ export function surveyors(capabilities) {
 	return actRadios(capabilities, 'survey')
 }
 
+/// The radios a WPS join may be addressed to.
+export function wpsRadios(capabilities) {
+	return actRadios(capabilities, 'wps')
+}
+
 /// The WPS methods offered on the radio named, or on any where none is.
 export function wpsMethods(capabilities, name) {
 	return methodsIn(views(actOf(capabilities, 'wps'), { interface: name }))
