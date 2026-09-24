@@ -88,13 +88,25 @@ fn by_interface() -> BTreeMap<String, Vec<IpAddr>> {
 
 /// The interface carrying the default route, which is the one most likely to reach this device.
 pub(super) fn default_route() -> Option<String> {
-	let raw = fs::read_to_string("/proc/net/route").ok()?;
-	raw.lines().skip(1).find_map(|line| {
-		let mut fields = line.split_whitespace();
-		let name = fields.next()?;
-		// A destination of all zeroes is the default route.
-		(fields.next()? == "00000000").then(|| name.to_owned())
-	})
+	default_route_in(&fs::read_to_string("/proc/net/route").ok()?)
+}
+
+/// The interface of the default route with the lowest metric in a `/proc/net/route` table. A device
+/// holding candidates up on several interfaces has a default route on each, and the lowest metric is
+/// the one traffic takes (LINK).
+fn default_route_in(table: &str) -> Option<String> {
+	table
+		.lines()
+		.skip(1)
+		.filter_map(|line| {
+			let fields: Vec<&str> = line.split_whitespace().collect();
+			// A destination of all zeroes is a default route; the metric is the seventh field.
+			(fields.get(1) == Some(&"00000000"))
+				.then(|| Some((fields.get(6)?.parse::<u32>().ok()?, fields[0])))
+				.flatten()
+		})
+		.min_by_key(|(metric, _)| *metric)
+		.map(|(_, name)| name.to_owned())
 }
 
 /// Throughput as one reading per interface and direction, never aggregated (NFO).
@@ -217,6 +229,16 @@ mod tests {
 	#[test]
 	fn loopback_is_never_reported() {
 		assert!(!is_reportable_interface("lo"));
+	}
+
+	#[test]
+	fn the_default_route_is_the_one_with_the_lowest_metric() {
+		let table = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
+			wlan0\t00000000\t0164000A\t0003\t0\t0\t101\t00000000\t0\t0\t0\n\
+			end0\t00000000\t0164000A\t0003\t0\t0\t100\t00000000\t0\t0\t0\n\
+			end0\t0064000A\t00000000\t0001\t0\t0\t100\t00FEFFFF\t0\t0\t0\n";
+		assert_eq!(default_route_in(table).as_deref(), Some("end0"));
+		assert_eq!(default_route_in("Iface\tDestination\n"), None);
 	}
 
 	#[test]

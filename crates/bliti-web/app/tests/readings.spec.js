@@ -245,6 +245,16 @@ test.describe('aggregation', () => {
 		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
 		await expect(face).toHaveText(['10.0.101.3', '100.93.132.114'])
 
+		// Where no interface is named as carrying the default route, the headline takes the first choice
+		// among the rest.
+		await openChannel(page)
+		await emit(page, addr('wlan0', 'ipv6', '2407:8b00::10', {}))
+		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+		await expect(face).toHaveText(['2407:8b00::10', '100.93.132.114'])
+		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+
 		// The reveal names the overlay's interface without repeating the overlay its name says.
 		const tile = page.locator('.tile').filter({ hasText: 'Address' })
 		await tile.click()

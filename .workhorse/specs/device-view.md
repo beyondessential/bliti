@@ -94,7 +94,7 @@ The application MUST headline `temperature` with the `cpu` sensor, and MUST show
 
 The application MUST headline `network-address` with at most two addresses, each on a line of its own and without its interface:
 
-- on the interface carrying the `default` route, the first it holds of an IPv4 address, a global IPv6 address and a unique local IPv6 address;
+- on the interface carrying the `default` route, or on any interface other than an overlay where none is named as carrying it, the first held of an IPv4 address, a global IPv6 address and a unique local IPv6 address;
 - on an interface naming an overlay, where one does, the first it holds of an IPv4 address and a global IPv6 address.
 
 The application MUST show every address in the reveal, each with its interface.

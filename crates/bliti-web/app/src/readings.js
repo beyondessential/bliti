@@ -359,9 +359,10 @@ function round(value) {
 
 /// A trait value written for display: a string as-is, an object as its members joined. Used as the
 /// qualifier on an entry this build does not otherwise recognise (VIEW).
-/// The addresses the Address tile headlines: on the interface carrying the default route, its first
-/// IPv4, else global IPv6, else unique local IPv6 address; and on an overlay interface, its first IPv4,
-/// else global IPv6 address. At most two, the default route's first (VIEW).
+/// The addresses the Address tile headlines: on the interface carrying the default route, or on any
+/// interface where none is named as carrying it, its first IPv4, else global IPv6, else unique local
+/// IPv6 address; and on an overlay interface, its first IPv4, else global IPv6 address. At most two,
+/// the default route's first (VIEW).
 export function headlineAddresses(addresses) {
 	const firstOf = (held, classes) => {
 		for (const wanted of classes) {
@@ -371,7 +372,10 @@ export function headlineAddresses(addresses) {
 		return null
 	}
 	const iface = (entry) => entry.traits?.interface ?? {}
-	const onDefault = addresses.filter((entry) => iface(entry).route === 'default' && !iface(entry).overlay)
+	const physical = addresses.filter((entry) => !iface(entry).overlay)
+	const routed = physical.filter((entry) => iface(entry).route === 'default')
+	// With no interface named as carrying the default route, the device is reached on whichever it has.
+	const onDefault = routed.length > 0 ? routed : physical
 	const onOverlay = addresses.filter((entry) => Boolean(iface(entry).overlay))
 	return [
 		firstOf(onDefault, ['ipv4', 'global', 'unique-local']),
