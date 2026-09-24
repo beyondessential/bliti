@@ -20,6 +20,7 @@ import {
 	numberOf,
 	polyline,
 	qualifierOf,
+	headlineAddresses,
 	reasonOf,
 	scaleOf,
 	seriesKey,
@@ -323,13 +324,10 @@ function BatteryTile({ charges, voltages, directions, history }) {
 	)
 }
 
-/// Address: headline the default-route address together with the overlay address, and both where an
-/// interface holds a v4 and a v6; show every address in the reveal (VIEW).
+/// Address: headline one address for the default route and one for the overlay, each on a line of its
+/// own and without its interface; show every address in the reveal, with its interface (VIEW).
 function AddressTile({ addresses }) {
-	const isDefault = (entry) => entry.traits?.interface?.route === 'default'
-	const isOverlay = (entry) => Boolean(entry.traits?.interface?.overlay)
-	const headlined = addresses.filter((entry) => isDefault(entry) || isOverlay(entry))
-	const shown = headlined.length > 0 ? headlined : addresses.slice(0, 1)
+	const shown = headlineAddresses(addresses)
 
 	return (
 		<Tile
@@ -337,11 +335,9 @@ function AddressTile({ addresses }) {
 			wide
 			more={addresses.length > shown.length}
 			face={
-				<span className="small">
+				<span className="addresses">
 					{shown.map((entry) => (
-						<span key={interfaceName(entry) + entry.value}>
-							<span className="part">{qualifierOf(entry)}</span> {String(entry.value)}
-						</span>
+						<span key={interfaceName(entry) + entry.value}>{String(entry.value)}</span>
 					))}
 				</span>
 			}

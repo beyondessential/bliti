@@ -200,7 +200,7 @@ test.describe('aggregation', () => {
 
 	// Found on the prototype: an interface's addresses shared one key, so only the last one sampled
 	// showed. Each is its own entry, and one that ends goes alone (NFO, VIEW).
-	test('every address an interface holds is shown, and one that ends goes alone', async ({ page }) => {
+	test('every address an interface holds is revealed, and one that ends goes alone', async ({ page }) => {
 		await openChannel(page)
 		const addr = (kind, value, is = 'passed') =>
 			fact('network-address', {
@@ -213,14 +213,37 @@ test.describe('aggregation', () => {
 		await emit(page, addr('ipv6', 'fd6d::3'))
 
 		const tile = page.locator('.tile').filter({ hasText: 'Address' })
-		await expect(tile).toContainText('10.0.101.3')
-		await expect(tile).toContainText('2407:8b00::3')
-		await expect(tile).toContainText('fd6d::3')
+		await tile.click()
+		const detail = tile.locator('.detail')
+		await expect(detail).toContainText('10.0.101.3')
+		await expect(detail).toContainText('2407:8b00::3')
+		await expect(detail).toContainText('fd6d::3')
 
 		await emit(page, addr('ipv6', '2407:8b00::3', 'ended'))
-		await expect(tile).not.toContainText('2407:8b00::3')
-		await expect(tile).toContainText('10.0.101.3')
-		await expect(tile).toContainText('fd6d::3')
+		await expect(detail).not.toContainText('2407:8b00::3')
+		await expect(detail).toContainText('10.0.101.3')
+		await expect(detail).toContainText('fd6d::3')
+	})
+
+	// The headline is one address for the default route, IPv4 before global IPv6 before unique local,
+	// and one for the overlay, IPv4 before global IPv6, each on its own line and without its
+	// interface (VIEW).
+	test('address headlines one address each for the default route and the overlay', async ({ page }) => {
+		await openChannel(page)
+		const addr = (name, kind, value, extra) =>
+			fact('network-address', { kind, value, traits: { status: { is: 'passed' }, interface: { name, ...extra } } })
+		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+		await emit(page, addr('wlan0', 'ipv4', '10.0.101.10', {}))
+		await emit(page, addr('tailscale0', 'ipv6', 'fd7a:115c:a1e0::1', { overlay: 'tailscale' }))
+		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+
+		const face = page.locator('.tile').filter({ hasText: 'Address' }).locator('.value .addresses > span')
+		await expect(face).toHaveText(['2407:8b00::3', '100.93.132.114'])
+
+		// An IPv4 address on the default route comes before any IPv6 one.
+		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await expect(face).toHaveText(['10.0.101.3', '100.93.132.114'])
 	})
 })
 

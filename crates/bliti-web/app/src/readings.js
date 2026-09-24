@@ -359,6 +359,37 @@ function round(value) {
 
 /// A trait value written for display: a string as-is, an object as its members joined. Used as the
 /// qualifier on an entry this build does not otherwise recognise (VIEW).
+/// The addresses the Address tile headlines: on the interface carrying the default route, its first
+/// IPv4, else global IPv6, else unique local IPv6 address; and on an overlay interface, its first IPv4,
+/// else global IPv6 address. At most two, the default route's first (VIEW).
+export function headlineAddresses(addresses) {
+	const firstOf = (held, classes) => {
+		for (const wanted of classes) {
+			const found = held.find((entry) => addressClass(entry) === wanted)
+			if (found) return found
+		}
+		return null
+	}
+	const iface = (entry) => entry.traits?.interface ?? {}
+	const onDefault = addresses.filter((entry) => iface(entry).route === 'default' && !iface(entry).overlay)
+	const onOverlay = addresses.filter((entry) => Boolean(iface(entry).overlay))
+	return [
+		firstOf(onDefault, ['ipv4', 'global', 'unique-local']),
+		firstOf(onOverlay, ['ipv4', 'global']),
+	].filter(Boolean)
+}
+
+/// Which of the classes the headline chooses among an address falls in: `ipv4`, `global` IPv6
+/// (2000::/3), `unique-local` IPv6 (fc00::/7), or `other`.
+function addressClass(entry) {
+	if (entry.kind === 'ipv4') return 'ipv4'
+	if (entry.kind !== 'ipv6') return 'other'
+	const first = parseInt(String(entry.value).split(':')[0] || '0', 16)
+	if (first >= 0x2000 && first <= 0x3fff) return 'global'
+	if ((first & 0xfe00) === 0xfc00) return 'unique-local'
+	return 'other'
+}
+
 export function qualifierOf(entry) {
 	const parts = []
 	for (const [name, value] of Object.entries(entry.traits ?? {})) {

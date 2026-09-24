@@ -176,7 +176,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] VIEW renders the new entries as tiles in its own order. Verifies spec: VIEW
 
 - [x] Every address an interface holds is its own entry, on device and client alike, and one that goes is sent as ended with its value and dropped alone. Verifies spec: NFO, VIEW
-- [ ] The Address tile shows an interface's IPv4 and every IPv6 address it holds, on the prototype. Once showed only the last one sampled per interface. Verifies spec: NFO, VIEW
+- [ ] The Address tile reveals an interface's IPv4 and every IPv6 address it holds, on the prototype. Once showed only the last one sampled per interface. Verifies spec: NFO, VIEW
+- [x] The Address tile headlines at most two addresses, one per line with no interface: the default route's IPv4, else global IPv6, else unique local IPv6, and the overlay's IPv4, else global IPv6. Verifies spec: VIEW
 
 ## Operations
 

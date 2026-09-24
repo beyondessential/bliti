@@ -92,7 +92,12 @@ The application MUST headline `network-throughput` with the sum of every directi
 
 The application MUST headline `temperature` with the `cpu` sensor, and MUST show every sensor in the reveal.
 
-The application MUST headline `network-address` with the address on the interface carrying the `default` route together with the address on the interface naming an overlay, MUST headline each where an interface holds more than one, and MUST show every address in the reveal.
+The application MUST headline `network-address` with at most two addresses, each on a line of its own and without its interface:
+
+- on the interface carrying the `default` route, the first it holds of an IPv4 address, a global IPv6 address and a unique local IPv6 address;
+- on an interface naming an overlay, where one does, the first it holds of an IPv4 address and a global IPv6 address.
+
+The application MUST show every address in the reveal, each with its interface.
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
 
@@ -105,7 +110,7 @@ The application MUST pair each battery's `battery-voltage` and `battery-directio
 The application MUST draw a `fraction` against its own scale, and MUST NOT draw a `quantity` against a scale unless its `limits` trait or its total above gives it one.
 
 > [!NOTE]
-> A dual-stack interface holds a v4 and a v6 address, and an operator siting a device wants the one they can reach it on, which is whichever of the two their own network speaks.
+> An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. One address for the network the device is reached on and one for the overlay are what an operator reads it for, and an overlay's addresses are recognisable without naming it.
 
 ## Graphs
 
