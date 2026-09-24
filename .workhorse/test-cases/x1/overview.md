@@ -124,9 +124,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Leaving the screen with a proposal applied keeps the session open, and the device view confirms or discards it. Verifies spec: NSCR
 - [x] Leaving the screen with nothing changed closes the session. Verifies spec: NSCR
 - [x] Leaving the screen with edits not applied keeps them and the session, and the device view says how many wait and offers review or discard. Verifies spec: NSCR
-- [ ] A proposal kept open that fails while the operator is on the device view keeps its failure until they return to the screen. Verifies spec: NSCR
+- [x] A proposal kept open that fails while the operator is on the device view keeps its failure until they return to the screen. Verifies spec: NSCR
 - [x] A network picked from a scan is not hidden, and cannot be marked hidden. Verifies spec: NSCR
-- [ ] Applying, scanning, surveying and opening a session each show they are waiting on the device. Verifies spec: NSCR
+- [x] Applying, scanning, surveying and opening a session each show they are waiting on the device. Verifies spec: NSCR
 - [ ] The ordering says how the device chooses among the candidates, and the candidate being edited is plain to see, on a phone. Verifies spec: NSCR
 - [x] Editing puts nothing on the wire: a device watched through a session sees no proposal until apply is pressed. Verifies spec: NSCR
 - [x] A half-typed gateway is never proposed. Verifies spec: NSCR

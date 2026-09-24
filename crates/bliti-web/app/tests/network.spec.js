@@ -187,6 +187,43 @@ test.describe('editing is the application\'s own', () => {
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
 	})
 
+	// A proposal that fails while the operator is elsewhere is not lost: the device view says so, and
+	// the screen still holds what was proposed and why it failed (NSCR).
+	test('a proposal kept open that fails on the device view keeps its failure until the screen is back', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await open(page, 'North site')
+		await page.getByLabel('Gateway').fill('192.168.60.254')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+		const held = page.locator('.bar-state:visible')
+		await expect(held).toContainText('Applying network settings.')
+		await say(page, message({ type: 'invalid', at: "$['attachments'][1]", reached: 'addressing', reason: '192.168.60.254 did not answer' }))
+		await expect(held).toContainText('Could not apply the network settings.')
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
+
+		await held.getByRole('button', { name: 'Review' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		// The candidate the failure names is the one opened, holding what was proposed.
+		await expect(page.locator('.candidate')).toHaveAttribute('aria-label', 'North site')
+		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
+		await expect(page.locator('.candidate .reason')).toHaveText('192.168.60.254 did not answer')
+	})
+
+	test('a failure kept on the device view is discarded from there', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await say(page, message({ type: 'invalid', at: "$['regulatory-domain']", reason: 'not a country this radio knows' }))
+		const held = page.locator('.bar-state:visible')
+		await expect(held).toContainText('Could not apply the network settings.')
+		await held.getByRole('button', { name: 'Discard' }).click()
+		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+	})
+
 	test('a device already in a session says so', async ({ page }) => {
 		await openChannel(page)
 		await answer(page, 'configure', message({ type: 'busy' }))
@@ -815,5 +852,56 @@ test.describe('the session as the device speaks it', () => {
 		await say(page, message({ type: 'applied' }))
 		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
 		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard', 'configuration'])
+	})
+})
+
+// NSCR: whatever waits on the device says so, with the spinner, until the device answers.
+test.describe('waiting on the device', () => {
+	const spinning = (locator) => locator.locator('.spinner')
+
+	test('opening a session shows it is waiting until the device answers', async ({ page }) => {
+		await openChannel(page)
+		await page.getByRole('button', { name: 'Network settings' }).click()
+		const asking = page.getByText('Asking the device for its network settings.')
+		await expect(asking).toBeVisible()
+		await expect(spinning(page.locator('.network'))).toHaveCount(1)
+		await say(page, message({ type: 'configuration', document: IN_FORCE, capabilities: PI }))
+		await expect(page.getByRole('heading', { name: 'Connections' })).toBeVisible()
+		await expect(asking).toHaveCount(0)
+	})
+
+	test('applying shows it is waiting until the device answers', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toContainText('Applying.')
+		await expect(spinning(bar(page))).toHaveCount(1)
+		await say(page, message({ type: 'applied' }))
+		await expect(spinning(bar(page))).toHaveCount(0)
+	})
+
+	test('scanning shows it is waiting until the device answers', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await addWireless(page)
+		await page.getByRole('button', { name: 'Scan', exact: true }).click()
+		const scanning = page.getByRole('button', { name: 'Scanning' })
+		await expect(scanning).toBeDisabled()
+		await expect(spinning(scanning)).toHaveCount(1)
+		await say(page, message({ type: 'networks', 'access-points': [ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', signal: -52 })] }))
+		await expect(page.getByRole('button', { name: 'Scan', exact: true })).toBeEnabled()
+		await expect(page.getByRole('button', { name: 'Clinic', exact: true })).toBeVisible()
+	})
+
+	test('surveying shows it is waiting until the device answers', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: INDEPENDENT })
+		const hotspot = page.locator('.hotspot')
+		await hotspot.getByText('Radio and addressing').click()
+		await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
+		const surveying = hotspot.getByRole('button', { name: 'Surveying' })
+		await expect(surveying).toBeDisabled()
+		await expect(spinning(surveying)).toHaveCount(1)
+		await say(page, message({ type: 'spectrum', spectrum: { channels: [{ interface: 'wlan0', band: '5ghz', channel: 36, networks: 2, busy: 0.4 }] } }))
+		await expect(hotspot.getByRole('button', { name: 'Survey the spectrum' })).toBeEnabled()
+		await expect(hotspot.locator('.spectrum li')).toHaveText(['36 · 5 GHz2 networks, 40% busy'])
 	})
 })
