@@ -105,7 +105,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A wireless client associated on a channel no access point may start on fails the proposal at the hotspot, naming the channel. Verifies spec: HOT
 - [x] A station knocked off its network as the hotspot starts beside it joins again, and the proposal does not fail for it.
 - [x] A join iwd reports without a channel takes the channel from the radio, and leaves a running hotspot where it is.
-- [ ] A proposal carrying a hotspot and a wireless network on the Pi ends applied, with both up on the network's channel. Verifies spec: HOT
+- [x] A proposal carrying a hotspot and a wireless network on the Pi ends applied, with both up on the network's channel. Verified on 2.4 GHz channel 1 against the laptop's access point; 5 GHz not yet. Verifies spec: HOT
 
 ## The document
 
