@@ -46,10 +46,11 @@ The application MUST check a document against the capabilities the device report
 
 The application MUST NOT offer a setting the device did not report supporting.
 
-The application MUST say why a setting is absent where the device's capabilities exclude it.
+The application MUST say why a setting is absent where the device's capabilities exclude it, except that where the device offers none of the hotspot's band, channel and width on any of its adapters, the application MUST leave all three out without comment.
 
 > [!NOTE]
-> A device that cannot give its hotspot a channel of its own has no channel field, and an operator who goes looking for one is better served by a sentence than by an absence they have to work out.
+> A setting absent from among others the device does offer is one an operator goes looking for, and is better served by a sentence than by an absence they have to work out.
+> A device offering no radio setting for its hotspot at all leaves nothing to look for: the radio is not the operator's to tune there, and a sentence about it is noise.
 
 ## Rendering the ordering
 

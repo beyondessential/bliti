@@ -245,7 +245,7 @@ test.describe('rendering a failure', () => {
 	test('a failure before anything was applied shows no stages', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await answer(page, 'configuration', failAt("$['hotspot']['dhcp-range']", 'collides with the upstream subnet'))
-		await page.getByText('Radio and addressing').click()
+		await page.getByText('Addressing', { exact: true }).click()
 		await page.getByLabel('DHCP range').fill('10.4.2.0/24')
 		await page.getByRole('button', { name: 'Apply' }).click()
 
@@ -421,15 +421,16 @@ test.describe('applying without checking', () => {
 })
 
 test.describe('validating before proposing', () => {
-	// The shared-channel constraint removes band, channel and width, and a sentence stands in their
-	// place (HOT, NSCR).
-	test('a setting the device did not report is not offered, and the screen says why', async ({ page }) => {
+	// The shared-channel constraint removes band, channel and width, and with none of them offered the
+	// radio goes unmentioned, heading and all (HOT, NSCR).
+	test('a hotspot radio offering no settings is left out without comment', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByText('Radio and addressing').click()
+		await expect(page.getByText('Radio and addressing')).toHaveCount(0)
+		await page.getByText('Addressing', { exact: true }).click()
 		await expect(page.getByLabel('Band')).toHaveCount(0)
 		await expect(page.getByLabel('Channel')).toHaveCount(0)
 		await expect(page.getByLabel('Width')).toHaveCount(0)
-		await expect(page.getByText('The radio runs the hotspot on the same channel as its wireless connection.')).toBeVisible()
+		await expect(page.getByText('The radio runs the hotspot on the same channel as its wireless connection.')).toHaveCount(0)
 		await expect(page.getByLabel('DHCP range')).toBeVisible()
 	})
 
@@ -531,7 +532,7 @@ test.describe('the state of the session', () => {
 		await page.setViewportSize({ width: 390, height: 640 })
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await open(page, 'North site')
-		await page.getByText('Radio and addressing').click()
+		await page.getByText('Addressing', { exact: true }).click()
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await say(page, message({ type: 'applied' }))
@@ -551,7 +552,7 @@ test.describe('the state of the session', () => {
 		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: 'no answer', reached: 'gateway' }))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await page.getByText('Radio and addressing').click()
+		await page.getByText('Addressing', { exact: true }).click()
 		const shown = await page.locator('.network').innerText()
 		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', '$[']) {
 			expect(shown.toLowerCase()).not.toContain(word)

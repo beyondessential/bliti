@@ -454,7 +454,17 @@ export function HotspotFields({ document, change, capabilities, marks, survey })
 	const usableBands = bands(capabilities, hotspot)
 	const usableChannels = channels(capabilities, hotspot)
 	const usableWidths = widths(capabilities, hotspot)
-	const absences = hotspotAbsences(capabilities, document, ['share-upstream', 'isolate-clients', 'band', 'channel', 'channel-width', 'dhcp-range'])
+	// Radio settings no adapter of the device offers are left out without a word, heading included. One
+	// the chosen adapter lacks and another offers is still explained, since picking again brings it back
+	// (NSCR).
+	const anyAdapter = withMember(hotspot, 'interface', undefined)
+	const tunable = ['band', 'channel', 'channel-width'].some((member) => offersHotspotSetting(capabilities, member, anyAdapter))
+	const absences = hotspotAbsences(capabilities, document, [
+		'share-upstream',
+		'isolate-clients',
+		...(tunable ? ['band', 'channel', 'channel-width'] : []),
+		'dhcp-range',
+	])
 	const picks = (values, name) => [{ value: '', label: 'Device picks' }, ...(values ?? []).map((value) => ({ value: String(value), label: name(value) }))]
 
 	const setBand = (band) => change((held) => fitHotspot(withMember(held, 'band', band || undefined), capabilities))
@@ -473,7 +483,7 @@ export function HotspotFields({ document, change, capabilities, marks, survey })
 				<Check label="Keep clients isolated" checked={hotspot['isolate-clients']} onChange={set('isolate-clients')} />
 			)}
 			<details open={Boolean(marks.at && ['band', 'channel', 'channel-width', 'dhcp-range'].some((member) => within(marks.at, at(member)))) || undefined}>
-				<summary>Radio and addressing</summary>
+				<summary>{tunable ? 'Radio and addressing' : 'Addressing'}</summary>
 				{radio.includes('band') && (
 					<SelectField label="Band" path={at('band')} value={hotspot.band ?? ''} options={picks(usableBands, bandName)} onChange={setBand} marks={marks} />
 				)}
