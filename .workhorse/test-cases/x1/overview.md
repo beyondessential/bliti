@@ -69,6 +69,11 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] Configured resolvers are queried before those a link supplies, and supplied ones are queried where a candidate names none. Verifies spec: LINK
 - [x] The selector, unattended: statics on one port told apart at two sites, a lease with no route failing at `gateway`, association without an address failing at `addressing`, the default route following the order and moving back, and a site changing around a cable that never moved. Verifies spec: LINK
 - [x] A pinned wireless candidate stays on its radio, and an unpinned one takes a free radio hearing it best. Verifies spec: LINK
+- [x] With two radios, a candidate pinned to each joins on its own radio and nowhere else, each radio is scanned for the proposal, and the hotspot runs on the radio carrying none, with its own access point interface and channel. Verifies spec: LINK, HOT
+- [x] With two radios, a hotspot on the second, shared-channel radio waits for that radio's client and follows its channel, whatever the first radio's client is on. Verifies spec: HOT
+- [x] The hotspot moving to another radio stops hostapd and deletes the access point interface on the old radio before creating one on the new. Verifies spec: HOT
+- [x] Two candidates for one network differing only in the radio they name share one iwd network file, and differing in security or `hidden` the later is refused at its `ssid`, naming what differs. Verifies spec: WLAN
+- [ ] With two radios, a candidate pinned to each joins on its own radio and the hotspot runs on the radio carrying none, on a device with two radios. Verifies spec: LINK, HOT
 - [ ] A site's own names reach the site's resolvers while the candidate names a public resolver of its own, on real hardware. Verifies spec: LINK
 
 ## Wireless
@@ -105,6 +110,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 - [x] On a shared-channel radio the hotspot starts once its wireless client has associated, on the client's channel, and on its own channel where the client does not join. Verifies spec: HOT
 - [x] A wireless client associated on a channel no access point may start on fails the proposal at the hotspot, naming the channel. Verifies spec: HOT
+- [x] A client of a radio running its access point independently, on a channel no access point may start on, leaves that radio's hotspot running. Verifies spec: HOT
 - [x] A station knocked off its network as the hotspot starts beside it joins again, and the proposal does not fail for it.
 - [x] A join iwd reports without a channel takes the channel from the radio, and leaves a running hotspot where it is.
 - [x] A proposal carrying a hotspot and a wireless network on the Pi ends applied, with both up on the network's channel. Verified on 2.4 GHz channel 1 against the laptop's access point; 5 GHz not yet. Verifies spec: HOT

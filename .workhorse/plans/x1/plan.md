@@ -143,23 +143,23 @@ Findings from building the renderer, each binding on the applier or on capabilit
 - **Resolvers: a link's own ones go in a DNS delegate.** resolved routes a query to a link and uses that link's servers in turn, falling through only on an error, and "no such name" is not one. So a dynamic candidate's configured resolvers cannot share the link with the ones its network supplies. The link carries the supplied ones, with the site's search domains as routing domains (`UseDomains=route`) and `DNSDefaultRoute=no`; the candidate's own go in `/etc/systemd/dns-delegate.d/50-bliti-<interface>.dns-delegate`, bound to the link (`DNS=<server>%<interface>`) with `Domains=~.`. A dynamic link naming none keeps `DNSDefaultRoute=yes`, which routing domains would otherwise turn off. A static link has nothing supplied, so its resolvers sit on it. Needs systemd 258; the applier reloads resolved after networkd. Not checked on hardware: that a reload of resolved rereads delegates.
 - **SAE can be held to SAE, where the radio allows it.** A `sae` candidate renders `TransitionDisable=true` with `DisabledTransitionModes=personal`. iwd silently ignores the pin on a radio lacking CCMP or BIP-CMAC, so capabilities should offer `sae` only where the radio has SAE, CCMP and BIP-CMAC, and the device should still check the negotiated key management after association. There is no per-network way to hold iwd to PSK only, so a `psk` candidate upgrades to SAE on a transitional access point, which still authenticates it. The one way to hold iwd to PSK is per driver, `[DriverQuirks] SaeDisable`, which bliti renders for brcmfmac (`render::SAE_DISABLED`).
 - **iwd writes back into its known-network files**, so the applier cannot detect drift by comparing file contents.
-- **iwd adopts every interface on the radio.** It must run with `--nointerfaces ap0` (a unit drop-in, not `main.conf`), or it takes over the hotspot's interface.
+- **iwd adopts every interface on the radio.** It must run with `--nointerfaces ap[0-9]*` (a unit drop-in, not `main.conf`), or it takes over the hotspot's interface.
 - **hostapd cannot follow another interface's channel.** On shared-channel hardware the renderer takes the station's current channel from the selection (20 MHz; with no station, the channel the document chooses, else 2.4 GHz channel 6), and the applier re-renders and restarts hostapd whenever the station changes channel. The driver holds the hotspot back until the station has associated, then starts it on the station's channel.
 - **The CYW43455 firmware has a reported crash in station-plus-AP mode on kernel 6.12** ([raspberrypi/linux#7092](https://github.com/raspberrypi/linux/issues/7092)). The hardware test case above passed on the image in use, but the kernel it runs is worth pinning against this.
 - **The regulatory domain takes three pieces**: iwd's `[General] Country=` hint, hostapd's `country_code` with `ieee80211d=1`, and `cfg80211 ieee80211_regdom` in modprobe.d, which only applies at module load. So the applier also runs `iw reg set` (the world domain `00` where unset) at runtime.
 - **`share-upstream: false` needs systemd 256 or later**, where `IPv4Forwarding=` exists. Older systemd ignores the key. Worth confirming against the image's systemd.
 - **The default hotspot range is `10.41.0.0/24`**: the device is `10.41.0.1` and hands out the rest.
-- **Structural rules the renderer enforces that no spec states**: passphrases are 8 to 63 printable ASCII characters, SAE included; two wireless candidates for one SSID with the same kind of key are refused, since iwd keys its files by SSID; enterprise members a method does not use are refused, `phase2` is required for PEAP and TTLS, and `ca-certificate` and `domain` for PEAP, TTLS and TLS.
+- **Structural rules the renderer enforces that no spec states**: passphrases are 8 to 63 printable ASCII characters, SAE included; two wireless candidates for one SSID with the same kind of key share iwd's one file for it, since iwd keys its files by SSID, and are refused unless their security and `hidden` match; enterprise members a method does not use are refused, `phase2` is required for PEAP and TTLS, and `ca-certificate` and `domain` for PEAP, TTLS and TLS.
 
 ### Several radios
 
 A wireless candidate and the hotspot may name an `interface`; unset, the device picks (LINK, HOT). Candidates take free radios in order, preferring the one that hears them best, and an unpinned hotspot prefers a radio carrying no wireless candidate. The capabilities proposal keys what differs by radio under `interface`, and carries `radios` keyed by interface with `model`, `bands` and `alongside`.
 
-The document model carries `interface` already, and the renderer refuses any name but its one station interface, since `Hardware` describes one radio. What several radios still need:
+The document model carries `interface`, and the stack renders, selects and drives every radio probed. What several radios needed:
 
-- [ ] `Hardware` describing each radio (its station interface, the AP interface bliti creates on it, its `alongside`), and `Selection` saying which radio carries each active wireless candidate and the hotspot
-- [ ] iwd's known networks are global to iwd rather than per interface, so a pin is enforced by bliti connecting that interface's station itself, with every network at `AutoConnect=false`
-- [ ] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
+- [x] `Hardware` describing each radio (its station interface, the AP interface bliti creates on it, its `alongside`), and `Selection` saying which radio carries each active wireless candidate and the hotspot
+- [x] iwd's known networks are global to iwd rather than per interface, so a pin is enforced by bliti connecting that interface's station itself, with every network at `AutoConnect=false`
+- [x] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
 - [x] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
 - [x] `wireless-network` in NFO carries `interface`, distinguishing
 - [x] `scan`, `survey` and `wps` take an optional `interface` on the wire and through the `Backend` trait; unset, scan and survey run on every radio able to
@@ -168,6 +168,15 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
 - [x] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
 - [x] The screen: a WPS adapter choice, a survey adapter choice, and the siting view counting every channel a wide access point spans (NSCR)
+
+How it came out, checked by tests alone since the only hardware is the one-radio Pi:
+
+- **The access point interface is named for the radio's place among those probed**: `ap0` on the first, `ap1` on the second, whether or not the others can run one. Names derived from the station would overflow the 15-character limit on a USB adapter's `wlx…` name. iwd's drop-in keeps off `ap[0-9]*`, which iwd matches as a glob.
+- **hostapd runs one instance per access point interface**: `/run/bliti/hostapd/<interface>.conf` and the template unit `bliti-hostapd@.service`, of which at most one runs. A hotspot moving radio is then a removed file and a written one, which the applier turns into stopping hostapd and deleting the interface on the old radio before creating and starting on the new. With one path it could not tell which interface to take down. The Pi's installed `bliti-hostapd.service` and iwd drop-in have to be replaced by the ones in `services/` before a build with this runs there.
+- **The selection names radios by station interface**, as the document does: `links` maps each interface to the candidate it brings up, a wireless one on its radio's station; `hotspot` is the station of the radio running it, unset while it waits for the client whose channel it shares; `channels` holds each radio's associated client's channel. The renderer refuses a selection against a pin as the caller's fault.
+- **Only a shared-channel radio's hotspot is held to its client's channel.** Holding back, barring a radar channel and expecting brcmfmac's knock-off all follow the hotspot's own radio; before, a client on a radar channel took an independent radio's hotspot down at the next render.
+- **The pin needed nothing new**: every network renders `AutoConnect=false` and the driver joins each candidate only on the station its link names.
+- **`network-apply` takes `N@interface`** in `--active` for a wireless candidate's radio, and `--hotspot` for the hotspot's.
 
 ### What the prototype showed
 
