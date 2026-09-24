@@ -2,8 +2,8 @@ import { copyFile, readFile, rm, writeFile } from 'node:fs/promises'
 
 import { expect, test } from '@playwright/test'
 
-// Usable offline once loaded (WEB). The wasm module is fetched lazily, on the first code read, so a
-// page that loaded while online can still be the one that fetches it after the connection is gone.
+// Usable offline once loaded (WEB). A page that loaded while online holds the wasm module whether or
+// not the service worker has cached it yet, and keeps what it needs cached while it stays open.
 
 const DIST = new URL('../dist-test/', import.meta.url)
 
@@ -33,6 +33,17 @@ test('serves the wasm module offline once loaded', async ({ page, context, reque
 	await page.reload()
 	await expect(page.locator('#root')).not.toBeEmpty()
 	expect(await fetchOffline(page, wasm)).toBe(true)
+})
+
+test.describe('with no service worker to cache it', () => {
+	test.use({ serviceWorkers: 'block' })
+
+	test('fetches the wasm module at startup, before any code is read', async ({ page, request }) => {
+		const wasm = await wasmPath(request)
+		const fetched = page.waitForResponse((res) => new URL(res.url()).pathname === wasm)
+		await page.goto('/')
+		expect((await fetched).ok()).toBe(true)
+	})
 })
 
 test('keeps an open page’s wasm module across an update installed behind it', async ({

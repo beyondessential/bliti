@@ -1,8 +1,8 @@
 // Loading the wasm module, which carries everything with protocol in it (BLI-WEB).
 //
 // The client needs it before it reads a code, and the network screen before it checks a document,
-// because the pre-proposal check of BLI-NSCR is the device's own checker compiled in. Loaded once,
-// by whichever gets there first.
+// because the pre-proposal check of BLI-NSCR is the device's own checker compiled in. Loaded once, at
+// startup; both of those wait on the same load, and retry it where it failed.
 
 import init, { start } from './wasm/bliti_web.js'
 import wasmUrl from './wasm/bliti_web_bg.wasm?url'

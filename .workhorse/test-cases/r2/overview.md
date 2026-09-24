@@ -3,6 +3,7 @@
 ## Automated
 
 - [x] A page loaded online, reloaded offline, is served and can fetch its wasm module (verifies spec: WEB)
+- [x] With no service worker in play, the page fetches its wasm module at startup, before any code is read (verifies spec: WEB)
 - [x] A next version installed while a page is open waits rather than taking over, and the open page can still fetch its wasm module offline (verifies spec: WEB)
 
 ## Manual
