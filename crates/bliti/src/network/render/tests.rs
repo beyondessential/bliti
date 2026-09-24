@@ -370,14 +370,73 @@ fn ssid_file_names() {
 	file(&out, "iwd/=436166c3a92f32.psk");
 }
 
-/// Two candidates that would share an iwd file are refused at the later one.
+/// Two candidates that would share an iwd file saying different things are refused at the later
+/// one, naming what differs.
 #[test]
 fn two_key_candidates_for_one_ssid_are_refused() {
-	let doc = document(json!({ "attachments": [
+	let reason = |doc: &Document| match render(doc, &two_radios(), &Selection::default()) {
+		Err(Error::Invalid(invalid)) => {
+			assert_eq!(invalid.at, "$['attachments'][1]['ssid']");
+			invalid.reason
+		}
+		other => panic!("expected an invalid document, got {other:?}"),
+	};
+	let kinds = document(json!({ "attachments": [
 		wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
 		wireless("Clinic", json!({ "kind": "sae", "passphrase": "a long passphrase" }))
 	] }));
-	assert_eq!(invalid_at(&doc, &hardware()), "$['attachments'][1]['ssid']");
+	assert_eq!(
+		invalid_at(&kinds, &hardware()),
+		"$['attachments'][1]['ssid']"
+	);
+
+	let mut other = pinned("Clinic", "wlan1");
+	other["security"]["passphrase"] = json!("another passphrase");
+	let passphrases = document(json!({ "attachments": [pinned("Clinic", "wlan0"), other] }));
+	assert!(
+		reason(&passphrases).contains("candidate 0 joins \"Clinic\" with a different security"),
+		"{}",
+		reason(&passphrases)
+	);
+
+	let mut hidden = pinned("Clinic", "wlan1");
+	hidden["hidden"] = json!(true);
+	let hiding = document(json!({ "attachments": [pinned("Clinic", "wlan0"), hidden] }));
+	assert!(
+		reason(&hiding).contains("with a different hidden"),
+		"{}",
+		reason(&hiding)
+	);
+}
+
+/// Candidates for one SSID differing only in the radio they name share one iwd file, which iwd
+/// holds for every radio at once, and each is brought up on its own radio.
+#[test]
+fn candidates_for_one_ssid_on_two_radios_share_a_file() {
+	let mut second = pinned("Clinic", "wlan1");
+	second["hidden"] = json!(false);
+	second["label"] = json!("clinic on the adapter");
+	let doc = document(json!({ "attachments": [pinned("Clinic", "wlan0"), second] }));
+	let selection = Selection {
+		links: BTreeMap::from([("wlan0".to_owned(), 0), ("wlan1".to_owned(), 1)]),
+		..Selection::default()
+	};
+	let out = rendered(&doc, &two_radios(), &selection);
+	let networks: Vec<&Path> = paths(&out)
+		.into_iter()
+		.filter(|path| path.starts_with("/tmp/bliti-test/iwd/"))
+		.collect();
+	assert_eq!(networks, [Path::new("/tmp/bliti-test/iwd/Clinic.psk")]);
+	assert!(
+		file(&out, "network/50-bliti-wlan0.network")
+			.contents
+			.contains("Name=wlan0\n")
+	);
+	assert!(
+		file(&out, "network/50-bliti-wlan1.network")
+			.contents
+			.contains("Name=wlan1\n")
+	);
 }
 
 /// `sae` holds iwd to WPA3 on an access point that also offers WPA2; `psk-sae` does not.

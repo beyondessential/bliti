@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Security, Segment};
+use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Security, Segment, Wireless};
 
 use super::{File, Hardware, PUBLIC, Paths, SECRET, candidate_path, header, invalid_in};
 
@@ -25,8 +25,11 @@ pub(super) fn owns(name: &str) -> bool {
 
 /// A network file per wireless candidate, whether or not it is selected: iwd joins only what bliti
 /// tells it to, so every candidate can be known to it at once.
+///
+/// iwd holds one network per SSID and kind of key, for every radio at once, so candidates for one
+/// SSID on different radios share a file. They may only where the file would say the same for each.
 pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<File>, Invalid> {
-	let mut files: Vec<(usize, File)> = Vec::new();
+	let mut files: Vec<(usize, &Wireless, File)> = Vec::new();
 	for (rank, attachment) in document.attachments.iter().enumerate() {
 		let AttachmentKind::Wireless(wireless) = &attachment.kind else {
 			continue;
@@ -61,13 +64,20 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 			.paths
 			.iwd_state
 			.join(format!("{}{suffix}", encode_ssid(&wireless.ssid)));
-		if let Some((earlier, _)) = files.iter().find(|(_, file)| file.path == path) {
+		if let Some((earlier, first, _)) = files.iter().find(|(_, _, file)| file.path == path) {
+			let differs = if first.security != wireless.security {
+				"security"
+			} else if first.hidden.unwrap_or(false) != wireless.hidden.unwrap_or(false) {
+				"hidden"
+			} else {
+				continue;
+			};
 			return Err(invalid_in(
 				rank,
 				&ssid_at,
 				format!(
-					"candidate {earlier} already joins {:?} with this kind of security, and iwd \
-					 holds one such network per SSID",
+					"candidate {earlier} joins {:?} with a different {differs}, and iwd holds one \
+					 such network per SSID, so every candidate for it has to carry the same",
 					wireless.ssid
 				),
 			));
@@ -76,6 +86,7 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 		let contents = format!("{}\n{settings}\n{security}", header(&candidate_path(rank)));
 		files.push((
 			rank,
+			wireless,
 			File {
 				path,
 				contents,
@@ -83,7 +94,7 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 			},
 		));
 	}
-	Ok(files.into_iter().map(|(_, file)| file).collect())
+	Ok(files.into_iter().map(|(_, _, file)| file).collect())
 }
 
 /// iwd's main configuration: networkd addresses every link, so iwd configures none, and SAE stays
