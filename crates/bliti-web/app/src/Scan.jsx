@@ -20,7 +20,7 @@ function advertised(security) {
 	return (security ?? []).map((each) => UNJOINABLE[each] ?? securityName(each)).join(', ')
 }
 
-export function ScanResults({ points, candidate, change, capabilities }) {
+export function ScanResults({ points, candidate, change, capabilities, onPicked }) {
 	const [view, setView] = useState('networks')
 	return (
 		<div className="scan">
@@ -35,7 +35,7 @@ export function ScanResults({ points, candidate, change, capabilities }) {
 				))}
 			</div>
 			{view === 'networks' ? (
-				<Networks points={points} candidate={candidate} change={change} capabilities={capabilities} />
+				<Networks points={points} candidate={candidate} change={change} capabilities={capabilities} onPicked={onPicked} />
 			) : (
 				<Siting points={points} capabilities={capabilities} />
 			)}
@@ -44,14 +44,15 @@ export function ScanResults({ points, candidate, change, capabilities }) {
 }
 
 /// The networks heard, by SSID, each opening onto the access points behind it.
-function Networks({ points, candidate, change, capabilities }) {
+function Networks({ points, candidate, change, capabilities, onPicked }) {
 	const [hidden, setHidden] = useState(false)
 	const [open, setOpen] = useState(() => new Set())
 	const networks = networksOf(points, { hidden })
 	const unnamed = hiddenCount(points)
 	const several = radios(capabilities).length > 1
 
-	const pick = (network, kind) =>
+	const pick = (network, kind) => {
+		onPicked?.(network)
 		change((held) => {
 			const security = kind === held.security?.kind ? held.security : blankSecurity(kind, capabilities, held)
 			if (network.ssid === null) {
@@ -68,6 +69,7 @@ function Networks({ points, candidate, change, capabilities }) {
 			// Heard by name, so it is not hidden.
 			return offersMember(capabilities, 'wireless', 'hidden', held) ? { ...next, hidden: false } : next
 		})
+	}
 
 	const toggle = (key) =>
 		setOpen((was) => {

@@ -267,8 +267,11 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 	const kinds = [...new Set([...offered, security.kind].filter(Boolean))]
 	const methods = eapMethods(capabilities, candidate) ?? ['peap', 'ttls', 'tls']
 	const eapFields = security.eap === 'tls' ? EAP_FIELDS.tls : EAP_FIELDS.tunnelled
-	// A network the last scan heard by this name is broadcasting it, so it cannot be hidden.
+	// Whether a scan has settled that the network is hidden: heard broadcasting this name, it is not;
+	// picked from an access point with no name, it is.
 	const heard = Boolean(candidate.ssid) && (scan?.points ?? []).some((point) => point.ssid === candidate.ssid)
+	const [pickedHidden, setPickedHidden] = useState(false)
+	const settled = heard || pickedHidden
 
 	// The name follows the SSID until the operator gives it one of its own.
 	const setSsid = (ssid) =>
@@ -276,7 +279,16 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 
 	return (
 		<>
-			<SsidField candidate={candidate} at={at} onChange={setSsid} change={change} capabilities={capabilities} marks={marks} scan={scan} />
+			<SsidField
+				candidate={candidate}
+				at={at}
+				onChange={setSsid}
+				change={change}
+				capabilities={capabilities}
+				marks={marks}
+				scan={scan}
+				onPicked={(network) => setPickedHidden(network.ssid === null)}
+			/>
 			<AdapterField
 				part="wireless"
 				value={candidate.interface}
@@ -327,17 +339,16 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 					<Check
 						label="Hidden network"
 						checked={candidate.hidden && !heard}
-						disabled={heard}
+						disabled={settled}
 						onChange={(hidden) => change((held) => ({ ...held, hidden }))}
 					/>
-					{heard && <p className="muted hint">The scan heard it by name, so it is not hidden.</p>}
 				</>
 			)}
 		</>
 	)
 }
 
-function SsidField({ candidate, at, onChange, change, capabilities, marks, scan }) {
+function SsidField({ candidate, at, onChange, change, capabilities, marks, scan, onPicked }) {
 	const id = useId()
 	const [adapter, setAdapter] = useState('')
 	const path = at('ssid')
@@ -381,7 +392,7 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan 
 				/>
 			)}
 			{scanning && scan.failure && <p className="why">{scan.failure.reason}</p>}
-			{scanning && scan.points && <ScanResults points={scan.points} candidate={candidate} change={change} capabilities={capabilities} />}
+			{scanning && scan.points && <ScanResults points={scan.points} candidate={candidate} change={change} capabilities={capabilities} onPicked={onPicked} />}
 		</>
 	)
 }

@@ -71,7 +71,7 @@ The application MUST list what a scan heard by SSID, showing for each network th
 
 The application MUST leave out access points with no SSID unless the operator asks to see hidden networks.
 
-The application MUST NOT let the operator mark as hidden a network the last scan heard by its name.
+The application MUST NOT let the operator change whether a network is hidden where a scan has settled it: one the last scan heard by its name is not hidden, and one picked from an access point with no SSID is.
 
 The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use, counting every channel a wide access point spans.
 

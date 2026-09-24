@@ -338,7 +338,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 			tone = 'failed'
 			said = (
 				<>
-					<strong>Could not apply.</strong> The device is back on the last saved configuration. Your changes are below.
+					<strong>Could not apply.</strong> The device is back on the last saved configuration.
 				</>
 			)
 		} else if (state.problem) {
@@ -586,11 +586,7 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, unch
 			{failure && <Failure failure={failure} kind={candidate.kind} />}
 			{unchecked && (
 				<div className="unchecked">
-					<p className="muted">
-						{unchecked.enabled
-							? 'Only this one goes unchecked.'
-							: 'Undo your edits first.'}
-					</p>
+					{!unchecked.enabled && <p className="muted">Undo your edits first.</p>}
 					<button className="secondary small" onClick={unchecked.apply} disabled={!unchecked.enabled}>
 						Apply without checking
 					</button>

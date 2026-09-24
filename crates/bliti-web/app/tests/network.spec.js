@@ -278,7 +278,6 @@ test.describe('applying without checking', () => {
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(unchecked(page)).toBeEnabled()
-		await expect(page.locator('.candidate')).toContainText('Only this one goes unchecked.')
 		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
 		await open(page, 'Clinic wall port')
 		await expect(unchecked(page)).toHaveCount(0)
