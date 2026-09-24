@@ -28,7 +28,7 @@ use bliti_core::{
 			Mode, Streams, accept_responder, is_peer_fault, multiplex, read_message, write_message,
 		},
 	},
-	key_schedule::PresenceToken,
+	key_schedule::DeviceKeys,
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::task::{AbortHandle, JoinSet};
@@ -67,7 +67,7 @@ type Served = Arc<Mutex<HashSet<String>>>;
 /// Run a session to completion over a transport, as the device.
 pub async fn run<S, B>(
 	transport: S,
-	secret: &PresenceToken,
+	keys: &DeviceKeys,
 	sampler: Sampler,
 	configurator: Configurator<B>,
 ) -> Result<(), SessionError>
@@ -75,7 +75,7 @@ where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 	B: Backend,
 {
-	let encrypted = accept_responder(transport, secret)
+	let encrypted = accept_responder(transport, &keys.presence_token, &keys.static_key)
 		.await
 		.map_err(|err| SessionError::Handshake(err.to_string()))?;
 	tracing::info!("handshake complete");
@@ -470,14 +470,17 @@ pub enum SessionError {
 
 #[cfg(test)]
 mod tests {
-	use bliti_core::channel::stream::{Stream, connect_initiator};
+	use bliti_core::{
+		channel::stream::{Stream, connect_initiator},
+		key_schedule::Root,
+	};
 	use tokio_util::compat::TokioAsyncReadCompatExt;
 
 	use super::*;
 	use crate::network::session::{Inert, Store};
 
-	fn secret(byte: u8) -> PresenceToken {
-		PresenceToken::from_bytes([byte; 32])
+	fn keys(byte: u8) -> DeviceKeys {
+		Root::from_bytes([byte; 32]).device_keys()
 	}
 
 	/// A configurator that configures nothing, over a recorded configuration nothing here writes.
@@ -493,21 +496,27 @@ mod tests {
 	}
 
 	/// Open a client against a device session over an in-memory duplex, with no BLE involved.
-	async fn paired(psk: &PresenceToken) -> Streams {
+	async fn paired(keys: &DeviceKeys) -> Streams {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
-		let device_psk = psk.clone();
+		let device_keys = keys.clone();
 		let configurator = inert().await;
 		tokio::spawn(async move {
 			let _ = run(
 				device_side.compat(),
-				&device_psk,
+				&device_keys,
 				Sampler::start(None),
 				configurator,
 			)
 			.await;
 		});
 
-		let encrypted = connect_initiator(client_side.compat(), psk).await.unwrap();
+		let encrypted = connect_initiator(
+			client_side.compat(),
+			&keys.presence_token,
+			&keys.static_key.public_key(),
+		)
+		.await
+		.unwrap();
 		let (streams, driver) = multiplex(encrypted, Mode::Client);
 		tokio::spawn(async move {
 			let _ = driver.await;
@@ -532,7 +541,7 @@ mod tests {
 	/// the topic it serves (MSG).
 	#[tokio::test]
 	async fn the_device_pushes_a_hello_and_the_default_feed_unprompted() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 
 		let mut first = streams.accept().await.expect("a stream");
 		let mut second = streams.accept().await.expect("a second stream");
@@ -562,7 +571,7 @@ mod tests {
 	/// the hello, and can resume with a `subscribe` for `default` (MSG).
 	#[tokio::test]
 	async fn declining_the_feed_keeps_the_hello_and_a_subscribe_resumes() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 
 		// Find the hello stream and the feed stream among the two the device pushes.
 		let mut one = streams.accept().await.unwrap();
@@ -600,7 +609,7 @@ mod tests {
 	/// (MSG). The pushed feed is already serving default, so a subscribe for it draws nothing.
 	#[tokio::test]
 	async fn a_subscribe_for_an_already_served_topic_is_skipped() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 		// Leave the two pushed streams open, so default stays served.
 		let _pushed_a = streams.accept().await.unwrap();
 		let _pushed_b = streams.accept().await.unwrap();
@@ -623,7 +632,7 @@ mod tests {
 	/// An unrecognised message draws no reply and costs nothing: the stream stays open (MSG).
 	#[tokio::test]
 	async fn an_unrecognised_message_is_passed_over_in_silence() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 		let _a = streams.accept().await.unwrap();
 
 		let mut stream = streams.open().await.unwrap();
@@ -651,7 +660,7 @@ mod tests {
 	/// open and the session carries on (MSG).
 	#[tokio::test]
 	async fn a_known_but_unactionable_message_is_a_no_op() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 		let _a = streams.accept().await.unwrap();
 
 		// A client reporting a reading of its own. The device has nothing to do about it.
@@ -689,7 +698,7 @@ mod tests {
 	/// A client that is not speaking the protocol loses the stream it did it on, and nothing else.
 	#[tokio::test]
 	async fn a_protocol_fault_costs_the_stream_and_not_the_connection() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 		let _a = streams.accept().await.unwrap();
 
 		let mut bad = streams.open().await.unwrap();
@@ -719,7 +728,40 @@ mod tests {
 		let device = tokio::spawn(async move {
 			run(
 				device_side.compat(),
-				&secret(0x01),
+				&keys(0x01),
+				Sampler::start(None),
+				configurator,
+			)
+			.await
+		});
+
+		let other = keys(0x02);
+		assert!(
+			connect_initiator(
+				client_side.compat(),
+				&other.presence_token,
+				&other.static_key.public_key()
+			)
+			.await
+			.is_err()
+		);
+		assert!(matches!(
+			device.await.unwrap(),
+			Err(SessionError::Handshake(_))
+		));
+	}
+
+	/// A client holding the right presence token but expecting another device's static key does not
+	/// open a session: the token alone, as a photograph of the QR code yields, is not enough to be
+	/// taken for this device (SEC, "A photograph does not permit impersonation").
+	#[tokio::test]
+	async fn the_right_token_with_the_wrong_static_key_cannot_open_a_session() {
+		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		let configurator = inert().await;
+		let device = tokio::spawn(async move {
+			run(
+				device_side.compat(),
+				&keys(0x01),
 				Sampler::start(None),
 				configurator,
 			)
@@ -727,9 +769,13 @@ mod tests {
 		});
 
 		assert!(
-			connect_initiator(client_side.compat(), &secret(0x02))
-				.await
-				.is_err()
+			connect_initiator(
+				client_side.compat(),
+				&keys(0x01).presence_token,
+				&keys(0x02).static_key.public_key()
+			)
+			.await
+			.is_err()
 		);
 		assert!(matches!(
 			device.await.unwrap(),
@@ -740,7 +786,7 @@ mod tests {
 	/// is open is told the device is busy (CFG).
 	#[tokio::test]
 	async fn configure_opens_a_session_and_a_second_is_busy() {
-		let mut streams = paired(&secret(0x42)).await;
+		let mut streams = paired(&keys(0x42)).await;
 		let _a = streams.accept().await.unwrap();
 
 		let mut first = streams.open().await.unwrap();
@@ -787,24 +833,30 @@ mod tests {
 	/// drop can end it.
 	#[tokio::test]
 	async fn dropping_a_session_ends_the_configuration_session_it_held() {
-		let psk = secret(0x42);
+		let keys = keys(0x42);
 		let configurator = inert().await;
 
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device = {
-			let psk = psk.clone();
+			let keys = keys.clone();
 			let configurator = configurator.clone();
 			tokio::spawn(async move {
 				let _ = run(
 					device_side.compat(),
-					&psk,
+					&keys,
 					Sampler::start(None),
 					configurator,
 				)
 				.await;
 			})
 		};
-		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let encrypted = connect_initiator(
+			client_side.compat(),
+			&keys.presence_token,
+			&keys.static_key.public_key(),
+		)
+		.await
+		.unwrap();
 		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
 		tokio::spawn(async move {
 			let _ = driver.await;
@@ -822,18 +874,24 @@ mod tests {
 
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		tokio::spawn({
-			let psk = psk.clone();
+			let keys = keys.clone();
 			async move {
 				let _ = run(
 					device_side.compat(),
-					&psk,
+					&keys,
 					Sampler::start(None),
 					configurator,
 				)
 				.await;
 			}
 		});
-		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let encrypted = connect_initiator(
+			client_side.compat(),
+			&keys.presence_token,
+			&keys.static_key.public_key(),
+		)
+		.await
+		.unwrap();
 		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
 		tokio::spawn(async move {
 			let _ = driver.await;

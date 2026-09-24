@@ -105,12 +105,12 @@ impl Advertised {
 		Self::from_bytes(&bytes)
 	}
 
-	/// Whether this advertisement belongs to the device holding `secret`.
+	/// Whether this advertisement belongs to the device holding `token`.
 	///
 	/// One fast hash per advertisement heard per QR code held. The caller checks the version first,
 	/// because no two versions produce a matching handle and silence would not say which it was.
-	pub fn matches(self, secret: &crate::key_schedule::PresenceToken) -> bool {
-		secret.handle(self.salt) == self.handle
+	pub fn matches(self, token: &crate::key_schedule::PresenceToken) -> bool {
+		token.handle(self.salt) == self.handle
 	}
 }
 

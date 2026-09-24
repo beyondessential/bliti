@@ -1,16 +1,18 @@
 //! The QR code payload: what the QR code carries, and how it is rendered and read back.
 //!
-//! Behaviour is specified in `.workhorse/specs/QR code.md` (QR). The payload carries the
-//! presence token and the version marker, and nothing else. The board ID is deliberately absent:
-//! putting it here would hand the board ID to anyone who photographs a QR code, which is the
-//! property the derivation exists to provide.
+//! Behaviour is specified in `.workhorse/specs/qr-code.md` (QR). The payload carries the version
+//! marker, the presence token and the device static public key, and nothing else. The board ID is
+//! deliberately absent: putting it here would hand the board ID to anyone who photographs a QR code,
+//! and with it the device static private key.
 
 use data_encoding::BASE32_NOPAD;
 
-use crate::key_schedule::{PRESENCE_TOKEN_LEN, PresenceToken, VERSION};
+use crate::key_schedule::{
+	DEVICE_KEY_LEN, DevicePublicKey, PRESENCE_TOKEN_LEN, PresenceToken, VERSION,
+};
 
 /// The URL the QR code encodes. The payload rides in the fragment, which a browser never sends to a
-/// server, so the secret stays on the device that scanned it. A generic phone camera opens this
+/// server, so the presence token stays on the device that scanned it. A generic phone camera opens this
 /// page; a native application can claim the link.
 ///
 /// Kept lower case. The scheme and host are case insensitive to a browser, and upper casing them
@@ -21,19 +23,26 @@ pub const QR_URL_BASE: &str = "https://bliti.tamanu.app/";
 /// The number of characters per group in the human-readable rendering.
 const HUMAN_GROUP: usize = 4;
 
-/// The decoded contents of a QR code: the version marker and the presence token.
+/// The length of the payload in bytes: the version marker, the presence token, and the device static
+/// public key.
+pub const PAYLOAD_LEN: usize = 1 + PRESENCE_TOKEN_LEN + DEVICE_KEY_LEN;
+
+/// The decoded contents of a QR code: the version marker, the presence token, and the device static
+/// public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct QrPayload {
 	version: u8,
-	secret: PresenceToken,
+	presence_token: PresenceToken,
+	device_public_key: DevicePublicKey,
 }
 
 impl QrPayload {
 	/// A payload for the current version.
-	pub fn new(secret: PresenceToken) -> Self {
+	pub fn new(presence_token: PresenceToken, device_public_key: DevicePublicKey) -> Self {
 		Self {
 			version: VERSION,
-			secret,
+			presence_token,
+			device_public_key,
 		}
 	}
 
@@ -43,15 +52,22 @@ impl QrPayload {
 	}
 
 	/// The presence token.
-	pub fn secret(&self) -> &PresenceToken {
-		&self.secret
+	pub fn presence_token(&self) -> &PresenceToken {
+		&self.presence_token
 	}
 
-	/// The raw payload bytes: the version marker followed by the secret.
+	/// The device static public key.
+	pub fn device_public_key(&self) -> &DevicePublicKey {
+		&self.device_public_key
+	}
+
+	/// The raw payload bytes: the version marker, the presence token, then the device static public
+	/// key.
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let mut bytes = Vec::with_capacity(1 + PRESENCE_TOKEN_LEN);
+		let mut bytes = Vec::with_capacity(PAYLOAD_LEN);
 		bytes.push(self.version);
-		bytes.extend_from_slice(self.secret.as_bytes());
+		bytes.extend_from_slice(self.presence_token.as_bytes());
+		bytes.extend_from_slice(self.device_public_key.as_bytes());
 		bytes
 	}
 
@@ -61,8 +77,7 @@ impl QrPayload {
 	/// Base32 rather than base64url because of what it costs to print. A QR code encodes digits and
 	/// upper-case letters at five and a half bits a character, and anything else at eight, so the
 	/// longer base32 rendering occupies fewer bits than the shorter mixed-case one and the printed
-	/// code comes out measurably coarser: 45 modules a side against 49 at the same error correction,
-	/// which is a fifth more area per module for a camera to resolve. A QR code is read off an
+	/// code comes out measurably coarser. A QR code is read off an
 	/// enclosure by a phone, so that is worth more than a shorter URL.
 	pub fn to_fragment(&self) -> String {
 		BASE32_NOPAD.encode(&self.to_bytes())
@@ -106,7 +121,8 @@ impl QrPayload {
 		Err(unsupported.map_or(QrError::Malformed, QrError::UnsupportedVersion))
 	}
 
-	/// Read a payload from raw bytes: the version marker followed by the secret.
+	/// Read a payload from raw bytes: the version marker, the presence token, then the device static
+	/// public key.
 	///
 	/// A version the current build does not support is reported as such, distinctly from a payload
 	/// that does not parse at all, so a client can tell "a device at a version I do not support" from
@@ -116,10 +132,18 @@ impl QrPayload {
 		if version != VERSION {
 			return Err(QrError::UnsupportedVersion(version));
 		}
-		let secret: [u8; PRESENCE_TOKEN_LEN] = rest.try_into().map_err(|_| QrError::Malformed)?;
+		if rest.len() != PAYLOAD_LEN - 1 {
+			return Err(QrError::Malformed);
+		}
+		let (token, public_key) = rest.split_at(PRESENCE_TOKEN_LEN);
 		Ok(Self {
 			version,
-			secret: PresenceToken::from_bytes(secret),
+			presence_token: PresenceToken::from_bytes(
+				token.try_into().expect("length checked above"),
+			),
+			device_public_key: DevicePublicKey::from_bytes(
+				public_key.try_into().expect("length checked above"),
+			),
 		})
 	}
 
@@ -159,10 +183,11 @@ impl QrPayload {
 
 impl core::fmt::Debug for QrPayload {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		// The payload holds a credential; render the version only.
+		// The payload holds a credential; the presence token is not rendered.
 		f.debug_struct("QrPayload")
 			.field("version", &self.version)
-			.field("secret", &"..")
+			.field("presence_token", &self.presence_token)
+			.field("device_public_key", &self.device_public_key)
 			.finish()
 	}
 }
@@ -184,21 +209,51 @@ mod tests {
 	use super::*;
 
 	fn sample() -> QrPayload {
-		let mut secret = [0u8; PRESENCE_TOKEN_LEN];
-		for (i, b) in secret.iter_mut().enumerate() {
+		let mut token = [0u8; PRESENCE_TOKEN_LEN];
+		for (i, b) in token.iter_mut().enumerate() {
 			*b = i as u8;
 		}
-		QrPayload::new(PresenceToken::from_bytes(secret))
+		let mut public_key = [0u8; DEVICE_KEY_LEN];
+		for (i, b) in public_key.iter_mut().enumerate() {
+			*b = 0x80 | i as u8;
+		}
+		QrPayload::new(
+			PresenceToken::from_bytes(token),
+			DevicePublicKey::from_bytes(public_key),
+		)
 	}
 
 	#[test]
-	fn payload_is_version_then_secret_and_nothing_else() {
+	fn payload_is_version_then_token_then_public_key_and_nothing_else() {
 		let payload = sample();
 		let bytes = payload.to_bytes();
-		// The board ID is not carried: the payload is exactly the version and the 32-byte secret.
-		assert_eq!(bytes.len(), 1 + PRESENCE_TOKEN_LEN);
+		// The board ID is not carried: the payload is exactly these 65 bytes.
+		assert_eq!(bytes.len(), 65);
 		assert_eq!(bytes[0], VERSION);
-		assert_eq!(&bytes[1..], payload.secret().as_bytes());
+		assert_eq!(&bytes[1..33], payload.presence_token().as_bytes());
+		assert_eq!(&bytes[33..], payload.device_public_key().as_bytes());
+		assert_eq!(QrPayload::from_bytes(&bytes).unwrap(), payload);
+	}
+
+	#[test]
+	fn fragment_is_104_characters_without_padding() {
+		let fragment = sample().to_fragment();
+		assert_eq!(fragment.len(), 104);
+		assert!(!fragment.contains('='));
+		assert!(
+			fragment
+				.chars()
+				.all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c))
+		);
+	}
+
+	#[test]
+	fn fragment_known_answer() {
+		// Pins the field order and the encoding end to end.
+		assert_eq!(
+			sample().to_fragment(),
+			"AEAACAQDAQCQMBYIBEFAWDANBYHRAEISCMKBKFQXDAMRUGY4DUPB7AEBQKBYJBMGQ6EITCULRSGY5D4QSGJJHFEVS2LZRGM2TOOJ3HU7"
+		);
 	}
 
 	#[test]
@@ -296,6 +351,12 @@ mod tests {
 		// A valid encoding of the wrong length is malformed, not a version error.
 		let short = BASE32_NOPAD.encode(&[VERSION, 0, 0]);
 		assert_eq!(QrPayload::from_fragment(&short), Err(QrError::Malformed));
+		// Including a payload carrying the token alone, without the public key.
+		let token_only = &sample().to_bytes()[..1 + PRESENCE_TOKEN_LEN];
+		assert_eq!(QrPayload::from_bytes(token_only), Err(QrError::Malformed));
+		let mut long = sample().to_bytes();
+		long.push(0);
+		assert_eq!(QrPayload::from_bytes(&long), Err(QrError::Malformed));
 		// A URL with no fragment.
 		assert_eq!(
 			QrPayload::from_url("https://bliti.tamanu.app/"),

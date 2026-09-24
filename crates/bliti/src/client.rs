@@ -21,6 +21,7 @@ use bliti_core::{
 		stream::{Mode, Streams, connect_initiator, multiplex, read_message, write_message},
 	},
 	key_schedule::PresenceToken,
+	qr::QrPayload,
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{
@@ -141,7 +142,7 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 /// application performs before it opens a channel.
 async fn find(
 	adapter: &bluer::Adapter,
-	secret: &PresenceToken,
+	token: &PresenceToken,
 	seconds: u64,
 ) -> Result<bluer::Address> {
 	// Discovery has to be running for names to be refreshed, but the events it emits are not enough
@@ -168,7 +169,7 @@ async fn find(
 				);
 				continue;
 			}
-			if advertised.matches(secret) {
+			if advertised.matches(token) {
 				tracing::info!(%address, "matched the QR code");
 				return Ok(address);
 			}
@@ -189,7 +190,7 @@ struct Channel {
 /// Connect to a device, run the handshake, and name this client on its own hello stream.
 async fn open(
 	address: Option<bluer::Address>,
-	secret: &PresenceToken,
+	code: &QrPayload,
 	adapter_name: Option<&str>,
 ) -> Result<Channel> {
 	let session = bluer::Session::new().await?;
@@ -206,7 +207,7 @@ async fn open(
 	for attempt in 0..2 {
 		let found = match address {
 			Some(address) => address,
-			None => find(&adapter, secret, 20).await?,
+			None => find(&adapter, code.presence_token(), 20).await?,
 		};
 		let candidate = adapter.device(found)?;
 		if !candidate.is_connected().await? {
@@ -272,7 +273,7 @@ async fn open(
 	};
 
 	// Everything from here is the same stack the browser will run.
-	let encrypted = connect_initiator(transport, secret)
+	let encrypted = connect_initiator(transport, code.presence_token(), code.device_public_key())
 		.await
 		.map_err(|err| anyhow!("handshake failed: {err}"))?;
 	tracing::info!("handshake complete");
@@ -301,14 +302,14 @@ async fn open(
 /// Connect to a device, run the handshake, and exchange the milestone's two messages.
 pub async fn connect(
 	address: Option<bluer::Address>,
-	secret: &PresenceToken,
+	code: &QrPayload,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
 	let Channel {
 		_session,
 		device,
 		mut streams,
-	} = open(address, secret, adapter_name).await?;
+	} = open(address, code, adapter_name).await?;
 
 	// The device pushes its own hello and the default feed unprompted, each on its own stream (MSG).
 	// Read whatever it pushes for a few seconds and print each message from its own description.
@@ -379,14 +380,14 @@ pub async fn connect(
 /// Everything the device pushes on streams of its own is read and dropped.
 pub async fn configure(
 	address: Option<bluer::Address>,
-	secret: &PresenceToken,
+	code: &QrPayload,
 	adapter_name: Option<&str>,
 ) -> Result<()> {
 	let Channel {
 		_session,
 		device,
 		mut streams,
-	} = open(address, secret, adapter_name).await?;
+	} = open(address, code, adapter_name).await?;
 
 	let (mut from_device, mut to_device) = AsyncReadExt::split(streams.open().await?);
 	write_message(&mut to_device, &Message::Configure.to_json()).await?;

@@ -1,15 +1,16 @@
 //! The authenticated channel: the layers that sit above GATT carrying reliable, ordered bytes.
 //!
 //! Behaviour is specified in `.workhorse/specs/channel.md` (CHN). Once a client has
-//! matched a device by its handle, the two authenticate with a Noise `NNpsk0` handshake keyed by
-//! the presence token, then carry application messages over the channel it establishes.
+//! matched a device by its handle, the two authenticate with a Noise `NKpsk0` handshake keyed by
+//! the device static key and the presence token, then carry application messages over the channel
+//! it establishes.
 //!
 //! The layers, each depending only on the one beneath it carrying bytes reliably and in order:
 //!
 //! | layer | module |
 //! | --- | --- |
 //! | framing | [`framing`] — message boundaries across the negotiated attribute size |
-//! | Noise `NNpsk0` | [`noise`] — mutual authentication, encryption, a session key |
+//! | Noise `NKpsk0` | [`noise`] — mutual authentication, encryption, a session key |
 //! | compression | [`compress`] — one zlib stream per direction, spanning the connection |
 //! | stream multiplexing | (yamux, wired in with the daemon's async transport) |
 //! | JSON | [`messages`] — application messages |
@@ -33,9 +34,9 @@ pub mod write_backlog;
 /// A failure in the channel below the application layer.
 #[derive(Debug, thiserror::Error)]
 pub enum ChannelError {
-	/// The handshake could not be built or driven: a wrong presence token, a replayed or spoofed
-	/// handshake, or a peer that does not hold the secret all surface here, because none can complete
-	/// the `NNpsk0` handshake.
+	/// The handshake could not be built or driven: a wrong presence token, a device that does not hold
+	/// the static private key the client expects, or a replayed or spoofed handshake all surface here,
+	/// because none can complete the `NKpsk0` handshake.
 	#[error("handshake failed: {0}")]
 	Handshake(String),
 

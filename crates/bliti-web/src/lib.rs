@@ -1,7 +1,7 @@
 //! The browser client for bliti: the protocol half of the web application (WEB).
 //!
 //! This crate compiles to wasm and carries everything the specs describe — reading a QR code
-//! (QR), recomputing and matching the advertised handle (ADV), the `NNpsk0` handshake, the
+//! (QR), recomputing and matching the advertised handle (ADV), the `NKpsk0` handshake, the
 //! stream layer, and the JSON messages (CHN). It is the same code the daemon and the
 //! command-line client run, which is the point: one implementation of the key schedule and the
 //! handshake rather than a Rust one and a JavaScript one that must agree forever.
@@ -9,8 +9,8 @@
 //! What stays in JavaScript is Web Bluetooth, the camera, and the interface. Those are browser APIs
 //! with no protocol in them, and binding them through wasm would buy nothing.
 //!
-//! The memory-hard derivation of KEY never runs here: a client reads the presence token from the
-//! payload and only computes the handle, which is a fast hash. The crate therefore takes `bliti-core`
+//! The memory-hard derivation of KEY never runs here: a client reads the presence token and the
+//! device static public key from the payload and only computes the handle, which is a fast hash. The crate therefore takes `bliti-core`
 //! without its default features, and argon2 is not in the build at all.
 
 use std::{cell::RefCell, rc::Rc};
@@ -221,7 +221,7 @@ impl QrCode {
 			// The version is checked by the caller before the match is believed: no two versions
 			// produce a matching handle, so a mismatch there is not a different device.
 			matches: advertised.version == self.payload.version()
-				&& advertised.matches(self.payload.secret()),
+				&& advertised.matches(self.payload.presence_token()),
 		})
 	}
 }
@@ -318,9 +318,13 @@ impl Channel {
 				.take()
 				.ok_or_else(|| JsError::new("this channel has already been connected"))?;
 
-			let encrypted = connect_initiator(transport, inner.payload.secret())
-				.await
-				.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
+			let encrypted = connect_initiator(
+				transport,
+				inner.payload.presence_token(),
+				inner.payload.device_public_key(),
+			)
+			.await
+			.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
 
 			let (mut streams, driver) = multiplex(encrypted, Mode::Client);
 			spawn_local(async move {
