@@ -74,9 +74,11 @@ A device MUST emit entries a reader can tell apart: two entries that are about d
 
 A device MUST NOT rely on the order entries arrive in to distinguish them.
 
+An entry is told apart from another by its name, its `kind` and its distinguishing traits, and, where the catalogue below lists it as one entry per value held, by its `value` as well.
+
 > [!NOTE]
 > How a reader groups entries, and what it treats as one thing measured over time, is the reader's own business. The device's obligation is only that what it sends is distinguished well enough for a reader to do that unambiguously.
-> Two addresses on one interface meet this through their `kind`, which tells an `ipv4` from an `ipv6` without a trait to separate them.
+> An interface commonly holds an IPv4 address and more than one IPv6 address, a global one and a unique local one among them, so its addresses share a name, a `kind` and every trait, and only their values separate them.
 
 ### Status
 
@@ -89,11 +91,12 @@ The `status` trait says how the datum stands: whether there is a value, and wher
 | `failed` | what it measures is unwell | present |
 | `skipped` | a precondition was not met, so nothing was measured | absent |
 | `broken` | the measurement was attempted and errored | absent |
-| `ended` | the entry no longer applies, as a hotspot that has stopped does not | absent |
+| `ended` | the entry no longer applies, as a hotspot that has stopped does not | absent, except on an entry told apart by its value |
 
 Every fact and reading MUST carry the `status` trait.
 
-An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped`, `broken` or `ended`.
+An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped` or `broken`.
+An entry MUST carry `value` where `is` is `ended` only where it is told apart by its value, and then MUST carry the value that no longer holds.
 
 `status` MUST carry `reason` where `is` is anything but `passed`, and MUST NOT carry it where `is` is `passed`.
 
@@ -142,7 +145,7 @@ Where the hardware an entry measures is not fitted, a device MUST omit the entry
 
 Where the hardware is fitted and the measurement errored, a device MUST report the entry as `broken`.
 
-Where a device stops reporting an entry it has sent on a feed, it MUST send that entry on the feed once more as `ended`, carrying the same distinguishing traits, and MUST then leave it out.
+Where a device stops reporting an entry it has sent on a feed, it MUST send that entry on the feed once more as `ended`, carrying everything that told it apart, and MUST then leave it out.
 A reader MUST drop an entry it receives as `ended`.
 
 > [!NOTE]

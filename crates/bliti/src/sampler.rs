@@ -201,9 +201,10 @@ const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
 /// The reason an entry that has ended gives. What stopped it is not known this far from it.
 pub(crate) const ENDED: &str = "no longer applies";
 
-/// A stable identity for one reading instance: its name and its distinguishing traits, leaving out
+/// A stable identity for one reading instance: its name, kind and distinguishing traits, leaving out
 /// the descriptive ones that change while the thing measured stays the same, as a hotspot's channel
-/// does when it follows its station. This is only the device's own snapshot key; how a reader groups
+/// does when it follows its station, and its value where that is what tells it apart, as for the
+/// addresses an interface holds. This is only the device's own snapshot key; how a reader groups
 /// readings is its own business (NFO).
 pub(crate) fn identity_key(entry: &Entry) -> String {
 	let mut traits = entry.traits.clone();
@@ -217,8 +218,19 @@ pub(crate) fn identity_key(entry: &Entry) -> String {
 			}
 		}
 	}
+	let value = entry
+		.value
+		.as_ref()
+		.filter(|_| entry.told_apart_by_value())
+		.map(ToString::to_string)
+		.unwrap_or_default();
 	// serde_json sorts object keys, so member order does not change the key.
-	format!("{}\u{1f}{}", entry.name, serde_json::Value::Object(traits))
+	format!(
+		"{}\u{1f}{}\u{1f}{}\u{1f}{value}",
+		entry.name,
+		entry.kind,
+		serde_json::Value::Object(traits)
+	)
 }
 
 /// Holds sampling open for as long as a session lasts.
@@ -460,5 +472,64 @@ mod tests {
 				.filter(|e| e.name == "memory-usage")
 				.all(|e| e.status() != Some("ended"))
 		);
+	}
+
+	/// An interface holding an IPv4 and two IPv6 addresses, which loses one IPv6 after the first slow
+	/// tick.
+	struct Addresses {
+		slow_ticks: u32,
+	}
+
+	impl Source for Addresses {
+		fn gather(&mut self, slow: bool) -> Vec<Entry> {
+			if !slow {
+				return Vec::new();
+			}
+			self.slow_ticks += 1;
+			let address = |kind: &str, ip: &str| {
+				Entry::address(1, "network-address", kind, ip.to_owned())
+					.with_trait("interface", serde_json::json!({"name": "end0"}))
+			};
+			let mut held = vec![
+				address(bliti_core::channel::readings::kind::IPV4, "10.0.101.3"),
+				address(bliti_core::channel::readings::kind::IPV6, "fd6d::3"),
+			];
+			if self.slow_ticks == 1 {
+				held.push(address(
+					bliti_core::channel::readings::kind::IPV6,
+					"2407:8b00::3",
+				));
+			}
+			held
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// Found on the prototype: an interface's addresses shared one key, so they collapsed into one,
+	/// and an address going was never sent as ended (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn each_address_is_its_own_entry_and_one_that_goes_is_sent_as_ended() {
+		let sampler = Sampler::start_with(Box::new(Addresses { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let mut live = sampler.live();
+		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
+		assert_eq!(sampler.current().len(), 3, "{:?}", sampler.current());
+
+		tokio::time::sleep(FAST * SLOW_EVERY).await;
+		let mut sent = Vec::new();
+		while let Ok(readings) = live.try_recv() {
+			sent.extend(readings);
+		}
+		let ended: Vec<_> = sent
+			.iter()
+			.filter(|e| e.status() == Some("ended"))
+			.collect();
+		assert_eq!(ended.len(), 1, "{ended:?}");
+		assert_eq!(
+			ended[0].value,
+			Some(serde_json::Value::String("2407:8b00::3".into()))
+		);
+		assert_eq!(sampler.current().len(), 2);
 	}
 }

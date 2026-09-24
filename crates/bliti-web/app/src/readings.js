@@ -235,10 +235,16 @@ const DESCRIPTIVE_MEMBERS = {
 	battery: new Set(['serial', 'model', 'vendor']),
 }
 
-/// The key a reading's history is held under: its name and its distinguishing traits, canonicalised
-/// so member order does not matter.
+// The entries NFO's catalogue lists as one entry per value held. Several are held at once with the
+// same name, kind and traits, as an interface holds an IPv4 address and more than one IPv6 address,
+// so the value is what tells them apart, and one that ends carries it.
+const TOLD_APART_BY_VALUE = new Set(['network-address'])
+
+/// The key a reading's history is held under: its name, kind and distinguishing traits, canonicalised
+/// so member order does not matter, and its value where that is what tells it apart (NFO).
 export function seriesKey(entry) {
-	return `${entry.name}\u001f${canonical(distinguishing(entry.traits))}`
+	const value = TOLD_APART_BY_VALUE.has(entry.name) ? canonical(entry.value) : ''
+	return `${entry.name}\u001f${entry.kind}\u001f${canonical(distinguishing(entry.traits))}\u001f${value}`
 }
 
 /// The identity of one entry instance for the tile grid: the same key, so two readings alike but for

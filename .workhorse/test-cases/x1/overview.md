@@ -175,6 +175,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] The NFO entries reflect the configuration in force immediately after a revert. Verifies spec: NFO
 - [ ] VIEW renders the new entries as tiles in its own order. Verifies spec: VIEW
 
+- [x] Every address an interface holds is its own entry, on device and client alike, and one that goes is sent as ended with its value and dropped alone. Verifies spec: NFO, VIEW
+- [ ] The Address tile shows an interface's IPv4 and every IPv6 address it holds, on the prototype. Once showed only the last one sampled per interface. Verifies spec: NFO, VIEW
+
 ## Operations
 
 - [x] A scan reports the wireless networks the device can see, on both bands, on the prototype. Verifies spec: CFG

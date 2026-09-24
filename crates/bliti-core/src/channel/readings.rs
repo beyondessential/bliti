@@ -38,6 +38,10 @@ pub const STATUS: &str = "status";
 /// The `limits` trait: marks on a reading's scale.
 pub const LIMITS: &str = "limits";
 
+/// The entries NFO's catalogue lists as one entry per value held, which are told apart by their value
+/// as well as by their name, kind and distinguishing traits.
+pub const TOLD_APART_BY_VALUE: &[&str] = &["network-address"];
+
 /// One fact or reading. One shape; the message type says which catalogue names it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
@@ -226,13 +230,22 @@ impl Entry {
 		entry
 	}
 
-	/// This entry, sent once more to say it no longer applies: the same name and traits, so a reader
-	/// knows which entry it drops, with no value and the reason it ended (NFO).
+	/// This entry, sent once more to say it no longer applies: everything that told it apart, so a
+	/// reader knows which entry it drops, and the reason it ended. Only an entry told apart by its
+	/// value keeps the value, as the one that no longer holds (NFO).
 	pub fn ended(&self, at: u64, reason: impl Into<String>) -> Self {
 		let mut entry = self.clone();
 		entry.at = at;
 		entry.set_status(Status::Ended, Some(reason.into()));
+		if self.told_apart_by_value() {
+			entry.value = self.value.clone();
+		}
 		entry
+	}
+
+	/// Whether this entry is told apart by its value, being one of several held at once (NFO).
+	pub fn told_apart_by_value(&self) -> bool {
+		TOLD_APART_BY_VALUE.contains(&self.name.as_str())
 	}
 
 	/// Set the `status` trait, tying value presence to it: present for `passed`, `warning` and
@@ -336,6 +349,19 @@ mod tests {
 		assert_eq!(entry.status(), Some("passed"));
 		assert!(entry.reason().is_none(), "passed carries no reason");
 		assert_eq!(entry.value, Some(json_number(0.1234)));
+	}
+
+	/// An address that goes keeps its value, the only thing telling it from the interface's others,
+	/// and any other entry that ends loses its value.
+	#[test]
+	fn an_ended_entry_keeps_its_value_only_where_the_value_tells_it_apart() {
+		let address = Entry::address(1, "network-address", kind::IPV6, "fd00::1".to_owned());
+		let ended = address.ended(2, "no longer applies");
+		assert_eq!(ended.status(), Some("ended"));
+		assert_eq!(ended.value, Some(Json::String("fd00::1".into())));
+
+		let hotspot = Entry::text(1, "hotspot", "bliti");
+		assert_eq!(hotspot.ended(2, "no longer applies").value, None);
 	}
 
 	#[test]

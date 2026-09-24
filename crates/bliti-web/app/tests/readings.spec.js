@@ -197,6 +197,31 @@ test.describe('aggregation', () => {
 		await tile.click()
 		await expect(page.getByText('10.0.0.5')).toBeVisible()
 	})
+
+	// Found on the prototype: an interface's addresses shared one key, so only the last one sampled
+	// showed. Each is its own entry, and one that ends goes alone (NFO, VIEW).
+	test('every address an interface holds is shown, and one that ends goes alone', async ({ page }) => {
+		await openChannel(page)
+		const addr = (kind, value, is = 'passed') =>
+			fact('network-address', {
+				kind,
+				value,
+				traits: { status: { is, ...(is === 'ended' ? { reason: 'no longer applies' } : {}) }, interface: { name: 'end0', route: 'default' } },
+			})
+		await emit(page, addr('ipv4', '10.0.101.3'))
+		await emit(page, addr('ipv6', '2407:8b00::3'))
+		await emit(page, addr('ipv6', 'fd6d::3'))
+
+		const tile = page.locator('.tile').filter({ hasText: 'Address' })
+		await expect(tile).toContainText('10.0.101.3')
+		await expect(tile).toContainText('2407:8b00::3')
+		await expect(tile).toContainText('fd6d::3')
+
+		await emit(page, addr('ipv6', '2407:8b00::3', 'ended'))
+		await expect(tile).not.toContainText('2407:8b00::3')
+		await expect(tile).toContainText('10.0.101.3')
+		await expect(tile).toContainText('fd6d::3')
+	})
 })
 
 test.describe('history', () => {
