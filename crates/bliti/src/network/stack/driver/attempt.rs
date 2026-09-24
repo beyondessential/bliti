@@ -9,14 +9,14 @@ use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE, Scanner};
 use crate::network::{
 	observe::{Joined, NetworkType, Station},
 	select::{Attempt, Event, Stage},
-	stack::verify::{Addressing, Joining},
+	stack::verify::Addressing,
 };
 
-/// Whether iwd answered a join with the bare `Failed` it gives a key-based network refusing the
-/// handshake, which gives an operator nothing to go on. It is most often a wrong passphrase, and
+/// Whether iwd answered a join with the bare `Failed` it gives a network refusing the handshake,
+/// which gives an operator nothing to go on. It is most often a wrong passphrase or credentials, and
 /// otherwise a network gone since it was heard, joined from what iwd heard before.
-fn refused(joining: &Joining, reason: &str) -> bool {
-	joining.target.kind == NetworkType::Psk && reason.contains("net.connman.iwd.Failed")
+fn refused(reason: &str) -> bool {
+	reason.contains("net.connman.iwd.Failed")
 }
 
 /// Where a key-based candidate carries its passphrase, which a refused join is laid at.
@@ -162,7 +162,7 @@ impl Driver {
 				self.address_deadline(attempt);
 				self.evaluate(attempt);
 			}
-			Err(reason) if refused(&joining, &reason) => {
+			Err(reason) if refused(&reason) => {
 				tracing::info!(reason, "iwd could not join");
 				let scans = self
 					.shared
@@ -185,7 +185,9 @@ impl Driver {
 	}
 
 	/// Take in the scan after a refused join. A network no longer heard has already been taken out
-	/// of range, failing its candidate at carrier; one still heard refused the passphrase.
+	/// of range, failing its candidate at carrier; one still heard refused the passphrase, or under
+	/// 802.1X the credentials, unless its server failed the check the candidate asks of it. iwd says
+	/// which of those in its log alone.
 	pub(super) fn rescanned(&mut self, attempt: Attempt) {
 		let Some(check) = self.checks.get(&attempt) else {
 			return;
@@ -196,14 +198,24 @@ impl Driver {
 		let Some(joining) = &check.joining else {
 			return;
 		};
-		let reason = format!(
-			"{:?} refused the connection; the passphrase is most likely wrong",
-			joining.target.ssid
-		);
+		let ssid = &joining.target.ssid;
+		let (member, reason) = match joining.target.kind {
+			NetworkType::Psk => (
+				PASSPHRASE,
+				format!("{ssid:?} refused the connection; the passphrase is most likely wrong"),
+			),
+			NetworkType::Enterprise => (
+				&[][..],
+				format!(
+					"{ssid:?} refused the connection, or its server did not prove itself by the \
+					 certificate authority and domain given; check those and the credentials"
+				),
+			),
+		};
 		self.feed(Event::Failed {
 			attempt,
 			stage: Stage::Association,
-			member: PASSPHRASE,
+			member,
 			reason,
 		});
 	}

@@ -301,6 +301,35 @@ async fn a_wrong_key_fails_at_association() {
 	);
 }
 
+/// Found on a device: a PEAP network whose server did not carry the domain given was refused with
+/// iwd's bare `Failed`, as wrong credentials are.
+#[tokio::test(start_paused = true)]
+async fn a_refused_enterprise_join_names_what_to_check() {
+	let mut rig = Rig::wireless().await;
+	rig.hears(
+		"office",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+
+	let office = json!({
+		"kind": "wireless", "label": "office", "verify": true, "ssid": "office",
+		"security": {
+			"kind": "enterprise", "eap": "peap", "identity": "tester", "password": "secret",
+			"phase2": "mschapv2", "ca-certificate": "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n",
+			"domain": "radius.example"
+		}
+	});
+	let answer = applying(&mut rig, document(json!({"attachments": [office]})));
+	let failed = answer.await.unwrap().unwrap_err();
+	assert_eq!(failed.reached.as_deref(), Some("association"));
+	assert_eq!(failed.at, "$['attachments'][0]");
+	assert!(
+		failed.reason.contains("certificate authority and domain"),
+		"{}",
+		failed.reason
+	);
+}
+
 /// Found on a device: with the access point switched off, iwd joined from what it heard while it
 /// was on, and the refusal read as a wrong passphrase.
 #[tokio::test(start_paused = true)]
