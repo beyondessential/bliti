@@ -89,12 +89,12 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A `psk` candidate on the Pi joins a transitional access point offering SAE with H2E, over WPA2, on real hardware. Verifies spec: WLAN
 - [x] A proposal correcting a passphrase that failed joins on the same session, on real hardware.
 - [x] A wireless candidate whose network comes into range after the proposal is applied is joined, on real hardware. Verifies spec: LINK
-- [ ] A device joins by WPS push-button and by WPS PIN. Verifies spec: WLAN
+- [x] A device joins by WPS push-button and by WPS PIN, on the prototype, against hostapd as registrar on the laptop (`hostapd_cli wps_pbc`, and `wps_pin` with the PIN the device sent). Verifies spec: WLAN
 - [ ] A device joins by WPS push-button against a MikroTik access point, on 2.4 GHz and on 5 GHz. Fails today on both: iwd drops the router's M4, whose WFA vendor extension comes before its encrypted settings. A known limitation of iwd, taken up on L2. Verifies spec: WLAN
 - [x] A WPS push-button join that finds no access point in push-button mode is reported at carrier.
 - [x] Joining by WPS for a named network joins it where the access point hands over that network's credentials. Verifies spec: WLAN, CFG
 - [x] Joining by WPS for a named network refuses credentials for another network at `$['ssid']` with no stage reached and a reason naming the network handed over, forgetting them and adding nothing to the configuration. Verifies spec: WLAN, CFG
-- [ ] Joining by WPS for a named network with another access point's button pressed leaves iwd holding nothing for that network and the device on its recorded configuration, on real hardware. Verifies spec: WLAN, CFG
+- [x] Joining by WPS for a named network with another access point's button pressed leaves iwd holding nothing for that network and the device on its recorded configuration, on real hardware. Verifies spec: WLAN, CFG
 - [ ] A device does not join a network that cannot authenticate its access point to it, and says why in terms an operator can act on. Verifies spec: WLAN
 - [ ] An access point advertising both an unauthenticated network and an authenticated one is joined only on the authenticated one. Verifies spec: WLAN
 - [ ] A device's own hotspot offers no WPS to its clients. Verifies spec: WLAN
