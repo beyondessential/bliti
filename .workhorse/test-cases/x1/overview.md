@@ -104,7 +104,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 ## The screen
 
 - [x] Leaving the screen with a proposal applied keeps the session open, and the device view confirms or discards it. Verifies spec: NSCR
-- [x] Leaving the screen with nothing applied closes the session. Verifies spec: NSCR
+- [x] Leaving the screen with nothing changed closes the session. Verifies spec: NSCR
+- [x] Leaving the screen with edits not applied keeps them and the session, and the device view says how many wait and offers review or discard. Verifies spec: NSCR
 - [ ] A proposal kept open that fails while the operator is on the device view keeps its failure until they return to the screen. Verifies spec: NSCR
 - [x] A network picked from a scan is not hidden, and cannot be marked hidden. Verifies spec: NSCR
 - [ ] Applying, scanning, surveying and opening a session each show they are waiting on the device. Verifies spec: NSCR
