@@ -39,7 +39,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A proposal interrupted by a newer one is answered `invalid` at `$`, and one refused after it superseded another restores the recorded configuration. Verifies spec: CFG
 - [x] An unconfigured device holds one dynamic candidate per physical wired interface and no hotspot. Verifies spec: CFG
 - [x] An unconfigured device plugged into a network with DHCP is reachable on it, on real hardware. Verifies spec: CFG
-- [ ] A power cut with a proposal applied brings the device back on its recorded configuration, with nothing of the proposal brought up at boot, on real hardware. Verifies spec: CFG
+- [x] A power cut with a proposal applied brings the device back on its recorded configuration, with nothing of the proposal brought up at boot, on real hardware. Checked on the prototype with a SysRq immediate reboot, which skips syncing: a recorded country and hotspot came back, the trial's did not. Verifies spec: CFG
 
 - [x] A proposal is judged only on candidates it adds or changes that carry `verify` true, per interface: a wrong passphrase beside a working wall port fails, a static per site on one port applies at either site, and a candidate carrying `verify` false fails nothing. Verifies spec: CFG
 - [x] A failure that is not a candidate's, such as a hotspot that does not start, carries no `reached`. Verifies spec: CFG
