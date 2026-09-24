@@ -862,7 +862,13 @@ impl Driver {
 		let hostapd = rendered
 			.files
 			.iter()
-			.find(|file| file.path == self.shared.render.paths.hostapd)
+			.find(|file| {
+				self.shared
+					.render
+					.paths
+					.hostapd_interface(&file.path)
+					.is_some()
+			})
 			.map(|file| file.contents.clone());
 		let beside = self
 			.selector
@@ -885,7 +891,7 @@ impl Driver {
 		let hotspot = rendered
 			.files
 			.iter()
-			.any(|file| file.path == hardware.paths.hostapd)
+			.any(|file| hardware.paths.hostapd_interface(&file.path).is_some())
 			.then(|| {
 				self.document
 					.hotspot

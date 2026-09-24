@@ -70,7 +70,7 @@ impl Backend {
 			None
 		} else if path == paths.modprobe {
 			Some(Self::Regdom)
-		} else if path == paths.hostapd {
+		} else if paths.hostapd_interface(path).is_some() {
 			Some(Self::Hostapd)
 		} else if path == paths.iwd_config || path.parent() == Some(&paths.iwd_state) {
 			Some(Self::Iwd)
@@ -108,7 +108,7 @@ pub enum Change {
 pub struct Changes {
 	/// The modprobe file.
 	pub regdom: Vec<Change>,
-	/// hostapd's configuration.
+	/// hostapd's configurations.
 	pub hostapd: Vec<Change>,
 	/// iwd's main configuration and its known networks.
 	pub iwd: Vec<Change>,
@@ -187,8 +187,9 @@ pub trait System {
 	/// Delete the access point interface `interface`, doing nothing where it does not exist.
 	fn delete_access_point(&mut self, interface: &str) -> anyhow::Result<()>;
 
-	/// Start, restart or stop hostapd, returning once it has done so.
-	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()>;
+	/// Start, restart or stop hostapd on the access point interface `interface`, returning once it
+	/// has done so.
+	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()>;
 
 	/// Restart iwd, so it reads its main configuration again, returning once it is up.
 	fn restart_iwd(&mut self) -> anyhow::Result<()>;
@@ -358,43 +359,46 @@ impl Step<'_> {
 		Ok(())
 	}
 
-	/// hostapd's configuration only ever changes as one file, so it is written, restarted on, or
-	/// taken away with the interface it ran on.
+	/// Each access point interface's configuration is written and restarted on, or taken away with
+	/// its interface. At most one hotspot runs, so one moving to another radio goes down on the old
+	/// one before it comes up on the new.
 	fn hostapd(&self, system: &mut dyn System) -> Result<(), Error> {
-		let interface = self.virtual_interface();
-		if !self.removed.is_empty() {
-			system.hostapd(Hostapd::Stop).map_err(|e| self.failed(e))?;
-			if let Some((_, interface)) = interface {
+		let paths = &self.hardware.paths;
+		for path in self.removed {
+			let Some(interface) = paths.hostapd_interface(path) else {
+				continue;
+			};
+			system
+				.hostapd(Hostapd::Stop, interface)
+				.map_err(|e| self.failed(e))?;
+			if self.hardware.access_point_radio(interface).is_some() {
 				system
 					.delete_access_point(interface)
 					.map_err(|e| self.failed(e))?;
 			}
-			return self.put();
 		}
 
 		self.put()?;
-		let conf = &self.hardware.paths.hostapd;
-		if self.record.contains(conf) {
-			system
-				.hostapd(Hostapd::Restart)
-				.map_err(|e| self.failed(e))?;
-		} else {
-			if let Some((radio, interface)) = interface {
+		for file in self.written {
+			let Some(interface) = paths.hostapd_interface(&file.path) else {
+				continue;
+			};
+			if self.record.contains(&file.path) {
+				system
+					.hostapd(Hostapd::Restart, interface)
+					.map_err(|e| self.failed(e))?;
+				continue;
+			}
+			if let Some(radio) = self.hardware.access_point_radio(interface) {
 				system
 					.create_access_point(radio, interface)
 					.map_err(|e| self.failed(e))?;
 			}
-			system.hostapd(Hostapd::Start).map_err(|e| self.failed(e))?;
+			system
+				.hostapd(Hostapd::Start, interface)
+				.map_err(|e| self.failed(e))?;
 		}
 		Ok(())
-	}
-
-	/// The radio and the access point interface bliti creates on it, where the hotspot runs on an
-	/// interface of its own beside the station.
-	fn virtual_interface(&self) -> Option<(&str, &str)> {
-		let radio = self.hardware.station.as_deref()?;
-		let interface = self.hardware.access_point.as_deref()?;
-		(radio != interface).then_some((radio, interface))
 	}
 
 	fn touches(&self, path: &Path) -> bool {

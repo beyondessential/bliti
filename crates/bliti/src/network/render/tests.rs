@@ -21,7 +21,7 @@ fn hardware() -> Hardware {
 			networkd: "/tmp/bliti-test/network".into(),
 			iwd_state: "/tmp/bliti-test/iwd".into(),
 			iwd_config: "/tmp/bliti-test/iwd.conf".into(),
-			hostapd: "/tmp/bliti-test/hostapd.conf".into(),
+			hostapd: "/tmp/bliti-test/hostapd".into(),
 			modprobe: "/tmp/bliti-test/regdom.conf".into(),
 			resolved: "/tmp/bliti-test/dns-delegate.d".into(),
 		},
@@ -385,7 +385,7 @@ fn hotspot_defaults() {
 	assert!(network.contains("IPv4Forwarding=yes\n"));
 	assert!(network.contains("PoolOffset=2\nPoolSize=253\nEmitRouter=yes\nEmitDNS=yes\n"));
 
-	let hostapd = file(&out, "hostapd.conf");
+	let hostapd = file(&out, "hostapd/ap0.conf");
 	assert_eq!(hostapd.mode, SECRET);
 	for line in [
 		"interface=ap0\n",
@@ -424,7 +424,7 @@ fn hotspot_overrides() {
 	assert!(network.contains("IPMasquerade=no\nIPv4Forwarding=no\n"));
 	assert!(network.contains("EmitRouter=no\nEmitDNS=no\n"));
 
-	let hostapd = &file(&out, "hostapd.conf").contents;
+	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
 	for line in [
 		"country_code=NZ\nieee80211d=1\n",
 		"hw_mode=a\nchannel=44\n",
@@ -462,13 +462,13 @@ fn shared_channel_hardware_follows_the_station() {
 		hotspot_waits: false,
 	};
 	let out = rendered(&doc, &shared, &following);
-	let hostapd = &file(&out, "hostapd.conf").contents;
+	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
 	assert!(hostapd.contains("hw_mode=a\nchannel=149\n"));
 	assert!(!hostapd.contains("ht_capab"));
 
 	let alone = rendered(&doc, &shared, &active(&[]));
 	assert!(
-		file(&alone, "hostapd.conf")
+		file(&alone, "hostapd/ap0.conf")
 			.contents
 			.contains("hw_mode=g\nchannel=6\n")
 	);
@@ -488,7 +488,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 			"band": "5ghz", "channel": 44, "channel-width": 80 }
 	}));
 	let out = rendered(&doc, &shared, &active(&[0]));
-	let hostapd = &file(&out, "hostapd.conf").contents;
+	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
 	for line in [
 		"hw_mode=a\nchannel=44\n",
 		"vht_oper_chwidth=1\nvht_oper_centr_freq_seg0_idx=42\n",
@@ -502,7 +502,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 	}));
 	let out = rendered(&band_only, &shared, &active(&[]));
 	assert!(
-		file(&out, "hostapd.conf")
+		file(&out, "hostapd/ap0.conf")
 			.contents
 			.contains("hw_mode=a\nchannel=36\n")
 	);
@@ -526,7 +526,7 @@ fn secrets_are_0600() {
 		assert_eq!(file.mode, expected, "{:?}", file.path);
 	}
 	assert_eq!(file(&out, "iwd/Clinic.psk").mode, SECRET);
-	assert_eq!(file(&out, "hostapd.conf").mode, SECRET);
+	assert_eq!(file(&out, "hostapd/ap0.conf").mode, SECRET);
 }
 
 /// iwd runs no SAE on the drivers whose SAE fails, whatever the document.
@@ -625,11 +625,14 @@ fn rendered_files_are_owned() {
 		"/tmp/bliti-test/network/50-bliti-eth0.link",
 		"/tmp/bliti-test/iwd/.known_network.freq",
 		"/tmp/bliti-test/elsewhere/Clinic.psk",
+		"/tmp/bliti-test/hostapd/.ap0.conf.0123456789abcdef.bliti-tmp",
+		"/tmp/bliti-test/hostapd/ap0.pid",
 	] {
 		assert!(!hardware.paths.owns(Path::new(foreign)), "{foreign}");
 	}
 	assert!(Paths::system().owns(Path::new("/run/bliti/iwd/Old.psk")));
 	assert!(!Paths::system().owns(Path::new("/var/lib/iwd/Old.psk")));
+	assert!(Paths::system().owns(Path::new("/run/bliti/hostapd/ap1.conf")));
 }
 
 /// Rendering the same state twice gives the same files.

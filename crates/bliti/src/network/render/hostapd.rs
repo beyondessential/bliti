@@ -202,7 +202,7 @@ pub(super) fn conf(
 	);
 
 	Ok(File {
-		path: hardware.paths.hostapd.clone(),
+		path: hardware.paths.hostapd_conf(interface),
 		contents: out,
 		mode: SECRET,
 	})

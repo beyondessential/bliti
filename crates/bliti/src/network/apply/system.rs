@@ -27,8 +27,11 @@ const NETWORKD_MANAGER: &str = "org.freedesktop.network1.Manager";
 /// iwd's unit, as the iwd package ships it.
 const IWD: &str = "iwd.service";
 
-/// The unit running hostapd on bliti's configuration, from `services/`.
-const HOSTAPD: &str = "bliti-hostapd.service";
+/// The unit running hostapd on bliti's configuration for the access point interface `interface`: an
+/// instance of the template unit in `services/`.
+fn hostapd_unit(interface: &str) -> String {
+	format!("bliti-hostapd@{interface}.service")
+}
 
 /// The unit running systemd-resolved, which rereads its DNS delegates on reload.
 const RESOLVED: &str = "systemd-resolved.service";
@@ -135,13 +138,13 @@ impl System for Linux {
 			.block_on(self.nl80211.delete_access_point(interface))
 	}
 
-	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()> {
+	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()> {
 		let method = match action {
 			Hostapd::Start => "StartUnit",
 			Hostapd::Restart => "RestartUnit",
 			Hostapd::Stop => "StopUnit",
 		};
-		self.unit(method, HOSTAPD)
+		self.unit(method, &hostapd_unit(interface))
 	}
 
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {

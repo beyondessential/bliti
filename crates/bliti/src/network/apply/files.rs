@@ -22,12 +22,12 @@ pub(super) fn exists(path: &Path) -> bool {
 /// A directory that cannot be read holds nothing to delete: it is either absent, or the write that
 /// follows fails on it and says so.
 pub(super) fn owned(paths: &Paths) -> Vec<PathBuf> {
-	let mut found: Vec<PathBuf> = [&paths.iwd_config, &paths.hostapd, &paths.modprobe]
+	let mut found: Vec<PathBuf> = [&paths.iwd_config, &paths.modprobe]
 		.into_iter()
 		.filter(|path| exists(path))
 		.cloned()
 		.collect();
-	for dir in [&paths.networkd, &paths.iwd_state] {
+	for dir in [&paths.networkd, &paths.iwd_state, &paths.hostapd] {
 		let Ok(entries) = fs::read_dir(dir) else {
 			continue;
 		};

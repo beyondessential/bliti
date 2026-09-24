@@ -49,12 +49,22 @@ pub struct Paths {
 	pub iwd_state: PathBuf,
 	/// iwd's main configuration file.
 	pub iwd_config: PathBuf,
-	/// The configuration file hostapd is started with.
+	/// The directory of hostapd's configurations, one per access point interface, each named for
+	/// its interface with [`Paths::hostapd_conf`].
 	pub hostapd: PathBuf,
 	/// The modprobe configuration carrying the kernel's regulatory domain.
 	pub modprobe: PathBuf,
 	/// The directory systemd-resolved reads DNS delegates from.
 	pub resolved: PathBuf,
+}
+
+impl Hardware {
+	/// The station interface of the radio bliti creates the access point interface `interface`
+	/// on, where it creates one of that name.
+	pub fn access_point_radio(&self, interface: &str) -> Option<&str> {
+		let station = self.station.as_deref()?;
+		(self.access_point.as_deref() == Some(interface) && station != interface).then_some(station)
+	}
 }
 
 impl Paths {
@@ -70,7 +80,7 @@ impl Paths {
 			networkd: "/run/systemd/network".into(),
 			iwd_state: "/run/bliti/iwd".into(),
 			iwd_config: "/run/bliti/iwd-config/main.conf".into(),
-			hostapd: "/run/bliti/hostapd.conf".into(),
+			hostapd: "/run/bliti/hostapd".into(),
 			modprobe: "/run/modprobe.d/bliti-regdom.conf".into(),
 			resolved: "/run/systemd/dns-delegate.d".into(),
 		}
@@ -82,7 +92,7 @@ impl Paths {
 	/// after the SSID, leaving no room for a prefix, so bliti owns every network file in iwd's state
 	/// directory.
 	pub fn owns(&self, path: &Path) -> bool {
-		if path == self.iwd_config || path == self.hostapd || path == self.modprobe {
+		if path == self.iwd_config || path == self.modprobe {
 			return true;
 		}
 		let (Some(dir), Some(name)) = (path.parent(), path.file_name().and_then(OsStr::to_str))
@@ -92,6 +102,23 @@ impl Paths {
 		(dir == self.networkd && networkd::owns(name))
 			|| (dir == self.iwd_state && iwd::owns(name))
 			|| (dir == self.resolved && networkd::owns_delegate(name))
+			|| self.hostapd_interface(path).is_some()
+	}
+
+	/// The configuration hostapd runs the access point interface `interface` on, which
+	/// `services/bliti-hostapd@.service` reads for its instance of that name.
+	pub fn hostapd_conf(&self, interface: &str) -> PathBuf {
+		self.hostapd.join(format!("{interface}.conf"))
+	}
+
+	/// The access point interface a hostapd configuration at `path` runs, where it is one.
+	pub fn hostapd_interface<'a>(&self, path: &'a Path) -> Option<&'a str> {
+		if path.parent() != Some(&self.hostapd) {
+			return None;
+		}
+		let name = path.file_name()?.to_str()?;
+		name.strip_suffix(".conf")
+			.filter(|interface| !interface.is_empty() && !interface.starts_with('.'))
 	}
 }
 

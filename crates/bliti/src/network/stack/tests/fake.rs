@@ -33,7 +33,7 @@ impl Scratch {
 			networkd: root.join("network"),
 			iwd_state: root.join("iwd"),
 			iwd_config: root.join("iwd-config/main.conf"),
-			hostapd: root.join("hostapd.conf"),
+			hostapd: root.join("hostapd"),
 			modprobe: root.join("modprobe.d/bliti-regdom.conf"),
 			resolved: root.join("dns-delegate.d"),
 		}
@@ -78,8 +78,8 @@ impl System for FakeSystem {
 		self.call(format!("delete {interface}"))
 	}
 
-	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()> {
-		self.call(format!("hostapd {action:?}"))
+	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()> {
+		self.call(format!("hostapd {action:?} {interface}"))
 	}
 
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {

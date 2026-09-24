@@ -587,11 +587,11 @@ async fn the_hotspot_waits_for_its_station_to_join() {
 		.into_iter()
 		.filter(|call| call.starts_with("hostapd"))
 		.collect();
-	assert_eq!(hostapd, ["hostapd Start"]);
+	assert_eq!(hostapd, ["hostapd Start ap0"]);
 	assert!(
-		rig.read("hostapd.conf").contains("\nchannel=11\n"),
+		rig.read("hostapd/ap0.conf").contains("\nchannel=11\n"),
 		"{}",
-		rig.read("hostapd.conf")
+		rig.read("hostapd/ap0.conf")
 	);
 }
 
@@ -609,7 +609,7 @@ async fn a_station_knocked_off_as_the_hotspot_starts_joins_again() {
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
-	assert!(rig.calls().contains(&"hostapd Start".to_owned()));
+	assert!(rig.calls().contains(&"hostapd Start ap0".to_owned()));
 	rig.see([Observation::Station {
 		interface: "wld0".into(),
 		station: Station::Disconnected,
@@ -669,9 +669,9 @@ async fn a_join_reported_without_a_channel_takes_it_from_the_radio() {
 		.await;
 	assert_eq!(answer.await.unwrap(), Ok(()));
 	assert!(
-		rig.read("hostapd.conf").contains("\nchannel=1\n"),
+		rig.read("hostapd/ap0.conf").contains("\nchannel=1\n"),
 		"{}",
-		rig.read("hostapd.conf")
+		rig.read("hostapd/ap0.conf")
 	);
 
 	rig.system.lock().unwrap().clear();
@@ -746,9 +746,9 @@ async fn the_hotspot_runs_where_its_station_does_not_join() {
 	idle().await;
 	assert_eq!(answer.await.unwrap(), Ok(()));
 	assert!(
-		rig.read("hostapd.conf").contains("\nchannel=6\n"),
+		rig.read("hostapd/ap0.conf").contains("\nchannel=6\n"),
 		"{}",
-		rig.read("hostapd.conf")
+		rig.read("hostapd/ap0.conf")
 	);
 }
 
@@ -774,9 +774,9 @@ async fn the_hotspot_follows_the_station_onto_a_new_channel() {
 		.await;
 	assert_eq!(answer.await.unwrap(), Ok(()));
 	assert!(
-		rig.read("hostapd.conf").contains("\nchannel=1\n"),
+		rig.read("hostapd/ap0.conf").contains("\nchannel=1\n"),
 		"{}",
-		rig.read("hostapd.conf")
+		rig.read("hostapd/ap0.conf")
 	);
 
 	rig.system.lock().unwrap().clear();
@@ -787,11 +787,11 @@ async fn the_hotspot_follows_the_station_onto_a_new_channel() {
 	.await;
 	idle().await;
 	assert!(
-		rig.read("hostapd.conf").contains("\nchannel=11\n"),
+		rig.read("hostapd/ap0.conf").contains("\nchannel=11\n"),
 		"{}",
-		rig.read("hostapd.conf")
+		rig.read("hostapd/ap0.conf")
 	);
-	assert_eq!(rig.calls(), ["hostapd Restart"]);
+	assert_eq!(rig.calls(), ["hostapd Restart ap0"]);
 }
 
 #[tokio::test(start_paused = true)]

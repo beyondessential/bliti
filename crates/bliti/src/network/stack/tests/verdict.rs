@@ -299,7 +299,10 @@ async fn a_candidate_verified_again_is_judged() {
 async fn a_hotspot_that_does_not_start_fails_at_the_hotspot_reaching_no_stage() {
 	for attachments in [json!([]), json!([unverified(dynamic())])] {
 		let mut rig = Rig::wireless().await;
-		rig.failing.lock().unwrap().insert("hostapd Start".into());
+		rig.failing
+			.lock()
+			.unwrap()
+			.insert("hostapd Start ap0".into());
 		let answer = applying(
 			&mut rig,
 			document(json!({

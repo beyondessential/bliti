@@ -33,7 +33,7 @@ enum Call {
 	Regdom(String),
 	CreateAp(String, String),
 	DeleteAp(String),
-	Hostapd(Hostapd),
+	Hostapd(Hostapd, String),
 	RestartIwd,
 	ReloadNetworkd,
 	ReloadResolved,
@@ -74,8 +74,8 @@ impl System for Fake {
 		self.call(Call::DeleteAp(interface.into()))
 	}
 
-	fn hostapd(&mut self, action: Hostapd) -> anyhow::Result<()> {
-		self.call(Call::Hostapd(action))
+	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()> {
+		self.call(Call::Hostapd(action, interface.into()))
 	}
 
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {
@@ -112,7 +112,7 @@ impl Device {
 				networkd: root.join("etc/systemd/network"),
 				iwd_state: root.join("var/lib/iwd"),
 				iwd_config: root.join("etc/iwd/main.conf"),
-				hostapd: root.join("etc/hostapd/bliti.conf"),
+				hostapd: root.join("etc/hostapd"),
 				modprobe: root.join("etc/modprobe.d/bliti-regdom.conf"),
 				resolved: root.join("etc/systemd/dns-delegate.d"),
 			},
@@ -194,7 +194,7 @@ fn files_land_with_their_modes() {
 		assert_eq!(mode(&file.path), file.mode, "{:?}", file.path);
 	}
 	assert_eq!(mode(&device.path("var/lib/iwd/Clinic.psk")), SECRET);
-	assert_eq!(mode(&device.path("etc/hostapd/bliti.conf")), SECRET);
+	assert_eq!(mode(&device.path("etc/hostapd/ap0.conf")), SECRET);
 	assert_eq!(
 		mode(&device.path("etc/systemd/network/50-bliti-eth0.network")),
 		PUBLIC
@@ -241,7 +241,7 @@ fn the_first_apply_picks_everything_up_in_order() {
 		[
 			Call::Regdom("NZ".into()),
 			Call::CreateAp("wlan0".into(), "ap0".into()),
-			Call::Hostapd(Hostapd::Start),
+			Call::Hostapd(Hostapd::Start, "ap0".into()),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
 			Call::ReloadResolved,
@@ -251,7 +251,7 @@ fn the_first_apply_picks_everything_up_in_order() {
 		changes,
 		Changes {
 			regdom: written(&[device.path("etc/modprobe.d/bliti-regdom.conf")]),
-			hostapd: written(&[device.path("etc/hostapd/bliti.conf")]),
+			hostapd: written(&[device.path("etc/hostapd/ap0.conf")]),
 			iwd: written(&[
 				device.path("etc/iwd/main.conf"),
 				device.path("var/lib/iwd/Clinic.psk"),
@@ -456,11 +456,14 @@ fn a_hostapd_change_only_restarts_hostapd() {
 	assert_eq!(
 		changes,
 		Changes {
-			hostapd: written(&[device.path("etc/hostapd/bliti.conf")]),
+			hostapd: written(&[device.path("etc/hostapd/ap0.conf")]),
 			..Changes::default()
 		}
 	);
-	assert_eq!(device.system.take(), [Call::Hostapd(Hostapd::Restart)]);
+	assert_eq!(
+		device.system.take(),
+		[Call::Hostapd(Hostapd::Restart, "ap0".into())]
+	);
 }
 
 /// A domain change sets the domain first, and each file carrying it is picked up in order.
@@ -478,7 +481,7 @@ fn a_domain_change_reaches_every_backend_carrying_it() {
 		device.system.take(),
 		[
 			Call::Regdom("AU".into()),
-			Call::Hostapd(Hostapd::Restart),
+			Call::Hostapd(Hostapd::Restart, "ap0".into()),
 			Call::RestartIwd,
 		]
 	);
@@ -496,12 +499,12 @@ fn a_dropped_hotspot_stops_hostapd_and_deletes_its_interface() {
 	let changes = device.apply(&without);
 	assert_eq!(
 		changes.hostapd,
-		[Change::Removed(device.path("etc/hostapd/bliti.conf"))]
+		[Change::Removed(device.path("etc/hostapd/ap0.conf"))]
 	);
 	assert_eq!(
 		device.system.take(),
 		[
-			Call::Hostapd(Hostapd::Stop),
+			Call::Hostapd(Hostapd::Stop, "ap0".into()),
 			Call::DeleteAp("ap0".into()),
 			Call::ReloadNetworkd,
 		]
@@ -528,13 +531,16 @@ fn a_channel_change_restarts_hostapd() {
 	assert_eq!(
 		changes,
 		Changes {
-			hostapd: written(&[device.path("etc/hostapd/bliti.conf")]),
+			hostapd: written(&[device.path("etc/hostapd/ap0.conf")]),
 			..Changes::default()
 		}
 	);
-	assert_eq!(device.system.take(), [Call::Hostapd(Hostapd::Restart)]);
+	assert_eq!(
+		device.system.take(),
+		[Call::Hostapd(Hostapd::Restart, "ap0".into())]
+	);
 	assert!(
-		fs::read_to_string(device.path("etc/hostapd/bliti.conf"))
+		fs::read_to_string(device.path("etc/hostapd/ap0.conf"))
 			.unwrap()
 			.contains("channel=11\n")
 	);
@@ -545,7 +551,7 @@ fn a_channel_change_restarts_hostapd() {
 #[test]
 fn a_failing_call_names_its_backend_and_is_retried() {
 	let mut device = Device::new();
-	device.system.failing = vec![Call::Hostapd(Hostapd::Start)];
+	device.system.failing = vec![Call::Hostapd(Hostapd::Start, "ap0".into())];
 
 	let error = device.try_apply(&full()).unwrap_err();
 	assert!(
@@ -564,7 +570,7 @@ fn a_failing_call_names_its_backend_and_is_retried() {
 		[
 			Call::Regdom("NZ".into()),
 			Call::CreateAp("wlan0".into(), "ap0".into()),
-			Call::Hostapd(Hostapd::Start),
+			Call::Hostapd(Hostapd::Start, "ap0".into()),
 		]
 	);
 
@@ -575,7 +581,7 @@ fn a_failing_call_names_its_backend_and_is_retried() {
 		device.system.take(),
 		[
 			Call::CreateAp("wlan0".into(), "ap0".into()),
-			Call::Hostapd(Hostapd::Start),
+			Call::Hostapd(Hostapd::Start, "ap0".into()),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
 			Call::ReloadResolved,
