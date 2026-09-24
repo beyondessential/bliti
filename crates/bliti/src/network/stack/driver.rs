@@ -31,7 +31,7 @@ use super::{
 use crate::network::{
 	apply::{self, Changes, System},
 	observe::{Joined, Observation, Station, render_channel},
-	probe::RadioInfo,
+	probe::{self, RadioInfo},
 	render,
 	select::{Alongside, Attempt, Change, Event, Link, Selector, Stage, State},
 	session::entry,
@@ -724,6 +724,39 @@ impl Driver {
 		(shared && candidate).then(|| radio.clone())
 	}
 
+	/// Why the hotspot cannot run, where a shared-channel radio's wireless client is on a channel no
+	/// access point may start on, so the hotspot has no channel it may use (HOT).
+	fn hotspot_barred(&self, selection: &render::Selection) -> Option<String> {
+		let hotspot = self.selector.decision().hotspot.as_ref()?;
+		let channel = selection
+			.station_channel
+			.filter(|_| !selection.hotspot_waits)?;
+		let radio = self
+			.shared
+			.radios()
+			.into_iter()
+			.find(|radio| radio.station == hotspot.radio)?;
+		let (band, name) = match channel.band {
+			render::Band::TwoPointFour => (probe::Band::TwoPointFour, "2.4 GHz"),
+			render::Band::Five => (probe::Band::Five, "5 GHz"),
+		};
+		let flags = radio
+			.bands
+			.get(&band)
+			.and_then(|info| info.channels.iter().find(|c| c.number == channel.number));
+		let why = match flags {
+			Some(flags) if flags.can_start_ap() => return None,
+			Some(flags) if flags.radar => {
+				"needs radar detection before an access point may start on it"
+			}
+			_ => "is one the regulatory domain lets no access point start on",
+		};
+		Some(format!(
+			"the hotspot has to share {}'s channel, {name} channel {}, which {why}",
+			radio.station, channel.number
+		))
+	}
+
 	/// Render and apply the decision, where it has changed and no apply is running.
 	fn kick(&mut self) {
 		if !self.configured || self.taken >= self.wanted || self.system.is_none() {
@@ -733,6 +766,8 @@ impl Driver {
 		let mut selection = self.selector.selection().unwrap_or_default();
 		self.hotspot_scanning = self.hotspot_awaits_scan();
 		selection.hotspot_waits |= self.hotspot_scanning.is_some();
+		let barred = self.hotspot_barred(&selection);
+		selection.hotspot_waits |= barred.is_some();
 		let rendered = match render::render(&self.document, &self.shared.render, &selection) {
 			Ok(rendered) => rendered,
 			Err(error) => {
@@ -749,6 +784,14 @@ impl Driver {
 				return;
 			}
 		};
+		if let Some(reason) = barred {
+			tracing::warn!(reason, "the hotspot cannot run");
+			self.failed(Invalid {
+				at: path(&[Segment::Name("hotspot")]),
+				reason,
+				reached: None,
+			});
+		}
 		let Some(mut system) = self.system.take() else {
 			return;
 		};
