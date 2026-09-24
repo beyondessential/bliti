@@ -20,6 +20,7 @@ import {
 	scanners,
 	securityKinds,
 	widths,
+	wirelessBands,
 } from './capabilities.js'
 import { countryOptions } from './countries.js'
 import { generatePassphrase, same } from './network.js'
@@ -173,6 +174,7 @@ function fitWireless(candidate, capabilities) {
 	if (!offersMember(capabilities, 'wireless', 'hidden', next)) next = withMember(next, 'hidden', undefined)
 	else if (next.hidden === undefined) next = { ...next, hidden: false }
 	if (!offersMember(capabilities, 'wireless', 'nameservers', next)) next = withMember(next, 'nameservers', undefined)
+	if (next.band !== undefined && !wirelessBands(capabilities, next).includes(next.band)) next = withMember(next, 'band', undefined)
 	return next
 }
 
@@ -333,6 +335,19 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 						<TextField key={member} {...CREDENTIALS[member]} path={at('security', member)} value={security[member]} onChange={setSecurity(member)} marks={marks} />
 					))}
 				</>
+			)}
+			{wirelessBands(capabilities, candidate).length > 0 && (
+				<SelectField
+					label="Band"
+					path={at('band')}
+					value={candidate.band ?? ''}
+					options={[
+						{ value: '', label: 'Device picks' },
+						...wirelessBands(capabilities, candidate).map((band) => ({ value: band, label: bandName(band) })),
+					]}
+					onChange={(band) => change((held) => withMember(held, 'band', band || undefined))}
+					marks={marks}
+				/>
 			)}
 			{offersMember(capabilities, 'wireless', 'hidden', candidate) && (
 				<>

@@ -109,6 +109,17 @@ fn an_unlisted_optional_member_is_refused() {
 	assert_eq!(err.at, "$['attachments'][0]['nameservers']");
 }
 
+/// A device that cannot hold a connection to one band offers no `band`, so one asked for is refused at
+/// the member (WLAN).
+#[test]
+fn a_band_the_device_does_not_offer_is_refused() {
+	let err = check_on_pi(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "band": "5ghz" }))] }),
+	)
+	.unwrap_err();
+	assert_eq!(err.at, "$['attachments'][0]['band']");
+}
+
 /// A kind absent from capabilities cannot be proposed, and the fault names the kind.
 #[test]
 fn an_unsupported_kind_is_refused() {

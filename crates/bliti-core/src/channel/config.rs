@@ -121,6 +121,8 @@ pub struct Wireless {
 	pub hidden: Option<bool>,
 	/// The wireless interface it is joined on. Unset, the device chooses one able to carry it (LINK).
 	pub interface: Option<String>,
+	/// The band it is joined on, where the device offers the choice (WLAN).
+	pub band: Option<String>,
 }
 
 /// How a device authenticates to a wireless network (WLAN).
@@ -409,12 +411,15 @@ impl Wireless {
 		};
 		let interface = optional_string(candidate, "interface")
 			.map_err(|reason| Invalid::at(at("interface"), reason))?;
+		let band =
+			optional_string(candidate, "band").map_err(|reason| Invalid::at(at("band"), reason))?;
 
 		Ok(Self {
 			ssid,
 			security,
 			hidden,
 			interface,
+			band,
 		})
 	}
 
@@ -426,6 +431,9 @@ impl Wireless {
 		}
 		if let Some(interface) = &self.interface {
 			map.insert("interface".to_owned(), Json::String(interface.clone()));
+		}
+		if let Some(band) = &self.band {
+			map.insert("band".to_owned(), Json::String(band.clone()));
 		}
 	}
 }
@@ -691,7 +699,8 @@ mod tests {
 					"nameservers": ["10.0.0.1"],
 					"ssid": "Clinic",
 					"security": { "kind": "sae", "passphrase": "a good long passphrase" },
-					"hidden": true
+					"hidden": true,
+					"band": "5ghz"
 				},
 				{
 					"kind": "wired-static",

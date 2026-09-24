@@ -421,6 +421,27 @@ test.describe('applying without checking', () => {
 })
 
 test.describe('validating before proposing', () => {
+	// A device that cannot hold a connection to one band offers none, and the screen offers only what it
+	// is offered (WLAN, NSCR).
+	test('a wireless band is offered only where the device offers one', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await open(page, 'Clinic-Staff')
+		await expect(page.locator('.candidate').getByLabel('Band')).toHaveCount(0)
+	})
+
+	test('a band the device offers is chosen and proposed', async ({ page }) => {
+		const offering = structuredClone(PI)
+		offering.document.attachments.kind.wireless.interface.wlan0.band = ['2.4ghz', '5ghz']
+		await openNetwork(page, { document: IN_FORCE, capabilities: offering })
+		await open(page, 'Clinic-Staff')
+		const band = page.locator('.candidate').getByLabel('Band')
+		await expect(band.locator('option')).toHaveText(['Device picks', '2.4 GHz', '5 GHz'])
+		await band.selectOption('5ghz')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.document.attachments.find((each) => each.label === 'Clinic-Staff')).toMatchObject({ band: '5ghz' })
+	})
+
 	// The shared-channel constraint removes band, channel and width, and with none of them offered the
 	// radio goes unmentioned, heading and all (HOT, NSCR).
 	test('a hotspot radio offering no settings is left out without comment', async ({ page }) => {
