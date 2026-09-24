@@ -83,7 +83,8 @@ window.__blitiClient = {
 			discard: () => send({ type: 'discard' }),
 			scan: (iface) => send(iface ? { type: 'scan', interface: iface } : { type: 'scan' }),
 			survey: (iface) => send(iface ? { type: 'survey', interface: iface } : { type: 'survey' }),
-			wps: (method, iface) => send(iface ? { type: 'wps', method, interface: iface } : { type: 'wps', method }),
+			wps: (method, iface, ssid) =>
+				send({ type: 'wps', method, ...(iface ? { interface: iface } : {}), ...(ssid ? { ssid } : {}) }),
 			close: () => {
 				session.open = false
 				session.closedByPage = true

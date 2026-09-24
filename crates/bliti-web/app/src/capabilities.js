@@ -281,7 +281,20 @@ export function surveyors(capabilities) {
 
 /// The WPS methods offered on the radio named, or on any where none is.
 export function wpsMethods(capabilities, name) {
-	const found = views(actOf(capabilities, 'wps'), { interface: name })
+	return methodsIn(views(actOf(capabilities, 'wps'), { interface: name }))
+}
+
+/// The WPS methods that may join the network `ssid` names, on the radio named or on any where none
+/// is: none where the device joins only whichever network the access point hands over (BLI-CFG).
+export function wpsMethodsFor(capabilities, ssid, name) {
+	const found = views(actOf(capabilities, 'wps'), { interface: name }).filter(
+		(view) =>
+			view.caps === true || view.caps.ssid === true || (Array.isArray(view.caps.ssid) && view.caps.ssid.includes(ssid)),
+	)
+	return methodsIn(found)
+}
+
+function methodsIn(found) {
 	if (found.length === 0) return []
 	const methods = valuesAcross(found, 'method')
 	return methods === null ? WPS_METHODS : WPS_METHODS.filter((method) => methods.includes(method))

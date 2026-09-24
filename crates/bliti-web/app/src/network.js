@@ -138,6 +138,7 @@ export function opening() {
 		confirming: false,
 		awaiting: 0,
 		wps: null,
+		wpsNetwork: null,
 		pin: null,
 		states: null,
 		networks: null,
@@ -181,6 +182,7 @@ function editing(state) {
 		problem: null,
 		confirming: false,
 		wps: null,
+		wpsNetwork: null,
 		pin: null,
 		selected: null,
 	}
@@ -231,6 +233,7 @@ export function reduce(state, action) {
 				failure: null,
 				problem: null,
 				wps: action.method,
+				wpsNetwork: action.ssid ?? null,
 				pin: null,
 				act: null,
 			}
@@ -336,7 +339,7 @@ function invalid(state, message) {
 	const failure = failureOf(message)
 	if (!state.proposed) {
 		// Joining by WPS failed before the device had a network to propose.
-		return { ...editing(state), act: { type: 'wps', failure } }
+		return { ...editing(state), act: { type: 'wps', network: state.wpsNetwork, failure } }
 	}
 	const edit = clone(state.proposed)
 	return {

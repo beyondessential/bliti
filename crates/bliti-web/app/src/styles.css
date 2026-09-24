@@ -303,6 +303,8 @@ section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--acc
 .network-row .line { display: flex; align-items: baseline; gap: 8px; }
 .network-row .line > .muted { flex: 1 1 auto; }
 .network-row .points { margin: 4px 0 4px 12px; }
+.network-row .wps { gap: 6px; margin: 4px 0 4px 12px; }
+.network-row .wps > * { flex: 0 1 auto; }
 .points li > :first-child { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .points li > :last-child { text-align: right; }
 .points .code { font-size: 0.8rem; }

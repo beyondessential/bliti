@@ -86,6 +86,12 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 		}
 	}
 
+	// Joining by WPS, for the network `ssid` names where one is picked from a scan, on the adapter
+	// `name` names or on one the device picks.
+	const joinByWps = (method, ssid, name) => {
+		if (send((handle) => handle.wps(method, name, ssid))) dispatch({ type: 'wps', method, ssid })
+	}
+
 	// Where the session stands, and what can be done about it from elsewhere in the application.
 	const edits = state.status === 'open' ? changes(state.edit, state.inForce, state.inForceKeys) : 0
 	useEffect(() => {
@@ -206,10 +212,8 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 				change={change}
 				select={(key) => dispatch({ type: 'select', key })}
 				failure={failureElsewhere ? failure : null}
-				wpsFailure={state.act?.type === 'wps' ? state.act.failure : null}
-				joinByWps={(method) => {
-					if (send((handle) => handle.wps(method))) dispatch({ type: 'wps', method })
-				}}
+				wpsFailure={state.act?.type === 'wps' ? state.act : null}
+				joinByWps={joinByWps}
 			/>
 
 			{state.selected && state.edit.keys.includes(state.selected) && (
@@ -231,6 +235,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 						start: (name) => {
 							if (send((handle) => handle.scan(name))) dispatch({ type: 'act', act: 'scan', interface: name })
 						},
+						joinByWps,
 					}}
 					onRemove={() => change((edit) => removeCandidate(edit, state.selected))}
 				/>
@@ -299,7 +304,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 		tone = 'working'
 		said = state.wps ? (
 			<>
-				<strong>Joining by WPS.</strong>{' '}
+				<strong>{state.wpsNetwork ? `Joining ${state.wpsNetwork} by WPS.` : 'Joining by WPS.'}</strong>{' '}
 				{state.wps !== 'pin' ? (
 					'Press the WPS button on the access point.'
 				) : state.pin ? (
@@ -522,8 +527,10 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 			{failure && <Failure failure={failure} />}
 			{wpsFailure && (
 				<>
-					<p className="notice fault">Could not join by WPS.</p>
-					<p className="why reason">{wpsFailure.reason}</p>
+					<p className="notice fault">
+						{wpsFailure.network ? `Could not join ${wpsFailure.network} by WPS.` : 'Could not join by WPS.'}
+					</p>
+					<p className="why reason">{wpsFailure.failure.reason}</p>
 				</>
 			)}
 			{adding && !readOnly && (

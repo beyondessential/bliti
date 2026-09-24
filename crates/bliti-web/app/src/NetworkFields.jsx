@@ -426,7 +426,16 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan,
 				/>
 			)}
 			{scanning && scan.failure && <p className="why">{scan.failure.reason}</p>}
-			{scanning && scan.points && <ScanResults points={scan.points} candidate={candidate} change={change} capabilities={capabilities} onPicked={onPicked} />}
+			{scanning && scan.points && (
+				<ScanResults
+					points={scan.points}
+					candidate={candidate}
+					change={change}
+					capabilities={capabilities}
+					onPicked={onPicked}
+					joinByWps={scan.joinByWps}
+				/>
+			)}
 		</>
 	)
 }

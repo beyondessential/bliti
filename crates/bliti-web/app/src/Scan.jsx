@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 
-import { adapterName, joinWith, offersMember, radioBands, radios } from './capabilities.js'
+import { adapterName, joinWith, offersMember, radioBands, radios, wpsMethodsFor } from './capabilities.js'
 import { blankSecurity } from './NetworkFields.jsx'
 import { hiddenCount, networksOf, siting } from './scan.js'
 import { bandName, securityName, widthName } from './wireless.js'
@@ -20,7 +20,7 @@ function advertised(security) {
 	return (security ?? []).map((each) => UNJOINABLE[each] ?? securityName(each)).join(', ')
 }
 
-export function ScanResults({ points, candidate, change, capabilities, onPicked }) {
+export function ScanResults({ points, candidate, change, capabilities, onPicked, joinByWps }) {
 	const [view, setView] = useState('networks')
 	return (
 		<div className="scan">
@@ -35,7 +35,14 @@ export function ScanResults({ points, candidate, change, capabilities, onPicked 
 				))}
 			</div>
 			{view === 'networks' ? (
-				<Networks points={points} candidate={candidate} change={change} capabilities={capabilities} onPicked={onPicked} />
+				<Networks
+					points={points}
+					candidate={candidate}
+					change={change}
+					capabilities={capabilities}
+					onPicked={onPicked}
+					joinByWps={joinByWps}
+				/>
 			) : (
 				<Siting points={points} capabilities={capabilities} />
 			)}
@@ -43,10 +50,12 @@ export function ScanResults({ points, candidate, change, capabilities, onPicked 
 	)
 }
 
-/// The networks heard, by SSID, each opening onto the access points behind it.
-function Networks({ points, candidate, change, capabilities, onPicked }) {
+/// The networks heard, by SSID, each opening onto the access points behind it, and onto joining it
+/// by WPS where the device can join a named network that way.
+function Networks({ points, candidate, change, capabilities, onPicked, joinByWps }) {
 	const [hidden, setHidden] = useState(false)
 	const [open, setOpen] = useState(() => new Set())
+	const [wpsOpen, setWpsOpen] = useState(null)
 	const networks = networksOf(points, { hidden })
 	const unnamed = hiddenCount(points)
 	const several = radios(capabilities).length > 1
@@ -92,6 +101,9 @@ function Networks({ points, candidate, change, capabilities, onPicked }) {
 					const kind = joinWith(capabilities, network.security, candidate)
 					const key = network.ssid ?? `hidden ${network.points[0].bssid}`
 					const expanded = open.has(key)
+					// A network the device cannot join is not joined by WPS either. On the adapter the candidate is
+					// pinned to, where it is.
+					const wps = joinByWps && kind && network.ssid !== null ? wpsMethodsFor(capabilities, network.ssid, candidate?.interface) : []
 					return (
 						<li key={key} className="network-row">
 							<div className="line">
@@ -111,7 +123,32 @@ function Networks({ points, candidate, change, capabilities, onPicked }) {
 								>
 									{aps(network.count)}
 								</button>
+								{wps.length > 0 && (
+									<button
+										type="button"
+										className="link"
+										aria-expanded={wpsOpen === key}
+										aria-label={`Join ${network.ssid} by WPS`}
+										onClick={() => setWpsOpen(wpsOpen === key ? null : key)}
+									>
+										WPS
+									</button>
+								)}
 							</div>
+							{wpsOpen === key && wps.length > 0 && (
+								<div className="row wps">
+									{wps.map((method) => (
+										<button
+											key={method}
+											type="button"
+											className="secondary small"
+											onClick={() => joinByWps(method, network.ssid, candidate?.interface ?? undefined)}
+										>
+											{method === 'pin' ? 'WPS PIN' : 'WPS button'}
+										</button>
+									))}
+								</div>
+							)}
 							{expanded && (
 								<ul className="points">
 									{network.points.map((point) => (

@@ -32,7 +32,7 @@ export const PI = {
 	radios: { wlan0: BUILT_IN },
 	acts: {
 		scan: { interface: { wlan0: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'] } } },
+		wps: { interface: { wlan0: { method: ['push-button', 'pin'], ssid: true } } },
 	},
 }
 
@@ -73,7 +73,7 @@ export const TWO_RADIOS = {
 	acts: {
 		scan: { interface: { wlan0: {}, wlx00c0caa1b2c3: {} } },
 		survey: { interface: { wlx00c0caa1b2c3: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'] }, wlx00c0caa1b2c3: { method: ['push-button'] } } },
+		wps: { interface: { wlan0: { method: ['push-button', 'pin'], ssid: true }, wlx00c0caa1b2c3: { method: ['push-button'] } } },
 	},
 }
 

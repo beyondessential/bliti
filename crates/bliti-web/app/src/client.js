@@ -185,8 +185,10 @@ export function createClient() {
 				discard: () => sending('discard', () => handle.discard()),
 				scan: (iface) => sending(iface ? `scan  interface ${iface}` : 'scan', () => handle.scan(iface)),
 				survey: (iface) => sending(iface ? `survey  interface ${iface}` : 'survey', () => handle.survey(iface)),
-				wps: (method, iface) =>
-					sending(`wps  method ${method}${iface ? `  interface ${iface}` : ''}`, () => handle.wps(method, iface)),
+				wps: (method, iface, ssid) =>
+					sending(`wps  method ${method}${iface ? `  interface ${iface}` : ''}${ssid ? `  ssid ${ssid}` : ''}`, () =>
+						handle.wps(method, iface, ssid),
+					),
 				close: () => {
 					if (closed) return
 					closed = true

@@ -1,10 +1,10 @@
-// Scanning on the network screen (NSCR): networks by SSID, hidden ones on request, one adapter or all,
-// and the same scan read for siting an access point.
+// Scanning on the network screen (NSCR): networks by SSID, hidden ones on request, joining one by
+// WPS, one adapter or all, and the same scan read for siting an access point.
 
 import { expect, test } from '@playwright/test'
 
-import { answer, message, openNetwork, sent } from './fake-client.js'
-import { IN_FORCE, PI, TWO_RADIOS, addWireless, ap } from './network-fixtures.js'
+import { answer, message, openNetwork, say, sent } from './fake-client.js'
+import { INDEPENDENT, IN_FORCE, PI, TWO_RADIOS, addWireless, ap, bar } from './network-fixtures.js'
 
 const USB = 'wlx00c0caa1b2c3'
 
@@ -114,4 +114,55 @@ test('the siting view lists every access point by signal, and the channels taken
 	await expect(taken('5 GHz')).toHaveText(['ch 362 APs, 80 MHz', 'ch 1491 AP, 80 MHz'])
 	// The adapter can use 6 GHz, and nothing is heard there.
 	await expect(taken('6 GHz')).toHaveText(['None heard.'])
+})
+
+// NSCR: a network the scan lists by name is joined by WPS for that network alone.
+test('a network in the scan list is joined by WPS for it alone', async ({ page }) => {
+	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
+	const clinic = networks(page).filter({ hasText: 'Clinic' })
+	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
+	await clinic.getByRole('button', { name: 'WPS PIN' }).click()
+	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin', ssid: 'Clinic' })
+	await expect(bar(page)).toContainText('Joining Clinic by WPS.')
+})
+
+test('a network the device cannot join is not offered WPS', async ({ page }) => {
+	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
+	await expect(networks(page).filter({ hasText: 'Guest' })).toContainText('Cannot join')
+	await expect(page.getByRole('button', { name: 'Join Guest by WPS' })).toHaveCount(0)
+})
+
+// CFG: credentials for another network are refused at the act's `ssid`, and the reason is the
+// device's own.
+test('a WPS join that hands over another network gives the reason the device wrote', async ({ page }) => {
+	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
+	const clinic = networks(page).filter({ hasText: 'Clinic' })
+	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
+	await clinic.getByRole('button', { name: 'WPS button' }).click()
+	const reason = 'the access point handed over credentials for "Office", not "Clinic", and they were discarded'
+	await say(page, message({ type: 'invalid', at: "$['ssid']", reason }))
+	await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+	await expect(page.getByText('Could not join Clinic by WPS.')).toBeVisible()
+	await expect(page.locator('.network .reason')).toHaveText(reason)
+})
+
+test('WPS is offered from the scan only where the device joins a named network that way', async ({ page }) => {
+	await scanned(page, INDEPENDENT, HEARD.filter((each) => each.interface === 'wlan0'))
+	await expect(networks(page).first()).toContainText('Clinic')
+	await expect(page.getByRole('button', { name: 'Join Clinic by WPS' })).toHaveCount(0)
+})
+
+// The adapter the candidate is pinned to is the one joined on, and one that cannot join a named
+// network by WPS is not offered it.
+test('WPS from the scan joins on the adapter the candidate is pinned to', async ({ page }) => {
+	await scanned(page)
+	const candidate = page.locator('.candidate')
+	await candidate.getByLabel('Adapter').selectOption(USB)
+	await expect(page.getByRole('button', { name: 'Join Clinic by WPS' })).toHaveCount(0)
+
+	await candidate.getByLabel('Adapter').selectOption('wlan0')
+	const clinic = networks(page).filter({ hasText: 'Clinic' })
+	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
+	await clinic.getByRole('button', { name: 'WPS button' }).click()
+	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'push-button', interface: 'wlan0', ssid: 'Clinic' })
 })
