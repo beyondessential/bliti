@@ -554,6 +554,23 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 	Ok(())
 }
 
+/// End every connection made before this start: the channel its client held was served by an
+/// earlier daemon, and the client would otherwise wait on it with nothing to tell it the channel is
+/// gone (CHN).
+async fn end_earlier_connections(adapter: &bluer::Adapter) -> Result<()> {
+	for address in adapter.device_addresses().await? {
+		let device = adapter.device(address)?;
+		if !device.is_connected().await.unwrap_or(false) {
+			continue;
+		}
+		tracing::info!(%address, "ending a connection made before this start");
+		if let Err(error) = device.disconnect().await {
+			tracing::warn!(%address, %error, "could not end a connection made before this start");
+		}
+	}
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use std::time::{Duration, Instant};
@@ -642,21 +659,4 @@ mod tests {
 			"same bytes took {small_span:?} at {CHUNK}B but {large_span:?} at 500B"
 		);
 	}
-}
-
-/// End every connection made before this start: the channel its client held was served by an
-/// earlier daemon, and the client would otherwise wait on it with nothing to tell it the channel is
-/// gone (CHN).
-async fn end_earlier_connections(adapter: &bluer::Adapter) -> Result<()> {
-	for address in adapter.device_addresses().await? {
-		let device = adapter.device(address)?;
-		if !device.is_connected().await.unwrap_or(false) {
-			continue;
-		}
-		tracing::info!(%address, "ending a connection made before this start");
-		if let Err(error) = device.disconnect().await {
-			tracing::warn!(%address, %error, "could not end a connection made before this start");
-		}
-	}
-	Ok(())
 }
