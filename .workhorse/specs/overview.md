@@ -24,6 +24,8 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 | [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) | the base32 rendering of [QR](qr-code.md) and [ADV](discovery.md) |
 | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | the JSON of [MSG](messages.md) |
 | ISO/IEC 18004 | the QR code symbology of [QR](qr-code.md) |
+| ISO 3166-1 | the country codes of the regulatory domain in [NET](network/overview.md) |
+| IEEE 802.11 | the wireless networks a device joins and the access point it runs, under [WLAN](network/wireless.md) and [HOT](network/hotspot.md) |
 
 ## Terminology
 
@@ -68,3 +70,13 @@ Defined in [ADV](discovery.md).
 
 The number identifying the version of the protocol a device speaks.
 Defined in [VER](version.md).
+
+### Configuration document
+
+The declarative description of a device's network that a client reads and writes.
+Defined in [NET](network/overview.md).
+
+### Candidate
+
+One way a device might attach to a network.
+Defined in [LINK](network/attachment.md).

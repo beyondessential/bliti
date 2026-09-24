@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import Network, { HeldBar } from './Network.jsx'
 import Readings from './Readings.jsx'
-import { createClient } from './client.js'
-import { entryOf, identityKey, pushHistory } from './readings.js'
+import { CLIENT_VERSION, createClient } from './client.js'
+import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // How many notices are kept. The far end decides how many arrive.
@@ -29,6 +30,14 @@ export default function App() {
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
 	const [device, setDevice] = useState(null)
+	// Which screen of a connected device is showing: its readings, or its network configuration.
+	const [screen, setScreen] = useState('device')
+	// Where the configuration session stands, as the network screen reports it, and whether to keep
+	// that screen, and its session, while the operator is on the device view: from leaving it with edits
+	// not applied or a proposal applying or applied, until there is nothing left to apply, confirm or
+	// review (NSCR).
+	const [held, setHeld] = useState(null)
+	const [keep, setKeep] = useState(false)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
 	// the device; a graph fills forward from connection.
@@ -66,8 +75,17 @@ export default function App() {
 						setDevice({ name: message.name, version: message.version })
 					} else if (message.type === 'fact' || message.type === 'reading') {
 						const entry = entryOf(message)
-						setEntries((held) => new Map(held).set(identityKey(entry), entry))
-						setHistory((held) => pushHistory(held, entry))
+						if (isEnded(entry)) {
+							setEntries((held) => {
+								const next = new Map(held)
+								next.delete(identityKey(entry))
+								return next
+							})
+							setHistory((held) => forgetHistory(held, entry))
+						} else {
+							setEntries((held) => new Map(held).set(identityKey(entry), entry))
+							setHistory((held) => pushHistory(held, entry))
+						}
 					}
 					if (!STREAMED.has(message.type)) note('in', describe(message))
 					break
@@ -86,6 +104,13 @@ export default function App() {
 			}
 		},
 		[note, notice],
+	)
+
+	// The configuration session's messages go to the log as the feed's do. Only the log: the screen
+	// reads them itself.
+	const noteSession = useCallback(
+		(event) => note('in', event.kind === 'message' ? describe(event.message) : `${event.kind}  ${event.detail}`),
+		[note],
 	)
 
 	const readFrom = useCallback(
@@ -144,6 +169,7 @@ export default function App() {
 					note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
 					setConnected(false)
 					setConnecting(false)
+					setScreen('device')
 					setConnectStatus(
 						why ? `The connection to the device failed: ${why}` : 'The device disconnected.',
 					)
@@ -163,6 +189,8 @@ export default function App() {
 	function disconnect() {
 		client.disconnect()
 		setConnected(false)
+		setScreen('device')
+		setKeep(false)
 		setConnecting(false)
 		setConnectStatus('')
 		setEntries(new Map())
@@ -196,6 +224,11 @@ export default function App() {
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
+	// Done with what it was kept for: confirmed or discarded, or the session gone.
+	useEffect(() => {
+		if (screen !== 'network' && keep && (!held || (held.stage === 'editing' && held.changes === 0))) setKeep(false)
+	}, [screen, keep, held])
+
 	if (unsupported) {
 		return (
 			<main>
@@ -208,9 +241,51 @@ export default function App() {
 		)
 	}
 
+	function leaveNetwork() {
+		setScreen('device')
+		setKeep(held?.stage === 'applying' || held?.stage === 'applied' || held?.changes > 0)
+	}
+
+	// What each interface is joined to, from the device's wireless-network facts (NFO).
+	const joined = [...entries.values()]
+		.filter((entry) => entry.fact && entry.name === 'wireless-network' && !isEnded(entry))
+		.map((entry) => ({
+			interface: entry.traits?.interface?.name,
+			ssid: entry.value,
+			band: entry.traits?.channel?.band,
+			channel: entry.traits?.channel?.number,
+		}))
+
+	const network = connected && (screen === 'network' || keep) && (
+		<div hidden={screen !== 'network'}>
+			<Network
+				client={client}
+				onActivity={note}
+				onEvent={noteSession}
+				onBack={leaveNetwork}
+				onStage={setHeld}
+				onDisconnect={disconnect}
+				joined={joined}
+			/>
+		</div>
+	)
+
+	if (connected && screen === 'network') {
+		return (
+			<main>
+				{network}
+				<Activity log={log} />
+			</main>
+		)
+	}
+
+	const holding = keep && held !== null
+
 	return (
 		<main>
+			{network}
 			<h1>bliti</h1>
+			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 
 			{!code && (
 				<section>
@@ -259,9 +334,14 @@ export default function App() {
 				<>
 					<div className="heading">
 						<h2>Device</h2>
-						<button className="secondary small" onClick={disconnect}>
-							Disconnect
-						</button>
+						<div className="actions">
+							<button className="secondary small" onClick={() => setScreen('network')}>
+								Network settings
+							</button>
+							<button className="secondary small" onClick={disconnect}>
+								Disconnect
+							</button>
+						</div>
 					</div>
 					{device && (
 						<p className="muted software">
@@ -273,25 +353,31 @@ export default function App() {
 							{each.detail}
 						</p>
 					))}
-					<Readings entries={[...entries.values()]} history={history} />
+					{holding && <HeldBar held={held} onReview={() => setScreen('network')} />}
+					<Readings entries={[...entries.values()]} history={history} showProvisional={!holding} />
 				</>
 			)}
 
-			{log.length > 0 && (
-				<section>
-					<h2>Activity</h2>
-					<div className="log">
-						{log.map((line, index) => (
-							<p key={index} className={`line ${line.direction}`}>
-								<time>{clock(line.at)}</time>
-								<span className="arrow">{ARROWS[line.direction]}</span>
-								<span className="said">{line.text}</span>
-							</p>
-						))}
-					</div>
-				</section>
-			)}
+			<Activity log={log} />
 		</main>
+	)
+}
+
+function Activity({ log }) {
+	if (log.length === 0) return null
+	return (
+		<section>
+			<h2>Activity</h2>
+			<div className="log">
+				{log.map((line, index) => (
+					<p key={index} className={`line ${line.direction}`}>
+						<time>{clock(line.at)}</time>
+						<span className="arrow">{ARROWS[line.direction]}</span>
+						<span className="said">{line.text}</span>
+					</p>
+				))}
+			</div>
+		</section>
 	)
 }
 

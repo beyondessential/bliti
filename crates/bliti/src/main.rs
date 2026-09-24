@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 mod facts;
 mod gatt;
 mod identity;
+mod network;
 mod qr;
 mod sampler;
 mod session;
@@ -28,7 +29,7 @@ mod device;
 pub const SALT_ROTATION: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Parser)]
-#[command(name = "bliti", version, about = "QR-anchored BLE device provisioning")]
+#[command(name = "bliti", version = env!("BLITI_VERSION"), about = "QR-anchored BLE device provisioning")]
 struct Cli {
 	#[command(subcommand)]
 	command: Command,
@@ -38,6 +39,15 @@ struct Cli {
 	cache: PathBuf,
 }
 
+/// What configures the network beneath a configuration session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum NetworkBackend {
+	/// Configure nothing.
+	Inert,
+	/// iwd, hostapd and systemd-networkd.
+	Stack,
+}
+
 #[derive(Debug, Subcommand)]
 enum Command {
 	/// Advertise over BLE and serve provisioning sessions.
@@ -45,6 +55,15 @@ enum Command {
 		/// Bluetooth adapter to use. Defaults to the system's first.
 		#[arg(long)]
 		adapter: Option<String>,
+
+		/// Where the recorded network configuration is kept.
+		#[arg(long, default_value_os_t = network::session::default_path())]
+		network: PathBuf,
+
+		/// What configures the network: `inert` leaves it as the image brought it up and refuses every
+		/// proposal, `stack` drives iwd, hostapd and systemd-networkd.
+		#[arg(long, value_enum, default_value_t = NetworkBackend::Inert)]
+		network_backend: NetworkBackend,
 	},
 
 	/// Print the QR code for the board this runs on.
@@ -57,6 +76,33 @@ enum Command {
 	/// Report which board ID source this board offers and which one wins, without deriving anything.
 	BoardId,
 
+	/// Report what this device's radios can do, and the network capabilities stated from them, as
+	/// JSON. Only asks: nothing about the radios or the network is changed.
+	Probe,
+
+	/// Render a network configuration document and put it in force, for trying the stack on a
+	/// device by hand. Verifies nothing and records nothing, and the daemon replaces it on its next
+	/// apply.
+	NetworkApply {
+		/// The configuration document, as JSON.
+		document: PathBuf,
+
+		/// The candidates to bring up, by position in `attachments`. A wireless one goes on the radio
+		/// it names, else the first, or on the one given as `N@interface`.
+		#[arg(long, value_delimiter = ',')]
+		active: Vec<String>,
+
+		/// The radio to run the hotspot on, by its wireless interface. Unset, the one the hotspot
+		/// names, else the first able to run one.
+		#[arg(long)]
+		hotspot: Option<String>,
+
+		/// The channel the wireless client on the hotspot's radio is on, as `2ghz:6`, for a hotspot
+		/// that has to follow it.
+		#[arg(long)]
+		station_channel: Option<String>,
+	},
+
 	/// Scan for the device a QR code belongs to. The client half of discovery, without a browser.
 	Scan {
 		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
@@ -65,6 +111,22 @@ enum Command {
 		/// How long to listen for.
 		#[arg(long, default_value_t = 10)]
 		seconds: u64,
+
+		/// Bluetooth adapter to use. Defaults to the system's first.
+		#[arg(long)]
+		adapter: Option<String>,
+	},
+
+	/// Open a configuration session on a device: each line of standard input is sent as one message,
+	/// and each message the device answers with is printed as it arrived. The session ends with
+	/// standard input.
+	Configure {
+		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		code: String,
+
+		/// The device's address, as reported by `scan`. Found by matching the QR code when absent.
+		#[arg(long)]
+		address: Option<String>,
 
 		/// Bluetooth adapter to use. Defaults to the system's first.
 		#[arg(long)]
@@ -103,8 +165,27 @@ fn main() -> Result<()> {
 async fn run(cli: Cli) -> Result<()> {
 	match cli.command {
 		Command::BoardId => board_id(),
+		Command::Probe => probe().await,
+		Command::NetworkApply {
+			document,
+			active,
+			hotspot,
+			station_channel,
+		} => {
+			network_apply(
+				&document,
+				&active,
+				hotspot.as_deref(),
+				station_channel.as_deref(),
+			)
+			.await
+		}
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
-		Command::Daemon { adapter } => daemon(&cli.cache, adapter.as_deref()).await,
+		Command::Daemon {
+			adapter,
+			network,
+			network_backend,
+		} => daemon(&cli.cache, &network, network_backend, adapter.as_deref()).await,
 		Command::Scan {
 			code,
 			seconds,
@@ -115,7 +196,158 @@ async fn run(cli: Cli) -> Result<()> {
 			address,
 			adapter,
 		} => connect(&code, address.as_deref(), adapter.as_deref()).await,
+		Command::Configure {
+			code,
+			address,
+			adapter,
+		} => configure(&code, address.as_deref(), adapter.as_deref()).await,
 	}
+}
+
+/// Report what the radios can do, and the capabilities a configuration session would state (NET).
+#[cfg(target_os = "linux")]
+async fn probe() -> Result<()> {
+	use network::{probe, wired};
+
+	let radios = probe::Nl80211::connect()?
+		.radios(&Default::default())
+		.await?;
+	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
+	let capabilities = probe::capabilities(&radios, &wired, &probe::Backend::stack());
+	for radio in &radios {
+		eprintln!("{radio:#?}");
+	}
+	println!("{}", serde_json::to_string_pretty(&capabilities)?);
+	Ok(())
+}
+
+/// Render `document` for the candidates named, and apply it with the running system's own stack.
+#[cfg(target_os = "linux")]
+async fn network_apply(
+	document: &std::path::Path,
+	active: &[String],
+	hotspot: Option<&str>,
+	station_channel: Option<&str>,
+) -> Result<()> {
+	use bliti_core::channel::config::Document;
+	use network::{apply, probe, render, wired};
+
+	let text = std::fs::read_to_string(document).context("reading the document")?;
+	let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text)?;
+	let document =
+		Document::parse(&raw).map_err(|e| anyhow::anyhow!("{} (at {})", e.reason, e.at))?;
+
+	let radios = probe::Nl80211::connect()?
+		.radios(&Default::default())
+		.await?;
+	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
+	let hardware = probe::render_hardware(&radios, &wired, render::Paths::system());
+	let selection = network_selection(&document, &hardware, active, hotspot, station_channel)?;
+
+	let rendered = render::render(&document, &hardware, &selection)?;
+	let changes = tokio::task::spawn_blocking(move || {
+		let mut system = apply::Linux::new()?;
+		apply::apply(
+			&rendered,
+			&hardware,
+			std::path::Path::new(apply::STATE),
+			&mut system,
+		)
+		.map_err(anyhow::Error::from)
+	})
+	.await??;
+	println!("{changes:#?}");
+	Ok(())
+}
+
+/// The selection `network-apply` is asked for.
+#[cfg(target_os = "linux")]
+fn network_selection(
+	document: &bliti_core::channel::config::Document,
+	hardware: &network::render::Hardware,
+	active: &[String],
+	hotspot: Option<&str>,
+	station_channel: Option<&str>,
+) -> Result<network::render::Selection> {
+	use bliti_core::channel::config::AttachmentKind;
+	use network::render;
+
+	let first = hardware.radios.first().map(|radio| radio.station.as_str());
+	let mut links = std::collections::BTreeMap::new();
+	for given in active {
+		let (index, on) = match given.split_once('@') {
+			Some((index, on)) => (index, Some(on)),
+			None => (given.as_str(), None),
+		};
+		let index: usize = index
+			.parse()
+			.with_context(|| format!("{given:?} is not a candidate"))?;
+		let attachment = document
+			.attachments
+			.get(index)
+			.with_context(|| format!("the document has no candidate {index}"))?;
+		let interface = match &attachment.kind {
+			AttachmentKind::WiredDynamic { interface }
+			| AttachmentKind::WiredStatic { interface, .. } => interface.as_str(),
+			AttachmentKind::Wireless(wireless) => on
+				.or(wireless.interface.as_deref())
+				.or(first)
+				.context("this device has no radio")?,
+		};
+		links.insert(interface.to_owned(), index);
+	}
+
+	let hotspot = document.hotspot.as_ref().and_then(|document| {
+		hotspot
+			.or(document.interface.as_deref())
+			.or_else(|| {
+				hardware
+					.radios
+					.iter()
+					.find(|radio| radio.access_point.is_some())
+					.map(|radio| radio.station.as_str())
+			})
+			.map(str::to_owned)
+	});
+	let mut channels = std::collections::BTreeMap::new();
+	if let Some(text) = station_channel {
+		let radio = hotspot.clone().context(
+			"a station channel is for the hotspot's radio, and nothing runs the hotspot",
+		)?;
+		let (band, number) = text.split_once(':').context("a channel is `band:number`")?;
+		let band = match band {
+			"2ghz" => render::Band::TwoPointFour,
+			"5ghz" => render::Band::Five,
+			other => anyhow::bail!("{other:?} is not a band"),
+		};
+		channels.insert(
+			radio,
+			render::Channel {
+				band,
+				number: number.parse()?,
+			},
+		);
+	}
+	Ok(render::Selection {
+		links,
+		hotspot,
+		channels,
+	})
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn network_apply(
+	_document: &std::path::Path,
+	_active: &[String],
+	_hotspot: Option<&str>,
+	_station_channel: Option<&str>,
+) -> Result<()> {
+	anyhow::bail!("applying a network configuration needs Linux")
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn probe() -> Result<()> {
+	anyhow::bail!("probing radios needs nl80211, which only Linux has")
 }
 
 /// Report what the board offers. Probes only: no source value is read, so this is safe and instant
@@ -160,8 +392,13 @@ fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-async fn daemon(cache: &std::path::Path, adapter: Option<&str>) -> Result<()> {
-	device::run(cache, adapter).await
+async fn daemon(
+	cache: &std::path::Path,
+	network: &std::path::Path,
+	backend: NetworkBackend,
+	adapter: Option<&str>,
+) -> Result<()> {
+	device::run(cache, network, backend, adapter).await
 }
 
 /// Read a QR code however it was given: the URL a code encodes, its fragment alone, or the
@@ -185,6 +422,21 @@ async fn connect(code: &str, address: Option<&str>, adapter: Option<&str>) -> Re
 	client::connect(address, payload.secret(), adapter).await
 }
 
+#[cfg(target_os = "linux")]
+async fn configure(code: &str, address: Option<&str>, adapter: Option<&str>) -> Result<()> {
+	let payload = read_qr(code)?;
+	let address = address
+		.map(str::parse::<bluer::Address>)
+		.transpose()
+		.context("reading the device address")?;
+	client::configure(address, payload.secret(), adapter).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn configure(_code: &str, _address: Option<&str>, _adapter: Option<&str>) -> Result<()> {
+	anyhow::bail!("configuring runs on Linux, against BlueZ")
+}
+
 #[cfg(not(target_os = "linux"))]
 async fn connect(_s: &str, _a: Option<&str>, _t: &str, _ad: Option<&str>) -> Result<()> {
 	anyhow::bail!("connecting runs on Linux, against BlueZ")
@@ -196,6 +448,11 @@ async fn scan(_code: &str, _seconds: u64, _adapter: Option<&str>) -> Result<()> 
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn daemon(_cache: &std::path::Path, _adapter: Option<&str>) -> Result<()> {
+async fn daemon(
+	_cache: &std::path::Path,
+	_network: &std::path::Path,
+	_backend: NetworkBackend,
+	_adapter: Option<&str>,
+) -> Result<()> {
 	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")
 }

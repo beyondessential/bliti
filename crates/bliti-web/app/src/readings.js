@@ -48,6 +48,9 @@ export const HEADER = ['hostname', 'board', 'board-revision', 'os', 'kernel']
 
 export const TILE_ORDER = [
 	'network-address',
+	'wireless-network',
+	'hotspot',
+	'hotspot-clients',
 	'cpu-usage',
 	'memory-usage',
 	'filesystem-usage',
@@ -59,6 +62,11 @@ export const TILE_ORDER = [
 	'battery-charge',
 	'last-boot',
 ]
+
+// Whether the network runs what was recorded or a proposal being tried. It marks the tiles below
+// rather than getting one of its own (VIEW).
+export const NETWORK_CONFIGURATION = 'network-configuration'
+export const PROVISIONAL_TILES = new Set(['network-address', 'wireless-network', 'hotspot', 'hotspot-clients'])
 
 // Entries rendered inside another's reveal rather than as a tile of their own.
 export const IN_REVEAL = new Set([
@@ -72,6 +80,9 @@ export const IN_REVEAL = new Set([
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
 const LABELS = {
 	'network-address': 'Address',
+	'wireless-network': 'Wireless',
+	hotspot: 'Hotspot',
+	'hotspot-clients': 'Hotspot clients',
 	'cpu-usage': 'Processor',
 	'memory-usage': 'Memory',
 	'filesystem-usage': 'Storage',
@@ -146,6 +157,8 @@ function formatQuantity(number, unit) {
 			return `${trim(number)} V`
 		case 'revolutions/minute':
 			return `${Math.round(number)} rpm`
+		case 'clients':
+			return number === 1 ? '1 client' : `${trim(number)} clients`
 		default:
 			return `${trim(number)} ${unit}`
 	}
@@ -212,18 +225,26 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status` and `limits` traits, and the members named here within the traits that hold them. A
-// battery's serial, model and vendor describe the cell; only its name says which battery it is.
-const DESCRIPTIVE = new Set(['status', 'limits'])
+// `status`, `limits`, `security` and `channel` traits, and the members named here within the traits
+// that hold them. A battery's serial, model and vendor describe the cell; only its name says which
+// battery it is. A wireless link's channel moves whenever a shared-channel hotspot follows the client
+// onto a new one, and that is the same link, not a second.
+const DESCRIPTIVE = new Set(['status', 'limits', 'security', 'channel'])
 const DESCRIPTIVE_MEMBERS = {
 	interface: new Set(['route', 'overlay']),
 	battery: new Set(['serial', 'model', 'vendor']),
 }
 
-/// The key a reading's history is held under: its name and its distinguishing traits, canonicalised
-/// so member order does not matter.
+// The entries NFO's catalogue lists as one entry per value held. Several are held at once with the
+// same name, kind and traits, as an interface holds an IPv4 address and more than one IPv6 address,
+// so the value is what tells them apart, and one that ends carries it.
+const TOLD_APART_BY_VALUE = new Set(['network-address'])
+
+/// The key a reading's history is held under: its name, kind and distinguishing traits, canonicalised
+/// so member order does not matter, and its value where that is what tells it apart (NFO).
 export function seriesKey(entry) {
-	return `${entry.name}\u001f${canonical(distinguishing(entry.traits))}`
+	const value = TOLD_APART_BY_VALUE.has(entry.name) ? canonical(entry.value) : ''
+	return `${entry.name}\u001f${entry.kind}\u001f${canonical(distinguishing(entry.traits))}\u001f${value}`
 }
 
 /// The identity of one entry instance for the tile grid: the same key, so two readings alike but for
@@ -282,6 +303,20 @@ export function pushHistory(history, entry) {
 	return next
 }
 
+/// Drop the history of an entry that has ended, along with its tile (VIEW).
+export function forgetHistory(history, entry) {
+	const key = seriesKey(entry)
+	if (!history.has(key)) return history
+	const next = new Map(history)
+	next.delete(key)
+	return next
+}
+
+/// Whether the device has said this entry no longer applies (NFO).
+export function isEnded(entry) {
+	return statusOf(entry) === 'ended'
+}
+
 /// How far back the graph keeps points. A graph fills forward from connection; no history is sent, so
 /// this is only the trimming of what accumulates (U1 carries bringing sent history back).
 export const WINDOW_MS = 5 * 60 * 1000
@@ -324,13 +359,57 @@ function round(value) {
 
 /// A trait value written for display: a string as-is, an object as its members joined. Used as the
 /// qualifier on an entry this build does not otherwise recognise (VIEW).
+/// The addresses the Address tile headlines: on the interface carrying the default route, or on any
+/// interface where none is named as carrying it, its first IPv4, else global IPv6, else unique local
+/// IPv6 address; and on an overlay interface, its first IPv4, else global IPv6 address. At most two,
+/// the default route's first (VIEW).
+export function headlineAddresses(addresses) {
+	const firstOf = (held, classes) => {
+		for (const wanted of classes) {
+			const found = held.find((entry) => addressClass(entry) === wanted)
+			if (found) return found
+		}
+		return null
+	}
+	const iface = (entry) => entry.traits?.interface ?? {}
+	const physical = addresses.filter((entry) => !iface(entry).overlay)
+	const routed = physical.filter((entry) => iface(entry).route === 'default')
+	// With no interface named as carrying the default route, the device is reached on whichever it has.
+	const onDefault = routed.length > 0 ? routed : physical
+	const onOverlay = addresses.filter((entry) => Boolean(iface(entry).overlay))
+	return [
+		firstOf(onDefault, ['ipv4', 'global', 'unique-local']),
+		firstOf(onOverlay, ['ipv4', 'global']),
+	].filter(Boolean)
+}
+
+/// Which of the classes the headline chooses among an address falls in: `ipv4`, `global` IPv6
+/// (2000::/3), `unique-local` IPv6 (fc00::/7), or `other`.
+function addressClass(entry) {
+	if (entry.kind === 'ipv4') return 'ipv4'
+	if (entry.kind !== 'ipv6') return 'other'
+	const first = parseInt(String(entry.value).split(':')[0] || '0', 16)
+	if (first >= 0x2000 && first <= 0x3fff) return 'global'
+	if ((first & 0xfe00) === 0xfc00) return 'unique-local'
+	return 'other'
+}
+
 export function qualifierOf(entry) {
 	const parts = []
 	for (const [name, value] of Object.entries(entry.traits ?? {})) {
 		if (DESCRIPTIVE.has(name)) continue
-		parts.push(traitText(value))
+		parts.push(traitText(name === 'interface' ? withoutEchoedOverlay(value) : value))
 	}
 	return parts.filter(Boolean).join(' · ')
+}
+
+/// An interface trait without its overlay where the interface's name already says it, as
+/// `tailscale0` says `tailscale`.
+function withoutEchoedOverlay(value) {
+	if (!value || typeof value !== 'object' || typeof value.overlay !== 'string') return value
+	if (!String(value.name ?? '').startsWith(value.overlay)) return value
+	const { overlay: _, ...rest } = value
+	return rest
 }
 
 function traitText(value) {

@@ -37,7 +37,7 @@ fn is_reportable_interface(name: &str) -> bool {
 /// The `interface` trait: its name, and the route and overlay that describe it. `route` is `default`
 /// on the interface carrying the default route; `overlay` names the overlay where it is one. Both are
 /// descriptive: they move without changing which interface is being measured (NFO).
-fn interface_trait(name: &str, route: Option<&str>) -> Json {
+pub(super) fn interface_trait(name: &str, route: Option<&str>) -> Json {
 	let mut object = serde_json::Map::new();
 	object.insert("name".to_owned(), Json::String(name.to_owned()));
 	if Some(name) == route {
@@ -86,15 +86,55 @@ fn by_interface() -> BTreeMap<String, Vec<IpAddr>> {
 	held
 }
 
-/// The interface carrying the default route, which is the one most likely to reach this device.
-fn default_route() -> Option<String> {
-	let raw = fs::read_to_string("/proc/net/route").ok()?;
-	raw.lines().skip(1).find_map(|line| {
-		let mut fields = line.split_whitespace();
-		let name = fields.next()?;
-		// A destination of all zeroes is the default route.
-		(fields.next()? == "00000000").then(|| name.to_owned())
-	})
+/// The interface carrying the default route, which is the one most likely to reach this device: the
+/// IPv4 default route's, else, on a network with none, the IPv6 default route's.
+pub(super) fn default_route() -> Option<String> {
+	let v4 = fs::read_to_string("/proc/net/route").ok();
+	let v6 = fs::read_to_string("/proc/net/ipv6_route").ok();
+	v4.as_deref()
+		.and_then(default_route_in)
+		.or_else(|| v6.as_deref().and_then(default_ipv6_route_in))
+}
+
+/// The interface of the IPv6 default route with the lowest metric in a `/proc/net/ipv6_route` table,
+/// leaving out the kernel's own unreachable defaults on `lo`.
+fn default_ipv6_route_in(table: &str) -> Option<String> {
+	/// `RTF_UP` and `RTF_REJECT`, in the flags field.
+	const UP: u32 = 0x0001;
+	const REJECT: u32 = 0x0200;
+	table
+		.lines()
+		.filter_map(|line| {
+			let fields: Vec<&str> = line.split_whitespace().collect();
+			let [destination, length, _, _, _, metric, _, _, flags, name] = fields[..] else {
+				return None;
+			};
+			let flags = u32::from_str_radix(flags, 16).ok()?;
+			let default = destination.bytes().all(|b| b == b'0') && length == "00";
+			(default && flags & UP != 0 && flags & REJECT == 0 && name != "lo")
+				.then(|| Some((u32::from_str_radix(metric, 16).ok()?, name)))
+				.flatten()
+		})
+		.min_by_key(|(metric, _)| *metric)
+		.map(|(_, name)| name.to_owned())
+}
+
+/// The interface of the default route with the lowest metric in a `/proc/net/route` table. A device
+/// holding candidates up on several interfaces has a default route on each, and the lowest metric is
+/// the one traffic takes (LINK).
+fn default_route_in(table: &str) -> Option<String> {
+	table
+		.lines()
+		.skip(1)
+		.filter_map(|line| {
+			let fields: Vec<&str> = line.split_whitespace().collect();
+			// A destination of all zeroes is a default route; the metric is the seventh field.
+			(fields.get(1) == Some(&"00000000"))
+				.then(|| Some((fields.get(6)?.parse::<u32>().ok()?, fields[0])))
+				.flatten()
+		})
+		.min_by_key(|(metric, _)| *metric)
+		.map(|(_, name)| name.to_owned())
 }
 
 /// Throughput as one reading per interface and direction, never aggregated (NFO).
@@ -217,6 +257,35 @@ mod tests {
 	#[test]
 	fn loopback_is_never_reported() {
 		assert!(!is_reportable_interface("lo"));
+	}
+
+	#[test]
+	fn the_default_route_is_the_one_with_the_lowest_metric() {
+		let table = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
+			wlan0\t00000000\t0164000A\t0003\t0\t0\t101\t00000000\t0\t0\t0\n\
+			end0\t00000000\t0164000A\t0003\t0\t0\t100\t00000000\t0\t0\t0\n\
+			end0\t0064000A\t00000000\t0001\t0\t0\t100\t00FEFFFF\t0\t0\t0\n";
+		assert_eq!(default_route_in(table).as_deref(), Some("end0"));
+		assert_eq!(default_route_in("Iface\tDestination\n"), None);
+	}
+
+	/// A network with no IPv4 route still names the interface its IPv6 default route is on.
+	#[test]
+	fn the_ipv6_default_route_is_the_one_with_the_lowest_metric() {
+		let zero = "00000000000000000000000000000000";
+		let table = format!(
+			"{zero} 00 {zero} 00 {zero} ffffffff 00000001 00000000 00200200       lo\n\
+			 {zero} 00 {zero} 00 fe800000000000004a8f5afffea363c9 00000065 00000005 00000000 00400003    wlan0\n\
+			 {zero} 00 {zero} 00 fe800000000000004a8f5afffea363c9 00000064 00000005 00000000 00400003     end0\n\
+			 fe800000000000000000000000000000 40 {zero} 00 {zero} 00000100 00000001 00000000 00000001     end0\n"
+		);
+		assert_eq!(default_ipv6_route_in(&table).as_deref(), Some("end0"));
+		assert_eq!(
+			default_ipv6_route_in(&format!(
+				"{zero} 00 {zero} 00 {zero} ffffffff 00000001 00000000 00200200       lo\n"
+			)),
+			None
+		);
 	}
 
 	#[test]

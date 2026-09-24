@@ -6,38 +6,15 @@
 // same one the prototype drew.
 //
 // The interface below is also the seam the test harness fakes at: a fake client feeds the interface
-// decoded messages with no wasm and no Bluetooth in the loop, which is what lets the view and the
+// decoded messages with no channel and no Bluetooth in the loop, which is what lets the view and the
 // subscription lifecycle be tested without pretending to be a Bluetooth stack.
 
-import init, {
-	Channel,
-	QrCode,
-	client_tx_uuid,
-	device_tx_uuid,
-	service_uuid,
-	start,
-} from './wasm/bliti_web.js'
-import wasmUrl from './wasm/bliti_web_bg.wasm?url'
+import { Channel, QrCode, client_tx_uuid, device_tx_uuid, service_uuid } from './wasm/bliti_web.js'
+import { loadProtocol as protocol } from './protocol.js'
 
 /// What this client calls itself to a device. Opaque to the device, which logs it (BLI-MSG).
 export const CLIENT_NAME = 'bliti-web'
 export const CLIENT_VERSION = __APP_VERSION__
-
-let loaded
-async function protocol() {
-	// The failure is not cached along with the success: a wasm fetch that fails once, on a flaky
-	// network before the service worker has cached it, would otherwise leave every later call
-	// rethrowing the same stale error with no way back short of a reload.
-	loaded ??= init({ module_or_path: wasmUrl })
-		.then(() => {
-			start()
-		})
-		.catch((error) => {
-			loaded = undefined
-			throw error
-		})
-	await loaded
-}
 
 export function createClient() {
 	let device = null
@@ -182,6 +159,44 @@ export function createClient() {
 			// The page may have been hidden while the subscribe was in flight; close it if so.
 			if (cancelled) wrapped.close()
 			else feed = wrapped
+		},
+
+		// Open a configuration session (BLI-CFG): one stream carrying the configuration in force, each
+		// proposal, what became of it, and the confirmation. Every message the device sends on it
+		// reaches onEvent as a feed's messages do; onClosed is called once the stream ends. Closing the
+		// returned session ends it, which the device reads as abandoning whatever was not confirmed.
+		async configure({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('configure')
+			const handle = await channel.configure(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			const sending = (text, send) => {
+				if (closed) throw new Error('The configuration session has ended.')
+				say(text)
+				send()
+			}
+			return {
+				propose: (document) => sending('configuration  document', () => handle.propose(document)),
+				confirm: () => sending('confirm', () => handle.confirm()),
+				discard: () => sending('discard', () => handle.discard()),
+				scan: (iface) => sending(iface ? `scan  interface ${iface}` : 'scan', () => handle.scan(iface)),
+				survey: (iface) => sending(iface ? `survey  interface ${iface}` : 'survey', () => handle.survey(iface)),
+				wps: (method, iface, ssid) =>
+					sending(`wps  method ${method}${iface ? `  interface ${iface}` : ''}${ssid ? `  ssid ${ssid}` : ''}`, () =>
+						handle.wps(method, iface, ssid),
+					),
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the configuration session')
+					handle.close()
+					handle.free()
+				},
+			}
 		},
 
 		disconnect() {

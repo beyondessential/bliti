@@ -5,11 +5,13 @@
 // renders bespoke, in the order and wording it prefers; what it does not it renders generically, from
 // the entry's own name, kind and traits, appended after everything recognised (VIEW).
 
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 import {
 	HEADER,
 	IN_REVEAL,
+	NETWORK_CONFIGURATION,
+	PROVISIONAL_TILES,
 	TILE_ORDER,
 	formatValue,
 	hasValue,
@@ -18,13 +20,18 @@ import {
 	numberOf,
 	polyline,
 	qualifierOf,
+	headlineAddresses,
 	reasonOf,
 	scaleOf,
 	seriesKey,
 	statusOf,
 } from './readings.js'
+import { channelText, securityName } from './wireless.js'
 
-export default function Readings({ entries, history }) {
+// Set around the network tiles while the device is trying settings it has not recorded (VIEW).
+const Provisional = createContext(false)
+
+export default function Readings({ entries, history, showProvisional = true }) {
 	if (entries.length === 0) {
 		return <p className="muted">Nothing reported yet.</p>
 	}
@@ -36,23 +43,38 @@ export default function Readings({ entries, history }) {
 	}
 	const single = (name) => byName.get(name)?.[0]
 
+	const provisional = single(NETWORK_CONFIGURATION)?.value === 'provisional'
+
 	// The recognised tiles, in our fixed order, skipping any the device did not send.
 	const tiles = []
 	for (const name of TILE_ORDER) {
 		if (!byName.has(name)) continue
-		tiles.push(renderTile(name, byName, history))
+		const tile = renderTile(name, byName, history)
+		tiles.push(
+			provisional && PROVISIONAL_TILES.has(name) ? (
+				<Provisional.Provider key={name} value={true}>
+					{tile}
+				</Provisional.Provider>
+			) : (
+				tile
+			),
+		)
 	}
 
 	// Everything else it does not recognise, appended after the recognised. Header facts and
-	// in-reveal entries are not tiles of their own.
+	// in-reveal entries are not tiles of their own, and nor is the network configuration.
 	for (const [name, group] of byName) {
 		if (HEADER.includes(name) || TILE_ORDER.includes(name) || IN_REVEAL.has(name)) continue
+		if (name === NETWORK_CONFIGURATION) continue
 		tiles.push(<GenericTile key={name} label={labelOf(name)} entries={group} history={history} />)
 	}
 
 	return (
 		<>
 			<Header single={single} />
+			{provisional && showProvisional && (
+				<p className="notice">Trying new network settings. They revert unless confirmed.</p>
+			)}
 			<div className="tiles">{tiles}</div>
 		</>
 	)
@@ -102,6 +124,9 @@ function renderTile(name, byName, history) {
 			return <NetworkTile key={name} throughputs={group} history={history} />
 		case 'temperature':
 			return <TemperatureTile key={name} sensors={group} history={history} />
+		case 'wireless-network':
+		case 'hotspot':
+			return <LinkTile key={name} entry={group[0]} />
 		case 'memory-usage':
 			return (
 				<SimpleTile
@@ -140,10 +165,14 @@ function renderTile(name, byName, history) {
 // tapping, and an opened tile takes the whole row. A tile with nothing to reveal is not a tap target.
 function Tile({ label, wide, more, tone, children, face }) {
 	const [open, setOpen] = useState(false)
-	const className = `tile${wide || open ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
+	const provisional = useContext(Provisional)
+	const className = `tile${wide || open ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}${provisional ? ' provisional' : ''}`
 	const body = (
 		<>
-			<div className="label">{label}</div>
+			<div className="label">
+				{label}
+				{provisional && <span className="trial">trial</span>}
+			</div>
 			<div className={`value${tone ? ` ${tone}` : ''}`}>{face}</div>
 			{open && <div className="detail">{children}</div>}
 		</>
@@ -295,13 +324,10 @@ function BatteryTile({ charges, voltages, directions, history }) {
 	)
 }
 
-/// Address: headline the default-route address together with the overlay address, and both where an
-/// interface holds a v4 and a v6; show every address in the reveal (VIEW).
+/// Address: headline one address for the default route and one for the overlay, each on a line of its
+/// own and without its interface; show every address in the reveal, with its interface (VIEW).
 function AddressTile({ addresses }) {
-	const isDefault = (entry) => entry.traits?.interface?.route === 'default'
-	const isOverlay = (entry) => Boolean(entry.traits?.interface?.overlay)
-	const headlined = addresses.filter((entry) => isDefault(entry) || isOverlay(entry))
-	const shown = headlined.length > 0 ? headlined : addresses.slice(0, 1)
+	const shown = headlineAddresses(addresses)
 
 	return (
 		<Tile
@@ -309,11 +335,9 @@ function AddressTile({ addresses }) {
 			wide
 			more={addresses.length > shown.length}
 			face={
-				<span className="small">
+				<span className="addresses">
 					{shown.map((entry) => (
-						<span key={interfaceName(entry) + entry.value}>
-							<span className="part">{qualifierOf(entry)}</span> {String(entry.value)}
-						</span>
+						<span key={interfaceName(entry) + entry.value}>{String(entry.value)}</span>
 					))}
 				</span>
 			}
@@ -332,6 +356,26 @@ function AddressTile({ addresses }) {
 function interfaceName(entry) {
 	const iface = entry.traits?.interface
 	return typeof iface === 'object' ? (iface?.name ?? '') : String(iface ?? '')
+}
+
+/// A wireless network joined, or the hotspot run: headline the SSID, and reveal how it is secured and
+/// the channel it is on. Both traits are descriptive, so a channel that moves changes this tile rather
+/// than adding another (NFO, VIEW).
+function LinkTile({ entry }) {
+	const security = entry.traits?.security
+	const channel = entry.traits?.channel
+	const more = Boolean(reasonOf(entry) || security || channel)
+	return (
+		<Tile label={labelOf(entry.name)} wide={isLong(headline(entry))} more={more} tone={tone(entry)} face={headline(entry)}>
+			<Reveal entry={entry} scale={null} series={null} />
+			<div className="revealed">
+				<dl>
+					{security && <Line label="Security" value={securityName(security)} />}
+					{channel && <Line label="Channel" value={channelText(channel)} />}
+				</dl>
+			</div>
+		</Tile>
+	)
 }
 
 /// Storage: headline the fullest filesystem that is not a boot partition, and show each filesystem in

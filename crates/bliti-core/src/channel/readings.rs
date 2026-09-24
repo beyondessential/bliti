@@ -38,6 +38,10 @@ pub const STATUS: &str = "status";
 /// The `limits` trait: marks on a reading's scale.
 pub const LIMITS: &str = "limits";
 
+/// The entries NFO's catalogue lists as one entry per value held, which are told apart by their value
+/// as well as by their name, kind and distinguishing traits.
+pub const TOLD_APART_BY_VALUE: &[&str] = &["network-address"];
+
 /// One fact or reading. One shape; the message type says which catalogue names it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
@@ -70,6 +74,8 @@ pub enum Status {
 	Skipped,
 	/// The measurement was attempted and errored.
 	Broken,
+	/// The entry no longer applies, and a reader drops it.
+	Ended,
 }
 
 impl Status {
@@ -81,6 +87,7 @@ impl Status {
 			Self::Failed => "failed",
 			Self::Skipped => "skipped",
 			Self::Broken => "broken",
+			Self::Ended => "ended",
 		}
 	}
 
@@ -223,8 +230,26 @@ impl Entry {
 		entry
 	}
 
+	/// This entry, sent once more to say it no longer applies: everything that told it apart, so a
+	/// reader knows which entry it drops, and the reason it ended. Only an entry told apart by its
+	/// value keeps the value, as the one that no longer holds (NFO).
+	pub fn ended(&self, at: u64, reason: impl Into<String>) -> Self {
+		let mut entry = self.clone();
+		entry.at = at;
+		entry.set_status(Status::Ended, Some(reason.into()));
+		if self.told_apart_by_value() {
+			entry.value = self.value.clone();
+		}
+		entry
+	}
+
+	/// Whether this entry is told apart by its value, being one of several held at once (NFO).
+	pub fn told_apart_by_value(&self) -> bool {
+		TOLD_APART_BY_VALUE.contains(&self.name.as_str())
+	}
+
 	/// Set the `status` trait, tying value presence to it: present for `passed`, `warning` and
-	/// `failed`, absent for `skipped` and `broken` (NFO).
+	/// `failed`, absent for `skipped`, `broken` and `ended` (NFO).
 	fn set_status(&mut self, status: Status, reason: Option<String>) {
 		let mut object = Map::new();
 		object.insert("is".to_owned(), Json::String(status.as_str().to_owned()));
@@ -326,6 +351,19 @@ mod tests {
 		assert_eq!(entry.value, Some(json_number(0.1234)));
 	}
 
+	/// An address that goes keeps its value, the only thing telling it from the interface's others,
+	/// and any other entry that ends loses its value.
+	#[test]
+	fn an_ended_entry_keeps_its_value_only_where_the_value_tells_it_apart() {
+		let address = Entry::address(1, "network-address", kind::IPV6, "fd00::1".to_owned());
+		let ended = address.ended(2, "no longer applies");
+		assert_eq!(ended.status(), Some("ended"));
+		assert_eq!(ended.value, Some(Json::String("fd00::1".into())));
+
+		let hotspot = Entry::text(1, "hotspot", "bliti");
+		assert_eq!(hotspot.ended(2, "no longer applies").value, None);
+	}
+
 	#[test]
 	fn a_numeric_value_is_rounded_to_four_places() {
 		let entry = Entry::fraction(1, "cpu-usage", 0.123_456_789);
@@ -366,6 +404,18 @@ mod tests {
 		);
 		assert_eq!(broken.status(), Some("broken"));
 		assert!(broken.value.is_none());
+	}
+
+	#[test]
+	fn an_ended_entry_keeps_its_traits_and_drops_its_value() {
+		let running = Entry::new(1, "hotspot", "text", serde_json::json!("clinic"))
+			.with_trait("channel", serde_json::json!({"number": 6}));
+		let ended = running.ended(2, "the hotspot stopped");
+		assert_eq!(ended.status(), Some("ended"));
+		assert_eq!(ended.reason(), Some("the hotspot stopped"));
+		assert_eq!(ended.value, None);
+		assert_eq!(ended.at, 2);
+		assert_eq!(ended.traits.get("channel"), running.traits.get("channel"));
 	}
 
 	#[test]

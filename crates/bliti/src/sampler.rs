@@ -57,8 +57,10 @@ pub struct Sampler {
 impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
-	pub fn start() -> Self {
-		Self::start_with(Box::new(Facts::new()))
+	///
+	/// `wireless` is what the network backend joined and runs, where it configures the network.
+	pub fn start(wireless: Option<crate::network::stack::Report>) -> Self {
+		Self::start_with(Box::new(Facts::new(wireless)))
 	}
 
 	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
@@ -148,18 +150,32 @@ impl Sampler {
 			.await
 			.expect("the sampling task neither panics nor is cancelled");
 			source = returned;
-			if readings.is_empty() {
-				continue;
-			}
+			let mut readings = readings;
 
 			{
 				let mut current = self
 					.current
 					.lock()
 					.expect("the snapshot is never held across a panic");
+				// A slow tick takes every reading, so what it does not take is no longer there, as a
+				// hotspot that has stopped is not, and is sent once more as ended (NFO).
+				let before = if slow {
+					std::mem::take(&mut *current)
+				} else {
+					HashMap::new()
+				};
 				for reading in &readings {
 					current.insert(identity_key(reading), reading.clone());
 				}
+				let at = Facts::since_boot();
+				for (key, gone) in before {
+					if !current.contains_key(&key) {
+						readings.push(gone.ended(at, ENDED));
+					}
+				}
+			}
+			if readings.is_empty() {
+				continue;
 			}
 
 			// Nobody subscribed is the ordinary case, not a failure.
@@ -175,15 +191,46 @@ impl Sampler {
 	}
 }
 
-/// A stable identity for one reading instance: its name and its distinguishing traits, leaving out
-/// the descriptive `status` and `limits` that change while the thing measured stays the same. This is
-/// only the device's own snapshot key; how a reader groups readings is its own business (NFO).
-fn identity_key(entry: &Entry) -> String {
+/// The traits NFO makes wholly descriptive, and the members of others that describe.
+const DESCRIPTIVE: [&str; 4] = [STATUS, LIMITS, "security", "channel"];
+const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
+	("interface", &["route", "overlay"]),
+	("battery", &["serial", "model", "vendor"]),
+];
+
+/// The reason an entry that has ended gives. What stopped it is not known this far from it.
+pub(crate) const ENDED: &str = "no longer applies";
+
+/// A stable identity for one reading instance: its name, kind and distinguishing traits, leaving out
+/// the descriptive ones that change while the thing measured stays the same, as a hotspot's channel
+/// does when it follows its station, and its value where that is what tells it apart, as for the
+/// addresses an interface holds. This is only the device's own snapshot key; how a reader groups
+/// readings is its own business (NFO).
+pub(crate) fn identity_key(entry: &Entry) -> String {
 	let mut traits = entry.traits.clone();
-	traits.remove(STATUS);
-	traits.remove(LIMITS);
+	for name in DESCRIPTIVE {
+		traits.remove(name);
+	}
+	for (name, members) in DESCRIPTIVE_MEMBERS {
+		if let Some(serde_json::Value::Object(object)) = traits.get_mut(name) {
+			for member in members {
+				object.remove(*member);
+			}
+		}
+	}
+	let value = entry
+		.value
+		.as_ref()
+		.filter(|_| entry.told_apart_by_value())
+		.map(ToString::to_string)
+		.unwrap_or_default();
 	// serde_json sorts object keys, so member order does not change the key.
-	format!("{}\u{1f}{}", entry.name, serde_json::Value::Object(traits))
+	format!(
+		"{}\u{1f}{}\u{1f}{}\u{1f}{value}",
+		entry.name,
+		entry.kind,
+		serde_json::Value::Object(traits)
+	)
 }
 
 /// Holds sampling open for as long as a session lasts.
@@ -324,11 +371,28 @@ mod tests {
 			.with_trait("direction", serde_json::Value::String("in".to_owned()))
 			.warning("busy");
 		assert_eq!(identity_key(&a), identity_key(&later));
+
+		// Nor do descriptive traits and members: a network on a new channel, an interface taking the
+		// default route.
+		let joined = |channel: u32, route: bool| {
+			let mut interface = json!({ "name": "wld0" });
+			if route {
+				interface["route"] = json!("default");
+			}
+			Entry::text(1, "wireless-network", "clinic")
+				.with_trait("interface", interface)
+				.with_trait("security", json!("psk"))
+				.with_trait("channel", json!({ "number": channel, "band": "2ghz" }))
+		};
+		assert_eq!(
+			identity_key(&joined(1, false)),
+			identity_key(&joined(11, true))
+		);
 	}
 
 	#[tokio::test(start_paused = true)]
 	async fn a_subscriber_receives_readings_as_they_are_taken() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		let mut live = sampler.live();
 
@@ -341,7 +405,7 @@ mod tests {
 	/// set at once.
 	#[tokio::test(start_paused = true)]
 	async fn the_snapshot_merges_across_fast_and_slow_ticks() {
-		let sampler = Sampler::start();
+		let sampler = Sampler::start(None);
 		let _session = sampler.session();
 		tokio::time::sleep(FAST * 7).await;
 
@@ -350,5 +414,122 @@ mod tests {
 		// pass in virtual time, so the kernel's jiffy counters need not have advanced, and processor
 		// use correctly reports nothing when they have not.
 		assert!(names.iter().any(|n| n == "memory-usage"), "{names:?}");
+	}
+
+	/// A source reporting a hotspot for its first slow tick and not after.
+	struct Stopping {
+		slow_ticks: u32,
+	}
+
+	impl Source for Stopping {
+		fn gather(&mut self, slow: bool) -> Vec<Entry> {
+			let mut readings = vec![Entry::quantity(1, "memory-usage", "fraction", 0.5)];
+			if slow {
+				self.slow_ticks += 1;
+				if self.slow_ticks == 1 {
+					readings.push(Entry::text(1, "hotspot", "bliti"));
+				}
+			}
+			readings
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// What stops being there leaves the snapshot at the next slow tick (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn the_snapshot_forgets_what_a_slow_tick_no_longer_takes() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let names = |sampler: &Sampler| -> Vec<String> {
+			sampler.current().iter().map(|e| e.name.clone()).collect()
+		};
+		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
+		assert!(names(&sampler).contains(&"hotspot".to_owned()));
+		tokio::time::sleep(FAST * SLOW_EVERY).await;
+		assert_eq!(names(&sampler), ["memory-usage"]);
+	}
+
+	/// A reader holding what stopped is told, since leaving it out says nothing (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn what_a_slow_tick_no_longer_takes_is_sent_as_ended() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let mut live = sampler.live();
+		tokio::time::sleep(FAST * (SLOW_EVERY * 2 + 1)).await;
+
+		let mut sent = Vec::new();
+		while let Ok(readings) = live.try_recv() {
+			sent.extend(readings);
+		}
+		let hotspot: Vec<_> = sent.iter().filter(|e| e.name == "hotspot").collect();
+		assert_eq!(hotspot.len(), 2, "{hotspot:?}");
+		assert_eq!(hotspot[0].status(), Some("passed"));
+		assert_eq!(hotspot[1].status(), Some("ended"));
+		assert_eq!(hotspot[1].value, None);
+		assert!(
+			sent.iter()
+				.filter(|e| e.name == "memory-usage")
+				.all(|e| e.status() != Some("ended"))
+		);
+	}
+
+	/// An interface holding an IPv4 and two IPv6 addresses, which loses one IPv6 after the first slow
+	/// tick.
+	struct Addresses {
+		slow_ticks: u32,
+	}
+
+	impl Source for Addresses {
+		fn gather(&mut self, slow: bool) -> Vec<Entry> {
+			if !slow {
+				return Vec::new();
+			}
+			self.slow_ticks += 1;
+			let address = |kind: &str, ip: &str| {
+				Entry::address(1, "network-address", kind, ip.to_owned())
+					.with_trait("interface", serde_json::json!({"name": "end0"}))
+			};
+			let mut held = vec![
+				address(bliti_core::channel::readings::kind::IPV4, "10.0.101.3"),
+				address(bliti_core::channel::readings::kind::IPV6, "fd6d::3"),
+			];
+			if self.slow_ticks == 1 {
+				held.push(address(
+					bliti_core::channel::readings::kind::IPV6,
+					"2407:8b00::3",
+				));
+			}
+			held
+		}
+
+		fn reset(&mut self) {}
+	}
+
+	/// Found on the prototype: an interface's addresses shared one key, so they collapsed into one,
+	/// and an address going was never sent as ended (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn each_address_is_its_own_entry_and_one_that_goes_is_sent_as_ended() {
+		let sampler = Sampler::start_with(Box::new(Addresses { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let mut live = sampler.live();
+		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
+		assert_eq!(sampler.current().len(), 3, "{:?}", sampler.current());
+
+		tokio::time::sleep(FAST * SLOW_EVERY).await;
+		let mut sent = Vec::new();
+		while let Ok(readings) = live.try_recv() {
+			sent.extend(readings);
+		}
+		let ended: Vec<_> = sent
+			.iter()
+			.filter(|e| e.status() == Some("ended"))
+			.collect();
+		assert_eq!(ended.len(), 1, "{ended:?}");
+		assert_eq!(
+			ended[0].value,
+			Some(serde_json::Value::String("2407:8b00::3".into()))
+		);
+		assert_eq!(sampler.current().len(), 2);
 	}
 }

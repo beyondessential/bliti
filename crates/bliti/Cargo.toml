@@ -29,11 +29,13 @@ vendored-dbus = ["dbus/vendored"]
 
 [dependencies]
 anyhow = "1.0.104"
+blake3 = { version = "1.8.7", default-features = false }
 bliti-core = { version = "0.0.0", path = "../bliti-core" }
 clap = { workspace = true }
 futures = { workspace = true }
 hex = "0.4.3"
 if-addrs = "0.15.0"
+ipnet = "2.12.2"
 jiff = { version = "0.2.37", default-features = false, features = ["std"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 rand = { workspace = true }
@@ -41,15 +43,27 @@ rustix = { version = "1.1.5", default-features = false, features = ["fs"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
-# Not used directly; depended on so the vendored-dbus feature can reach bluer's copy.
-dbus = { version = "0.9.12", default-features = false }
+# Also bluer's, which is what lets the vendored-dbus feature reach it. Used directly by the network
+# applier, for systemd and networkd, and by the network backend for iwd, asynchronously.
+dbus = { version = "0.9.12", default-features = false, features = ["futures"] }
+# iwd over the system bus, on the tokio runtime: association, range, scanning and WPS.
+dbus-tokio = "0.7.6"
+# sockaddr_ll, for the ARP probe of a link's IPv4 gateway.
+libc = "0.2.189"
+# rtnetlink: carrier, addresses and default routes, as they change.
+netlink-packet-route = "0.33.0"
+rtnetlink = "0.23.0"
+# The raw sockets the gateway probe sends ARP and ICMPv6 echo on.
+socket2 = { version = "0.6.5", features = ["all"] }
+# nl80211: what each radio can do, and the regulatory domain and hotspot interface the applier sets.
+wl-nl80211 = "0.7.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

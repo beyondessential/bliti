@@ -37,7 +37,7 @@ The security properties this upholds, and their limits, are specified in [SEC](s
 
 ## Send rate
 
-A device MUST NOT put more than 40 KiB of notification payload on the air in any one-second window.
+A device MUST NOT put more than 40 KiB of notification payload on the air in any one-second window, across all its channels.
 
 A device that reaches the ceiling MUST hold the remainder until the window allows it, and MUST NOT discard it.
 
@@ -69,6 +69,15 @@ A Noise message is at most 65535 bytes, including its 16-byte authentication tag
 > [!NOTE]
 > A two-byte prefix expresses exactly the range a Noise message can occupy, so a receiver cannot be asked to buffer more than the maximum and needs no rule refusing one.
 > The prefix is also what lets a message exceed the negotiated ATT_MTU.
+
+## Several clients at once
+
+A device MUST serve a channel to each client connected to it, each independently of the others.
+What a client writes MUST reach only that client's channel, and what the device sends on a channel MUST reach only that channel's client.
+A client connecting, failing its handshake, or leaving MUST NOT end or disturb another client's channel.
+
+> [!NOTE]
+> Any number of operators can watch one device at once. Configuring it is exclusive, as [CFG](network/session.md) specifies.
 
 ## The device is a peripheral only
 
@@ -121,6 +130,9 @@ The streams above carry application messages, as specified in [MSG](messages.md)
 
 A client MUST report a channel that has closed, and SHOULD offer to open it again.
 
+A device MUST, as it starts, end every connection made to it before it started, since it holds a channel for none of them.
+
 > [!NOTE]
 > A channel closes with nothing having gone wrong, when the operator walks out of range or the device restarts, as readily as it closes on a fault.
 > An operator is served by knowing the view has stopped either way, and by a way back to it short of reading the code again.
+> A connection can outlive the device's own restart, and a client holding one would otherwise wait on a channel nothing answers, with no sign that it has gone.

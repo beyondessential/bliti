@@ -21,3 +21,12 @@ A subscription is a request to be sent something, and an end that acted on one w
 had not read would send something other than what was asked for. Marking the selector critical is \
 what says so on the wire (MSG).
 """
+
+[[critical]]
+message = "configuration"
+member = "document"
+reason = """
+A configuration message carries the whole network configuration, and a device acting on a partial \
+reading of one would apply something other than what was asked for. Marking the document critical \
+is what says an end which cannot read it must not act on the message carrying it (CFG).
+"""

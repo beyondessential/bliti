@@ -7,10 +7,11 @@
 //! As soon as the handshake completes the device opens two streams unprompted (MSG): a hello stream
 //! naming itself, and a feed serving the `default` topic. A client declines the feed by closing it,
 //! and resumes with a `subscribe` for `default`. A topic is served on at most one stream, so a
-//! `subscribe` for one already being served is skipped. It never answers a message on the wire: one
-//! it does not recognise is passed over, one carrying something critical it does not know is refused,
-//! one it knows but has nothing to do about is a no-op, and one that breaks the protocol closes the
-//! stream it arrived on.
+//! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
+//! handed to the configuration session of [`crate::network::session`]. Beyond that it never answers a
+//! message on the wire: one it does not recognise is passed over, one carrying something critical it
+//! does not know is refused, one it knows but has nothing to do about is a no-op, and one that breaks
+//! the protocol closes the stream it arrived on.
 
 use std::{
 	collections::HashSet,
@@ -30,8 +31,17 @@ use bliti_core::{
 	key_schedule::PresenceToken,
 };
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::task::{AbortHandle, JoinSet};
+use tracing::Instrument;
 
-use crate::{facts, sampler::Sampler};
+use crate::{
+	facts,
+	network::{
+		self,
+		session::{Backend, Configurator},
+	},
+	sampler::{ENDED, Sampler, identity_key},
+};
 
 /// How often to look for a change in the facts the device reports about itself.
 const FACTS_POLL: Duration = Duration::from_secs(2);
@@ -42,9 +52,10 @@ const DEFAULT_TOPIC: &str = "default";
 /// What the device calls itself to a client, and the version it is at.
 ///
 /// Both are opaque to the client, which displays them and never acts on them (MSG). They are the
-/// package's own name and version, so a device reports what was actually built and installed.
+/// package's own name and version, so a device reports what was actually built and installed. A
+/// development build's version carries the build it names itself as (see `build.rs`).
 const DEVICE_NAME: &str = env!("CARGO_PKG_NAME");
-const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DEVICE_VERSION: &str = env!("BLITI_VERSION");
 
 /// How long a deliberate teardown waits for the connection to close before dropping it.
 const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
@@ -54,13 +65,15 @@ const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
 type Served = Arc<Mutex<HashSet<String>>>;
 
 /// Run a session to completion over a transport, as the device.
-pub async fn run<S>(
+pub async fn run<S, B>(
 	transport: S,
 	secret: &PresenceToken,
 	sampler: Sampler,
+	configurator: Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+	B: Backend,
 {
 	let encrypted = accept_responder(transport, secret)
 		.await
@@ -68,21 +81,27 @@ where
 	tracing::info!("handshake complete");
 
 	let (mut streams, driver) = multiplex(encrypted, Mode::Server);
-	let mut driving = tokio::spawn(async move {
-		if let Err(err) = driver.await {
-			if is_peer_fault(&err) {
-				tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
-			} else {
-				tracing::debug!(%err, "connection closed");
+	let mut driving = tokio::spawn(
+		async move {
+			if let Err(err) = driver.await {
+				if is_peer_fault(&err) {
+					tracing::warn!(%err, "the peer is not speaking the protocol; closing the connection");
+				} else {
+					tracing::debug!(%err, "connection closed");
+				}
 			}
 		}
-	});
+		.in_current_span(),
+	);
+	// A session can be dropped from outside, as the daemon does when its client unsubscribes, and the
+	// connection must end with it rather than keep serving streams nobody reads.
+	let _driving = AbortOnDrop(driving.abort_handle());
 
 	// Holds sampling open for as long as this session lasts, so a device that had gone quiet starts
 	// sampling again the moment somebody connects (NFO).
 	let _session = sampler.session();
 
-	let result = converse(&mut streams, &sampler).await;
+	let result = converse(&mut streams, &sampler, &configurator).await;
 
 	// Hand the connection to the driver to close rather than abort it, so the client reads the clean
 	// ending this is. Bounded, because a client already out of range never takes the closing frames.
@@ -99,8 +118,15 @@ where
 
 /// The device's half of the conversation: name itself and push the `default` feed, both unprompted,
 /// and serve whatever streams the client opens.
-async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), SessionError> {
+async fn converse<B: Backend>(
+	streams: &mut Streams,
+	sampler: &Sampler,
+	configurator: &Configurator<B>,
+) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
+	// Every stream this session serves, so that dropping the session ends them all. A configuration
+	// session left running would keep the device's one session busy and its proposal applied (CFG).
+	let mut tasks = JoinSet::new();
 
 	// The device names itself on a stream of its own, so declining the feed does not cost the client
 	// the device's identity and version (MSG).
@@ -124,38 +150,63 @@ async fn converse(streams: &mut Streams, sampler: &Sampler) -> Result<(), Sessio
 	{
 		let sampler = sampler.clone();
 		let served = served.clone();
-		tokio::spawn(async move {
-			let mut feed = feed;
-			if let Err(err) = serve_default(&mut feed, &sampler, &served).await {
-				tracing::debug!(%err, "the pushed feed ended");
+		let configurator = configurator.clone();
+		tasks.spawn(
+			async move {
+				let mut feed = feed;
+				if let Err(err) = serve_default(&mut feed, &sampler, &served, &configurator).await {
+					tracing::debug!(%err, "the pushed feed ended");
+				}
 			}
-		});
+			.in_current_span(),
+		);
 	}
 
 	loop {
-		let Some(mut stream) = streams.accept().await else {
+		let accepted = tokio::select! {
+			accepted = streams.accept() => accepted,
+			// Reaped as they finish, so a long session does not accumulate them.
+			Some(_) = tasks.join_next(), if !tasks.is_empty() => continue,
+		};
+		let Some(mut stream) = accepted else {
 			tracing::info!("client disconnected");
 			return Ok(());
 		};
 		let sampler = sampler.clone();
 		let served = served.clone();
-		tokio::spawn(async move {
-			if let Err(err) = serve_stream(&mut stream, &sampler, &served).await {
-				tracing::debug!(%err, "stream ended");
+		let configurator = configurator.clone();
+		tasks.spawn(
+			async move {
+				if let Err(err) = serve_stream(&mut stream, &sampler, &served, &configurator).await
+				{
+					tracing::debug!(%err, "stream ended");
+				}
 			}
-		});
+			.in_current_span(),
+		);
+	}
+}
+
+/// Aborts a task when dropped, so it ends with whatever holds this rather than outliving it.
+pub(crate) struct AbortOnDrop(pub(crate) AbortHandle);
+
+impl Drop for AbortOnDrop {
+	fn drop(&mut self) {
+		self.0.abort();
 	}
 }
 
 /// Serve one stream a client opened, until it ends. Whatever happens here leaves the other streams
 /// and the connection alive.
-async fn serve_stream<S>(
+async fn serve_stream<S, B>(
 	stream: &mut S,
 	sampler: &Sampler,
 	served: &Served,
+	configurator: &Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
+	B: Backend,
 {
 	loop {
 		let raw = match read_message(stream).await {
@@ -174,7 +225,7 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served).await;
+				return serve_default(stream, sampler, served, configurator).await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -186,6 +237,34 @@ where
 				// A client reporting what the device cannot measure about itself. This device has
 				// nothing to do about it, which MSG makes a no-op rather than a fault.
 				tracing::debug!("a fact or reading from the client; nothing to do about it");
+			}
+			Ok(Reading::Message(Message::Configure)) => {
+				return network::session::serve(stream, configurator).await;
+			}
+			Ok(Reading::Message(
+				Message::Configuration { .. }
+				| Message::Confirm
+				| Message::Discard
+				| Message::Scan { .. }
+				| Message::Survey { .. }
+				| Message::Wps { .. },
+			)) => {
+				// A configuration-session message on a stream that opened no session. Nothing to act
+				// on, which MSG makes a no-op rather than a fault.
+				tracing::debug!("a configuration-session message outside a session; nothing to do");
+			}
+			Ok(Reading::Message(
+				Message::Applied { .. }
+				| Message::State { .. }
+				| Message::Pin { .. }
+				| Message::Invalid { .. }
+				| Message::Busy
+				| Message::Networks { .. }
+				| Message::Spectrum { .. },
+			)) => {
+				// Answers only a device sends. A client sending one has nothing for this device to do
+				// about it, a no-op rather than a fault (MSG).
+				tracing::debug!("a device-only message from the client; nothing to do about it");
 			}
 			Ok(Reading::Skipped(skip)) => tracing::debug!(%skip, "message passed over"),
 			Ok(Reading::Refused(refusal)) => {
@@ -205,10 +284,11 @@ where
 /// Claims the topic first. A topic is served on at most one stream, so if it is already being served
 /// this returns without sending anything, which is how a `subscribe` for a feed already pushed is
 /// skipped (MSG).
-async fn serve_default<S>(
+async fn serve_default<S, B>(
 	stream: &mut S,
 	sampler: &Sampler,
 	served: &Served,
+	configurator: &Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -220,7 +300,7 @@ where
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds.
-	let mut last_facts = facts::facts(now());
+	let mut last_facts = facts_now(configurator);
 	for fact in &last_facts {
 		write_message(stream, &Message::Fact(fact.clone()).to_json())
 			.await
@@ -270,11 +350,18 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts::facts(now());
+				let current = facts_now(configurator);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
-					for fact in &current {
-						if write_message(&mut writer, &Message::Fact(fact.clone()).to_json())
+					// A fact left out says nothing to a client already showing it (NFO).
+					let kept: HashSet<String> = current.iter().map(identity_key).collect();
+					let at = now();
+					let ended = last_facts
+						.iter()
+						.filter(|fact| !kept.contains(&identity_key(fact)))
+						.map(|fact| fact.ended(at, ENDED));
+					for fact in ended.chain(current.iter().cloned()) {
+						if write_message(&mut writer, &Message::Fact(fact).to_json())
 							.await
 							.is_err()
 						{
@@ -286,6 +373,20 @@ where
 			}
 		}
 	}
+}
+
+/// The facts the device reports now: what it reads off the system, and whether its network runs the
+/// recorded configuration (NFO).
+fn facts_now<B>(configurator: &Configurator<B>) -> Vec<Entry> {
+	let at = now();
+	let mut facts = facts::facts(at);
+	let network = if configurator.provisional() {
+		"provisional"
+	} else {
+		"recorded"
+	};
+	facts.push(Entry::text(at, "network-configuration", network));
+	facts
 }
 
 /// Milliseconds since boot, for stamping a message as it is sent.
@@ -373,17 +474,37 @@ mod tests {
 	use tokio_util::compat::TokioAsyncReadCompatExt;
 
 	use super::*;
+	use crate::network::session::{Inert, Store};
 
 	fn secret(byte: u8) -> PresenceToken {
 		PresenceToken::from_bytes([byte; 32])
+	}
+
+	/// A configurator that configures nothing, over a recorded configuration nothing here writes.
+	async fn inert() -> Configurator<Inert> {
+		let path = std::env::temp_dir().join("bliti-session-tests-never-written/network.json");
+		let fallback = serde_json::json!({"attachments": []})
+			.as_object()
+			.cloned()
+			.unwrap();
+		Configurator::start(Inert, Store::new(path), fallback)
+			.await
+			.unwrap()
 	}
 
 	/// Open a client against a device session over an in-memory duplex, with no BLE involved.
 	async fn paired(psk: &PresenceToken) -> Streams {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
 		let device_psk = psk.clone();
+		let configurator = inert().await;
 		tokio::spawn(async move {
-			let _ = run(device_side.compat(), &device_psk, Sampler::start()).await;
+			let _ = run(
+				device_side.compat(),
+				&device_psk,
+				Sampler::start(None),
+				configurator,
+			)
+			.await;
 		});
 
 		let encrypted = connect_initiator(client_side.compat(), psk).await.unwrap();
@@ -594,8 +715,15 @@ mod tests {
 	#[tokio::test]
 	async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		let configurator = inert().await;
 		let device = tokio::spawn(async move {
-			run(device_side.compat(), &secret(0x01), Sampler::start()).await
+			run(
+				device_side.compat(),
+				&secret(0x01),
+				Sampler::start(None),
+				configurator,
+			)
+			.await
 		});
 
 		assert!(
@@ -607,5 +735,124 @@ mod tests {
 			device.await.unwrap(),
 			Err(SessionError::Handshake(_))
 		));
+	}
+	/// A stream opened with `configure` is served a configuration session, and a second one while it
+	/// is open is told the device is busy (CFG).
+	#[tokio::test]
+	async fn configure_opens_a_session_and_a_second_is_busy() {
+		let mut streams = paired(&secret(0x42)).await;
+		let _a = streams.accept().await.unwrap();
+
+		let mut first = streams.open().await.unwrap();
+		write_message(&mut first, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let opened = read::<Message>(&read_message(&mut first).await.unwrap().unwrap()).unwrap();
+		let Reading::Message(Message::Configuration {
+			document,
+			capabilities: Some(capabilities),
+			..
+		}) = opened
+		else {
+			panic!("a session opens with the configuration and capabilities, got {opened:?}");
+		};
+		assert_eq!(
+			document,
+			serde_json::json!({"attachments": []})
+				.as_object()
+				.cloned()
+				.unwrap()
+		);
+		assert_eq!(
+			serde_json::Value::Object(capabilities),
+			serde_json::json!({"document": {}, "acts": {}}),
+			"this build offers no member and no act"
+		);
+
+		let mut second = streams.open().await.unwrap();
+		write_message(&mut second, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let answer = read::<Message>(&read_message(&mut second).await.unwrap().unwrap()).unwrap();
+		assert_eq!(answer, Reading::Message(Message::Busy));
+		assert!(
+			matches!(read_message(&mut second).await, Ok(None) | Err(_)),
+			"the busy stream is closed"
+		);
+	}
+
+	/// A session dropped from outside, as the daemon drops one whose client unsubscribed, takes the
+	/// streams it was serving with it, so a configuration session it held ends and the next client is
+	/// not told the device is busy (CFG). The transport is left healthy throughout, so nothing but the
+	/// drop can end it.
+	#[tokio::test]
+	async fn dropping_a_session_ends_the_configuration_session_it_held() {
+		let psk = secret(0x42);
+		let configurator = inert().await;
+
+		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		let device = {
+			let psk = psk.clone();
+			let configurator = configurator.clone();
+			tokio::spawn(async move {
+				let _ = run(
+					device_side.compat(),
+					&psk,
+					Sampler::start(None),
+					configurator,
+				)
+				.await;
+			})
+		};
+		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+		tokio::spawn(async move {
+			let _ = driver.await;
+		});
+		let _hello = streams.accept().await.unwrap();
+
+		let mut held = streams.open().await.unwrap();
+		write_message(&mut held, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		read_message(&mut held).await.unwrap().unwrap();
+
+		device.abort();
+		let _ = device.await;
+
+		let (client_side, device_side) = tokio::io::duplex(1 << 16);
+		tokio::spawn({
+			let psk = psk.clone();
+			async move {
+				let _ = run(
+					device_side.compat(),
+					&psk,
+					Sampler::start(None),
+					configurator,
+				)
+				.await;
+			}
+		});
+		let encrypted = connect_initiator(client_side.compat(), &psk).await.unwrap();
+		let (mut streams, driver) = multiplex(encrypted, Mode::Client);
+		tokio::spawn(async move {
+			let _ = driver.await;
+		});
+		let mut next = streams.open().await.unwrap();
+		write_message(&mut next, &Message::Configure.to_json())
+			.await
+			.unwrap();
+		let answer = tokio::time::timeout(Duration::from_secs(5), read_message(&mut next))
+			.await
+			.expect("the device answers")
+			.unwrap()
+			.unwrap();
+		assert!(
+			matches!(
+				read::<Message>(&answer).unwrap(),
+				Reading::Message(Message::Configuration { .. })
+			),
+			"the next client opens a session rather than being told the device is busy"
+		);
 	}
 }

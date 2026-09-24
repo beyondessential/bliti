@@ -18,6 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 use bliti_core::{
 	advertisement::Advertised,
 	channel::{
+		capabilities,
 		envelope::{Reading, read},
 		messages::Message,
 		stream::{Mode, Opener, Stream, connect_initiator, multiplex, read_message, write_message},
@@ -25,11 +26,11 @@ use bliti_core::{
 	qr::QrPayload,
 };
 use futures::{
-	AsyncWriteExt,
+	AsyncRead, AsyncReadExt, AsyncWriteExt, StreamExt,
 	channel::{mpsc, oneshot},
 	future::{self, Either},
 };
-use js_sys::{Function, Promise};
+use js_sys::{Function, JSON, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
@@ -62,6 +63,110 @@ pub fn client_tx_uuid() -> String {
 #[wasm_bindgen]
 pub fn device_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
+}
+
+/// Whether a document is within a device's capabilities, checked before it is proposed (NSCR) with
+/// the checker the device rejects with (NET), so the two cannot disagree.
+///
+/// Both are plain objects, the capabilities whole. Null where they admit the document, or
+/// `{ at, reason, rule }` naming the first part they do not: `rule` is `mirror` where
+/// `capabilities.document` does not cover it, or the rule of HOT it breaks. The reason is the
+/// checker's, for logs; a screen words its own.
+#[wasm_bindgen]
+pub fn check_capabilities(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, capability_fault)
+}
+
+/// Whether a document's hotspot and a wireless candidate could be carried only by one radio running
+/// one at a time (HOT), alone, so a screen can ask it of a document it is considering. Null where
+/// not, or `{ at, reason }`.
+#[wasm_bindgen]
+pub fn check_placement(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, placement_fault)
+}
+
+/// Where a document's hotspot chooses its own band, channel and width, and where it follows a
+/// wireless client's channel (HOT), by the rule the device holds a document to: `{ own, follows }`,
+/// each a list of interfaces.
+#[wasm_bindgen]
+pub fn hotspot_channels(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, channel_choice)
+}
+
+/// Call `answer` on a document and capabilities given as plain objects, and hand back what it
+/// answers as one, or null for nothing.
+fn across(
+	document: &JsValue,
+	capabilities: &JsValue,
+	answer: fn(&str, &str) -> Result<Option<serde_json::Value>, String>,
+) -> Result<JsValue, JsError> {
+	let text = |value: &JsValue, what: &str| {
+		JSON::stringify(value)
+			.map(String::from)
+			.map_err(|_| JsError::new(&format!("the {what} cannot be written as JSON")))
+	};
+	let answer = answer(
+		&text(document, "document")?,
+		&text(capabilities, "capabilities")?,
+	)
+	.map_err(|why| JsError::new(&why))?;
+	match answer {
+		Some(answer) => JSON::parse(&answer.to_string())
+			.map_err(|_| JsError::new("the answer cannot be read back as JSON")),
+		None => Ok(JsValue::NULL),
+	}
+}
+
+type Object = serde_json::Map<String, serde_json::Value>;
+
+/// The document and capabilities, each a JSON object.
+fn objects(document: &str, capabilities: &str) -> Result<(Object, Object), String> {
+	let object = |json: &str, what: &str| match serde_json::from_str(json) {
+		Ok(serde_json::Value::Object(map)) => Ok(map),
+		Ok(_) => Err(format!("the {what} is not an object")),
+		Err(err) => Err(format!("the {what} is not JSON: {err}")),
+	};
+	Ok((
+		object(document, "document")?,
+		object(capabilities, "capabilities")?,
+	))
+}
+
+/// The fault [`check_capabilities`] reports, from the document and capabilities as JSON text.
+fn capability_fault(
+	document: &str,
+	capabilities: &str,
+) -> Result<Option<serde_json::Value>, String> {
+	let (document, capabilities) = objects(document, capabilities)?;
+	Ok(capabilities::admits(&document, &capabilities)
+		.err()
+		.map(|refused| {
+			serde_json::json!({
+				"at": refused.invalid.at,
+				"reason": refused.invalid.reason,
+				"rule": refused.rule.as_str(),
+			})
+		}))
+}
+
+/// What [`hotspot_channels`] answers, from the document and capabilities as JSON text.
+fn channel_choice(document: &str, capabilities: &str) -> Result<Option<serde_json::Value>, String> {
+	let (document, capabilities) = objects(document, capabilities)?;
+	let choice = capabilities::channel_choice(&document, &capabilities);
+	Ok(Some(
+		serde_json::json!({ "own": choice.own, "follows": choice.follows }),
+	))
+}
+
+/// The fault [`check_placement`] reports, from the document and capabilities as JSON text.
+fn placement_fault(
+	document: &str,
+	capabilities: &str,
+) -> Result<Option<serde_json::Value>, String> {
+	let (document, capabilities) = objects(document, capabilities)?;
+	Ok(capabilities::placement(&document, &capabilities)
+		.err()
+		.map(|invalid| serde_json::json!({ "at": invalid.at, "reason": invalid.reason })))
 }
 
 /// A QR code the application has read, by either of the paths in WEB.
@@ -303,6 +408,145 @@ impl Channel {
 			}))
 		})
 	}
+
+	/// Open a configuration session: a stream whose first message is `configure` (CFG).
+	///
+	/// Everything the device sends on the session is passed to `on_message` exactly as a subscription's
+	/// messages are, and `on_closed` is called once the stream ends. The handle this resolves to sends
+	/// the client's half of the exchange on the same stream, and closing it ends the session, which a
+	/// device reads as abandoning any proposal not confirmed.
+	pub fn configure(&self, on_message: Function, on_closed: Function) -> Promise {
+		let inner = self.inner.clone();
+		future_to_promise(async move {
+			let opener = inner
+				.opener
+				.borrow()
+				.clone()
+				.ok_or_else(|| JsError::new("this channel is not connected"))?;
+			let mut stream = opener
+				.open()
+				.await
+				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
+			write_message(&mut stream, &Message::Configure.to_json())
+				.await
+				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
+
+			// The session is read and written at once, so the stream is split: a read is pending
+			// essentially always, and a write must not wait on it.
+			let (mut reader, mut writer) = AsyncReadExt::split(stream);
+			let (outbound, mut queued) = mpsc::unbounded::<Vec<u8>>();
+			spawn_local(async move {
+				while let Some(message) = queued.next().await {
+					if write_message(&mut writer, &message).await.is_err() {
+						break;
+					}
+				}
+				let _ = writer.close().await;
+			});
+
+			let (closer, closing) = oneshot::channel();
+			let ending = outbound.clone();
+			spawn_local(async move {
+				let ended = report(&mut reader, closing, &on_message).await;
+				// However the read ended, the session has, so the write half closes too.
+				ending.close_channel();
+				call_closed(&on_closed, ended);
+			});
+
+			Ok(JsValue::from(ConfigurationHandle {
+				outbound: RefCell::new(Some(outbound)),
+				closer: RefCell::new(Some(closer)),
+			}))
+		})
+	}
+}
+
+/// One open configuration session, which lasts exactly as long as its stream (CFG).
+#[wasm_bindgen]
+pub struct ConfigurationHandle {
+	outbound: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
+	closer: RefCell<Option<oneshot::Sender<()>>>,
+}
+
+#[wasm_bindgen]
+impl ConfigurationHandle {
+	/// Propose a document: the whole configuration the client wants in force, as a plain object.
+	pub fn propose(&self, document: JsValue) -> Result<(), JsError> {
+		let json = JSON::stringify(&document)
+			.map_err(|_| JsError::new("the document cannot be written as JSON"))?;
+		let message = proposal(&String::from(json)).map_err(|why| JsError::new(&why))?;
+		self.send(message)
+	}
+
+	/// Make the applied proposal durable.
+	pub fn confirm(&self) -> Result<(), JsError> {
+		self.send(Message::Confirm.to_json())
+	}
+
+	/// Abandon the proposal, whether it is still being verified or already applied.
+	pub fn discard(&self) -> Result<(), JsError> {
+		self.send(Message::Discard.to_json())
+	}
+
+	/// Ask for the wireless networks the device can see, on one wireless interface or, where none is
+	/// named, on every one able to.
+	pub fn scan(&self, interface: Option<String>) -> Result<(), JsError> {
+		self.send(Message::Scan { interface }.to_json())
+	}
+
+	/// Ask for what the device's radios can see of the spectrum, on one wireless interface or, where
+	/// none is named, on every one able to.
+	pub fn survey(&self, interface: Option<String>) -> Result<(), JsError> {
+		self.send(Message::Survey { interface }.to_json())
+	}
+
+	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN), on one wireless interface or,
+	/// where none is named, on one the device chooses, for the network `ssid` names or, where none is
+	/// named, for whichever the access point hands over.
+	pub fn wps(
+		&self,
+		method: String,
+		interface: Option<String>,
+		ssid: Option<String>,
+	) -> Result<(), JsError> {
+		self.send(
+			Message::Wps {
+				method,
+				interface,
+				ssid,
+			}
+			.to_json(),
+		)
+	}
+
+	/// End the session. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.
+	pub fn close(&self) {
+		self.outbound.borrow_mut().take();
+		if let Some(closer) = self.closer.borrow_mut().take() {
+			let _ = closer.send(());
+		}
+	}
+
+	fn send(&self, message: Vec<u8>) -> Result<(), JsError> {
+		self.outbound
+			.borrow()
+			.as_ref()
+			.and_then(|outbound| outbound.unbounded_send(message).ok())
+			.ok_or_else(|| JsError::new("this configuration session has ended"))
+	}
+}
+
+/// The `configuration` message proposing a document, from the document as JSON text.
+fn proposal(json: &str) -> Result<Vec<u8>, String> {
+	match serde_json::from_str(json) {
+		Ok(serde_json::Value::Object(document)) => Ok(Message::Configuration {
+			document,
+			capabilities: None,
+		}
+		.to_json()),
+		Ok(_) => Err("a document is an object".to_owned()),
+		Err(err) => Err(format!("the document is not JSON: {err}")),
+	}
 }
 
 /// One open subscription, which lasts exactly as long as its stream.
@@ -331,22 +575,33 @@ impl SubscriptionHandle {
 }
 
 /// Pass everything a stream carries to the application, until it ends or the application asks to
-/// close it.
-///
-/// Each message is described rather than handed over raw, so the application is told which of the
-/// outcomes of MSG it is looking at and can render accordingly. A fault is the exception: the
-/// receiver closes the stream a fault arrived on (MSG), so it ends the read here rather than
-/// being reported and read past, which would let a peer that has completed the handshake stream
-/// malformed messages indefinitely.
+/// close it, then close it.
 async fn report_until_closed(
 	mut stream: Stream,
 	closing: oneshot::Receiver<()>,
 	on_message: Function,
 	on_closed: Function,
 ) {
-	let mut closing = closing;
-	let ended = loop {
-		let read = read_message(&mut stream);
+	let ended = report(&mut stream, closing, &on_message).await;
+	let _ = stream.close().await;
+	call_closed(&on_closed, ended);
+}
+
+/// Pass everything a stream carries to the application, until it ends or the application asks to
+/// stop, returning why it ended where that was not the ordinary way.
+///
+/// Each message is described rather than handed over raw, so the application is told which of the
+/// outcomes of MSG it is looking at and can render accordingly. A fault is the exception: the
+/// receiver closes the stream a fault arrived on (MSG), so it ends the read here rather than
+/// being reported and read past, which would let a peer that has completed the handshake stream
+/// malformed messages indefinitely.
+async fn report<R: AsyncRead + Unpin>(
+	reader: &mut R,
+	mut closing: oneshot::Receiver<()>,
+	on_message: &Function,
+) -> Option<String> {
+	loop {
+		let read = read_message(reader);
 		futures::pin_mut!(read);
 		match future::select(read, &mut closing).await {
 			Either::Left((Ok(Some(raw)), _)) => {
@@ -361,9 +616,10 @@ async fn report_until_closed(
 			// The application has unsubscribed, or is going away.
 			Either::Right(_) => break None,
 		}
-	};
+	}
+}
 
-	let _ = stream.close().await;
+fn call_closed(on_closed: &Function, ended: Option<String>) {
 	let _ = on_closed.call1(
 		&JsValue::NULL,
 		&match ended {
@@ -397,5 +653,109 @@ fn describe(raw: &[u8]) -> (String, Option<String>) {
 			serde_json::json!({ "kind": "fault", "detail": fault.to_string() }).to_string(),
 			Some(fault.to_string()),
 		),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use bliti_core::channel::envelope::{Reading, read};
+
+	use super::*;
+
+	/// A proposal is a `configuration` carrying the document whole and no capabilities, with the
+	/// document critical on the wire so a device that cannot read it does not act on it (CFG).
+	#[test]
+	fn a_proposal_carries_the_document_critical() {
+		let bytes =
+			proposal(r#"{"attachments":[],"regulatory-domain":"VU","later":{"kept":1}}"#).unwrap();
+		let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+		assert_eq!(wire["type"], "configuration");
+		assert_eq!(wire["DOCUMENT"]["regulatory-domain"], "VU");
+		assert!(wire.get("capabilities").is_none());
+
+		let Ok(Reading::Message(Message::Configuration {
+			document,
+			capabilities,
+		})) = read(&bytes)
+		else {
+			panic!("a proposal reads back as a configuration");
+		};
+		assert_eq!(capabilities, None);
+		// A member this build does not know is sent as the operator's document carried it.
+		assert_eq!(document["later"]["kept"], 1);
+	}
+
+	/// The pre-proposal check is the core's, naming the first member capabilities do not cover.
+	#[test]
+	fn the_capability_check_names_what_is_not_covered() {
+		let capabilities =
+			r#"{"document":{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}}"#;
+		assert_eq!(
+			capability_fault(
+				r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth0"}]}"#,
+				capabilities
+			),
+			Ok(None)
+		);
+		let fault = capability_fault(
+			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth1"}]}"#,
+			capabilities,
+		)
+		.unwrap()
+		.unwrap();
+		assert_eq!(fault["at"], "$['attachments'][0]['interface']");
+		assert_eq!(fault["rule"], "mirror");
+		assert!(fault["reason"].is_string());
+		assert!(capability_fault("[]", capabilities).is_err());
+	}
+
+	/// The radio rules of HOT are the core's too, named by the rule they break.
+	#[test]
+	fn the_capability_check_names_the_radio_rule_broken() {
+		let capabilities = r#"{
+			"document": {
+				"attachments": {"kind": {"wireless": {"security": {"kind": {"psk": {}}}}}},
+				"hotspot": {"interface": {"wlan0": {}}}
+			},
+			"radios": {"wlan0": {"model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time"}}
+		}"#;
+		let document = r#"{
+			"attachments": [{"kind": "wireless", "label": "a", "enabled": true, "verify": true, "ssid": "a",
+			                 "security": {"kind": "psk", "passphrase": "12345678"}}],
+			"hotspot": {"ssid": "s", "passphrase": "12345678"}
+		}"#;
+		let fault = capability_fault(document, capabilities).unwrap().unwrap();
+		assert_eq!(fault["at"], "$['hotspot']");
+		assert_eq!(fault["rule"], "one-at-a-time");
+		let placed = placement_fault(document, capabilities).unwrap().unwrap();
+		assert_eq!(placed["at"], "$['hotspot']");
+		assert_eq!(
+			placement_fault(r#"{"attachments": []}"#, capabilities),
+			Ok(None)
+		);
+	}
+
+	/// Where the hotspot chooses its own channel is the core's answer too.
+	#[test]
+	fn the_channel_choice_is_the_cores() {
+		let capabilities = r#"{
+			"document": {"hotspot": {"interface": {"wlan0": {}}}},
+			"radios": {"wlan0": {"model": "m", "bands": ["5ghz"], "alongside": "shared-channel"}}
+		}"#;
+		let beside = r#"{"attachments": [{"kind": "wireless", "label": "a"}], "hotspot": {}}"#;
+		assert_eq!(
+			channel_choice(beside, capabilities),
+			Ok(Some(serde_json::json!({ "own": [], "follows": ["wlan0"] })))
+		);
+		assert_eq!(
+			channel_choice(r#"{"attachments": []}"#, capabilities),
+			Ok(Some(serde_json::json!({ "own": ["wlan0"], "follows": [] })))
+		);
+	}
+
+	#[test]
+	fn a_proposal_is_an_object() {
+		assert!(proposal("[]").is_err());
+		assert!(proposal("not json").is_err());
 	}
 }

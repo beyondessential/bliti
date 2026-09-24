@@ -96,8 +96,12 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .tile.wide { grid-column: 1 / -1; }
 .tile.expanded { border-color: var(--accent); }
 .tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+/* A tile showing settings the device is trying rather than has recorded (VIEW). */
+.tile.provisional { border-style: dashed; border-color: var(--warn); }
+.tile .trial { margin-left: 8px; color: var(--warn); }
 .tile .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .tile .value.small { font-size: 1rem; line-height: 1.5; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.tile .value .addresses { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.5; }
 .tile .value .part { color: var(--muted); font-size: 0.8rem; }
 .tile .value .warn { color: var(--warn); }
 .tile .value .bad { color: var(--bad); }
@@ -183,3 +187,164 @@ button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bott
 }
 .axis-label .key.out { background: var(--good); }
 .axis-label .key.in { background: var(--accent); }
+
+/* Two actions beside a heading. */
+.heading .actions { display: flex; gap: 8px; }
+
+/* The network configuration screen. Its component shapes are the design's (network-configuration),
+   scoped here so the device view keeps the ones it already has. */
+select, textarea {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+textarea { min-height: 6rem; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+input:disabled, select:disabled, textarea:disabled { color: var(--muted); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+.network .heading { margin: 0 0 12px; }
+.network .heading h2 { margin: 0; }
+.network .heading.title h1 { margin: 0; }
+.network .heading.title { margin-bottom: 16px; }
+.network button.small { padding: 6px 10px; margin-bottom: 0; }
+
+/* The ordering. Each row is a candidate the device may attach by, in the order it tries them. The
+   handle is the whole point of the row, so it reads as a list that is meant to be rearranged. */
+.order { list-style: none; margin: 0; padding: 0; }
+.order li {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px solid var(--line);
+}
+.order li:first-child { border-top: 0; }
+.order button.grip, .order button.what {
+	background: transparent;
+	color: inherit;
+	padding: 0;
+	min-height: 0;
+	border: 0;
+	border-radius: 0;
+	text-align: left;
+	font: inherit;
+}
+.order button.grip { color: var(--muted); cursor: grab; font-size: 0.9rem; letter-spacing: -1px; touch-action: none; }
+.order button.grip:disabled { cursor: default; opacity: 0.4; background: transparent; }
+.order button.what { flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.order li.selected .what .name { color: var(--accent); }
+/* The candidate being edited, and its fields below, are unmistakably the same one. */
+.order li.selected {
+	background: #eef2fd;
+	box-shadow: inset 3px 0 0 var(--accent);
+	margin: 0 -12px;
+	padding-left: 12px;
+	padding-right: 12px;
+}
+section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.what .name { overflow-wrap: anywhere; }
+.what .kind { color: var(--muted); font-size: 0.8rem; }
+.state { font-size: 0.8rem; white-space: nowrap; }
+.state.good { color: var(--good); }
+.state.muted { color: var(--muted); }
+.state.bad { color: var(--bad); }
+.adding { margin: 0 0 12px; }
+.adding > * { flex: 0 1 auto; }
+
+/* Where a change failed. The stages are the device's own account of how far it got, so an operator
+   reads "the key was right, the network is not routing" without being told it in prose. */
+.stages { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; font-size: 0.8rem; }
+.stages span::before { margin-right: 4px; }
+.stages .done { color: var(--good); }
+.stages .done::before { content: "\2713"; }
+.stages .failed { color: var(--bad); }
+.stages .failed::before { content: "\2717"; }
+.stages .untried { color: var(--muted); }
+/* A candidate not checked when applied: offered where its checking failed, and said wherever it is
+   off, so an operator never loses track of which ones can fail without stopping a change. */
+.network .unchecked { margin: 0 0 12px; }
+.network .unchecked p { margin: 0 0 8px; font-size: 0.85rem; }
+.field-fault { border-color: var(--bad); }
+.why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
+.why.reason { margin-bottom: 12px; }
+
+.network label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+.network label:first-of-type { margin-top: 0; }
+.network details label:first-of-type, .network .absent + label { margin-top: 12px; }
+.network .check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
+.network .check input { width: auto; padding: 0; }
+/* The bands a wireless connection may use, one box each, reading as the field labels do. */
+.network .bands legend { padding: 0; font-size: 0.8rem; color: var(--muted); margin: 12px 0 0; }
+.network .bands { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.network .bands legend { flex-basis: 100%; }
+.network details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.network summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
+.pair { display: flex; gap: 8px; }
+.pair > * { flex: 1 1 0; }
+.pair > button { flex: 0 0 auto; }
+.network .hint { margin: 6px 0 0; }
+.network .absent { margin: 12px 0 0; }
+.network .survey { margin-top: 12px; }
+
+.networks, .spectrum, .points { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.85rem; }
+.networks li, .spectrum li, .points li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; }
+
+/* A scan, read by network or for siting. A network's row opens onto the access points behind it,
+   which sit indented beneath it so they read as its own. */
+.scan { margin-top: 12px; }
+.scan .views { gap: 6px; }
+.scan .views > * { flex: 0 1 auto; }
+.scan .views button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.networks li.network-row { display: block; border-top: 1px solid var(--line); }
+.networks li.network-row:first-child { border-top: 0; }
+.network-row .line { display: flex; align-items: baseline; gap: 8px; }
+.network-row .line > .muted { flex: 1 1 auto; }
+.network-row .points { margin: 4px 0 4px 12px; }
+.network-row .wps { gap: 6px; margin: 4px 0 4px 12px; }
+.network-row .wps > * { flex: 0 1 auto; }
+.points li > :first-child { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.points li > :last-child { text-align: right; }
+.points .code { font-size: 0.8rem; }
+/* A BSSID is read whole: two access points from one vendor differ only at the end. The detail
+   beside it wraps instead. */
+.points li > .code { flex: none; overflow: visible; }
+.scan .check { margin-top: 10px; }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+.siting h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 0; }
+.bar-state .pin { font-family: ui-monospace, monospace; font-size: 1.1rem; letter-spacing: 0.08em; }
+
+/* The action bar. It says which stage the operator is in and offers only what that stage allows,
+   because the four are easy to confuse: a change being edited, a change being checked, a change that
+   failed, and a change running but not saved all look alike otherwise. Pinned to the bottom of the
+   viewport, so whether what runs is saved never scrolls out of sight. */
+.bar-state {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 8px;
+	padding: 12px 16px;
+}
+.bar-state.working { border-left-color: var(--accent); }
+.bar-state.failed { border-left-color: var(--bad); }
+.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state .row > * { flex: 0 1 auto; }
+.bar-state.sticky { position: sticky; bottom: 8px; z-index: 1; }
+
+/* Something under way: an apply being checked, a scan, a survey, the session opening. */
+.spinner {
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-right: 6px;
+	vertical-align: -0.05em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }

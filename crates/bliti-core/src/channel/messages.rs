@@ -48,6 +48,99 @@ pub enum Message {
 
 	/// A measurement whose history is worth keeping, named against the reading catalogue (NFO).
 	Reading(Entry),
+
+	/// A client opening a configuration session, first on the stream it opens for it (CFG).
+	Configure,
+
+	/// A device's answer to `configure` and to `confirm`, and a client's proposal in between: the
+	/// network configuration document, and — on the first a device sends in a session — the
+	/// capabilities it supports. Its `document` is critical, so an end that cannot read the document
+	/// does not act on the message carrying it (CFG).
+	Configuration {
+		/// The configuration document (NET), kept raw so a member a newer peer added survives the
+		/// envelope round trip and is echoed back unchanged, exactly as [`Entry`] keeps its traits.
+		document: Map<String, Json>,
+		/// What the device supports, on the first `configuration` a device sends. Kept raw for the same
+		/// reason, and because the layer that probes capabilities owns their shape.
+		capabilities: Option<Map<String, Json>>,
+	},
+
+	/// A device's answer that a proposal was applied to the running system (CFG).
+	Applied {
+		/// The device's capabilities, where applying the proposal changed them.
+		capabilities: Option<Map<String, Json>>,
+	},
+
+	/// The state of each candidate of the configuration running, position for position (CFG).
+	State {
+		/// One entry per attachment, kept raw as the document is.
+		attachments: Vec<Json>,
+		/// The device's capabilities, where returning to the recorded configuration changed them.
+		capabilities: Option<Map<String, Json>>,
+	},
+
+	/// The PIN a device joining by WPS generated, for the operator to enter at the access point (CFG).
+	Pin {
+		/// The PIN's digits.
+		pin: String,
+	},
+
+	/// A device's answer that a proposal cannot be accepted, naming the part at fault, the device's own
+	/// reason, and the verification stage an apply-time failure reached (CFG).
+	Invalid {
+		/// Which part is at fault, as an RFC 9535 Normalized Path: into the document for a proposal,
+		/// into the act's own message for an act.
+		at: String,
+		/// What happened, in the device's own words.
+		reason: String,
+		/// The verification stage of LINK a proposal applied and then failed stopped at.
+		reached: Option<String>,
+	},
+
+	/// A client making its proposal durable (CFG).
+	Confirm,
+
+	/// A client abandoning its proposal (CFG).
+	Discard,
+
+	/// A device's answer that a configuration session is already open (CFG).
+	Busy,
+
+	/// A client asking a device to report the wireless networks it can see (CFG).
+	Scan {
+		/// The one wireless interface to scan on; every one able to where absent.
+		interface: Option<String>,
+	},
+
+	/// A client asking a device to report what its radios can see of the spectrum (CFG).
+	Survey {
+		/// The one wireless interface to survey on; every one able to where absent.
+		interface: Option<String>,
+	},
+
+	/// A client asking a device to join a wireless network by WPS (CFG, WLAN).
+	Wps {
+		/// The WPS method: `push-button` or `pin`.
+		method: String,
+		/// The wireless interface to join on; the device chooses where absent.
+		interface: Option<String>,
+		/// The one network whose credentials the device may accept; any where absent.
+		ssid: Option<String>,
+	},
+
+	/// A device's answer to `scan`: one entry per access point each radio scanned heard (CFG), kept
+	/// raw so a member a newer device adds survives.
+	Networks {
+		/// The access points heard, as the `access-points` member.
+		access_points: Vec<Json>,
+	},
+
+	/// A device's answer to `survey`. Its shape is the device-scanning feature's to define, so it rides
+	/// as raw JSON.
+	Spectrum {
+		/// What the radio can see of the spectrum.
+		spectrum: Map<String, Json>,
+	},
 }
 
 impl Message {
@@ -78,8 +171,109 @@ impl Message {
 				map.insert("type".to_owned(), "reading".into());
 				entry.write_into("measurement", &mut map);
 			}
+			Self::Configure => {
+				map.insert("type".to_owned(), "configure".into());
+			}
+			Self::Configuration {
+				document,
+				capabilities,
+			} => {
+				map.insert("type".to_owned(), "configuration".into());
+				map.insert("document".to_owned(), Json::Object(document.clone()));
+				if let Some(capabilities) = capabilities {
+					map.insert(
+						"capabilities".to_owned(),
+						Json::Object(capabilities.clone()),
+					);
+				}
+			}
+			Self::Applied { capabilities } => {
+				map.insert("type".to_owned(), "applied".into());
+				if let Some(capabilities) = capabilities {
+					map.insert(
+						"capabilities".to_owned(),
+						Json::Object(capabilities.clone()),
+					);
+				}
+			}
+			Self::State {
+				attachments,
+				capabilities,
+			} => {
+				map.insert("type".to_owned(), "state".into());
+				map.insert("attachments".to_owned(), Json::Array(attachments.clone()));
+				if let Some(capabilities) = capabilities {
+					map.insert(
+						"capabilities".to_owned(),
+						Json::Object(capabilities.clone()),
+					);
+				}
+			}
+			Self::Pin { pin } => {
+				map.insert("type".to_owned(), "pin".into());
+				map.insert("pin".to_owned(), pin.clone().into());
+			}
+			Self::Invalid {
+				at,
+				reason,
+				reached,
+			} => {
+				map.insert("type".to_owned(), "invalid".into());
+				map.insert("at".to_owned(), at.clone().into());
+				map.insert("reason".to_owned(), reason.clone().into());
+				if let Some(reached) = reached {
+					map.insert("reached".to_owned(), reached.clone().into());
+				}
+			}
+			Self::Confirm => {
+				map.insert("type".to_owned(), "confirm".into());
+			}
+			Self::Discard => {
+				map.insert("type".to_owned(), "discard".into());
+			}
+			Self::Busy => {
+				map.insert("type".to_owned(), "busy".into());
+			}
+			Self::Scan { interface } => {
+				map.insert("type".to_owned(), "scan".into());
+				insert_interface(&mut map, interface);
+			}
+			Self::Survey { interface } => {
+				map.insert("type".to_owned(), "survey".into());
+				insert_interface(&mut map, interface);
+			}
+			Self::Wps {
+				method,
+				interface,
+				ssid,
+			} => {
+				map.insert("type".to_owned(), "wps".into());
+				map.insert("method".to_owned(), method.clone().into());
+				insert_interface(&mut map, interface);
+				if let Some(ssid) = ssid {
+					map.insert("ssid".to_owned(), ssid.clone().into());
+				}
+			}
+			Self::Networks { access_points } => {
+				map.insert("type".to_owned(), "networks".into());
+				map.insert(
+					"access-points".to_owned(),
+					Json::Array(access_points.clone()),
+				);
+			}
+			Self::Spectrum { spectrum } => {
+				map.insert("type".to_owned(), "spectrum".into());
+				map.insert("spectrum".to_owned(), Json::Object(spectrum.clone()));
+			}
 		}
 		map
+	}
+}
+
+/// Name the wireless interface an act is addressed to, where it names one.
+fn insert_interface(map: &mut Map<String, Json>, interface: &Option<String>) {
+	if let Some(interface) = interface {
+		map.insert("interface".to_owned(), interface.clone().into());
 	}
 }
 
@@ -128,6 +322,46 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"reading" => Entry::read_from("measurement", &map)
 				.map(Message::Reading)
 				.map_err(de::Error::custom),
+			"configure" => Ok(Message::Configure),
+			"configuration" => Ok(Message::Configuration {
+				document: object(&map, "document")?,
+				capabilities: optional_object(&map, "capabilities")?,
+			}),
+			"applied" => Ok(Message::Applied {
+				capabilities: optional_object(&map, "capabilities")?,
+			}),
+			"state" => Ok(Message::State {
+				attachments: array(&map, "attachments")?,
+				capabilities: optional_object(&map, "capabilities")?,
+			}),
+			"pin" => Ok(Message::Pin {
+				pin: string(&map, "pin")?,
+			}),
+			"invalid" => Ok(Message::Invalid {
+				at: string(&map, "at")?,
+				reason: string(&map, "reason")?,
+				reached: optional_string(&map, "reached")?,
+			}),
+			"confirm" => Ok(Message::Confirm),
+			"discard" => Ok(Message::Discard),
+			"busy" => Ok(Message::Busy),
+			"scan" => Ok(Message::Scan {
+				interface: optional_string(&map, "interface")?,
+			}),
+			"survey" => Ok(Message::Survey {
+				interface: optional_string(&map, "interface")?,
+			}),
+			"wps" => Ok(Message::Wps {
+				method: string(&map, "method")?,
+				interface: optional_string(&map, "interface")?,
+				ssid: optional_string(&map, "ssid")?,
+			}),
+			"networks" => Ok(Message::Networks {
+				access_points: array(&map, "access-points")?,
+			}),
+			"spectrum" => Ok(Message::Spectrum {
+				spectrum: object(&map, "spectrum")?,
+			}),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -140,13 +374,73 @@ fn string<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<String,
 		.ok_or_else(|| de::Error::custom(format!("this message carries a string `{member}`")))
 }
 
+fn optional_string<E: de::Error>(
+	map: &Map<String, Json>,
+	member: &str,
+) -> Result<Option<String>, E> {
+	match map.get(member) {
+		None | Some(Json::Null) => Ok(None),
+		Some(Json::String(value)) => Ok(Some(value.clone())),
+		Some(_) => Err(de::Error::custom(format!("`{member}` is a string"))),
+	}
+}
+
+fn object<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Map<String, Json>, E> {
+	match map.get(member) {
+		Some(Json::Object(object)) => Ok(object.clone()),
+		_ => Err(de::Error::custom(format!(
+			"this message carries an object `{member}`"
+		))),
+	}
+}
+
+fn optional_object<E: de::Error>(
+	map: &Map<String, Json>,
+	member: &str,
+) -> Result<Option<Map<String, Json>>, E> {
+	match map.get(member) {
+		None | Some(Json::Null) => Ok(None),
+		Some(Json::Object(object)) => Ok(Some(object.clone())),
+		Some(_) => Err(de::Error::custom(format!("`{member}` is an object"))),
+	}
+}
+
+fn array<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Vec<Json>, E> {
+	match map.get(member) {
+		Some(Json::Array(items)) => Ok(items.clone()),
+		_ => Err(de::Error::custom(format!(
+			"this message carries an array `{member}`"
+		))),
+	}
+}
+
 impl MessageSet for Message {
 	fn known_types() -> &'static [&'static str] {
-		&["hello", "subscribe", "fact", "reading"]
+		&[
+			"hello",
+			"subscribe",
+			"fact",
+			"reading",
+			"configure",
+			"configuration",
+			"applied",
+			"state",
+			"pin",
+			"invalid",
+			"confirm",
+			"discard",
+			"busy",
+			"scan",
+			"survey",
+			"wps",
+			"networks",
+			"spectrum",
+		]
 	}
 
 	/// `hello` carries no critical member; `subscribe` carries exactly one, its selector. The feature
-	/// types NFO owns are unconstrained.
+	/// types NFO and CFG own are unconstrained: they name their own critical members through
+	/// [`MessageSet::critical_members`] rather than being pinned here.
 	fn criticality(type_name: &str) -> Criticality {
 		match type_name {
 			"hello" => Criticality::Exactly(&[]),
@@ -158,6 +452,9 @@ impl MessageSet for Message {
 	fn critical_members(type_name: &str) -> &'static [&'static str] {
 		match type_name {
 			"subscribe" => &["topic"],
+			// `configuration` pins its document critical, so a peer that cannot read the document does not
+			// act on the message carrying it (CFG). Recorded in `wire-breaks.toml`.
+			"configuration" => &["document"],
 			_ => &[],
 		}
 	}
@@ -297,6 +594,11 @@ mod tests {
 				"fraction",
 				"no answer from the gauge",
 			)),
+			Message::Wps {
+				method: "push-button".to_owned(),
+				interface: Some("wlan0".to_owned()),
+				ssid: Some("clinic".to_owned()),
+			},
 		];
 		for message in &messages {
 			assert_eq!(
@@ -305,6 +607,29 @@ mod tests {
 				"{message:?}"
 			);
 		}
+	}
+
+	/// `wps` names the network it is for by `ssid`, and leaves it out where it is for any (CFG).
+	#[test]
+	fn wps_carries_its_ssid_where_it_names_one() {
+		let named = Message::Wps {
+			method: "pin".to_owned(),
+			interface: None,
+			ssid: Some("clinic".to_owned()),
+		};
+		assert_eq!(
+			serde_json::from_slice::<Json>(&named.to_json()).unwrap(),
+			serde_json::json!({"type": "wps", "method": "pin", "ssid": "clinic"})
+		);
+		assert!(matches!(
+			parse(r#"{"type":"wps","method":"pin","ssid":"clinic"}"#).unwrap(),
+			Reading::Message(message) if message == named
+		));
+		assert!(matches!(
+			parse(r#"{"type":"wps","method":"pin"}"#).unwrap(),
+			Reading::Message(Message::Wps { ssid: None, .. })
+		));
+		assert!(parse(r#"{"type":"wps","method":"pin","ssid":7}"#).is_err());
 	}
 
 	/// `subscribe` pins its selector critical: arriving plain is a fault, as is any other critical

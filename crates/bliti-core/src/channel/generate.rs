@@ -119,13 +119,64 @@ pub fn entry() -> impl Strategy<Value = Entry> {
 ///
 /// A type added to [`Message`] belongs here too. The oracle's reach is exactly this strategy's
 /// reach, and a type left out is a type never checked.
+///
+/// Facts and readings are weighted to about half of what is generated, as they were when they were
+/// half the types: they carry the most shapes, and every type added would otherwise thin them.
 pub fn message() -> impl Strategy<Value = Message> {
 	prop_oneof![
-		("[a-z-]{1,10}", "[0-9.]{1,8}")
+		1 => ("[a-z-]{1,10}", "[0-9.]{1,8}")
 			.prop_map(|(name, version)| Message::Hello { name, version }),
-		"[a-z-]{1,10}".prop_map(|topic| Message::Subscribe { topic }),
-		entry().prop_map(Message::Fact),
-		entry().prop_map(Message::Reading),
+		1 => "[a-z-]{1,10}".prop_map(|topic| Message::Subscribe { topic }),
+		7 => entry().prop_map(Message::Fact),
+		7 => entry().prop_map(Message::Reading),
+		// The configuration session of CFG. The document, capabilities and act-answer payloads ride as
+		// raw JSON, so they are generated over the same conforming-JSON strategy as everything else.
+		1 => Just(Message::Configure),
+		1 => (object_of(json()), prop::option::of(object_of(json()))).prop_map(
+			|(document, capabilities)| Message::Configuration {
+				document,
+				capabilities,
+			}
+		),
+		1 => prop::option::of(object_of(json()))
+			.prop_map(|capabilities| Message::Applied { capabilities }),
+		1 => (
+			prop::collection::vec(json(), 0..3),
+			prop::option::of(object_of(json()))
+		)
+			.prop_map(|(attachments, capabilities)| Message::State {
+				attachments,
+				capabilities
+			}),
+		1 => "[0-9]{4,8}".prop_map(|pin| Message::Pin { pin }),
+		1 => (
+			"[a-z][a-z.0-9-]{0,16}",
+			"[a-z ]{1,20}",
+			prop::option::of("[a-z ]{1,16}"),
+		)
+			.prop_map(|(at, reason, reached)| Message::Invalid {
+				at,
+				reason,
+				reached
+			}),
+		1 => Just(Message::Confirm),
+		1 => Just(Message::Discard),
+		1 => Just(Message::Busy),
+		1 => prop::option::of("[a-z0-9]{1,15}").prop_map(|interface| Message::Scan { interface }),
+		1 => prop::option::of("[a-z0-9]{1,15}").prop_map(|interface| Message::Survey { interface }),
+		1 => (
+			prop::sample::select(vec!["push-button", "pin"]),
+			prop::option::of("[a-z0-9]{1,15}"),
+			prop::option::of("[a-zA-Z0-9 -]{1,32}"),
+		)
+			.prop_map(|(method, interface, ssid)| Message::Wps {
+				method: method.to_owned(),
+				interface,
+				ssid,
+			}),
+		1 => prop::collection::vec(json(), 0..3)
+			.prop_map(|access_points| Message::Networks { access_points }),
+		1 => object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
 	]
 }
 
@@ -197,6 +248,53 @@ mod tests {
 			critical_trait > 100,
 			"entries carrying a critical trait: {critical_trait}"
 		);
+	}
+
+	/// The configuration session's optional members are reached too, each both present and absent.
+	#[test]
+	fn the_configuration_optional_members_are_reached() {
+		let (mut capabilities, mut reached, mut addressed, mut unaddressed) = (0, 0, 0, 0);
+		let (mut named, mut unnamed) = (0, 0);
+		for message in sample(4000) {
+			match &message {
+				Message::Configuration {
+					capabilities: Some(_),
+					..
+				} => capabilities += 1,
+				Message::Invalid {
+					reached: Some(_), ..
+				} => reached += 1,
+				Message::Applied {
+					capabilities: Some(_),
+				} => capabilities += 1,
+				Message::Scan { interface }
+				| Message::Survey { interface }
+				| Message::Wps { interface, .. } => {
+					if interface.is_some() {
+						addressed += 1;
+					} else {
+						unaddressed += 1;
+					}
+					if let Message::Wps { ssid, .. } = &message {
+						if ssid.is_some() {
+							named += 1;
+						} else {
+							unnamed += 1;
+						}
+					}
+				}
+				_ => {}
+			}
+		}
+		assert!(
+			capabilities > 20,
+			"configurations carrying capabilities: {capabilities}"
+		);
+		assert!(reached > 20, "failures carrying a stage: {reached}");
+		assert!(addressed > 20, "acts naming an interface: {addressed}");
+		assert!(unaddressed > 20, "acts naming none: {unaddressed}");
+		assert!(named > 20, "joins by WPS naming a network: {named}");
+		assert!(unnamed > 20, "joins by WPS naming none: {unnamed}");
 	}
 
 	/// Every type this build knows is generated. A type in the set but not in the strategy is a type

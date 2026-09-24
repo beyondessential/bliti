@@ -30,11 +30,15 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
-| tiles | `network-address`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
+| a notice beneath the header, only while `provisional` | `network-configuration` |
+| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
+
+While `network-configuration` is `provisional`, the application MUST say that the device is trying network settings that revert unless they are confirmed, and MUST mark the `network-address`, `wireless-network`, `hotspot` and `hotspot-clients` tiles as provisional.
+The application MUST NOT give `network-configuration` a tile.
 
 The application MUST NOT reorder by the `status` trait.
 
@@ -72,6 +76,8 @@ The application MUST colour a face by its entry's `status`, MUST NOT colour a `p
 
 The application MUST show an entry whose `status` is `skipped` or `broken` as having no value, with its reason, and MUST distinguish the two.
 
+The application MUST remove an entry's tile, and any history drawn for it, when the entry is sent as `ended`.
+
 The application MUST show every reading in a reveal with its own limits, status reason and scale.
 
 > [!NOTE]
@@ -86,7 +92,12 @@ The application MUST headline `network-throughput` with the sum of every directi
 
 The application MUST headline `temperature` with the `cpu` sensor, and MUST show every sensor in the reveal.
 
-The application MUST headline `network-address` with the address on the interface carrying the `default` route together with the address on the interface naming an overlay, MUST headline each where an interface holds more than one, and MUST show every address in the reveal.
+The application MUST headline `network-address` with at most two addresses, each on a line of its own and without its interface:
+
+- on the interface carrying the `default` route, or on any interface other than an overlay where none is named as carrying it, the first held of an IPv4 address, a global IPv6 address and a unique local IPv6 address;
+- on an interface naming an overlay, where one does, the first it holds of an IPv4 address and a global IPv6 address.
+
+The application MUST show every address in the reveal, each with its interface.
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
 
@@ -99,7 +110,7 @@ The application MUST pair each battery's `battery-voltage` and `battery-directio
 The application MUST draw a `fraction` against its own scale, and MUST NOT draw a `quantity` against a scale unless its `limits` trait or its total above gives it one.
 
 > [!NOTE]
-> A dual-stack interface holds a v4 and a v6 address, and an operator siting a device wants the one they can reach it on, which is whichever of the two their own network speaks.
+> An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. One address for the network the device is reached on and one for the overlay are what an operator reads it for, and an overlay's addresses are recognisable without naming it.
 
 ## Graphs
 

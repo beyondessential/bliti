@@ -74,9 +74,11 @@ A device MUST emit entries a reader can tell apart: two entries that are about d
 
 A device MUST NOT rely on the order entries arrive in to distinguish them.
 
+An entry is told apart from another by its name, its `kind` and its distinguishing traits, and, where the catalogue below lists it as one entry per value held, by its `value` as well.
+
 > [!NOTE]
 > How a reader groups entries, and what it treats as one thing measured over time, is the reader's own business. The device's obligation is only that what it sends is distinguished well enough for a reader to do that unambiguously.
-> Two addresses on one interface meet this through their `kind`, which tells an `ipv4` from an `ipv6` without a trait to separate them.
+> An interface commonly holds an IPv4 address and more than one IPv6 address, a global one and a unique local one among them, so its addresses share a name, a `kind` and every trait, and only their values separate them.
 
 ### Status
 
@@ -89,10 +91,12 @@ The `status` trait says how the datum stands: whether there is a value, and wher
 | `failed` | what it measures is unwell | present |
 | `skipped` | a precondition was not met, so nothing was measured | absent |
 | `broken` | the measurement was attempted and errored | absent |
+| `ended` | the entry no longer applies, as a hotspot that has stopped does not | absent, except on an entry told apart by its value |
 
 Every fact and reading MUST carry the `status` trait.
 
 An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped` or `broken`.
+An entry MUST carry `value` where `is` is `ended` only where it is told apart by its value, and then MUST carry the value that no longer holds.
 
 `status` MUST carry `reason` where `is` is anything but `passed`, and MUST NOT carry it where `is` is `passed`.
 
@@ -103,7 +107,7 @@ A device MUST report `warning` or `failed` only where the measurement has a noti
 > [!NOTE]
 > The status is the datum's and not the device's: `passed` against a throughput reading says the figure is sound, not that the link is quiet. That is what lets every entry carry a status while a busy link stays no kind of warning.
 > `skipped` and `broken` both leave the value absent and both say nothing about the device, but they are different things to whoever is looking: one is a measurement this platform cannot make, the other is one that should have worked and did not.
-> The vocabulary is the one BES software already reports checks in, so an operator meets the same five words here as elsewhere.
+> The first five are the vocabulary BES software already reports checks in, so an operator meets the same words here as elsewhere. `ended` has no counterpart there, because a check does not stop existing.
 > `reason` is free text because the useful part of a failure is the part nobody anticipated: a path, a permission, an errno. A code would carry the half that was foreseen and drop the half worth reading.
 
 ### Values
@@ -141,6 +145,12 @@ Where the hardware an entry measures is not fitted, a device MUST omit the entry
 
 Where the hardware is fitted and the measurement errored, a device MUST report the entry as `broken`.
 
+Where a device stops reporting an entry it has sent on a feed, it MUST send that entry on the feed once more as `ended`, carrying everything that told it apart, and MUST then leave it out.
+A reader MUST drop an entry it receives as `ended`.
+
+> [!NOTE]
+> Leaving an entry out says nothing to a reader already holding it, so without the last message a hotspot that has stopped would go on showing as running.
+
 Where the hardware is fitted and a precondition for measuring it was not met, a device MUST report the entry as `skipped`.
 
 > [!NOTE]
@@ -156,7 +166,10 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `os` | `text` | — | the operating system and its version |
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
+| `network-configuration` | `text` | — | whether the network runs the recorded configuration, `recorded`, or one being tried, `provisional` |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
+| `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
+| `hotspot` | `text` | `channel` | the network the device's hotspot advertises |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
@@ -170,6 +183,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `memory-usage` | `fraction` | — | memory in use |
 | `filesystem-usage` | `fraction` | `filesystem` | how full each filesystem is |
 | `network-throughput` | `quantity`, `bytes/second` | `interface`, `direction` | throughput per interface and direction |
+| `hotspot-clients` | `quantity`, `clients` | — | how many clients are joined to the hotspot |
 | `temperature` | `quantity`, `celsius` | `sensor` | each temperature sensor |
 | `fan-speed` | `quantity`, `revolutions/minute` | `fan` | fan speed |
 | `power-source` | `text` | — | where the device's power is coming from |
@@ -182,6 +196,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | trait | members | what it names |
 | --- | --- | --- |
 | `interface` | `name`, `route`, `overlay` | a network interface; `route` is `default` on the one carrying the default route, and `overlay` names the overlay where it is one |
+| `security` | — | how a wireless link is secured |
+| `channel` | `number`, `band`, `width` | the channel a wireless link is on; `band` is named as [HOT](network/hotspot.md) names bands, and `width` is in megahertz |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
@@ -190,7 +206,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-`route`, `overlay`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
+`route`, `overlay`, `security`, `channel`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -214,6 +230,16 @@ A device MUST report physical interfaces, wired and wireless, and the overlay th
 A device MUST NOT report loopback or other virtual interfaces.
 
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
+
+A device that configures its network under [CFG](network/session.md) MUST report `network-configuration`, as `provisional` from the moment it begins applying a proposal until that proposal is confirmed or the recorded configuration is back in force, and as `recorded` otherwise.
+
+A device MUST report the wireless network each of its wireless interfaces is joined to, and MUST omit the entry for an interface joined to none.
+
+A device MUST report its hotspot and the clients joined to it, and MUST omit both entries where it runs no hotspot.
+
+A device MUST report the channel of its hotspot and of its wireless link both.
+
+What a device joins, and the hotspot it runs, are configured under [NET](network/overview.md).
 
 > [!NOTE]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.

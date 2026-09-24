@@ -162,7 +162,7 @@ test.describe('aggregation', () => {
 		}
 
 		await expect(page.locator('.tile').filter({ hasText: 'Network' }).locator('.value').first()).toHaveText('1.28 MB/s')
-		await page.getByRole('button', { name: /Network/ }).click()
+		await page.getByRole('button', { name: /^Network \d/ }).click()
 		await expect(page.locator('.mirror')).toBeVisible()
 		await expect(page.getByText(/peak 1.2 MB\/s/)).toBeVisible()
 		await expect(page.getByText(/peak 84 kB\/s/)).toBeVisible()
@@ -177,7 +177,7 @@ test.describe('aggregation', () => {
 		await emit(page, throughput('end0', 'out', { value: 2000 }))
 		await emit(page, throughput('wlan0', 'out', { traits: { status: { is: 'broken', reason: 'no counters while associating' }, interface: { name: 'wlan0' }, direction: 'out' } }))
 
-		await page.getByRole('button', { name: /Network/ }).click()
+		await page.getByRole('button', { name: /^Network \d/ }).click()
 		await expect(page.getByText('no counters while associating')).toBeVisible()
 	})
 
@@ -196,6 +196,70 @@ test.describe('aggregation', () => {
 		await expect(tile).toContainText('100.101.102.103')
 		await tile.click()
 		await expect(page.getByText('10.0.0.5')).toBeVisible()
+	})
+
+	// Found on the prototype: an interface's addresses shared one key, so only the last one sampled
+	// showed. Each is its own entry, and one that ends goes alone (NFO, VIEW).
+	test('every address an interface holds is revealed, and one that ends goes alone', async ({ page }) => {
+		await openChannel(page)
+		const addr = (kind, value, is = 'passed') =>
+			fact('network-address', {
+				kind,
+				value,
+				traits: { status: { is, ...(is === 'ended' ? { reason: 'no longer applies' } : {}) }, interface: { name: 'end0', route: 'default' } },
+			})
+		await emit(page, addr('ipv4', '10.0.101.3'))
+		await emit(page, addr('ipv6', '2407:8b00::3'))
+		await emit(page, addr('ipv6', 'fd6d::3'))
+
+		const tile = page.locator('.tile').filter({ hasText: 'Address' })
+		await tile.click()
+		const detail = tile.locator('.detail')
+		await expect(detail).toContainText('10.0.101.3')
+		await expect(detail).toContainText('2407:8b00::3')
+		await expect(detail).toContainText('fd6d::3')
+
+		await emit(page, addr('ipv6', '2407:8b00::3', 'ended'))
+		await expect(detail).not.toContainText('2407:8b00::3')
+		await expect(detail).toContainText('10.0.101.3')
+		await expect(detail).toContainText('fd6d::3')
+	})
+
+	// The headline is one address for the default route, IPv4 before global IPv6 before unique local,
+	// and one for the overlay, IPv4 before global IPv6, each on its own line and without its
+	// interface (VIEW).
+	test('address headlines one address each for the default route and the overlay', async ({ page }) => {
+		await openChannel(page)
+		const addr = (name, kind, value, extra) =>
+			fact('network-address', { kind, value, traits: { status: { is: 'passed' }, interface: { name, ...extra } } })
+		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+		await emit(page, addr('wlan0', 'ipv4', '10.0.101.10', {}))
+		await emit(page, addr('tailscale0', 'ipv6', 'fd7a:115c:a1e0::1', { overlay: 'tailscale' }))
+		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+
+		const face = page.locator('.tile').filter({ hasText: 'Address' }).locator('.value .addresses > span')
+		await expect(face).toHaveText(['2407:8b00::3', '100.93.132.114'])
+
+		// An IPv4 address on the default route comes before any IPv6 one.
+		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await expect(face).toHaveText(['10.0.101.3', '100.93.132.114'])
+
+		// Where no interface is named as carrying the default route, the headline takes the first choice
+		// among the rest.
+		await openChannel(page)
+		await emit(page, addr('wlan0', 'ipv6', '2407:8b00::10', {}))
+		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+		await expect(face).toHaveText(['2407:8b00::10', '100.93.132.114'])
+		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+
+		// The reveal names the overlay's interface without repeating the overlay its name says.
+		const tile = page.locator('.tile').filter({ hasText: 'Address' })
+		await tile.click()
+		const overlay = tile.locator('.detail').getByText('tailscale0').first()
+		await expect(overlay).toHaveText('tailscale0')
 	})
 })
 
@@ -324,5 +388,71 @@ test.describe('what it does not recognise', () => {
 		await expect(page.getByText('-84 decibel-milliwatts')).toBeVisible()
 		await expect(page.locator('.tile').filter({ hasText: 'cdc-wdm0' })).toHaveCount(1)
 		await expect(page.locator('.tile').filter({ hasText: 'cdc-wdm1' })).toHaveCount(1)
+	})
+})
+
+test.describe('wireless', () => {
+	const joined = (number, band) =>
+		fact('wireless-network', {
+			kind: 'text',
+			value: 'Clinic-Staff',
+			traits: { status: { is: 'passed' }, security: 'sae', channel: { number, band, width: 20 } },
+		})
+
+	// `security` and `channel` are descriptive (NFO), so a link whose channel moves is the same link:
+	// a shared-channel hotspot following the client onto a new channel must not leave two tiles (VIEW).
+	test('a wireless-network fact whose channel changes replaces its tile rather than adding a second', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, joined(6, '2ghz'))
+		await emit(page, joined(36, '5ghz'))
+		const tile = page.locator('.tile').filter({ hasText: 'Wireless' })
+		await expect(tile).toHaveCount(1)
+		await tile.click()
+		await expect(tile).toContainText('36 · 5 GHz · 20 MHz')
+		await expect(tile).not.toContainText('2.4 GHz')
+		await expect(tile).toContainText('WPA3')
+	})
+
+	// The new entries take the places VIEW's order gives them, after the address and before the processor.
+	test('the wireless and hotspot tiles sit where the order puts them', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
+		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await emit(page, joined(6, '2ghz'))
+		await emit(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'wlan0', route: 'default' } } }))
+		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Wireless', 'Hotspot', 'Hotspot clients', 'Processor'])
+		await expect(page.getByText('3 clients')).toBeVisible()
+	})
+
+	// Leaving an entry out says nothing to a client already showing it, so a stopped hotspot is sent
+	// once more as ended and its tiles go (NFO, VIEW).
+	test('a hotspot that has stopped loses its tiles', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspot', 'Hotspot clients', 'Processor'])
+
+		const ended = { status: { is: 'ended', reason: 'no longer applies' } }
+		await emit(page, fact('hotspot', { kind: 'text', traits: { ...ended, channel: { number: 11 } } }))
+		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', traits: ended }))
+		await expect(page.locator('.tile .label')).toHaveText(['Processor'])
+	})
+
+	// A proposal being tried shows as such on the network tiles, and gets no tile of its own (VIEW).
+	test('settings being tried mark the network tiles and say they revert', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await emit(page, fact('network-configuration', { kind: 'text', value: 'provisional' }))
+		await expect(page.getByText('They revert unless confirmed')).toBeVisible()
+		await expect(page.locator('.tile.provisional')).toHaveCount(1)
+		await expect(page.locator('.tile.provisional')).toContainText('Hotspot')
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspottrial', 'Processor'])
+
+		await emit(page, fact('network-configuration', { kind: 'text', value: 'recorded' }))
+		await expect(page.getByText('They revert unless confirmed')).toHaveCount(0)
+		await expect(page.locator('.tile.provisional')).toHaveCount(0)
 	})
 })

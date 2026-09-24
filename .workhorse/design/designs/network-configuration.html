@@ -1,0 +1,286 @@
+<!-- spec: network/screen.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network configuration</title>
+<style>
+/* Variables, type and component shapes are taken from crates/bliti-web/app/src/styles.css so this
+   sits inside the screen an operator already knows. Only what this card adds is authored here. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.small { padding: 6px 10px; min-height: 0; font-size: 0.85rem; }
+input, select {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 1 1 auto; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.bad { color: var(--bad); }
+.good { color: var(--good); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+.heading h2 { margin: 0; }
+.notice {
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 4px;
+	padding: 8px 12px;
+	margin: 0 0 12px;
+	font-size: 0.9rem;
+}
+.notice.fault { border-left-color: var(--bad); }
+
+/* The ordering. Each row is a candidate the device may attach by, in the order it tries them. The
+   handle is the whole point of the row, so it reads as a list that is meant to be rearranged. */
+.order { list-style: none; margin: 0; padding: 0; }
+.order li {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px solid var(--line);
+}
+.order li:first-child { border-top: 0; }
+.grip { color: var(--muted); cursor: grab; font-size: 0.9rem; letter-spacing: -1px; }
+.what { flex: 1 1 auto; min-width: 0; }
+.what .name { overflow-wrap: anywhere; }
+.what .kind { color: var(--muted); font-size: 0.8rem; }
+.state { font-size: 0.8rem; white-space: nowrap; }
+.state.good { color: var(--good); }
+.state.muted { color: var(--muted); }
+.state.bad { color: var(--bad); }
+
+/* Where a change failed. The stages are the device's own account of how far it got, so an operator
+   reads "the key was right, the network is not routing" without being told it in prose. */
+.stages { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 0; font-size: 0.8rem; }
+.stages span::before { margin-right: 4px; }
+.stages .done { color: var(--good); }
+.stages .done::before { content: "\2713"; }
+.stages .failed { color: var(--bad); }
+.stages .failed::before { content: "\2717"; }
+.field-fault { border-color: var(--bad); }
+.why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
+
+label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+label:first-of-type { margin-top: 0; }
+.check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
+.check input { width: auto; padding: 0; }
+details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
+.pair { display: flex; gap: 8px; }
+.pair > * { flex: 1 1 0; }
+
+/* The action bar. It says which stage the operator is in and offers only what that stage allows,
+   because the four are easy to confuse: a change being edited, a change being checked, a change that
+   failed, and a change running but not saved all look alike otherwise.
+
+   In the built client this stays in view while the operator scrolls, pinned to the bottom of the
+   viewport. It is rendered inline here because a sticky element sits on top of the rest of a mockup
+   and makes it harder to read, not because its place in the page is at the top. */
+.bar-state {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 8px;
+	padding: 12px 16px;
+}
+.bar-state.working { border-left-color: var(--accent); }
+.bar-state.failed { border-left-color: var(--bad); }
+.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state .row > * { flex: 0 1 auto; }
+
+/* Not part of the screen. The four stages together, because which controls appear when is the part
+   of this that cannot be read off a single state. */
+.stages-ref { border-style: dashed; }
+.stages-ref .bar-state { margin-bottom: 8px; }
+.stages-ref .when { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Network</h1>
+
+<section class="bar-state failed">
+	<p><strong>Could not apply.</strong> The device is back on the last saved configuration. Your changes are below.</p>
+	<div class="row">
+		<button>Apply</button>
+		<button class="secondary">Reset</button>
+	</div>
+</section>
+
+<section>
+	<div class="heading">
+		<h2>Order tried</h2>
+		<button class="secondary small">Add</button>
+	</div>
+	<ul class="order">
+		<li>
+			<span class="grip">⠿</span>
+			<span class="what"><span class="name">Clinic wall port</span><br><span class="kind">Wired, eth0, static 10.4.2.20</span></span>
+			<span class="state good">Default route</span>
+		</li>
+		<li>
+			<span class="grip">⠿</span>
+			<span class="what"><span class="name">Clinic wall port, north site</span><br><span class="kind">Wired, eth0, static 192.168.60.20</span></span>
+			<span class="state muted">No gateway</span>
+		</li>
+		<li>
+			<span class="grip">⠿</span>
+			<span class="what"><span class="name">eth0 automatic</span><br><span class="kind">Wired, eth0, DHCP</span></span>
+			<span class="state muted">No lease</span>
+		</li>
+		<li>
+			<span class="grip">⠿</span>
+			<span class="what"><span class="name">Clinic-Staff</span><br><span class="kind">Wireless, WPA3</span></span>
+			<span class="state good">Up</span>
+		</li>
+		<li>
+			<span class="grip">⠿</span>
+			<span class="what"><span class="name">BackupLink</span><br><span class="kind">Wireless, WPA2</span></span>
+			<span class="state muted">Out of range</span>
+		</li>
+	</ul>
+</section>
+
+<section>
+	<div class="heading">
+		<h2>Clinic wall port, north site</h2>
+		<button class="secondary small">Remove</button>
+	</div>
+	<p class="notice fault">Applied, then could not be reached. Reverted.</p>
+	<p class="stages">
+		<span class="done">Link</span>
+		<span class="done">Address</span>
+		<span class="failed">Gateway</span>
+	</p>
+	<p class="why">192.168.60.1 did not answer.</p>
+	<label for="address">Address</label>
+	<input id="address" value="192.168.60.20/24">
+	<label for="gateway">Gateway</label>
+	<input id="gateway" class="field-fault" value="192.168.60.1">
+	<label for="resolvers">Resolvers</label>
+	<input id="resolvers" value="192.168.60.1">
+	<p class="muted" style="margin:6px 0 0">Queried before DHCP-supplied resolvers.</p>
+</section>
+
+<section>
+	<div class="heading">
+		<h2>Hotspot</h2>
+		<button class="secondary small">Turn off</button>
+	</div>
+	<label for="ssid">SSID</label>
+	<input id="ssid" value="Clinic-Field-04">
+	<label for="psk">Passphrase</label>
+	<div class="pair">
+		<input id="psk" value="ripe-anchor-glass-77">
+		<button class="secondary">Generate</button>
+	</div>
+	<label class="check"><input type="checkbox" checked> Share upstream connection</label>
+	<label class="check"><input type="checkbox" checked> Keep clients isolated</label>
+	<details>
+		<summary>Radio and addressing</summary>
+		<!-- Band, channel and width are shown only where the radio can run an access point and a client
+		     on independent channels. The board this targets cannot, so on it these three are absent and
+		     a line in their place says the radio uses one channel for both. They are drawn here because
+		     a mockup of the absent case would be a mockup of nothing. -->
+		<label for="band">Band</label>
+		<select id="band"><option>Device picks</option><option>2.4 GHz</option><option>5 GHz</option></select>
+		<div class="pair">
+			<div>
+				<label for="channel">Channel</label>
+				<select id="channel"><option>Device picks</option><option>1</option><option>6</option><option>11</option></select>
+			</div>
+			<div>
+				<label for="width">Width</label>
+				<select id="width"><option>Device picks</option><option>20 MHz</option><option>40 MHz</option></select>
+			</div>
+		</div>
+		<button class="secondary small" style="margin-top:12px">Survey the spectrum</button>
+		<label for="range">DHCP range</label>
+		<input id="range" value="10.42.0.0/24">
+	</details>
+</section>
+
+<section>
+	<h2>Country</h2>
+	<select><option>Vanuatu</option><option>Unset, world-safe channels only</option></select>
+	<p class="muted" style="margin:6px 0 0">Sets which channels the radio may use.</p>
+</section>
+
+<section class="stages-ref">
+	<h2>Action bar by stage</h2>
+	<p class="muted" style="margin:0 0 12px">Not part of the screen. The bar at the top is the third of these.</p>
+
+	<p class="when">Editing, fields read-write</p>
+	<div class="bar-state">
+		<p><strong>2 changes not applied.</strong> The device is still on its saved configuration.</p>
+		<div class="row"><button>Apply</button><button class="secondary">Reset</button></div>
+	</div>
+
+	<p class="when">Applying, fields read-only</p>
+	<div class="bar-state working">
+		<p><strong>Applying.</strong> Waiting on the gateway.</p>
+		<div class="row"><button class="secondary">Cancel</button></div>
+	</div>
+
+	<p class="when">Errored, fields read-write, filled with what was tried</p>
+	<div class="bar-state failed">
+		<p><strong>Could not apply.</strong> The device is back on the last saved configuration.</p>
+		<div class="row"><button>Apply</button><button class="secondary">Reset</button></div>
+	</div>
+
+	<p class="when">Applied, fields read-only</p>
+	<div class="bar-state">
+		<p><strong>Applied, not saved.</strong> Running now. Discarded if you disconnect.</p>
+		<div class="row"><button>Confirm</button><button class="secondary">Cancel</button></div>
+	</div>
+</section>
+
+</main>
+</body>
+</html>
