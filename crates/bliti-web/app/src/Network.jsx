@@ -708,28 +708,21 @@ function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 		<section className="hotspot">
 			<div className="heading">
 				<h2>Hotspot</h2>
-				<div className="actions">
-					{on ? (
-						<button className="secondary small" onClick={() => change((edit) => turningHotspot(edit, false))} disabled={readOnly}>
-							Turn off
+				{on ? (
+					<button className="secondary small" onClick={() => change((edit) => turningHotspot(edit, false))} disabled={readOnly}>
+						Turn off
+					</button>
+				) : (
+					!why && (
+						<button
+							className="secondary small"
+							onClick={() => change((edit) => (hotspot ? turningHotspot(edit, true) : setMember(edit, 'hotspot', blankHotspot(caps))))}
+							disabled={readOnly}
+						>
+							Turn on
 						</button>
-					) : (
-						!why && (
-							<button
-								className="secondary small"
-								onClick={() => change((edit) => (hotspot ? turningHotspot(edit, true) : setMember(edit, 'hotspot', blankHotspot(caps))))}
-								disabled={readOnly}
-							>
-								Turn on
-							</button>
-						)
-					)}
-					{hotspot && (
-						<button className="secondary small" onClick={() => change((edit) => setMember(edit, 'hotspot', undefined))} disabled={readOnly}>
-							Remove
-						</button>
-					)}
-				</div>
+					)
+				)}
 			</div>
 			{failure && <Failure failure={failure} />}
 			{blocked && (

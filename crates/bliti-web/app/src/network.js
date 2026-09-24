@@ -72,9 +72,12 @@ export function turning(edit, key, enabled) {
 }
 
 /// The hotspot turned off or back on: one turned off keeps what it carries, and is not run
-/// (BLI-HOT).
+/// (BLI-HOT). One turned off with settings that could not work on any device is removed instead, so
+/// what is kept off is a hotspot that could run (NSCR).
 export function turningHotspot(edit, enabled) {
-	return setMember(edit, 'hotspot', { ...edit.document.hotspot, enabled })
+	const hotspot = edit.document.hotspot
+	if (!enabled && hotspotProblem(hotspot)) return setMember(edit, 'hotspot', undefined)
+	return setMember(edit, 'hotspot', { ...hotspot, enabled })
 }
 
 export function removeCandidate(edit, key) {
@@ -561,13 +564,18 @@ export function validate(document) {
 		if (bad !== -1) return problem(at('nameservers', bad), `${nameservers[bad]} is not an address.`)
 	}
 
-	const hotspot = document.hotspot
-	if (hotspot) {
-		if (!hotspot.ssid) return problem(['hotspot', 'ssid'], 'Enter the SSID.')
-		if (!passphraseFits(hotspot.passphrase)) return problem(['hotspot', 'passphrase'], 'A passphrase is 8 to 63 characters.')
-		if (hotspot['dhcp-range'] !== undefined && !isPrefixed(hotspot['dhcp-range'], { v6: false })) {
-			return problem(['hotspot', 'dhcp-range'], 'Enter a subnet, like 10.42.0.0/24.')
-		}
+	return document.hotspot ? hotspotProblem(document.hotspot) : null
+}
+
+/// What in a hotspot could not work whatever the device supports, turned on or off, as `validate`
+/// has it. Null where there is nothing.
+function hotspotProblem(hotspot) {
+	const problem = (member, reason) => ({ at: pathOf(['hotspot', member]), reason })
+	if (!hotspot.ssid) return problem('ssid', 'Enter the SSID.')
+	if (new TextEncoder().encode(hotspot.ssid).length > 32) return problem('ssid', 'An SSID is at most 32 bytes.')
+	if (!passphraseFits(hotspot.passphrase)) return problem('passphrase', 'A passphrase is 8 to 63 characters.')
+	if (hotspot['dhcp-range'] !== undefined && !isPrefixed(hotspot['dhcp-range'], { v6: false })) {
+		return problem('dhcp-range', 'Enter a subnet, like 10.42.0.0/24.')
 	}
 	return null
 }

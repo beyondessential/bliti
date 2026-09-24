@@ -66,6 +66,8 @@ The application MUST make plain which candidate the fields being edited belong t
 The application MUST let the operator turn each candidate off and on again while editing, keeping its fields as they are and editable, MUST give a candidate the operator adds `enabled` true, and MUST show in the list which candidates are off.
 
 The application MUST let the operator turn the hotspot off and on again while editing, keeping its settings as they are and editable, and MUST give a hotspot the operator adds `enabled` true.
+The application MUST remove a hotspot the operator turns off whose settings could not work whatever the device supports, as one with no SSID or a passphrase too short to be one.
+The application MUST hold a hotspot that is off to the same checks before proposing as one that is on.
 
 The application MUST say, beside a hotspot that is on, where it cannot run beside a wireless connection the device reports joined now, naming the connection and its channel and that turning the connection off lets it run, and MUST still let the operator apply.
 

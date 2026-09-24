@@ -360,6 +360,14 @@ test.describe('validate', () => {
 	test('a hotspot passphrase too short to be one is caught', () => {
 		expect(validate({ attachments: [], hotspot: { ...hotspot, passphrase: 'short' } })?.at).toBe("$['hotspot']['passphrase']")
 	})
+
+	test('a hotspot SSID longer than 32 bytes is caught', () => {
+		expect(validate({ attachments: [], hotspot: { ...hotspot, ssid: 'ü'.repeat(17) } })?.at).toBe("$['hotspot']['ssid']")
+	})
+
+	test('a hotspot turned off is checked as one turned on', () => {
+		expect(validate({ attachments: [], hotspot: { ...hotspot, enabled: false, ssid: '' } })?.at).toBe("$['hotspot']['ssid']")
+	})
 })
 
 test.describe('stages', () => {
