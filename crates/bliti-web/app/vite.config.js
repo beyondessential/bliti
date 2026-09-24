@@ -25,8 +25,13 @@ export default defineConfig(({ command, mode }) => ({
 	plugins: [
 		react(),
 		VitePWA({
-			registerType: 'autoUpdate',
-			workbox: { globPatterns: ['**/*.{js,css,html,wasm}'] },
+			// A new version waits until no page of the old one is open. Activating deletes the precache
+			// entries the new version does not list, and the page loads the wasm module lazily, so a
+			// page left running across a takeover asks the network for a module that is gone, which
+			// offline fails. Claiming is kept, so a first visit is served from the cache once it is
+			// filled rather than only after a reload.
+			registerType: 'prompt',
+			workbox: { globPatterns: ['**/*.{js,css,html,wasm}'], clientsClaim: true },
 			// The manifest's own icons are precached for us. This one is reached from the markup
 			// instead, so it has to be named, and it is worth caching because an installed
 			// application may never be online again after the install.
