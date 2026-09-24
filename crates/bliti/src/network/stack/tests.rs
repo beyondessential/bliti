@@ -18,6 +18,7 @@ use crate::network::{
 };
 
 mod fake;
+mod radios;
 mod sweep;
 mod verdict;
 
@@ -40,7 +41,6 @@ impl Rig {
 			wired: vec!["eth0".into()],
 			paths: scratch.paths(),
 			state: scratch.0.join("record"),
-			access_point: "ap0".into(),
 		};
 		let iwd = Arc::new(FakeIwd::default());
 		let gateway = Arc::new(FakeGateway::default());

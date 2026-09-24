@@ -1,4 +1,5 @@
 use std::{
+	collections::BTreeMap,
 	fs,
 	os::unix::fs::{MetadataExt as _, PermissionsExt as _},
 };
@@ -7,7 +8,10 @@ use bliti_core::channel::config::Document;
 use serde_json::{Value as Json, json};
 
 use super::{
-	super::render::{self, Band, Channel, PUBLIC, SECRET, Selection},
+	super::{
+		render::{self, AccessPoint, Band, Channel, PUBLIC, Radio, SECRET, Selection},
+		select::Alongside,
+	},
 	*,
 };
 
@@ -91,6 +95,16 @@ impl System for Fake {
 	}
 }
 
+fn radio(station: &str, access_point: &str, alongside: Alongside) -> Radio {
+	Radio {
+		station: station.into(),
+		access_point: Some(AccessPoint {
+			interface: access_point.into(),
+			alongside,
+		}),
+	}
+}
+
 /// A device rooted in a scratch directory, with the state it has been rendered in.
 struct Device {
 	scratch: Scratch,
@@ -105,9 +119,7 @@ impl Device {
 		let root = &scratch.0;
 		let hardware = Hardware {
 			wired: vec!["eth0".into()],
-			station: Some("wlan0".into()),
-			access_point: Some("ap0".into()),
-			shared_channel: false,
+			radios: vec![radio("wlan0", "ap0", Alongside::Independent)],
 			paths: Paths {
 				networkd: root.join("etc/systemd/network"),
 				iwd_state: root.join("var/lib/iwd"),
@@ -121,9 +133,9 @@ impl Device {
 			scratch,
 			hardware,
 			selection: Selection {
-				active: vec![0],
-				station_channel: None,
-				hotspot_waits: false,
+				links: [("eth0".to_owned(), 0)].into(),
+				hotspot: Some("wlan0".into()),
+				channels: BTreeMap::new(),
 			},
 			system: Fake::default(),
 		}
@@ -271,7 +283,7 @@ fn the_first_apply_picks_everything_up_in_order() {
 #[test]
 fn an_unset_domain_is_the_world() {
 	let mut device = Device::new();
-	device.selection.active.clear();
+	device.selection.links.clear();
 	device.apply(&json!({ "attachments": [] }));
 	assert_eq!(device.system.take()[0], Call::Regdom("00".into()));
 }
@@ -511,22 +523,62 @@ fn a_dropped_hotspot_stops_hostapd_and_deletes_its_interface() {
 	);
 }
 
+/// The hotspot moving to another radio goes down with its access point interface on the old one
+/// before the new one's is created and started.
+#[test]
+fn a_hotspot_moving_radio_moves_its_access_point_interface() {
+	let mut device = Device::new();
+	device.hardware.radios = vec![
+		radio("wlan0", "ap0", Alongside::Independent),
+		radio("wlan1", "ap1", Alongside::Independent),
+	];
+	device.apply(&full());
+	device.system.take();
+
+	device.selection.hotspot = Some("wlan1".into());
+	let changes = device.apply(&full());
+	assert_eq!(
+		changes.hostapd,
+		[
+			Change::Written(device.path("etc/hostapd/ap1.conf")),
+			Change::Removed(device.path("etc/hostapd/ap0.conf")),
+		]
+	);
+	assert_eq!(
+		device.system.take(),
+		[
+			Call::Hostapd(Hostapd::Stop, "ap0".into()),
+			Call::DeleteAp("ap0".into()),
+			Call::CreateAp("wlan1".into(), "ap1".into()),
+			Call::Hostapd(Hostapd::Start, "ap1".into()),
+			Call::ReloadNetworkd,
+		]
+	);
+	assert!(!device.path("etc/hostapd/ap0.conf").exists());
+}
+
 /// On a shared-channel radio the station moving channel restarts hostapd on the new one.
 #[test]
 fn a_channel_change_restarts_hostapd() {
 	let mut device = Device::new();
-	device.hardware.shared_channel = true;
-	device.selection.station_channel = Some(Channel {
-		band: Band::TwoPointFour,
-		number: 1,
-	});
+	device.hardware.radios = vec![radio("wlan0", "ap0", Alongside::SharedChannel)];
+	device.selection.channels.insert(
+		"wlan0".into(),
+		Channel {
+			band: Band::TwoPointFour,
+			number: 1,
+		},
+	);
 	device.apply(&full());
 	device.system.take();
 
-	device.selection.station_channel = Some(Channel {
-		band: Band::TwoPointFour,
-		number: 11,
-	});
+	device.selection.channels.insert(
+		"wlan0".into(),
+		Channel {
+			band: Band::TwoPointFour,
+			number: 11,
+		},
+	);
 	let changes = device.apply(&full());
 	assert_eq!(
 		changes,

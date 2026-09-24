@@ -137,23 +137,29 @@ pub fn select_hardware(radios: &[RadioInfo], wired: &[String]) -> select::Hardwa
 	}
 }
 
-/// What rendering runs on, from the one radio it describes.
+/// What rendering runs on, from the probed radios in the order they were probed.
 ///
-/// [`render::Hardware`] describes a single radio, so the caller names which, where the device has
-/// one. `access_point` is the interface bliti creates for the hotspot, which is bliti's to name
-/// rather than anything the radio reports; it is carried only where the radio can run one.
+/// Each radio able to run an access point carries the interface bliti creates for the hotspot on
+/// it, which is bliti's to name rather than anything the radio reports: [`render::access_point`] of
+/// its place among the radios.
 pub fn render_hardware(
-	radio: Option<&RadioInfo>,
+	radios: &[RadioInfo],
 	wired: &[String],
-	access_point: &str,
 	paths: render::Paths,
 ) -> render::Hardware {
-	let alongside = radio.and_then(|radio| radio.alongside);
 	render::Hardware {
 		wired: wired.to_vec(),
-		station: radio.map(|radio| radio.station.clone()),
-		access_point: alongside.map(|_| access_point.to_owned()),
-		shared_channel: alongside == Some(Alongside::SharedChannel),
+		radios: radios
+			.iter()
+			.enumerate()
+			.map(|(index, radio)| render::Radio {
+				station: radio.station.clone(),
+				access_point: radio.alongside.map(|alongside| render::AccessPoint {
+					interface: render::access_point(index),
+					alongside,
+				}),
+			})
+			.collect(),
 		paths,
 	}
 }

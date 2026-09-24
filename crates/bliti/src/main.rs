@@ -87,11 +87,18 @@ enum Command {
 		/// The configuration document, as JSON.
 		document: PathBuf,
 
-		/// The candidates to bring up, by position in `attachments`.
+		/// The candidates to bring up, by position in `attachments`. A wireless one goes on the radio
+		/// it names, else the first, or on the one given as `N@interface`.
 		#[arg(long, value_delimiter = ',')]
-		active: Vec<usize>,
+		active: Vec<String>,
 
-		/// The channel the wireless client is on, as `2ghz:6`, for a hotspot that has to follow it.
+		/// The radio to run the hotspot on, by its wireless interface. Unset, the one the hotspot
+		/// names, else the first able to run one.
+		#[arg(long)]
+		hotspot: Option<String>,
+
+		/// The channel the wireless client on the hotspot's radio is on, as `2ghz:6`, for a hotspot
+		/// that has to follow it.
 		#[arg(long)]
 		station_channel: Option<String>,
 	},
@@ -162,8 +169,17 @@ async fn run(cli: Cli) -> Result<()> {
 		Command::NetworkApply {
 			document,
 			active,
+			hotspot,
 			station_channel,
-		} => network_apply(&document, active, station_channel.as_deref()).await,
+		} => {
+			network_apply(
+				&document,
+				&active,
+				hotspot.as_deref(),
+				station_channel.as_deref(),
+			)
+			.await
+		}
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
 		Command::Daemon {
 			adapter,
@@ -209,7 +225,8 @@ async fn probe() -> Result<()> {
 #[cfg(target_os = "linux")]
 async fn network_apply(
 	document: &std::path::Path,
-	active: Vec<usize>,
+	active: &[String],
+	hotspot: Option<&str>,
 	station_channel: Option<&str>,
 ) -> Result<()> {
 	use bliti_core::channel::config::Document;
@@ -224,26 +241,8 @@ async fn network_apply(
 		.radios(&Default::default())
 		.await?;
 	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
-	let hardware = probe::render_hardware(radios.first(), &wired, "ap0", render::Paths::system());
-	let station_channel = station_channel
-		.map(|text| {
-			let (band, number) = text.split_once(':').context("a channel is `band:number`")?;
-			let band = match band {
-				"2ghz" => render::Band::TwoPointFour,
-				"5ghz" => render::Band::Five,
-				other => anyhow::bail!("{other:?} is not a band"),
-			};
-			Ok(render::Channel {
-				band,
-				number: number.parse()?,
-			})
-		})
-		.transpose()?;
-	let selection = render::Selection {
-		active,
-		station_channel,
-		hotspot_waits: false,
-	};
+	let hardware = probe::render_hardware(&radios, &wired, render::Paths::system());
+	let selection = network_selection(&document, &hardware, active, hotspot, station_channel)?;
 
 	let rendered = render::render(&document, &hardware, &selection)?;
 	let changes = tokio::task::spawn_blocking(move || {
@@ -261,10 +260,86 @@ async fn network_apply(
 	Ok(())
 }
 
+/// The selection `network-apply` is asked for.
+#[cfg(target_os = "linux")]
+fn network_selection(
+	document: &bliti_core::channel::config::Document,
+	hardware: &network::render::Hardware,
+	active: &[String],
+	hotspot: Option<&str>,
+	station_channel: Option<&str>,
+) -> Result<network::render::Selection> {
+	use bliti_core::channel::config::AttachmentKind;
+	use network::render;
+
+	let first = hardware.radios.first().map(|radio| radio.station.as_str());
+	let mut links = std::collections::BTreeMap::new();
+	for given in active {
+		let (index, on) = match given.split_once('@') {
+			Some((index, on)) => (index, Some(on)),
+			None => (given.as_str(), None),
+		};
+		let index: usize = index
+			.parse()
+			.with_context(|| format!("{given:?} is not a candidate"))?;
+		let attachment = document
+			.attachments
+			.get(index)
+			.with_context(|| format!("the document has no candidate {index}"))?;
+		let interface = match &attachment.kind {
+			AttachmentKind::WiredDynamic { interface }
+			| AttachmentKind::WiredStatic { interface, .. } => interface.as_str(),
+			AttachmentKind::Wireless(wireless) => on
+				.or(wireless.interface.as_deref())
+				.or(first)
+				.context("this device has no radio")?,
+		};
+		links.insert(interface.to_owned(), index);
+	}
+
+	let hotspot = document.hotspot.as_ref().and_then(|document| {
+		hotspot
+			.or(document.interface.as_deref())
+			.or_else(|| {
+				hardware
+					.radios
+					.iter()
+					.find(|radio| radio.access_point.is_some())
+					.map(|radio| radio.station.as_str())
+			})
+			.map(str::to_owned)
+	});
+	let mut channels = std::collections::BTreeMap::new();
+	if let Some(text) = station_channel {
+		let radio = hotspot.clone().context(
+			"a station channel is for the hotspot's radio, and nothing runs the hotspot",
+		)?;
+		let (band, number) = text.split_once(':').context("a channel is `band:number`")?;
+		let band = match band {
+			"2ghz" => render::Band::TwoPointFour,
+			"5ghz" => render::Band::Five,
+			other => anyhow::bail!("{other:?} is not a band"),
+		};
+		channels.insert(
+			radio,
+			render::Channel {
+				band,
+				number: number.parse()?,
+			},
+		);
+	}
+	Ok(render::Selection {
+		links,
+		hotspot,
+		channels,
+	})
+}
+
 #[cfg(not(target_os = "linux"))]
 async fn network_apply(
 	_document: &std::path::Path,
-	_active: Vec<usize>,
+	_active: &[String],
+	_hotspot: Option<&str>,
 	_station_channel: Option<&str>,
 ) -> Result<()> {
 	anyhow::bail!("applying a network configuration needs Linux")

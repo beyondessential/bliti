@@ -31,7 +31,7 @@ pub(super) fn networks(document: &Document, hardware: &Hardware) -> Result<Vec<F
 		let AttachmentKind::Wireless(wireless) = &attachment.kind else {
 			continue;
 		};
-		if hardware.station.is_none() {
+		if hardware.radios.is_empty() {
 			return Err(invalid_in(rank, &[], "this device has no wireless client"));
 		}
 		let ssid_at = [Segment::Name("ssid")];

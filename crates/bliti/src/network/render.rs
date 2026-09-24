@@ -6,11 +6,16 @@
 //! and deletes every file [`Paths::owns`] claims that was not.
 
 use std::{
+	collections::{BTreeMap, BTreeSet},
 	ffi::OsStr,
 	path::{Path, PathBuf},
 };
 
-use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Segment, path};
+use bliti_core::channel::config::{
+	Attachment, AttachmentKind, Document, Hotspot, Invalid, Segment, path,
+};
+
+use super::select::Alongside;
 
 pub(crate) use iwd::SAE_DISABLED;
 
@@ -30,14 +35,34 @@ pub const SECRET: u32 = 0o600;
 pub struct Hardware {
 	/// The wired interfaces a candidate may name.
 	pub wired: Vec<String>,
-	/// The interface iwd runs the wireless client on, where the device has a radio.
-	pub station: Option<String>,
-	/// The interface hostapd runs the hotspot on, where the radio can run one.
-	pub access_point: Option<String>,
-	/// Whether the radio runs its access point and its client on one channel between them (HOT).
-	pub shared_channel: bool,
+	/// The wireless radios, in the order the probe found them.
+	pub radios: Vec<Radio>,
 	/// Where each backend reads its files.
 	pub paths: Paths,
+}
+
+/// One wireless radio.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Radio {
+	/// The interface iwd runs the wireless client on, which is how a document names the radio.
+	pub station: String,
+	/// The access point interface bliti creates on it for hostapd, where it can run one.
+	pub access_point: Option<AccessPoint>,
+}
+
+/// The access point interface bliti creates on a radio.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessPoint {
+	/// Its name, as [`access_point`] gives it.
+	pub interface: String,
+	/// How the radio runs it beside its wireless client (HOT).
+	pub alongside: Alongside,
+}
+
+/// The access point interface bliti creates on the radio at `index` among those probed: `ap0`,
+/// `ap1` and so on, which `services/bliti-iwd-dropin.conf` keeps iwd off.
+pub fn access_point(index: usize) -> String {
+	format!("ap{index}")
 }
 
 /// Where each backend reads the files bliti renders for it.
@@ -59,11 +84,24 @@ pub struct Paths {
 }
 
 impl Hardware {
+	/// The radio whose station interface is `station`.
+	pub fn radio(&self, station: &str) -> Option<&Radio> {
+		self.radios.iter().find(|radio| radio.station == station)
+	}
+
 	/// The station interface of the radio bliti creates the access point interface `interface`
 	/// on, where it creates one of that name.
 	pub fn access_point_radio(&self, interface: &str) -> Option<&str> {
-		let station = self.station.as_deref()?;
-		(self.access_point.as_deref() == Some(interface) && station != interface).then_some(station)
+		self.radios
+			.iter()
+			.find(|radio| {
+				radio.station != interface
+					&& radio
+						.access_point
+						.as_ref()
+						.is_some_and(|ap| ap.interface == interface)
+			})
+			.map(|radio| radio.station.as_str())
 	}
 }
 
@@ -122,19 +160,22 @@ impl Paths {
 	}
 }
 
-/// Which candidates are up, and what the radio is doing, in the state being rendered.
+/// Which candidates are up, on which interfaces, and what each radio is doing, in the state being
+/// rendered.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Selection {
-	/// The candidates brought up, by index into `attachments`. At most one per interface (LINK), so of
-	/// several statics on one interface this names the one being tried.
-	pub active: Vec<usize>,
-	/// The channel the wireless client is associated on, which a shared-channel radio's hotspot has
-	/// to follow (HOT).
-	pub station_channel: Option<Channel>,
-	/// Whether the hotspot waits for the wireless client sharing its radio's channel to associate.
-	/// Started first, it would hold the radio on a channel of its own and the client could join only
-	/// there.
-	pub hotspot_waits: bool,
+	/// The candidate each interface brings up, by index into `attachments`: a wired candidate on its
+	/// own interface, a wireless one on its radio's station interface. At most one per interface
+	/// (LINK), so of several statics on one interface this names the one being tried.
+	pub links: BTreeMap<String, usize>,
+	/// The radio running the hotspot, by its station interface, or `None` where none runs it. A
+	/// hotspot waiting for the wireless client sharing its radio's channel to associate runs on
+	/// none: started first, it would hold the radio on a channel of its own and the client could
+	/// join only there.
+	pub hotspot: Option<String>,
+	/// The channel each radio's wireless client is associated on, by its station interface, which a
+	/// shared-channel radio's hotspot follows (HOT).
+	pub channels: BTreeMap<String, Channel>,
 }
 
 /// A 20 MHz channel on a band.
@@ -192,8 +233,8 @@ impl From<Invalid> for Error {
 
 /// Render `document` on `hardware` with `selection` up, as the complete set of files bliti owns.
 ///
-/// Every candidate is checked whether or not it is selected, so a document that could not be carried
-/// out in some state is refused in every state.
+/// Every candidate and the hotspot are checked whether or not they are selected, so a document that
+/// could not be carried out in some state is refused in every state.
 pub fn render(
 	document: &Document,
 	hardware: &Hardware,
@@ -207,51 +248,59 @@ pub fn render(
 		.attachments
 		.iter()
 		.enumerate()
-		.map(|(rank, attachment)| networkd::candidate(attachment, rank, hardware))
+		.map(|(rank, attachment)| {
+			networkd::candidate(attachment, rank, checked_on(hardware, attachment), hardware)
+		})
 		.collect::<Result<Vec<_>, _>>()?;
 
 	if let Some(hotspot) = &document.hotspot {
-		let Some(interface) = hardware.access_point.as_deref() else {
-			return Err(invalid(
-				&[Segment::Name("hotspot")],
-				"this device cannot run a hotspot",
-			)
-			.into());
-		};
-		let network = networkd::hotspot(hotspot, interface, &hardware.paths)?;
-		let conf = hostapd::conf(
-			hotspot,
-			interface,
-			hardware,
-			selection.station_channel,
-			domain,
-		)?;
-		if !selection.hotspot_waits {
-			files.push(network);
-			files.push(conf);
-		}
+		files.extend(self::hotspot(hotspot, hardware, selection, domain)?);
 	}
 
-	let mut interfaces = Vec::new();
-	for &index in &selection.active {
+	let mut placed = BTreeSet::new();
+	for (interface, &index) in &selection.links {
 		let Some(attachment) = document.attachments.get(index) else {
 			return Err(Error::Selection(format!(
 				"candidate {index} is not in a document of {}",
 				document.attachments.len()
 			)));
 		};
-		let interface = match &attachment.kind {
-			AttachmentKind::Wireless(_) => hardware.station.as_deref().unwrap_or_default(),
-			AttachmentKind::WiredDynamic { interface }
-			| AttachmentKind::WiredStatic { interface, .. } => interface,
-		};
-		if interfaces.contains(&interface) {
+		if !placed.insert(index) {
 			return Err(Error::Selection(format!(
-				"more than one candidate is selected on {interface:?}"
+				"candidate {index} is selected on more than one interface"
 			)));
 		}
-		interfaces.push(interface);
-		files.extend(networks[index].iter().cloned());
+		match &attachment.kind {
+			AttachmentKind::Wireless(wireless) => {
+				if hardware.radio(interface).is_none() {
+					return Err(Error::Selection(format!(
+						"candidate {index} is selected on {interface:?}, which is not a radio"
+					)));
+				}
+				if let Some(pin) = wireless.interface.as_deref()
+					&& pin != interface
+				{
+					return Err(Error::Selection(format!(
+						"candidate {index} names {pin:?} and is selected on {interface:?}"
+					)));
+				}
+				files.extend(networkd::candidate(
+					attachment,
+					index,
+					Some(interface),
+					hardware,
+				)?);
+			}
+			AttachmentKind::WiredDynamic { interface: own }
+			| AttachmentKind::WiredStatic { interface: own, .. } => {
+				if own != interface {
+					return Err(Error::Selection(format!(
+						"candidate {index} is on {own:?} and is selected on {interface:?}"
+					)));
+				}
+				files.extend(networks[index].iter().cloned());
+			}
+		}
 	}
 
 	let mut idle: Vec<&str> = document
@@ -262,7 +311,7 @@ pub fn render(
 			| AttachmentKind::WiredStatic { interface, .. } => Some(interface.as_str()),
 			AttachmentKind::Wireless(_) => None,
 		})
-		.filter(|interface| !interfaces.contains(interface))
+		.filter(|interface| !selection.links.contains_key(*interface))
 		.collect();
 	idle.sort_unstable();
 	idle.dedup();
@@ -271,10 +320,8 @@ pub fn render(
 			.map(|interface| networkd::idle(interface, &hardware.paths)),
 	);
 
-	if hardware.station.is_some() {
+	if !hardware.radios.is_empty() {
 		files.push(iwd::main_conf(&hardware.paths, domain));
-	}
-	if hardware.station.is_some() || hardware.access_point.is_some() {
 		files.push(regdom::modprobe(&hardware.paths, domain));
 	}
 
@@ -282,17 +329,86 @@ pub fn render(
 	Ok(Rendered { files })
 }
 
-/// Refuse a wireless candidate or hotspot naming a radio other than the one this hardware has.
+/// The station a wireless candidate's link is checked on whatever it is selected on: the radio it
+/// names, else the first.
+fn checked_on<'a>(hardware: &'a Hardware, attachment: &'a Attachment) -> Option<&'a str> {
+	match &attachment.kind {
+		AttachmentKind::Wireless(wireless) => wireless
+			.interface
+			.as_deref()
+			.or_else(|| hardware.radios.first().map(|radio| radio.station.as_str())),
+		_ => None,
+	}
+}
+
+/// The hotspot's files on the radio the selection runs it on, where it runs on one.
 ///
-/// One radio is all [`Hardware`] describes, so a name that is not its station interface is an adapter
-/// nothing here could drive (LINK, HOT). Carrying it anyway on the one radio there is would run
-/// something other than what was written.
+/// It is checked first on the radio it names, else the first able to run one, with no client's
+/// channel to follow, so that what it chooses for itself is checked in every state.
+fn hotspot(
+	hotspot: &Hotspot,
+	hardware: &Hardware,
+	selection: &Selection,
+	domain: Option<&str>,
+) -> Result<Vec<File>, Error> {
+	let paths = &hardware.paths;
+	let checked = hardware
+		.radios
+		.iter()
+		.filter(|radio| {
+			hotspot
+				.interface
+				.as_deref()
+				.is_none_or(|pin| pin == radio.station)
+		})
+		.find_map(|radio| radio.access_point.as_ref())
+		.ok_or_else(|| {
+			invalid(
+				&[Segment::Name("hotspot")],
+				"this device cannot run a hotspot",
+			)
+		})?;
+	networkd::hotspot(hotspot, &checked.interface, paths)?;
+	hostapd::conf(hotspot, checked, None, paths, domain)?;
+
+	let Some(station) = &selection.hotspot else {
+		return Ok(Vec::new());
+	};
+	let Some(access_point) = hardware
+		.radio(station)
+		.and_then(|radio| radio.access_point.as_ref())
+	else {
+		return Err(Error::Selection(format!(
+			"the hotspot is selected on {station:?}, which cannot run one"
+		)));
+	};
+	if let Some(pin) = hotspot.interface.as_deref()
+		&& pin != station
+	{
+		return Err(Error::Selection(format!(
+			"the hotspot names {pin:?} and is selected on {station:?}"
+		)));
+	}
+	Ok(vec![
+		networkd::hotspot(hotspot, &access_point.interface, paths)?,
+		hostapd::conf(
+			hotspot,
+			access_point,
+			selection.channels.get(station).copied(),
+			paths,
+			domain,
+		)?,
+	])
+}
+
+/// Refuse a wireless candidate or hotspot naming a radio this hardware does not have, or a hotspot
+/// naming one that cannot run it: nothing here could drive it (LINK, HOT), and carrying it on
+/// another radio would run something other than what was written.
 fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
-	let named = |interface: &str| hardware.station.as_deref() == Some(interface);
 	for (rank, attachment) in document.attachments.iter().enumerate() {
 		if let AttachmentKind::Wireless(wireless) = &attachment.kind
 			&& let Some(interface) = wireless.interface.as_deref()
-			&& !named(interface)
+			&& hardware.radio(interface).is_none()
 		{
 			return Err(invalid_in(
 				rank,
@@ -305,12 +421,20 @@ fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 		.hotspot
 		.as_ref()
 		.and_then(|hotspot| hotspot.interface.as_deref())
-		&& !named(interface)
 	{
-		return Err(invalid(
-			&[Segment::Name("hotspot"), Segment::Name("interface")],
-			format!("{interface:?} is not a wireless interface on this device"),
-		));
+		let at = [Segment::Name("hotspot"), Segment::Name("interface")];
+		match hardware.radio(interface) {
+			None => {
+				return Err(invalid(
+					&at,
+					format!("{interface:?} is not a wireless interface on this device"),
+				));
+			}
+			Some(radio) if radio.access_point.is_none() => {
+				return Err(invalid(&at, format!("{interface} cannot run a hotspot")));
+			}
+			Some(_) => {}
+		}
 	}
 	Ok(())
 }

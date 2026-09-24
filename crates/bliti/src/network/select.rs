@@ -477,34 +477,35 @@ impl Selector {
 		}
 	}
 
-	/// The renderer's selection, where the hardware has at most one radio, which is all the renderer
-	/// drives. `None` where it has several.
-	pub fn selection(&self) -> Option<Selection> {
-		if self.hardware.radios.len() > 1 {
-			return None;
-		}
-		let mut active: Vec<usize> = self
-			.decision
-			.links
-			.values()
-			.map(|link| link.candidate)
-			.collect();
-		active.sort_unstable();
-		Some(Selection {
-			active,
-			station_channel: self
+	/// The renderer's selection: the candidate each interface brings up, the radio running the
+	/// hotspot, and each radio's client's channel once it has associated. A hotspot waiting for the
+	/// client whose channel it shares runs on no radio yet (HOT).
+	pub fn selection(&self) -> Selection {
+		Selection {
+			links: self
+				.decision
+				.links
+				.iter()
+				.map(|(interface, link)| (interface.clone(), link.candidate))
+				.collect(),
+			hotspot: self
+				.decision
+				.hotspot
+				.as_ref()
+				.filter(|placement| {
+					!matches!(
+						placement.channel,
+						HotspotChannel::Follows { channel: None, .. }
+					)
+				})
+				.map(|placement| placement.radio.clone()),
+			channels: self
 				.hardware
 				.radios
-				.first()
-				.and_then(|radio| self.associated(&radio.station)),
-			hotspot_waits: matches!(
-				self.decision.hotspot,
-				Some(Placement {
-					channel: HotspotChannel::Follows { channel: None, .. },
-					..
-				})
-			),
-		})
+				.iter()
+				.filter_map(|radio| Some((radio.station.clone(), self.associated(&radio.station)?)))
+				.collect(),
+		}
 	}
 
 	fn carrier(&mut self, interface: String, up: bool) {

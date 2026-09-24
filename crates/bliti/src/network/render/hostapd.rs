@@ -4,7 +4,8 @@ use std::fmt::Write as _;
 
 use bliti_core::channel::config::{Hotspot, Invalid, Segment};
 
-use super::{Band, Channel, File, Hardware, SECRET, header, invalid};
+use super::{AccessPoint, Band, Channel, File, Paths, SECRET, header, invalid};
+use crate::network::select::Alongside;
 
 /// Where hostapd listens for its control client.
 const CONTROL: &str = "/run/hostapd";
@@ -152,11 +153,12 @@ fn operating(
 /// unless the document says otherwise (HOT).
 pub(super) fn conf(
 	hotspot: &Hotspot,
-	interface: &str,
-	hardware: &Hardware,
+	access_point: &AccessPoint,
 	station: Option<Channel>,
+	paths: &Paths,
 	domain: Option<&str>,
 ) -> Result<File, Invalid> {
+	let interface = &access_point.interface;
 	if hotspot.ssid.is_empty() || hotspot.ssid.len() > 32 {
 		return Err(invalid(&at("ssid"), "an SSID is 1 to 32 bytes"));
 	}
@@ -169,7 +171,8 @@ pub(super) fn conf(
 			"a passphrase is 8 to 63 printable ASCII characters",
 		));
 	}
-	let (channel, width) = operating(hotspot, hardware.shared_channel, station)?;
+	let shared = access_point.alongside == Alongside::SharedChannel;
+	let (channel, width) = operating(hotspot, shared, station)?;
 
 	let mut out = header("the hotspot");
 	let _ = write!(
@@ -202,7 +205,7 @@ pub(super) fn conf(
 	);
 
 	Ok(File {
-		path: hardware.paths.hostapd_conf(interface),
+		path: paths.hostapd_conf(interface),
 		contents: out,
 		mode: SECRET,
 	})

@@ -11,12 +11,11 @@ fn document(json: Json) -> Document {
 	Document::parse(&map).unwrap()
 }
 
+/// One radio, `wlan0`, running its access point `ap0` on a channel of its own.
 fn hardware() -> Hardware {
 	Hardware {
 		wired: vec!["eth0".into(), "eth1".into()],
-		station: Some("wlan0".into()),
-		access_point: Some("ap0".into()),
-		shared_channel: false,
+		radios: vec![radio("wlan0", "ap0", Alongside::Independent)],
 		paths: Paths {
 			networkd: "/tmp/bliti-test/network".into(),
 			iwd_state: "/tmp/bliti-test/iwd".into(),
@@ -28,11 +27,39 @@ fn hardware() -> Hardware {
 	}
 }
 
-fn active(active: &[usize]) -> Selection {
+fn radio(station: &str, access_point: &str, alongside: Alongside) -> Radio {
+	Radio {
+		station: station.into(),
+		access_point: Some(AccessPoint {
+			interface: access_point.into(),
+			alongside,
+		}),
+	}
+}
+
+/// The candidates at `active` up, a wireless one on the radio it names or else `wlan0`, and the
+/// hotspot, where there is one, running on the radio it names or else `wlan0`.
+fn select(document: &Document, active: &[usize]) -> Selection {
+	let links = active
+		.iter()
+		.map(|&index| {
+			let interface = match &document.attachments[index].kind {
+				AttachmentKind::Wireless(wireless) => {
+					wireless.interface.clone().unwrap_or_else(|| "wlan0".into())
+				}
+				AttachmentKind::WiredDynamic { interface }
+				| AttachmentKind::WiredStatic { interface, .. } => interface.clone(),
+			};
+			(interface, index)
+		})
+		.collect();
 	Selection {
-		active: active.to_vec(),
-		station_channel: None,
-		hotspot_waits: false,
+		links,
+		hotspot: document
+			.hotspot
+			.as_ref()
+			.map(|hotspot| hotspot.interface.clone().unwrap_or_else(|| "wlan0".into())),
+		channels: BTreeMap::new(),
 	}
 }
 
@@ -86,7 +113,7 @@ fn wired_dynamic_only() {
 	let doc = document(json!({
 		"attachments": [{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }]
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[0]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[0]));
 	let network = &file(&out, "network/50-bliti-eth0.network").contents;
 	assert!(network.contains("[Match]\nName=eth0\n"));
 	assert!(network.contains("DHCP=ipv4\nIPv6AcceptRA=yes\n"));
@@ -115,7 +142,7 @@ fn two_statics_on_one_interface() {
 			  "addresses": ["10.2.0.5/24", "fd00:2::5/64"], "gateway": "10.2.0.1" }
 		]
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[1]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[1]));
 	let network = &file(&out, "network/50-bliti-eth0.network").contents;
 	assert!(network.contains("DHCP=no\nIPv6AcceptRA=no\n"));
 	assert!(network.contains("Address=10.2.0.5/24\nAddress=fd00:2::5/64\n"));
@@ -123,7 +150,7 @@ fn two_statics_on_one_interface() {
 	assert!(!network.contains("10.1.0"));
 
 	// With neither brought up, the link is only brought up, so its carrier can be seen.
-	let nothing = rendered(&doc, &hardware(), &active(&[]));
+	let nothing = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let idle = &file(&nothing, "network/50-bliti-eth0.network").contents;
 	assert!(idle.contains("[Match]\nName=eth0\n"), "{idle}");
 	assert!(
@@ -138,14 +165,23 @@ fn two_statics_on_one_interface() {
 		"an interface no candidate names is left alone"
 	);
 
-	assert!(matches!(
-		render(&doc, &hardware(), &active(&[0, 1])),
-		Err(Error::Selection(_))
-	));
-	assert!(matches!(
-		render(&doc, &hardware(), &active(&[2])),
-		Err(Error::Selection(_))
-	));
+	for links in [
+		[("eth1".to_owned(), 0)],
+		[("eth0".to_owned(), 2)],
+		[("wlan0".to_owned(), 1)],
+	] {
+		let selection = Selection {
+			links: links.into(),
+			..Selection::default()
+		};
+		assert!(
+			matches!(
+				render(&doc, &hardware(), &selection),
+				Err(Error::Selection(_))
+			),
+			"{selection:?}"
+		);
+	}
 }
 
 /// Every candidate is checked, selected or not.
@@ -173,7 +209,7 @@ fn wireless_and_wired_order_by_metric() {
 			{ "kind": "wired-dynamic", "label": "wall", "verify": true, "interface": "eth0" }
 		]
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[0, 1]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[0, 1]));
 	let station = &file(&out, "network/50-bliti-wlan0.network").contents;
 	assert!(station.contains("Name=wlan0\n"));
 	assert!(station.contains("IgnoreCarrierLoss=3s\n"));
@@ -196,7 +232,7 @@ fn per_link_nameservers() {
 			  "addresses": ["192.0.2.5/24"], "gateway": "192.0.2.1", "nameservers": ["192.0.2.53"] }
 		]
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[0, 1]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[0, 1]));
 	let dynamic = &file(&out, "network/50-bliti-eth0.network").contents;
 	assert!(!dynamic.contains("DNS=10.0.9.53"));
 	assert!(dynamic.contains("DNSDefaultRoute=no\n"));
@@ -227,7 +263,7 @@ fn per_link_nameservers() {
 #[test]
 fn enterprise_with_and_without_a_ca() {
 	let doc = document(json!({ "attachments": [wireless("eduroam", Json::Object(peap()))] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let network = file(&out, "iwd/eduroam.8021x");
 	assert_eq!(network.mode, SECRET);
 	for line in [
@@ -267,7 +303,7 @@ fn enterprise_tls_embeds_the_client_credentials() {
 		"client-certificate": CA, "client-key": "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----",
 		"client-key-passphrase": "unlock"
 	}))] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let contents = &file(&out, "iwd/corp.8021x").contents;
 	assert!(contents.contains("EAP-TLS-ClientCert=embed:client-certificate\n"));
 	assert!(contents.contains("EAP-TLS-ClientKey=embed:client-key\n"));
@@ -298,7 +334,7 @@ fn enterprise_members_are_checked() {
 	let pwd = document(json!({ "attachments": [wireless("eduroam", json!({
 		"kind": "enterprise", "eap": "pwd", "identity": "nurse", "password": "hunter2"
 	}))] }));
-	let out = rendered(&pwd, &hardware(), &active(&[]));
+	let out = rendered(&pwd, &hardware(), &select(&pwd, &[]));
 	assert!(
 		file(&out, "iwd/eduroam.8021x")
 			.contents
@@ -314,7 +350,7 @@ fn a_hidden_network() {
 		  "security": { "kind": "psk", "passphrase": "a long passphrase" } },
 		wireless("Front", json!({ "kind": "psk", "passphrase": "another passphrase" }))
 	] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let hidden = &file(&out, "iwd/Office.psk").contents;
 	assert!(hidden.contains("[Settings]\nAutoConnect=false\nHidden=true\n"));
 	assert!(hidden.contains("[Security]\nPassphrase=a long passphrase\n"));
@@ -329,7 +365,7 @@ fn ssid_file_names() {
 		wireless("Clinic WiFi_5-G", json!({ "kind": "psk", "passphrase": "a long passphrase" })),
 		wireless("Café/2", json!({ "kind": "psk", "passphrase": "a long passphrase" }))
 	] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	file(&out, "iwd/Clinic WiFi_5-G.psk");
 	file(&out, "iwd/=436166c3a92f32.psk");
 }
@@ -351,7 +387,7 @@ fn sae_disables_the_transition() {
 		wireless("Strict", json!({ "kind": "sae", "passphrase": "a long passphrase" })),
 		wireless("Either", json!({ "kind": "psk-sae", "passphrase": "a long passphrase" }))
 	] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	assert!(
 		file(&out, "iwd/Strict.psk")
 			.contents
@@ -379,7 +415,7 @@ fn hotspot_defaults() {
 		"attachments": [],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let network = &file(&out, "network/50-bliti-ap0.network").contents;
 	assert!(network.contains("Address=10.41.0.1/24\nDHCPServer=yes\nIPMasquerade=ipv4\n"));
 	assert!(network.contains("IPv4Forwarding=yes\n"));
@@ -418,7 +454,7 @@ fn hotspot_overrides() {
 		},
 		"regulatory-domain": "NZ"
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	let network = &file(&out, "network/50-bliti-ap0.network").contents;
 	assert!(network.contains("Address=172.30.5.1/24\n"));
 	assert!(network.contains("IPMasquerade=no\nIPv4Forwarding=no\n"));
@@ -446,7 +482,7 @@ fn hotspot_overrides() {
 #[test]
 fn shared_channel_hardware_follows_the_station() {
 	let shared = Hardware {
-		shared_channel: true,
+		radios: vec![radio("wlan0", "ap0", Alongside::SharedChannel)],
 		..hardware()
 	};
 	let doc = document(json!({
@@ -454,19 +490,22 @@ fn shared_channel_hardware_follows_the_station() {
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
 	let following = Selection {
-		active: vec![0],
-		station_channel: Some(Channel {
-			band: Band::Five,
-			number: 149,
-		}),
-		hotspot_waits: false,
+		channels: [(
+			"wlan0".to_owned(),
+			Channel {
+				band: Band::Five,
+				number: 149,
+			},
+		)]
+		.into(),
+		..select(&doc, &[0])
 	};
 	let out = rendered(&doc, &shared, &following);
 	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
 	assert!(hostapd.contains("hw_mode=a\nchannel=149\n"));
 	assert!(!hostapd.contains("ht_capab"));
 
-	let alone = rendered(&doc, &shared, &active(&[]));
+	let alone = rendered(&doc, &shared, &select(&doc, &[]));
 	assert!(
 		file(&alone, "hostapd/ap0.conf")
 			.contents
@@ -479,7 +518,7 @@ fn shared_channel_hardware_follows_the_station() {
 #[test]
 fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 	let shared = Hardware {
-		shared_channel: true,
+		radios: vec![radio("wlan0", "ap0", Alongside::SharedChannel)],
 		..hardware()
 	};
 	let doc = document(json!({
@@ -487,7 +526,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud",
 			"band": "5ghz", "channel": 44, "channel-width": 80 }
 	}));
-	let out = rendered(&doc, &shared, &active(&[0]));
+	let out = rendered(&doc, &shared, &select(&doc, &[0]));
 	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
 	for line in [
 		"hw_mode=a\nchannel=44\n",
@@ -500,7 +539,7 @@ fn shared_channel_hardware_runs_a_chosen_channel_with_no_station() {
 		"attachments": [],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "band": "5ghz" }
 	}));
-	let out = rendered(&band_only, &shared, &active(&[]));
+	let out = rendered(&band_only, &shared, &select(&band_only, &[]));
 	assert!(
 		file(&out, "hostapd/ap0.conf")
 			.contents
@@ -518,7 +557,7 @@ fn secrets_are_0600() {
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
-	let out = rendered(&doc, &hardware(), &active(&[0, 1]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[0, 1]));
 	for file in &out.files {
 		let secret = file.contents.contains("Passphrase=a long")
 			|| file.contents.contains("wpa_passphrase=");
@@ -533,7 +572,7 @@ fn secrets_are_0600() {
 #[test]
 fn sae_is_disabled_on_brcmfmac() {
 	let doc = document(json!({ "attachments": [] }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	assert!(
 		file(&out, "iwd.conf")
 			.contents
@@ -545,7 +584,7 @@ fn sae_is_disabled_on_brcmfmac() {
 #[test]
 fn regulatory_domain() {
 	let doc = document(json!({ "attachments": [], "regulatory-domain": "NZ" }));
-	let out = rendered(&doc, &hardware(), &active(&[]));
+	let out = rendered(&doc, &hardware(), &select(&doc, &[]));
 	assert!(
 		file(&out, "iwd.conf")
 			.contents
@@ -558,7 +597,7 @@ fn regulatory_domain() {
 	);
 
 	let unset = document(json!({ "attachments": [] }));
-	let out = rendered(&unset, &hardware(), &active(&[]));
+	let out = rendered(&unset, &hardware(), &select(&unset, &[]));
 	assert!(!file(&out, "iwd.conf").contents.contains("Country"));
 	assert!(
 		file(&out, "regdom.conf")
@@ -574,8 +613,7 @@ fn regulatory_domain() {
 #[test]
 fn what_the_hardware_lacks_is_refused() {
 	let wired_only = Hardware {
-		station: None,
-		access_point: None,
+		radios: Vec::new(),
 		..hardware()
 	};
 	let wifi = document(json!({ "attachments": [
@@ -600,7 +638,7 @@ fn what_the_hardware_lacks_is_refused() {
 	let out = rendered(
 		&document(json!({ "attachments": [] })),
 		&wired_only,
-		&active(&[]),
+		&Selection::default(),
 	);
 	assert!(out.files.is_empty());
 }
@@ -616,7 +654,7 @@ fn rendered_files_are_owned() {
 		],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	}));
-	let out = rendered(&doc, &hardware, &active(&[0, 1]));
+	let out = rendered(&doc, &hardware, &select(&doc, &[0, 1]));
 	for file in &out.files {
 		assert!(hardware.paths.owns(&file.path), "{:?}", file.path);
 	}
@@ -645,8 +683,8 @@ fn rendering_is_deterministic() {
 			{ "kind": "wired-dynamic", "label": "spare", "verify": true, "interface": "eth0" }
 		]
 	}));
-	let a = rendered(&doc, &hardware(), &active(&[2, 0, 1]));
-	let b = rendered(&doc, &hardware(), &active(&[0, 1, 2]));
+	let a = rendered(&doc, &hardware(), &select(&doc, &[2, 0, 1]));
+	let b = rendered(&doc, &hardware(), &select(&doc, &[0, 1, 2]));
 	assert_eq!(a, b);
 }
 
@@ -659,13 +697,14 @@ fn a_radio_other_than_the_station_is_refused() {
 			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
 	}));
-	assert!(render(&pinned, &hardware(), &active(&[0])).is_ok());
+	assert!(render(&pinned, &hardware(), &select(&pinned, &[0])).is_ok());
 
 	let elsewhere = document(json!({
 		"attachments": [{ "kind": "wireless", "label": "w", "verify": true, "ssid": "Clinic", "interface": "wlan1",
 			"security": { "kind": "sae", "passphrase": "a good long passphrase" } }]
 	}));
-	let Err(Error::Invalid(invalid)) = render(&elsewhere, &hardware(), &active(&[])) else {
+	let Err(Error::Invalid(invalid)) = render(&elsewhere, &hardware(), &select(&elsewhere, &[]))
+	else {
 		panic!("a candidate on another radio is refused")
 	};
 	assert_eq!(invalid.at, "$['attachments'][0]['interface']");
@@ -674,8 +713,176 @@ fn a_radio_other_than_the_station_is_refused() {
 		"attachments": [],
 		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
 	}));
-	let Err(Error::Invalid(invalid)) = render(&hotspot, &hardware(), &active(&[])) else {
+	let Err(Error::Invalid(invalid)) = render(&hotspot, &hardware(), &select(&hotspot, &[])) else {
 		panic!("a hotspot on another radio is refused")
 	};
 	assert_eq!(invalid.at, "$['hotspot']['interface']");
+}
+
+/// `wlan0` running `ap0` on a channel of its own, and `wlan1` running `ap1` only on its client's.
+fn two_radios() -> Hardware {
+	Hardware {
+		radios: vec![
+			radio("wlan0", "ap0", Alongside::Independent),
+			radio("wlan1", "ap1", Alongside::SharedChannel),
+		],
+		..hardware()
+	}
+}
+
+fn pinned(ssid: &str, interface: &str) -> Json {
+	let mut candidate = wireless(
+		ssid,
+		json!({ "kind": "psk", "passphrase": "a long passphrase" }),
+	);
+	candidate["interface"] = json!(interface);
+	candidate
+}
+
+/// Each radio's candidate is brought up on that radio, and the hotspot on the second radio runs on
+/// its own access point interface, following that radio's client rather than the first's (LINK,
+/// HOT).
+#[test]
+fn two_radios_carry_a_candidate_each_and_the_hotspot_on_the_second() {
+	let doc = document(json!({
+		"attachments": [pinned("Clinic", "wlan0"), pinned("Depot", "wlan1")],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+	}));
+	let selection = Selection {
+		links: BTreeMap::from([("wlan0".to_owned(), 0), ("wlan1".to_owned(), 1)]),
+		hotspot: Some("wlan1".into()),
+		channels: BTreeMap::from([
+			(
+				"wlan0".to_owned(),
+				Channel {
+					band: Band::Five,
+					number: 36,
+				},
+			),
+			(
+				"wlan1".to_owned(),
+				Channel {
+					band: Band::TwoPointFour,
+					number: 11,
+				},
+			),
+		]),
+	};
+	let out = rendered(&doc, &two_radios(), &selection);
+	let clinic = &file(&out, "network/50-bliti-wlan0.network").contents;
+	assert!(clinic.contains("attachments'][0]"), "{clinic}");
+	assert!(clinic.contains("Name=wlan0\n"), "{clinic}");
+	let depot = &file(&out, "network/50-bliti-wlan1.network").contents;
+	assert!(depot.contains("attachments'][1]"), "{depot}");
+	assert!(depot.contains("Name=wlan1\n"), "{depot}");
+
+	let hostapd = &file(&out, "hostapd/ap1.conf").contents;
+	assert!(hostapd.contains("interface=ap1\n"), "{hostapd}");
+	assert!(hostapd.contains("hw_mode=g\nchannel=11\n"), "{hostapd}");
+	assert!(
+		file(&out, "network/50-bliti-ap1.network")
+			.contents
+			.contains("Name=ap1\n")
+	);
+	assert!(
+		!paths(&out)
+			.iter()
+			.any(|path| path.ends_with("ap0.conf") || path.ends_with("50-bliti-ap0.network")),
+		"nothing runs on the first radio's access point interface"
+	);
+	file(&out, "iwd/Clinic.psk");
+	file(&out, "iwd/Depot.psk");
+}
+
+/// A hotspot on a radio running its access point independently keeps its own channel whatever that
+/// radio's client is on, and an unpinned candidate goes on whichever radio it is selected on.
+#[test]
+fn two_radios_run_an_independent_hotspot_on_its_own_channel() {
+	let doc = document(json!({
+		"attachments": [wireless("Clinic", json!({ "kind": "psk", "passphrase": "a long passphrase" }))],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+	}));
+	let selection = Selection {
+		links: BTreeMap::from([("wlan1".to_owned(), 0)]),
+		hotspot: Some("wlan0".into()),
+		channels: BTreeMap::from([(
+			"wlan0".to_owned(),
+			Channel {
+				band: Band::Five,
+				number: 36,
+			},
+		)]),
+	};
+	let out = rendered(&doc, &two_radios(), &selection);
+	assert!(
+		file(&out, "network/50-bliti-wlan1.network")
+			.contents
+			.contains("Name=wlan1\n")
+	);
+	let hostapd = &file(&out, "hostapd/ap0.conf").contents;
+	assert!(hostapd.contains("interface=ap0\n"), "{hostapd}");
+	assert!(hostapd.contains("hw_mode=g\nchannel=6\n"), "{hostapd}");
+}
+
+/// A selection putting a pinned candidate or the hotspot anywhere else is the caller's fault.
+#[test]
+fn two_radios_refuse_a_selection_against_a_pin() {
+	let hardware = Hardware {
+		radios: vec![
+			radio("wlan0", "ap0", Alongside::Independent),
+			Radio {
+				station: "wlan1".into(),
+				access_point: None,
+			},
+		],
+		..hardware()
+	};
+	let doc = document(json!({
+		"attachments": [pinned("Clinic", "wlan0")],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan0" }
+	}));
+	assert!(render(&doc, &hardware, &select(&doc, &[0])).is_ok());
+	for selection in [
+		Selection {
+			links: BTreeMap::from([("wlan1".to_owned(), 0)]),
+			..Selection::default()
+		},
+		Selection {
+			hotspot: Some("wlan1".into()),
+			..Selection::default()
+		},
+	] {
+		assert!(
+			matches!(
+				render(&doc, &hardware, &selection),
+				Err(Error::Selection(_))
+			),
+			"{selection:?}"
+		);
+	}
+
+	let unpinned = document(json!({
+		"attachments": [],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+	}));
+	let on_wlan1 = Selection {
+		hotspot: Some("wlan1".into()),
+		..Selection::default()
+	};
+	assert!(
+		matches!(
+			render(&unpinned, &hardware, &on_wlan1),
+			Err(Error::Selection(_))
+		),
+		"wlan1 runs no access point"
+	);
+
+	let on_client = document(json!({
+		"attachments": [],
+		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud", "interface": "wlan1" }
+	}));
+	assert_eq!(
+		invalid_at(&on_client, &hardware),
+		"$['hotspot']['interface']"
+	);
 }

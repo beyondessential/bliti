@@ -26,14 +26,15 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 use super::{
 	Shared,
+	report::Hotspot,
 	verify::{Check, Links},
 };
 use crate::network::{
 	apply::{self, Changes, System},
 	observe::{Joined, Observation, Station, render_channel},
-	probe::{self, RadioInfo},
+	probe::RadioInfo,
 	render,
-	select::{Alongside, Attempt, Change, Event, Link, Selector, Stage, State},
+	select::{Attempt, Change, Event, Link, Selector, Stage, State},
 	session::entry,
 };
 
@@ -42,6 +43,7 @@ pub(super) use self::verdict::Judged;
 pub(super) use self::verdict::{changed, verdict};
 
 mod attempt;
+mod hotspot;
 mod sweep;
 mod verdict;
 
@@ -93,8 +95,8 @@ enum Internal {
 		taken: u64,
 		/// The attempts it brought up.
 		attempts: Vec<Attempt>,
-		/// The hotspot it brought up, by SSID.
-		hotspot: Option<String>,
+		/// The hotspot it brought up.
+		hotspot: Option<Hotspot>,
 	},
 	Reprobed(anyhow::Result<Vec<RadioInfo>>),
 	Scanned {
@@ -742,58 +744,6 @@ impl Driver {
 		});
 	}
 
-	/// The shared-channel radio the hotspot is placed on, where a pending proposal's scan of it is
-	/// still out and a wireless candidate could go on it. Until the scan says what the radio hears, the
-	/// hotspot cannot tell whether it will have a client's channel to follow (HOT).
-	fn hotspot_awaits_scan(&self) -> Option<String> {
-		let radio = &self.selector.decision().hotspot.as_ref()?.radio;
-		if !self.scanning.contains_key(radio) {
-			return None;
-		}
-		let shared =
-			self.shared.radios().iter().any(|info| {
-				info.station == *radio && info.alongside == Some(Alongside::SharedChannel)
-			});
-		let candidate = self.document.attachments.iter().any(|attachment| {
-			matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
-				if wireless.interface.as_ref().is_none_or(|pin| pin == radio))
-		});
-		(shared && candidate).then(|| radio.clone())
-	}
-
-	/// Why the hotspot cannot run, where a shared-channel radio's wireless client is on a channel no
-	/// access point may start on, so the hotspot has no channel it may use (HOT).
-	fn hotspot_barred(&self, selection: &render::Selection) -> Option<String> {
-		let hotspot = self.selector.decision().hotspot.as_ref()?;
-		let channel = selection
-			.station_channel
-			.filter(|_| !selection.hotspot_waits)?;
-		let radio = self
-			.shared
-			.radios()
-			.into_iter()
-			.find(|radio| radio.station == hotspot.radio)?;
-		let (band, name) = match channel.band {
-			render::Band::TwoPointFour => (probe::Band::TwoPointFour, "2.4 GHz"),
-			render::Band::Five => (probe::Band::Five, "5 GHz"),
-		};
-		let flags = radio
-			.bands
-			.get(&band)
-			.and_then(|info| info.channels.iter().find(|c| c.number == channel.number));
-		let why = match flags {
-			Some(flags) if flags.can_start_ap() => return None,
-			Some(flags) if flags.radar => {
-				"needs radar detection before an access point may start on it"
-			}
-			_ => "is one the regulatory domain lets no access point start on",
-		};
-		Some(format!(
-			"the hotspot has to share {}'s channel, {name} channel {}, which {why}",
-			radio.station, channel.number
-		))
-	}
-
 	/// Take in the channel `interface` joined on. iwd's diagnostics sometimes answer without a
 	/// frequency, which says nothing about the channel, so nl80211 is asked instead.
 	fn station_channel(&mut self, interface: String, frequency: Option<u32>) {
@@ -827,11 +777,15 @@ impl Driver {
 			return;
 		}
 		self.taken = self.wanted;
-		let mut selection = self.selector.selection().unwrap_or_default();
+		let mut selection = self.selector.selection();
 		self.hotspot_scanning = self.hotspot_awaits_scan();
-		selection.hotspot_waits |= self.hotspot_scanning.is_some();
+		if self.hotspot_scanning.is_some() {
+			selection.hotspot = None;
+		}
 		let barred = self.hotspot_barred(&selection);
-		selection.hotspot_waits |= barred.is_some();
+		if barred.is_some() {
+			selection.hotspot = None;
+		}
 		let rendered = match render::render(&self.document, &self.shared.render, &selection) {
 			Ok(rendered) => rendered,
 			Err(error) => {
@@ -859,26 +813,17 @@ impl Driver {
 		let Some(mut system) = self.system.take() else {
 			return;
 		};
-		let hostapd = rendered
-			.files
-			.iter()
-			.find(|file| {
-				self.shared
-					.render
-					.paths
-					.hostapd_interface(&file.path)
-					.is_some()
-			})
-			.map(|file| file.contents.clone());
-		let beside = self
-			.selector
-			.decision()
+		let hostapd = rendered.files.iter().find_map(|file| {
+			let interface = self.shared.render.paths.hostapd_interface(&file.path)?;
+			Some((interface.to_owned(), file.contents.clone()))
+		});
+		let beside = selection
 			.hotspot
-			.as_ref()
-			.filter(|_| selection.station_channel.is_some() && self.shared.render.shared_channel)
-			.map(|hotspot| hotspot.radio.clone());
-		self.bounce = beside.filter(|_| hostapd.is_some() && hostapd != self.hostapd);
-		self.hostapd = hostapd;
+			.clone()
+			.filter(|radio| selection.channels.contains_key(radio) && self.shares_channel(radio));
+		let conf = hostapd.as_ref().map(|(_, conf)| conf.clone());
+		self.bounce = beside.filter(|_| conf.is_some() && conf != self.hostapd);
+		self.hostapd = conf;
 		let taken = self.taken;
 		let attempts = self
 			.selector
@@ -888,17 +833,13 @@ impl Driver {
 			.map(|link| link.attempt)
 			.collect();
 		let hardware = self.shared.render.clone();
-		let hotspot = rendered
-			.files
-			.iter()
-			.any(|file| hardware.paths.hostapd_interface(&file.path).is_some())
-			.then(|| {
-				self.document
-					.hotspot
-					.as_ref()
-					.map(|hotspot| hotspot.ssid.clone())
-			})
-			.flatten();
+		let hotspot =
+			hostapd
+				.zip(self.document.hotspot.as_ref())
+				.map(|((interface, _), hotspot)| Hotspot {
+					ssid: hotspot.ssid.clone(),
+					interface,
+				});
 		let state = self.shared.config.state.clone();
 		let internal = self.internal.clone();
 		tokio::task::spawn_blocking(move || {

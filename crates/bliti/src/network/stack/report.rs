@@ -21,14 +21,12 @@ use crate::network::observe::{Air, Joined, Operating, channel};
 pub struct Report {
 	joined: Arc<Mutex<Joins>>,
 	air: Arc<dyn Air>,
-	access_point: String,
 }
 
 impl std::fmt::Debug for Report {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Report")
 			.field("joined", &*self.joins())
-			.field("access_point", &self.access_point)
 			.finish_non_exhaustive()
 	}
 }
@@ -37,16 +35,24 @@ impl std::fmt::Debug for Report {
 struct Joins {
 	/// What each station is joined to.
 	stations: BTreeMap<String, Joined>,
-	/// The SSID of the hotspot running, where one is.
-	hotspot: Option<String>,
+	/// The hotspot running, where one is.
+	hotspot: Option<Hotspot>,
+}
+
+/// A hotspot brought up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Hotspot {
+	/// The network it advertises.
+	pub(super) ssid: String,
+	/// The access point interface it runs on.
+	pub(super) interface: String,
 }
 
 impl Report {
-	pub(super) fn new(air: Arc<dyn Air>, access_point: String) -> Self {
+	pub(super) fn new(air: Arc<dyn Air>) -> Self {
 		Self {
 			joined: Arc::default(),
 			air,
-			access_point,
 		}
 	}
 
@@ -64,8 +70,8 @@ impl Report {
 	}
 
 	/// Record the hotspot running, or that none is.
-	pub(super) fn hotspot(&self, ssid: Option<String>) {
-		self.joins().hotspot = ssid;
+	pub(super) fn hotspot(&self, hotspot: Option<Hotspot>) {
+		self.joins().hotspot = hotspot;
 	}
 
 	/// The entries as of `at`: the client count every time, and where `slow` the wireless networks
@@ -98,12 +104,12 @@ impl Report {
 				entries.push(entry);
 			}
 		}
-		let Some(ssid) = hotspot else {
+		let Some(Hotspot { ssid, interface }) = hotspot else {
 			return entries;
 		};
 		if slow {
 			let mut entry = Entry::text(at, "hotspot", ssid);
-			match block(&runtime, self.air.operating(&self.access_point)) {
+			match block(&runtime, self.air.operating(&interface)) {
 				Ok(Some(operating)) => {
 					if let Some(channel) = channel_trait(operating) {
 						entry = entry.with_trait("channel", channel);
@@ -117,12 +123,10 @@ impl Report {
 			}
 			entries.push(entry);
 		}
-		entries.push(
-			match block(&runtime, self.air.clients(&self.access_point)) {
-				Ok(clients) => Entry::quantity(at, "hotspot-clients", "clients", clients as f64),
-				Err(reason) => Entry::broken(at, "hotspot-clients", kind::QUANTITY, reason),
-			},
-		);
+		entries.push(match block(&runtime, self.air.clients(&interface)) {
+			Ok(clients) => Entry::quantity(at, "hotspot-clients", "clients", clients as f64),
+			Err(reason) => Entry::broken(at, "hotspot-clients", kind::QUANTITY, reason),
+		});
 		entries
 	}
 }

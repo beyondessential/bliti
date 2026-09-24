@@ -38,19 +38,20 @@ fn metric(rank: usize) -> u32 {
 	METRIC_BASE.saturating_add(u32::try_from(rank).unwrap_or(u32::MAX))
 }
 
-/// The files a candidate brings up on its interface, whether or not it is selected, so that every
-/// candidate is checked: its `.network`, and for a dynamic link naming resolvers of its own, the DNS
-/// delegate carrying them.
+/// The files a candidate brings up on its interface, a wireless one on the radio whose station is
+/// `station`: its `.network`, and for a dynamic link naming resolvers of its own, the DNS delegate
+/// carrying them.
 pub(super) fn candidate(
 	attachment: &Attachment,
 	rank: usize,
+	station: Option<&str>,
 	hardware: &Hardware,
 ) -> Result<Vec<File>, Invalid> {
 	let nameservers = nameservers(attachment, rank)?;
 	let from = candidate_path(rank);
 	let (interface, contents) = match &attachment.kind {
 		AttachmentKind::Wireless(_) => {
-			let Some(station) = hardware.station.as_deref() else {
+			let Some(station) = station else {
 				return Err(invalid_in(rank, &[], "this device has no wireless client"));
 			};
 			(station, dynamic(&from, station, rank, &nameservers, true))

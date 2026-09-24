@@ -100,8 +100,10 @@ impl System for FakeSystem {
 pub struct FakeIwd {
 	/// How joining each SSID goes.
 	pub joins: Mutex<BTreeMap<String, Result<Joined, String>>>,
-	/// What every scan hears.
+	/// What every scan hears, but on a station in `heard_on`.
 	pub heard: Mutex<BTreeMap<String, i32>>,
+	/// What a scan on each station named hears instead of `heard`.
+	pub heard_on: Mutex<BTreeMap<String, BTreeMap<String, i32>>>,
 	/// Networks no longer heard once a join is tried, as an access point switched off after a scan.
 	pub gone_on_join: Mutex<BTreeSet<String>>,
 	/// How long a scan takes.
@@ -159,7 +161,10 @@ impl crate::network::observe::Iwd for FakeIwd {
 
 	fn scan(&self, station: &str) -> BoxFuture<'static, Result<BTreeMap<String, i32>, String>> {
 		self.called(format!("scan {station}"));
-		let heard = self.heard.lock().unwrap().clone();
+		let heard = match self.heard_on.lock().unwrap().get(station) {
+			Some(heard) => heard.clone(),
+			None => self.heard.lock().unwrap().clone(),
+		};
 		let takes = *self.scan_takes.lock().unwrap();
 		Box::pin(async move {
 			tokio::time::sleep(takes).await;

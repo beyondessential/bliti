@@ -44,7 +44,13 @@ pub(super) async fn scan(shared: &Shared, interface: Option<&str>) -> Result<Vec
 		));
 	}
 	let platform = &shared.platform;
-	let own = platform.air.address(&shared.config.access_point);
+	let own: Vec<String> = shared
+		.render
+		.radios
+		.iter()
+		.filter_map(|radio| radio.access_point.as_ref())
+		.filter_map(|access_point| platform.air.address(&access_point.interface))
+		.collect();
 	let mut entries = Vec::new();
 	for radio in radios {
 		let station = &radio.station;
@@ -63,7 +69,7 @@ pub(super) async fn scan(shared: &Shared, interface: Option<&str>) -> Result<Vec
 		entries.extend(
 			heard
 				.iter()
-				.filter(|ap| own.as_deref() != Some(ap.address().as_str()))
+				.filter(|ap| !own.contains(&ap.address()))
 				.filter_map(|ap| ap.entry(station)),
 		);
 	}

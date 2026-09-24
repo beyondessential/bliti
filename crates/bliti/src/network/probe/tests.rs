@@ -37,31 +37,43 @@ fn selection_runs_on_every_radio_in_probe_order() {
 	);
 }
 
+/// Each radio able to run an access point has one named for its place among every radio probed,
+/// so a radio's name does not turn on what the others can do.
 #[test]
-fn rendering_runs_on_the_radio_named() {
-	let shared = radio("wlan0", Some(Alongside::SharedChannel));
-	let hardware = render_hardware(
-		Some(&shared),
-		&["eth0".into()],
-		"ap0",
-		render::Paths::system(),
+fn rendering_runs_on_every_radio_with_an_access_point_named_for_its_place() {
+	let radios = [
+		radio("wlan0", None),
+		radio("wlan1", Some(Alongside::SharedChannel)),
+		radio("wlx00c0ca123456", Some(Alongside::Independent)),
+	];
+	let hardware = render_hardware(&radios, &["eth0".into()], render::Paths::system());
+	assert_eq!(hardware.wired, ["eth0"]);
+	assert_eq!(
+		hardware.radios,
+		[
+			render::Radio {
+				station: "wlan0".into(),
+				access_point: None,
+			},
+			render::Radio {
+				station: "wlan1".into(),
+				access_point: Some(render::AccessPoint {
+					interface: "ap1".into(),
+					alongside: Alongside::SharedChannel,
+				}),
+			},
+			render::Radio {
+				station: "wlx00c0ca123456".into(),
+				access_point: Some(render::AccessPoint {
+					interface: "ap2".into(),
+					alongside: Alongside::Independent,
+				}),
+			},
+		]
 	);
-	assert_eq!(hardware.station.as_deref(), Some("wlan0"));
-	assert_eq!(hardware.access_point.as_deref(), Some("ap0"));
-	assert!(hardware.shared_channel);
+	assert_eq!(hardware.access_point_radio("ap2"), Some("wlx00c0ca123456"));
+	assert_eq!(hardware.access_point_radio("ap0"), None);
 
-	let independent = radio("wlan0", Some(Alongside::Independent));
-	let hardware = render_hardware(Some(&independent), &[], "ap0", render::Paths::system());
-	assert!(!hardware.shared_channel);
-}
-
-#[test]
-fn a_radio_without_access_point_mode_renders_no_access_point() {
-	let client = radio("wlan1", None);
-	let hardware = render_hardware(Some(&client), &[], "ap0", render::Paths::system());
-	assert_eq!(hardware.station.as_deref(), Some("wlan1"));
-	assert_eq!(hardware.access_point, None);
-
-	let none = render_hardware(None, &["eth0".into()], "ap0", render::Paths::system());
-	assert_eq!((none.station, none.access_point), (None, None));
+	let none = render_hardware(&[], &["eth0".into()], render::Paths::system());
+	assert!(none.radios.is_empty());
 }

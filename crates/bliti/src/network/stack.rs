@@ -7,10 +7,6 @@
 //! the selector's decision, applied on the blocking pool, and then verified from what is observed
 //! until no candidate brought up is still being verified. Every change the selector makes after that
 //! is rendered and applied again the same way, with or without a session open (LINK).
-//!
-//! The renderer drives one radio, so a device with several is run on its first, and states
-//! capabilities for that one alone: offering a radio nothing here can drive would be offering a
-//! setting the device cannot carry out (NET).
 
 use std::{
 	collections::BTreeMap,
@@ -59,8 +55,6 @@ pub struct Config {
 	pub paths: render::Paths,
 	/// Where the applier keeps its record of what it put in place.
 	pub state: PathBuf,
-	/// The access point interface bliti creates for the hotspot, as the iwd drop-in names it.
-	pub access_point: String,
 }
 
 /// The network backend: a handle on the task driving the running system.
@@ -78,7 +72,7 @@ struct Shared {
 	select: select::Hardware,
 	/// What rendering runs on.
 	render: render::Hardware,
-	/// The radio driven, as last probed, and the capabilities stated from it.
+	/// The radios, as last probed, and the capabilities stated from them.
 	probed: Mutex<Probed>,
 	/// What is joined and run, for NFO.
 	report: Report,
@@ -96,7 +90,6 @@ impl Shared {
 
 	/// Take in what the radios can do, as probed now.
 	fn reprobed(&self, radios: Vec<RadioInfo>) {
-		let radios = driven(radios);
 		let capabilities =
 			probe::capabilities(&radios, &self.config.wired, &probe::Backend::stack());
 		*self.probed() = Probed {
@@ -120,23 +113,6 @@ impl Shared {
 	}
 }
 
-/// The radios the renderer drives, of those probed: the first.
-fn driven(mut radios: Vec<RadioInfo>) -> Vec<RadioInfo> {
-	if radios.len() > 1 {
-		let ignored: Vec<&str> = radios[1..]
-			.iter()
-			.map(|radio| radio.station.as_str())
-			.collect();
-		tracing::warn!(
-			driven = radios[0].station,
-			?ignored,
-			"more than one radio, and the renderer drives one; the rest are left alone"
-		);
-		radios.truncate(1);
-	}
-	radios
-}
-
 impl Stack {
 	/// Probe the radios and start the task driving the running system, fed by `observations`.
 	///
@@ -147,17 +123,11 @@ impl Stack {
 		system: Box<dyn System + Send>,
 		observations: mpsc::UnboundedReceiver<Observation>,
 	) -> anyhow::Result<Self> {
-		let radios = driven(platform.air.radios(BTreeMap::new()).await?);
-		let radio = radios.first();
+		let radios = platform.air.radios(BTreeMap::new()).await?;
 		let select = probe::select_hardware(&radios, &config.wired);
-		let render = probe::render_hardware(
-			radio,
-			&config.wired,
-			&config.access_point,
-			config.paths.clone(),
-		);
+		let render = probe::render_hardware(&radios, &config.wired, config.paths.clone());
 		let capabilities = probe::capabilities(&radios, &config.wired, &probe::Backend::stack());
-		let report = Report::new(platform.air.clone(), config.access_point.clone());
+		let report = Report::new(platform.air.clone());
 		let shared = Arc::new(Shared {
 			config,
 			platform,
@@ -195,7 +165,6 @@ impl Stack {
 			wired,
 			paths: render::Paths::system(),
 			state: super::apply::STATE.into(),
-			access_point: ACCESS_POINT.into(),
 		};
 		Self::start(config, platform, Box::new(system), observations).await
 	}
@@ -215,11 +184,6 @@ impl Stack {
 		answer.await.ok()
 	}
 }
-
-/// The access point interface bliti creates beside the station, as `services/bliti-iwd-dropin.conf`
-/// keeps iwd off it.
-#[cfg(target_os = "linux")]
-const ACCESS_POINT: &str = "ap0";
 
 /// Why a request to the task went unanswered.
 const STOPPED: &str = "the network backend has stopped";

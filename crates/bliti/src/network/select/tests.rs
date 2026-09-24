@@ -612,8 +612,9 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		})
 	};
 	assert_eq!(selector.decision().hotspot, follows(None));
-	assert!(
-		selector.selection().unwrap().hotspot_waits,
+	assert_eq!(
+		selector.selection().hotspot,
+		None,
 		"the hotspot waits for its client to join"
 	);
 
@@ -625,8 +626,11 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		})
 		.changes;
 	assert_eq!(changes, [Change::Hotspot(follows(Some(CHANNEL)))]);
-	assert_eq!(selector.selection().unwrap().station_channel, Some(CHANNEL));
-	assert!(!selector.selection().unwrap().hotspot_waits);
+	assert_eq!(
+		selector.selection().channels,
+		BTreeMap::from([("wlan0".to_owned(), CHANNEL)])
+	);
+	assert_eq!(selector.selection().hotspot.as_deref(), Some("wlan0"));
 
 	// The client leaving takes the channel with it.
 	lose(&mut selector, "wlan0", "clinic");
@@ -634,8 +638,8 @@ fn a_hotspot_on_a_shared_channel_radio_follows_its_client() {
 		selector.decision().hotspot.as_ref().unwrap().channel,
 		HotspotChannel::Own
 	);
-	assert_eq!(selector.selection().unwrap().station_channel, None);
-	assert!(!selector.selection().unwrap().hotspot_waits);
+	assert!(selector.selection().channels.is_empty());
+	assert_eq!(selector.selection().hotspot.as_deref(), Some("wlan0"));
 }
 
 /// With no candidate the radio could carry, a shared-channel radio's hotspot keeps the channel it
@@ -826,15 +830,82 @@ fn a_single_radio_decision_is_a_renderer_selection() {
 	hear(&mut selector, "wlan0", "clinic", -50);
 	assert_eq!(
 		selector.selection(),
-		Some(Selection {
-			active: vec![0, 2],
-			station_channel: None,
-			hotspot_waits: false,
-		})
+		Selection {
+			links: BTreeMap::from([("eth0".to_owned(), 2), ("wlan0".to_owned(), 0)]),
+			hotspot: None,
+			channels: BTreeMap::new(),
+		}
+	);
+}
+
+/// Each radio's candidate is linked on that radio, the hotspot runs on the radio carrying none,
+/// and each radio's channel is its own client's.
+#[test]
+fn a_two_radio_decision_names_the_radio_of_each_candidate_and_the_hotspot() {
+	let shared = hardware(vec![
+		radio("wlan0", Some(Alongside::SharedChannel)),
+		radio("wlan1", Some(Alongside::SharedChannel)),
+	]);
+	let mut selector = selector(
+		shared.clone(),
+		json!({
+			"attachments": [pinned("clinic", "wlan0")],
+			"hotspot": { "ssid": "bliti", "passphrase": "read this aloud" }
+		}),
+	);
+	hear(&mut selector, "wlan0", "clinic", -50);
+	hear(&mut selector, "wlan1", "clinic", -40);
+	pass(&mut selector, 0, Stage::Association);
+	selector.handle(Event::StationChannel {
+		interface: "wlan0".into(),
+		channel: Some(CHANNEL),
+	});
+	assert_eq!(
+		selector.selection(),
+		Selection {
+			links: BTreeMap::from([("wlan0".to_owned(), 0)]),
+			hotspot: Some("wlan1".into()),
+			channels: BTreeMap::from([("wlan0".to_owned(), CHANNEL)]),
+		}
 	);
 
-	let several = self::selector(two_radios(), json!({ "attachments": [] }));
-	assert_eq!(several.selection(), None);
+	// A hotspot sharing the second radio's channel waits for that radio's client alone.
+	let mut selector = self::selector(
+		shared,
+		json!({
+			"attachments": [pinned("clinic", "wlan0"), pinned("depot", "wlan1")],
+			"hotspot": { "ssid": "bliti", "passphrase": "read this aloud", "interface": "wlan1" }
+		}),
+	);
+	hear(&mut selector, "wlan0", "clinic", -50);
+	hear(&mut selector, "wlan1", "depot", -50);
+	pass(&mut selector, 0, Stage::Association);
+	selector.handle(Event::StationChannel {
+		interface: "wlan0".into(),
+		channel: Some(CHANNEL),
+	});
+	let selection = selector.selection();
+	assert_eq!(
+		selection.links,
+		BTreeMap::from([("wlan0".to_owned(), 0), ("wlan1".to_owned(), 1)])
+	);
+	assert_eq!(selection.hotspot, None, "wlan1's client has not joined");
+
+	let depot = Channel {
+		band: Band::TwoPointFour,
+		number: 11,
+	};
+	pass(&mut selector, 1, Stage::Association);
+	selector.handle(Event::StationChannel {
+		interface: "wlan1".into(),
+		channel: Some(depot),
+	});
+	let selection = selector.selection();
+	assert_eq!(selection.hotspot.as_deref(), Some("wlan1"));
+	assert_eq!(
+		selection.channels,
+		BTreeMap::from([("wlan0".to_owned(), CHANNEL), ("wlan1".to_owned(), depot)])
+	);
 }
 
 #[test]
