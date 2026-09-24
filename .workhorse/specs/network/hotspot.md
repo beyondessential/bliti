@@ -63,6 +63,10 @@ A device MUST treat as invalid a document whose hotspot sets any of the three wh
 
 A device MUST operate a hotspot that sets none of the three on such a radio on the channel of the wireless client that radio carries, whenever one is associated.
 
+A device MUST NOT start such a hotspot until the wireless client that radio carries has associated or has failed to.
+
+A device MUST NOT run such a hotspot while that client is associated on a channel the regulatory domain lets no access point start on, and MUST treat a proposal bringing that about as failing at `hotspot`, with a reason naming the channel.
+
 > [!NOTE]
 > Holding the choice to what the document says rather than to whether a client happens to be associated is what keeps a setting that appears from being one that silently stops holding.
 > The channel a hotspot is on is reported under [NFO](../device-info.md), so an operator who cannot choose it can still see it.
