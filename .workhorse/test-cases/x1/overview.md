@@ -78,7 +78,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## Wireless
 
-- [ ] With a hotspot applied on the shared-channel radio, a scan still hears networks on both bands. Once seen on the prototype as 2.4 GHz only; not reproduced in a later run (one 5 GHz access point heard with and without the hotspot). Verifies spec: HOT, NSCR
+- [x] With a hotspot applied on the shared-channel radio, a scan still hears networks on both bands, on the prototype. The 2.4 GHz-only scans were iwd scanning in parts, each replacing what the kernel held; the scan now reads after every part. Verifies spec: HOT, NSCR
+- [x] A scan gathers the access points every part of a multi-part scan heard.
 - [x] Setting the country restarts iwd, and a network the radio still hears is not reported out of range for it: a wrong passphrase on a network heard well is refused at association, on the prototype. Verifies spec: LINK, WLAN
 - [x] Renaming a candidate, with nothing else about it changed, keeps the addresses and gateway its link holds, on the prototype. Verifies spec: LINK
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
@@ -171,6 +172,6 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## Operations
 
-- [ ] A scan reports the wireless networks the device can see. Verifies spec: CFG
+- [x] A scan reports the wireless networks the device can see, on both bands, on the prototype. Verifies spec: CFG
 - [ ] A survey reports the occupied and usable spectrum, and a device that cannot survey omits the capability. Verifies spec: CFG
 - [ ] A device whose backend is absent, or which lacks the privilege to configure anything, says so rather than silently doing nothing.
