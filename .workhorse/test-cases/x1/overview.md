@@ -68,6 +68,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 ## Wireless
 
+- [ ] With a hotspot applied on the shared-channel radio, a scan still hears networks on both bands. Once seen on the prototype as 2.4 GHz only; not reproduced in a later run (one 5 GHz access point heard with and without the hotspot). Verifies spec: HOT, NSCR
 - [x] Setting the country restarts iwd, and a network the radio still hears is not reported out of range for it: a wrong passphrase on a network heard well is refused at association, on the prototype. Verifies spec: LINK, WLAN
 - [x] Renaming a candidate, with nothing else about it changed, keeps the addresses and gateway its link holds, on the prototype. Verifies spec: LINK
 - [ ] A device joins WPA2-PSK, WPA3-SAE, the transitional mode, and an 802.1X enterprise network. Verifies spec: WLAN
