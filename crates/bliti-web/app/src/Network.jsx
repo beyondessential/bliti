@@ -41,7 +41,7 @@ import {
 import { pathOf, within } from './path.js'
 import { loadProtocol } from './protocol.js'
 
-export default function Network({ client, onActivity, onEvent, onBack, onStage }) {
+export default function Network({ client, onActivity, onEvent, onBack, onStage, onDisconnect }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
 	const session = useRef(null)
@@ -178,7 +178,19 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 						Asking the device for its network settings.
 					</p>
 				)}
-				{state.status === 'closed' && (
+				{state.status === 'closed' && state.unreachable && (
+					<>
+						<p className="notice fault">
+							{state.why
+								? `The device's network settings could not be opened again: ${state.why}`
+								: "The device's network settings could not be opened again."}
+						</p>
+						<button className="secondary" onClick={onDisconnect}>
+							Disconnect
+						</button>
+					</>
+				)}
+				{state.status === 'closed' && !state.unreachable && (
 					<>
 						<p className="notice fault">
 							{state.why ? `The device stopped answering: ${state.why}` : 'The device ended the session.'}

@@ -198,7 +198,7 @@ export function reduce(state, action) {
 		case 'event':
 			return fromDevice(state, action.event)
 		case 'restart':
-			return opening()
+			return { ...opening(), retried: true }
 		case 'edit':
 			if (!writable(state)) return state
 			return { ...state, edit: action.change(state.edit), problem: null }
@@ -244,7 +244,13 @@ export function reduce(state, action) {
 		case 'act':
 			return { ...state, act: { type: action.act, interface: action.interface ?? null, failure: null } }
 		case 'closed':
-			return { ...state, status: state.status === 'busy' ? 'busy' : 'closed', why: action.why ?? null }
+			return {
+				...state,
+				status: state.status === 'busy' ? 'busy' : 'closed',
+				why: action.why ?? null,
+				// Starting again that fails before a session opens says the channel under it is gone.
+				unreachable: state.status === 'opening' && !!state.retried,
+			}
 		default:
 			return state
 	}

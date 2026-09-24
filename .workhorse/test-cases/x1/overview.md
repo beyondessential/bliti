@@ -164,6 +164,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A survey can go to one adapter, and WPS can join on a chosen adapter. Verifies spec: NSCR
 - [x] A network the scan lists by SSID, and the device can join, offers joining it by WPS for that network alone, on the adapter the candidate is pinned to, where the device takes a named network; a refusal names the network and shows the device's reason. Verifies spec: NSCR
 
+- [x] A session that ends with the channel still up opens again from the screen, and one that cannot be opened again says so and offers to disconnect. Verifies spec: NSCR
+
 ## Reporting
 
 - [x] An entry the device stops reporting is sent once more as ended, and its tile and history go. Verifies spec: NFO, VIEW

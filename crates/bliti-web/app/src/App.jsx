@@ -248,7 +248,14 @@ export default function App() {
 
 	const network = connected && (screen === 'network' || keep) && (
 		<div hidden={screen !== 'network'}>
-			<Network client={client} onActivity={note} onEvent={noteSession} onBack={leaveNetwork} onStage={setHeld} />
+			<Network
+				client={client}
+				onActivity={note}
+				onEvent={noteSession}
+				onBack={leaveNetwork}
+				onStage={setHeld}
+				onDisconnect={disconnect}
+			/>
 		</div>
 	)
 

@@ -230,6 +230,35 @@ test.describe('editing is the application\'s own', () => {
 		await page.getByRole('button', { name: 'Network settings' }).click()
 		await expect(page.getByText("Someone else is changing this device's network.")).toBeVisible()
 	})
+
+	// A session that ends with the channel still up opens again from the screen.
+	test('a session that stops answering starts again', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.evaluate(() => window.__blitiSession.close('the stream was reset'))
+		await expect(page.getByText('The device stopped answering: the stream was reset')).toBeVisible()
+		await answer(page, 'configure', message({ type: 'configuration', document: IN_FORCE, capabilities: PI }))
+		await page.getByRole('button', { name: 'Start again' }).click()
+		await page.getByRole('heading', { name: 'Connections' }).waitFor()
+		expect(await page.evaluate(() => window.__blitiSessions.length)).toBe(2)
+	})
+
+	// Found on the prototype: where the channel under the session is gone, starting again fails at
+	// once and the screen looked unchanged. It says so, and offers to disconnect so the operator can
+	// connect again.
+	test('a session that cannot be opened again offers to disconnect', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.evaluate(() => window.__blitiSession.close('the stream was reset'))
+		await page.evaluate(() => {
+			window.__blitiConfigureFails = 'this channel is not connected'
+		})
+		await page.getByRole('button', { name: 'Start again' }).click()
+		await expect(
+			page.getByText("The device's network settings could not be opened again: this channel is not connected"),
+		).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Start again' })).toHaveCount(0)
+		await page.getByRole('button', { name: 'Disconnect' }).click()
+		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
+	})
 })
 
 test.describe('rendering a failure', () => {

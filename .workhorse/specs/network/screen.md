@@ -111,6 +111,8 @@ The application MUST show whether what the device is running has been made durab
 
 The application MUST say what ending the session would cost while a proposal is unconfirmed.
 
+The application MUST say where the session has ended and offer to open it again, and where it cannot be opened again, MUST say so and offer to disconnect from the device so the operator can connect again.
+
 > [!NOTE]
 > A proposal that has been applied is invisible otherwise: the device is working, and nothing about it has been written down.
 

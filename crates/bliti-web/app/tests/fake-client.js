@@ -53,6 +53,7 @@ window.__blitiClient = {
 		else this._feed = feed
 	},
 	async configure({ onEvent, onClosed }) {
+		if (window.__blitiConfigureFails) throw new Error(window.__blitiConfigureFails)
 		const session = { open: true, closedByPage: false }
 		window.__blitiSessions.push(session)
 		const answer = (message) => {
