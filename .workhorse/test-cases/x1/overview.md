@@ -123,6 +123,10 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 - [x] A hotspot channel and width whose span takes in a channel no access point may start on is invalid at the width, and a width the channel does not bond to is refused. Verifies spec: HOT
 
+- [x] A hotspot every radio would have to share with a connection joined now on a channel no access point may start on, which the proposal keeps, is refused before anything is applied, and is not refused once the proposal drops that connection. Verifies spec: HOT
+- [x] The screen says, beside the hotspot, that it cannot run beside the connection joined now and that removing it lets it run, and still lets the operator apply. Verifies spec: NSCR
+- [ ] Proposing a hotspot beside a 5 GHz connection on a radar channel is refused at once on the prototype, with nothing applied. Verifies spec: HOT
+
 ## The document
 
 - [ ] A wireless network absent from a document is forgotten by the device. Verifies spec: NET

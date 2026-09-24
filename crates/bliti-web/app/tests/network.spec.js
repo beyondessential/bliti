@@ -681,6 +681,32 @@ test.describe('the ordering', () => {
 	})
 })
 
+test.describe('the hotspot beside a connection', () => {
+	const joinedOn = (number) =>
+		message({
+			type: 'fact',
+			at: 1,
+			fact: 'wireless-network',
+			kind: 'text',
+			value: 'Clinic-Staff',
+			traits: { status: { is: 'passed' }, interface: { name: 'wlan0' }, security: 'sae', channel: { band: '5ghz', number } },
+		})
+
+	// Told before applying where the adapter's connection is on a channel it cannot start a hotspot
+	// on, and still left to the device to decide (NSCR, HOT).
+	test('a hotspot that cannot run beside the connection joined now says so, and can still be applied', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await page.evaluate((event) => window.__blitiEmit(event), joinedOn(136))
+		const notice = page.locator('section.hotspot .notice')
+		await expect(notice).toHaveText("Can't run beside Clinic-Staff on 5 GHz channel 136; removing that connection lets it run.")
+		await page.locator('section.hotspot').getByLabel('SSID').fill('Clinic-Field-05')
+		await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled()
+
+		await page.evaluate((event) => window.__blitiEmit(event), joinedOn(36))
+		await expect(notice).toHaveCount(0)
+	})
+})
+
 test.describe('the state of the session', () => {
 	test('whether the running configuration is durable stays in view while the operator scrolls', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 640 })

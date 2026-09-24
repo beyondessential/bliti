@@ -60,6 +60,11 @@ impl Report {
 		self.joined.lock().unwrap_or_else(PoisonError::into_inner)
 	}
 
+	/// What `station` is joined to now, where it is joined.
+	pub(super) fn joined(&self, station: &str) -> Option<Joined> {
+		self.joins().stations.get(station).cloned()
+	}
+
 	/// Record what `station` is joined to, or that it is joined to nothing.
 	pub(super) fn station(&self, station: &str, joined: Option<Joined>) {
 		let mut joins = self.joins();

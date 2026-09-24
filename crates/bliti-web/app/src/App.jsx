@@ -246,6 +246,16 @@ export default function App() {
 		setKeep(held?.stage === 'applying' || held?.stage === 'applied' || held?.changes > 0)
 	}
 
+	// What each interface is joined to, from the device's wireless-network facts (NFO).
+	const joined = [...entries.values()]
+		.filter((entry) => entry.fact && entry.name === 'wireless-network' && !isEnded(entry))
+		.map((entry) => ({
+			interface: entry.traits?.interface?.name,
+			ssid: entry.value,
+			band: entry.traits?.channel?.band,
+			channel: entry.traits?.channel?.number,
+		}))
+
 	const network = connected && (screen === 'network' || keep) && (
 		<div hidden={screen !== 'network'}>
 			<Network
@@ -255,6 +265,7 @@ export default function App() {
 				onBack={leaveNetwork}
 				onStage={setHeld}
 				onDisconnect={disconnect}
+				joined={joined}
 			/>
 		</div>
 	)

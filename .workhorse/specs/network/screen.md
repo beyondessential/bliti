@@ -63,6 +63,8 @@ The application MUST say beside the list, in terms of what the device does, that
 
 The application MUST make plain which candidate the fields being edited belong to.
 
+The application MUST say, beside the hotspot, where it cannot run beside a wireless connection the device reports joined now, naming the connection and its channel and that removing the connection lets it run, and MUST still let the operator apply.
+
 The application MUST show each candidate's state against it, distinguishing the candidate carrying the default route, one that is up, and each way a candidate is unavailable.
 
 The application MUST describe an unavailable candidate by what the device observed of it.

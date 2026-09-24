@@ -14,15 +14,16 @@ use std::{
 	sync::{Arc, Mutex, PoisonError},
 };
 
-use bliti_core::channel::config::{Document, Invalid, path};
+use bliti_core::channel::config::{AttachmentKind, Document, Hotspot, Invalid, Segment, path};
 use serde_json::{Map, Value as Json};
 use tokio::sync::{mpsc, oneshot, watch};
 
 use super::{
 	apply::System,
-	observe::{Air, Gateway, Iwd, Observation},
+	observe::{Air, Gateway, Iwd, Observation, render_channel},
 	probe::{self, RadioInfo},
-	render, select,
+	render,
+	select::{self, Alongside},
 	session::{Backend, Inert, Wps},
 };
 
@@ -100,6 +101,53 @@ impl Shared {
 
 	fn radios(&self) -> Vec<RadioInfo> {
 		self.probed().radios.clone()
+	}
+
+	/// Refuse, before anything is applied, a hotspot every radio it could run on would have to share
+	/// with a wireless connection joined now on a channel no access point may start on, where the
+	/// document keeps that connection (HOT). What the radio will join is not known ahead, so only a
+	/// connection already joined is judged.
+	fn hotspot_beside_joined(&self, document: &Document, hotspot: &Hotspot) -> Result<(), Invalid> {
+		if hotspot.band.is_some() || hotspot.channel.is_some() || hotspot.channel_width.is_some() {
+			return Ok(());
+		}
+		let mut reasons = Vec::new();
+		for radio in self.radios() {
+			let Some(alongside) = radio.alongside else {
+				continue;
+			};
+			if hotspot
+				.interface
+				.as_ref()
+				.is_some_and(|pin| *pin != radio.station)
+			{
+				continue;
+			}
+			let reason = (alongside == Alongside::SharedChannel)
+				.then(|| self.joined_channel(&radio.station))
+				.flatten()
+				.filter(|(ssid, _)| keeps(document, ssid, &radio.station))
+				.and_then(|(_, channel)| driver::hotspot::barred(&radio, channel));
+			match reason {
+				Some(reason) => reasons.push(reason),
+				None => return Ok(()),
+			}
+		}
+		match reasons.into_iter().next() {
+			Some(reason) => Err(Invalid {
+				at: path(&[Segment::Name("hotspot")]),
+				reason,
+				reached: None,
+			}),
+			None => Ok(()),
+		}
+	}
+
+	/// The network `station` is joined to now and the channel it is on, where both are known.
+	fn joined_channel(&self, station: &str) -> Option<(String, render::Channel)> {
+		let joined = self.report.joined(station)?;
+		let channel = render_channel(joined.frequency?)?;
+		Some((joined.ssid, channel))
 	}
 
 	/// Whether each radio surveys, as first probed. It does not change with the regulatory domain,
@@ -197,6 +245,7 @@ impl Backend for Stack {
 		select::check(document, &self.shared.select)?;
 		if let Some(hotspot) = &document.hotspot {
 			probe::hotspot_fits(&self.shared.radios(), hotspot)?;
+			self.shared.hotspot_beside_joined(document, hotspot)?;
 		}
 		match render::render(document, &self.shared.render, &render::Selection::default()) {
 			Err(render::Error::Invalid(invalid)) => Err(invalid),
@@ -331,4 +380,12 @@ impl Backend for Chosen {
 			Self::Stack(backend) => backend.wps(asked, base, pin).await,
 		}
 	}
+}
+
+/// Whether `document` keeps a wireless candidate for `ssid` that `station`'s radio could carry.
+fn keeps(document: &Document, ssid: &str, station: &str) -> bool {
+	document.attachments.iter().any(|attachment| {
+		matches!(&attachment.kind, AttachmentKind::Wireless(wireless)
+			if wireless.ssid == ssid && wireless.interface.as_ref().is_none_or(|pin| pin == station))
+	})
 }

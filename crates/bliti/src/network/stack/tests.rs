@@ -726,6 +726,55 @@ async fn a_hotspot_cannot_follow_its_station_onto_a_radar_channel() {
 	assert!(!rig.calls().iter().any(|call| call.starts_with("hostapd")));
 }
 
+/// A hotspot that would have to share a radar channel with a connection the radio is joined to now,
+/// and that the document keeps, is refused before anything is applied (HOT).
+#[tokio::test(start_paused = true)]
+async fn a_hotspot_beside_a_connection_on_a_radar_channel_is_refused_up_front() {
+	let mut radio = radio();
+	radio.bands.insert(
+		Band::Five,
+		BandInfo {
+			channels: vec![Channel {
+				number: 140,
+				frequency: 5700,
+				max_width: 20,
+				no_ir: true,
+				radar: true,
+			}],
+			widths: vec![20],
+		},
+	);
+	let mut rig = Rig::new(FakeAir {
+		radios: vec![radio],
+		..FakeAir::default()
+	})
+	.await;
+	rig.answers("192.0.2.1");
+	rig.hears("clinic", Ok(joined("clinic", 5700)));
+	let answer = applying(&mut rig, document(json!({"attachments": [clinic()]})));
+	idle().await;
+	rig.see([leased("wld0", "192.0.2.10"), routed("wld0", "192.0.2.1")])
+		.await;
+	assert_eq!(answer.await.unwrap(), Ok(()));
+
+	let hotspot = json!({"ssid": "bliti", "passphrase": "read me aloud"});
+	let refused = rig
+		.stack
+		.check(&document(
+			json!({"attachments": [clinic()], "hotspot": hotspot}),
+		))
+		.unwrap_err();
+	assert_eq!(refused.at, "$['hotspot']");
+	assert!(refused.reason.contains("channel 140"), "{}", refused.reason);
+	assert_eq!(
+		rig.stack.check(&document(
+			json!({"attachments": [dynamic()], "hotspot": hotspot})
+		)),
+		Ok(()),
+		"without that connection the hotspot can run"
+	);
+}
+
 /// Where its station cannot join, the hotspot stops waiting and runs on a channel of its own.
 #[tokio::test(start_paused = true)]
 async fn the_hotspot_runs_where_its_station_does_not_join() {

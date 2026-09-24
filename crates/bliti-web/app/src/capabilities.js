@@ -252,6 +252,36 @@ export function channels(capabilities, hotspot = {}, document = null) {
 	return valuesAcross(channelViews(capabilities, hotspot, document), 'channel')
 }
 
+/// The connection a hotspot of `document` could not run beside: where every adapter it could use
+/// runs its hotspot only on its wireless connection's channel, and is joined now, to a network the
+/// document keeps, on a channel it could not start a hotspot on (BLI-HOT). `joined` is what each
+/// interface is joined to, as `{ interface, ssid, band, channel }`. Null where the hotspot can run, or
+/// where nothing says it cannot: what an adapter will join next is not known ahead.
+export function hotspotBlockedBy(capabilities, document, joined) {
+	const hotspot = document?.hotspot
+	if (!hotspot || CHANNEL_MEMBERS.some((member) => hotspot[member] !== undefined)) return null
+	const usable = radios(capabilities).filter(
+		(radio) => radio.alongside && (hotspot.interface === undefined || hotspot.interface === radio.interface),
+	)
+	let blocked = null
+	for (const radio of usable) {
+		const link = radio.alongside === 'shared-channel' ? joined.find((each) => each.interface === radio.interface) : null
+		const kept =
+			link &&
+			(document.attachments ?? []).some(
+				(attachment) =>
+					attachment.kind === 'wireless' &&
+					attachment.ssid === link.ssid &&
+					(attachment.interface === undefined || attachment.interface === radio.interface),
+			)
+		if (!kept || link.band === undefined || link.channel === undefined) return null
+		const open = channels(capabilities, { interface: radio.interface, band: link.band })
+		if (open === null || open.includes(link.channel)) return null
+		blocked ??= link
+	}
+	return blocked
+}
+
 /// The channel widths a hotspot may use where it stands, in megahertz.
 export function widths(capabilities, hotspot = {}, document = null) {
 	return valuesAcross(channelViews(capabilities, hotspot, document), 'channel-width')

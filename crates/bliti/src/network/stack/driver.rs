@@ -43,7 +43,7 @@ pub(super) use self::verdict::Judged;
 pub(super) use self::verdict::{changed, verdict};
 
 mod attempt;
-mod hotspot;
+pub(super) mod hotspot;
 mod sweep;
 mod verdict;
 

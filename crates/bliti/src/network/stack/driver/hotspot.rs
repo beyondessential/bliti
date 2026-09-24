@@ -44,24 +44,33 @@ impl Driver {
 			.radios()
 			.into_iter()
 			.find(|radio| radio.station == *station)?;
-		let (band, name) = match channel.band {
-			render::Band::TwoPointFour => (probe::Band::TwoPointFour, "2.4 GHz"),
-			render::Band::Five => (probe::Band::Five, "5 GHz"),
-		};
-		let flags = radio
-			.bands
-			.get(&band)
-			.and_then(|info| info.channels.iter().find(|c| c.number == channel.number));
-		let why = match flags {
-			Some(flags) if flags.can_start_ap() => return None,
-			Some(flags) if flags.radar => {
-				"needs radar detection before an access point may start on it"
-			}
-			_ => "is one the regulatory domain lets no access point start on",
-		};
-		Some(format!(
-			"the hotspot has to share {station}'s channel, {name} channel {}, which {why}",
-			channel.number
-		))
+		barred(&radio, *channel)
 	}
+}
+
+/// Why a hotspot sharing `radio`'s channel cannot run while its wireless client is on `channel`: no
+/// access point may start there (HOT).
+pub(in crate::network::stack) fn barred(
+	radio: &probe::RadioInfo,
+	channel: render::Channel,
+) -> Option<String> {
+	let (band, name) = match channel.band {
+		render::Band::TwoPointFour => (probe::Band::TwoPointFour, "2.4 GHz"),
+		render::Band::Five => (probe::Band::Five, "5 GHz"),
+	};
+	let flags = radio
+		.bands
+		.get(&band)
+		.and_then(|info| info.channels.iter().find(|c| c.number == channel.number));
+	let why = match flags {
+		Some(flags) if flags.can_start_ap() => return None,
+		Some(flags) if flags.radar => {
+			"needs radar detection before an access point may start on it"
+		}
+		_ => "is one the regulatory domain lets no access point start on",
+	};
+	Some(format!(
+		"the hotspot has to share {}'s channel, {name} channel {}, which {why}",
+		radio.station, channel.number
+	))
 }

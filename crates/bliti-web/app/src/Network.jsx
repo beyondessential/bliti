@@ -4,7 +4,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { absent, acts, attachmentKinds, check, countries, wpsMethods, wpsRadios } from './capabilities.js'
+import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, wpsMethods, wpsRadios } from './capabilities.js'
 import {
 	candidateAt,
 	changes,
@@ -39,9 +39,10 @@ import {
 	kindName,
 } from './NetworkFields.jsx'
 import { pathOf, within } from './path.js'
+import { bandName } from './wireless.js'
 import { loadProtocol } from './protocol.js'
 
-export default function Network({ client, onActivity, onEvent, onBack, onStage, onDisconnect }) {
+export default function Network({ client, onActivity, onEvent, onBack, onStage, onDisconnect, joined }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
 	const session = useRef(null)
@@ -257,6 +258,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 
 			<Hotspot
 				state={state}
+				joined={joined}
 				readOnly={readOnly}
 				change={change}
 				marks={marks}
@@ -679,10 +681,11 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, unch
 	)
 }
 
-function Hotspot({ state, readOnly, change, marks, failure, survey }) {
+function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 	const caps = state.capabilities
 	const hotspot = state.edit.document.hotspot
 	const why = absent(caps, 'hotspot', state.edit.document)
+	const blocked = hotspot ? hotspotBlockedBy(caps, state.edit.document, joined ?? []) : null
 
 	return (
 		<section className="hotspot">
@@ -701,6 +704,11 @@ function Hotspot({ state, readOnly, change, marks, failure, survey }) {
 				)}
 			</div>
 			{failure && <Failure failure={failure} />}
+			{blocked && (
+				<p className="notice">
+					Can't run beside {blocked.ssid} on {bandName(blocked.band)} channel {blocked.channel}; removing that connection lets it run.
+				</p>
+			)}
 			{why && <p className="muted absent">{why.sentence}</p>}
 			{!hotspot && !why && <p className="muted">Off.</p>}
 			{hotspot && (
