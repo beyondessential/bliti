@@ -193,7 +193,9 @@ async fn run(cli: Cli) -> Result<()> {
 async fn probe() -> Result<()> {
 	use network::{probe, wired};
 
-	let radios = probe::Nl80211::connect()?.radios().await?;
+	let radios = probe::Nl80211::connect()?
+		.radios(&Default::default())
+		.await?;
 	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
 	let capabilities = probe::capabilities(&radios, &wired, &probe::Backend::stack());
 	for radio in &radios {
@@ -218,7 +220,9 @@ async fn network_apply(
 	let document =
 		Document::parse(&raw).map_err(|e| anyhow::anyhow!("{} (at {})", e.reason, e.at))?;
 
-	let radios = probe::Nl80211::connect()?.radios().await?;
+	let radios = probe::Nl80211::connect()?
+		.radios(&Default::default())
+		.await?;
 	let wired = wired::interfaces(std::path::Path::new(wired::SYS_CLASS_NET));
 	let hardware = probe::render_hardware(radios.first(), &wired, "ap0", render::Paths::system());
 	let station_channel = station_channel

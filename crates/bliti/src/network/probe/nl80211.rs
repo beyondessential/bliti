@@ -55,7 +55,15 @@ impl Nl80211 {
 	///
 	/// A wiphy with no station interface is left out: a document names a radio by its station
 	/// interface, so one without is a radio no document can name.
-	pub async fn radios(&self) -> anyhow::Result<Vec<RadioInfo>> {
+	///
+	/// Whether a radio surveys is taken from `surveyed`, keyed by station interface, where it is
+	/// there. Only a radio missing from it is asked, since a survey dump retunes the radio across
+	/// every channel on some drivers (brcmfmac spends a tenth of a second on each), taking whatever
+	/// runs on it off its channel for as long.
+	pub async fn radios(
+		&self,
+		surveyed: &BTreeMap<String, bool>,
+	) -> anyhow::Result<Vec<RadioInfo>> {
 		let interfaces = self.interfaces().await?;
 		let wiphys = self.wiphys().await?;
 		let mut radios = Vec::new();
@@ -69,7 +77,10 @@ impl Nl80211 {
 				);
 				continue;
 			};
-			let survey = self.surveys(station).await;
+			let survey = match surveyed.get(&station.name) {
+				Some(survey) => *survey,
+				None => self.surveys(station).await,
+			};
 			let adapter = Sysfs::read(Path::new("/sys"), &station.name);
 			radios.push(wiphy::parse(
 				attributes,

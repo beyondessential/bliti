@@ -13,6 +13,7 @@
 //! setting the device cannot carry out (NET).
 
 use std::{
+	collections::BTreeMap,
 	path::PathBuf,
 	sync::{Arc, Mutex, PoisonError},
 };
@@ -107,6 +108,16 @@ impl Shared {
 	fn radios(&self) -> Vec<RadioInfo> {
 		self.probed().radios.clone()
 	}
+
+	/// Whether each radio surveys, as first probed. It does not change with the regulatory domain,
+	/// so a probe again need not ask.
+	fn surveyed(&self) -> BTreeMap<String, bool> {
+		self.probed()
+			.radios
+			.iter()
+			.map(|radio| (radio.station.clone(), radio.survey))
+			.collect()
+	}
 }
 
 /// The radios the renderer drives, of those probed: the first.
@@ -136,7 +147,7 @@ impl Stack {
 		system: Box<dyn System + Send>,
 		observations: mpsc::UnboundedReceiver<Observation>,
 	) -> anyhow::Result<Self> {
-		let radios = driven(platform.air.radios().await?);
+		let radios = driven(platform.air.radios(BTreeMap::new()).await?);
 		let radio = radios.first();
 		let select = probe::select_hardware(&radios, &config.wired);
 		let render = probe::render_hardware(

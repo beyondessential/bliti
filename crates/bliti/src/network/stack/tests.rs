@@ -402,6 +402,28 @@ async fn the_static_whose_gateway_answers_is_the_site() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_probe_after_the_country_changes_asks_no_survey() {
+	let air = FakeAir {
+		radios: vec![radio()],
+		..FakeAir::default()
+	};
+	let probed = air.probed.clone();
+	let mut rig = Rig::new(air).await;
+	rig.stack
+		.restore(&document(
+			json!({"attachments": [dynamic()], "regulatory-domain": "NZ"}),
+		))
+		.await
+		.unwrap();
+	idle().await;
+	assert_eq!(
+		*probed.lock().unwrap(),
+		[BTreeMap::new(), BTreeMap::from([("wld0".to_owned(), true)])],
+		"a survey retunes the radio across every channel, so it is asked once, at start"
+	);
+}
+
+#[tokio::test(start_paused = true)]
 async fn restore_returns_to_the_recorded_document() {
 	let mut rig = Rig::wired().await;
 	rig.answers("192.0.2.1");

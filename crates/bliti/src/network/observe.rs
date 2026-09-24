@@ -190,8 +190,12 @@ pub struct WpsFailed {
 
 /// What the backend reads from the radios, over nl80211.
 pub trait Air: Send + Sync + 'static {
-	/// What each radio can do, as the probe reads it.
-	fn radios(&self) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>>;
+	/// What each radio can do, as the probe reads it, taking whether a radio surveys from
+	/// `surveyed` where it is there.
+	fn radios(
+		&self,
+		surveyed: BTreeMap<String, bool>,
+	) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>>;
 
 	/// Every access point `station`'s radio heard in its latest scan.
 	fn access_points(

@@ -196,11 +196,22 @@ pub struct FakeAir {
 	pub addresses: BTreeMap<String, String>,
 	pub operating: BTreeMap<String, Operating>,
 	pub clients: usize,
+	/// What each probe of the radios was told of whether they survey, in order.
+	pub probed: Arc<Mutex<Vec<BTreeMap<String, bool>>>>,
 }
 
 impl crate::network::observe::Air for FakeAir {
-	fn radios(&self) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
-		let radios = self.radios.clone();
+	fn radios(
+		&self,
+		surveyed: BTreeMap<String, bool>,
+	) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
+		self.probed.lock().unwrap().push(surveyed.clone());
+		let mut radios = self.radios.clone();
+		for radio in &mut radios {
+			if let Some(survey) = surveyed.get(&radio.station) {
+				radio.survey = *survey;
+			}
+		}
 		Box::pin(async move { Ok(radios) })
 	}
 

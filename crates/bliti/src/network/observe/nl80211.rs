@@ -2,7 +2,7 @@
 //! `NL80211_CMD_GET_SURVEY`, `NL80211_CMD_GET_INTERFACE` and `NL80211_CMD_GET_STATION`, all dumps
 //! that read what the kernel holds and change nothing.
 
-use std::{fs, io};
+use std::{collections::BTreeMap, fs, io};
 
 use futures::{TryStreamExt as _, future::BoxFuture};
 use wl_nl80211::{
@@ -62,9 +62,12 @@ fn access_point(info: &[Nl80211BssInfo]) -> Option<AccessPoint> {
 }
 
 impl super::Air for Air {
-	fn radios(&self) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
+	fn radios(
+		&self,
+		surveyed: BTreeMap<String, bool>,
+	) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
 		let probe = self.probe.clone();
-		Box::pin(async move { probe.radios().await })
+		Box::pin(async move { probe.radios(&surveyed).await })
 	}
 
 	fn access_points(&self, station: &str) -> BoxFuture<'static, Result<Vec<AccessPoint>, String>> {

@@ -695,9 +695,10 @@ impl Driver {
 	fn reprobe(&mut self) {
 		self.reprobing = true;
 		let air = self.shared.platform.air.clone();
+		let surveyed = self.shared.surveyed();
 		let internal = self.internal.clone();
 		tokio::spawn(async move {
-			let _ = internal.send(Internal::Reprobed(air.radios().await));
+			let _ = internal.send(Internal::Reprobed(air.radios(surveyed).await));
 		});
 	}
 
