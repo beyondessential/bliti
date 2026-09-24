@@ -267,9 +267,9 @@ pub type PlatformSerial = Option<Vec<u8>>;
 /// the device can rebuild, not authoritative state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheState {
-	/// The kind of source that won the precedence when the secret was derived.
+	/// The kind of source that won the precedence when the root was derived.
 	pub board_id_kind: SourceKind,
-	/// The platform serial of the board the secret was derived on.
+	/// The platform serial of the board the root was derived on.
 	pub platform_serial: PlatformSerial,
 }
 
@@ -277,20 +277,20 @@ pub struct CacheState {
 /// the cheap reads (the platform serial and which kinds of source are present).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheDecision {
-	/// The cache still holds: the cached secret stands and no source value is read and no
+	/// The cache still holds: the cached root stands and no source value is read and no
 	/// derivation runs.
 	Fresh,
 	/// The board has gained hardware carrying a stronger source, or otherwise no longer derives to
-	/// the cached secret, and the QR code on its enclosure is dead. Reported rather than derived
+	/// the cached root, and the QR code on its enclosure is dead. Reported rather than derived
 	/// past.
 	QrDead,
 	/// The board does not match the cache and is not a dead QR code: the cache is absent, or the
 	/// board is a different one (its platform serial differs, as when a disk is moved into another
-	/// enclosure). The precedence is evaluated, the winning source read, and the secret derived.
+	/// enclosure). The precedence is evaluated, the winning source read, and the root derived.
 	Rederive,
 }
 
-/// Decide, from the cheap reads alone, whether a cached secret still holds.
+/// Decide, from the cheap reads alone, whether a cached root still holds.
 ///
 /// `cache` is what the device last recorded, or `None` if it has none. `observed_serial` is the
 /// platform serial read from the board now. `strongest_present` is the strongest kind of source

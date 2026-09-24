@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
-	key_schedule::{Handle, PresenceToken, RotationSalt},
+	key_schedule::{DeviceKeys, Handle, RotationSalt},
 	qr::QrPayload,
 };
 use bluer::{
@@ -51,11 +51,11 @@ pub async fn run(
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
-		tracing::info!(source = %identity.kind, "derived this board's presence token");
+		tracing::info!(source = %identity.kind, "derived this board's root");
 	} else {
-		tracing::info!(source = %identity.kind, "presence token is cached");
+		tracing::info!(source = %identity.kind, "root is cached");
 	}
-	let secret = Arc::new(identity.secret);
+	let keys = Arc::new(identity.keys);
 
 	// The recorded network configuration goes in force before anything else, since nothing provisional
 	// survives a restart (CFG). One configurator serves every connection, so at most one configuration
@@ -109,7 +109,7 @@ pub async fn run(
 		tokio::spawn(serve_sessions(
 			subscriptions,
 			sink,
-			secret.clone(),
+			keys.clone(),
 			readvertise.clone(),
 			sampler,
 			configurator,
@@ -129,7 +129,7 @@ pub async fn run(
 	let mut backoff = ADVERTISE_RETRY;
 	loop {
 		let salt = random_salt();
-		let advertised = Advertised::new(secret.handle(salt), salt);
+		let advertised = Advertised::new(keys.presence_token.handle(salt), salt);
 		let registered = match adapter.advertise(advertisement(advertised)).await {
 			Ok(registered) => {
 				backoff = ADVERTISE_RETRY;
@@ -372,7 +372,7 @@ async fn serve_writes(mut writes: CharacteristicControl, sink: InboundSink) {
 async fn serve_sessions(
 	mut subscriptions: CharacteristicControl,
 	sink: InboundSink,
-	secret: Arc<PresenceToken>,
+	keys: Arc<DeviceKeys>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
 	configurator: Configurator<Chosen>,
@@ -389,7 +389,7 @@ async fn serve_sessions(
 			serve_session(
 				notifier,
 				sink.clone(),
-				secret.clone(),
+				keys.clone(),
 				readvertise.clone(),
 				sampler.clone(),
 				configurator.clone(),
@@ -409,7 +409,7 @@ async fn serve_sessions(
 async fn serve_session(
 	notifier: CharacteristicWriter,
 	sink: InboundSink,
-	secret: Arc<PresenceToken>,
+	keys: Arc<DeviceKeys>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
 	configurator: Configurator<Chosen>,
@@ -458,7 +458,7 @@ async fn serve_session(
 	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
 	// stays reachable afterwards.
 	tokio::select! {
-		result = session::run(transport, &secret, sampler, configurator) => match result {
+		result = session::run(transport, &keys, sampler, configurator) => match result {
 			Ok(()) => tracing::info!("session ended"),
 			Err(err) => tracing::info!(%err, "session ended"),
 		},
@@ -533,7 +533,7 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 			continue;
 		}
 
-		if advertised.matches(payload.secret()) {
+		if advertised.matches(payload.presence_token()) {
 			matched += 1;
 			println!(
 				"{address}  MATCHES the QR code (handle {})",

@@ -60,12 +60,13 @@ pub enum QrError {
 
 #[cfg(test)]
 mod tests {
-	use bliti_core::key_schedule::PresenceToken;
+	use bliti_core::key_schedule::Root;
 
 	use super::*;
 
 	fn payload(byte: u8) -> QrPayload {
-		QrPayload::new(PresenceToken::from_bytes([byte; 32]))
+		let keys = Root::from_bytes([byte; 32]).device_keys();
+		QrPayload::new(keys.presence_token, keys.static_key.public_key())
 	}
 
 	#[test]

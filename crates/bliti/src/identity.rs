@@ -1,9 +1,10 @@
-//! Establishing a device's own presence token: which source wins, whether the cache still holds, and
-//! the derivation when it does not.
+//! Establishing a device's own keys: which source wins, whether the cached root still holds, the
+//! derivation when it does not, and the presence token and static key descending from the root.
 //!
 //! Behaviour is specified in BID and in KEY, "Deriving on the device". The memory-hard
-//! derivation is paid once and cached; establishing whether the cache still holds is a comparison of
-//! cheap reads against the board, not a rederivation.
+//! derivation of the root is paid once and cached; establishing whether the cache still holds is a
+//! comparison of cheap reads against the board, not a rederivation. The presence token and static key
+//! are derived from the root on every start, which is cheap.
 
 use std::{
 	fs,
@@ -12,23 +13,22 @@ use std::{
 
 use bliti_core::{
 	board_id::{
-		BoardIdSource, CacheDecision, CacheState, OneTimeProgrammableSource, PlatformSerial,
-		RaspberryPiSerialSource, SourceKind, evaluate_cache, select, strongest_present,
+		BoardId, BoardIdSource, CacheDecision, CacheState, OneTimeProgrammableSource,
+		PlatformSerial, RaspberryPiSerialSource, SourceKind, evaluate_cache, select,
+		strongest_present,
 	},
-	key_schedule::{
-		PRESENCE_TOKEN_LEN, PresenceToken, VERSION, check_memory, derive_presence_token,
-	},
+	key_schedule::{DeviceKeys, ROOT_LEN, Root, VERSION, check_memory, derive_root},
 };
 use serde::{Deserialize, Serialize};
 
-/// Where the derived secret and the board it was derived from are cached. It is a cache the device
+/// Where the derived root and the board it was derived from are cached. It is a cache the device
 /// can rebuild, not authoritative state: losing it costs one derivation.
 pub const DEFAULT_CACHE_PATH: &str = "/var/lib/bliti/identity.json";
 
 /// The device's own identity, once established.
 pub struct Identity {
-	/// The presence token this board derives.
-	pub secret: PresenceToken,
+	/// The presence token and device static key this board derives.
+	pub keys: DeviceKeys,
 	/// Which kind of source it was derived from.
 	pub kind: SourceKind,
 	/// Whether the memory-hard derivation had to run, rather than the cache standing.
@@ -36,22 +36,27 @@ pub struct Identity {
 }
 
 /// The cache file's contents.
+///
+/// A file that does not have this shape, as one written before the cache held a root, fails to parse
+/// and is rederived.
 #[derive(Debug, Serialize, Deserialize)]
 struct CacheFile {
-	/// The key-schedule version the secret was derived under. A device that finds a different one has
+	/// The key-schedule version the root was derived under. A device that finds a different one has
 	/// been upgraded across a version change and rederives.
 	version: u8,
 	/// Which kind of source won the precedence.
 	kind: String,
+	/// The board ID the root was derived from: the winning source's raw value, hex-encoded.
+	board_id: String,
 	/// The platform serial of the board, hex-encoded, or absent where the board offers none.
 	platform_serial: Option<String>,
-	/// The derived secret, hex-encoded.
-	secret: String,
+	/// The derived root, hex-encoded.
+	root: String,
 }
 
 /// Assemble the board-ID backends this build can see.
 ///
-/// Which backends are registered decides which source wins the precedence, and so which secret the
+/// Which backends are registered decides which source wins the precedence, and so which root the
 /// board derives, which is why [`guard_unreadable_sources`] exists.
 pub fn sources() -> Vec<Box<dyn BoardIdSource>> {
 	#[cfg_attr(
@@ -75,7 +80,7 @@ pub fn sources() -> Vec<Box<dyn BoardIdSource>> {
 /// Refuse to derive on a board carrying a source this build cannot read.
 ///
 /// A build without the `tpm` feature cannot see a TPM, so on a board that has one it would derive
-/// from the serial number instead and produce a secret that does not match the QR code on the
+/// from the serial number instead and produce a root that does not match the QR code on the
 /// enclosure. That is worse than not starting, because the device would advertise a handle nobody
 /// can match while looking healthy, so it is refused here.
 pub fn guard_unreadable_sources() -> Result<(), IdentityError> {
@@ -110,7 +115,7 @@ pub fn platform_serial(
 	Ok(None)
 }
 
-/// Establish the device's presence token, deriving only where the cache does not hold.
+/// Establish the device's keys, deriving the root only where the cache does not hold.
 pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 	guard_unreadable_sources()?;
 
@@ -125,9 +130,9 @@ pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 
 	match evaluate_cache(cached.as_ref().map(|(state, _)| state), &serial, strongest) {
 		CacheDecision::Fresh => {
-			let (state, secret) = cached.expect("a fresh cache was read");
+			let (state, root) = cached.expect("a fresh cache was read");
 			Ok(Identity {
-				secret,
+				keys: root.device_keys(),
 				kind: state.board_id_kind,
 				derived: false,
 			})
@@ -143,17 +148,10 @@ pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 			// system rather than told the allocation failed, so establish there is room first.
 			check_memory(available_memory_bytes()).map_err(IdentityError::Key)?;
 
-			let secret = derive_presence_token(&board_id).map_err(IdentityError::Key)?;
-			write_cache(
-				cache_path,
-				&CacheState {
-					board_id_kind: board_id.kind(),
-					platform_serial: serial,
-				},
-				&secret,
-			)?;
+			let root = derive_root(&board_id).map_err(IdentityError::Key)?;
+			write_cache(cache_path, &board_id, &serial, &root)?;
 			Ok(Identity {
-				secret,
+				keys: root.device_keys(),
 				kind: board_id.kind(),
 				derived: true,
 			})
@@ -191,7 +189,7 @@ fn kind_from_name(name: &str) -> Option<SourceKind> {
 
 /// Read the cache, or `None` where it is absent or does not apply. A cache that cannot be understood
 /// is treated as absent: it costs one derivation to rebuild, which is better than refusing to start.
-fn read_cache(path: &Path) -> Result<Option<(CacheState, PresenceToken)>, IdentityError> {
+fn read_cache(path: &Path) -> Result<Option<(CacheState, Root)>, IdentityError> {
 	let raw = match fs::read_to_string(path) {
 		Ok(raw) => raw,
 		Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -209,14 +207,18 @@ fn read_cache(path: &Path) -> Result<Option<(CacheState, PresenceToken)>, Identi
 		);
 		return Ok(None);
 	}
-	let (Some(kind), Ok(secret)) = (kind_from_name(&file.kind), hex::decode(&file.secret)) else {
+	let (Some(kind), Ok(root)) = (kind_from_name(&file.kind), hex::decode(&file.root)) else {
 		tracing::warn!("identity cache is unreadable; rederiving");
 		return Ok(None);
 	};
-	let Ok(secret): Result<[u8; PRESENCE_TOKEN_LEN], _> = secret.try_into() else {
-		tracing::warn!("identity cache holds a secret of the wrong length; rederiving");
+	let Ok(root): Result<[u8; ROOT_LEN], _> = root.try_into() else {
+		tracing::warn!("identity cache holds a root of the wrong length; rederiving");
 		return Ok(None);
 	};
+	if hex::decode(&file.board_id).is_err() {
+		tracing::warn!("identity cache is unreadable; rederiving");
+		return Ok(None);
+	}
 	let platform_serial = match file.platform_serial.as_deref().map(hex::decode) {
 		Some(Ok(serial)) => Some(serial),
 		Some(Err(_)) => return Ok(None),
@@ -227,23 +229,25 @@ fn read_cache(path: &Path) -> Result<Option<(CacheState, PresenceToken)>, Identi
 			board_id_kind: kind,
 			platform_serial,
 		},
-		PresenceToken::from_bytes(secret),
+		Root::from_bytes(root),
 	)))
 }
 
 fn write_cache(
 	path: &Path,
-	state: &CacheState,
-	secret: &PresenceToken,
+	board_id: &BoardId,
+	platform_serial: &PlatformSerial,
+	root: &Root,
 ) -> Result<(), IdentityError> {
 	if let Some(parent) = path.parent() {
 		fs::create_dir_all(parent).map_err(|err| IdentityError::Cache(err.to_string()))?;
 	}
 	let file = CacheFile {
 		version: VERSION,
-		kind: kind_name(state.board_id_kind).to_owned(),
-		platform_serial: state.platform_serial.as_ref().map(hex::encode),
-		secret: hex::encode(secret.as_bytes()),
+		kind: kind_name(board_id.kind()).to_owned(),
+		board_id: hex::encode(board_id.raw()),
+		platform_serial: platform_serial.as_ref().map(hex::encode),
+		root: hex::encode(root.as_bytes()),
 	};
 	let body =
 		serde_json::to_string_pretty(&file).map_err(|err| IdentityError::Cache(err.to_string()))?;
@@ -256,8 +260,8 @@ fn write_cache(
 	fs::rename(&temporary, path).map_err(|err| IdentityError::Cache(err.to_string()))
 }
 
-/// The cache holds the presence token, which is the credential, so it is readable only by the user
-/// the daemon runs as.
+/// The cache holds the root, from which both credentials descend, and the board ID, from which the
+/// root does, so it is readable only by the user the daemon runs as.
 fn restrict(path: &Path) -> Result<(), IdentityError> {
 	#[cfg(unix)]
 	{
@@ -292,13 +296,13 @@ pub enum IdentityError {
 		 {found:?}, so the printed QR code no longer matches it. Print a new QR code for this board."
 	)]
 	QrDead {
-		/// The kind of source the cached secret was derived from.
+		/// The kind of source the cached root was derived from.
 		cached: Option<SourceKind>,
 		/// The strongest kind of source the board offers now.
 		found: Option<SourceKind>,
 	},
 
-	/// This build cannot read a source the board carries, so deriving would give the wrong secret.
+	/// This build cannot read a source the board carries, so deriving would give the wrong root.
 	#[cfg_attr(
 		feature = "tpm",
 		expect(dead_code, reason = "only raised by a build without TPM support")
@@ -314,4 +318,73 @@ pub enum IdentityError {
 	/// The cache could not be read or written.
 	#[error("identity cache: {0}")]
 	Cache(String),
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// A scratch cache path, its directory cleaned up on drop.
+	struct Scratch(PathBuf);
+
+	impl Scratch {
+		fn new() -> Self {
+			use std::sync::atomic::{AtomicU32, Ordering};
+			static COUNTER: AtomicU32 = AtomicU32::new(0);
+			let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+			let dir =
+				std::env::temp_dir().join(format!("bliti-identity-{}-{n}", std::process::id()));
+			fs::create_dir_all(&dir).unwrap();
+			Self(dir)
+		}
+
+		fn path(&self) -> PathBuf {
+			self.0.join("identity.json")
+		}
+	}
+
+	impl Drop for Scratch {
+		fn drop(&mut self) {
+			let _ = fs::remove_dir_all(&self.0);
+		}
+	}
+
+	#[test]
+	fn the_cache_holds_the_root_and_the_board_it_came_from() {
+		let scratch = Scratch::new();
+		let board_id =
+			BoardId::new(SourceKind::RaspberryPiSerial, vec![0xf3, 0x75, 0x65, 0x10]).unwrap();
+		let serial = Some(vec![0xf3, 0x75, 0x65, 0x10]);
+		let root = Root::from_bytes([0x42; ROOT_LEN]);
+		write_cache(&scratch.path(), &board_id, &serial, &root).unwrap();
+
+		let file: serde_json::Value =
+			serde_json::from_str(&fs::read_to_string(scratch.path()).unwrap()).unwrap();
+		assert_eq!(file["root"], hex::encode([0x42; ROOT_LEN]));
+		assert_eq!(file["board_id"], "f3756510");
+		assert_eq!(file["platform_serial"], "f3756510");
+		assert_eq!(file["kind"], "raspberry-pi-serial");
+
+		let (state, read) = read_cache(&scratch.path()).unwrap().unwrap();
+		assert_eq!(read, root);
+		assert_eq!(state.board_id_kind, SourceKind::RaspberryPiSerial);
+		assert_eq!(state.platform_serial, serial);
+	}
+
+	#[test]
+	fn a_cache_holding_a_token_rather_than_a_root_is_rederived() {
+		let scratch = Scratch::new();
+		fs::write(
+			scratch.path(),
+			serde_json::json!({
+				"version": VERSION,
+				"kind": "raspberry-pi-serial",
+				"platform_serial": "f3756510",
+				"secret": hex::encode([0x42; 32]),
+			})
+			.to_string(),
+		)
+		.unwrap();
+		assert!(read_cache(&scratch.path()).unwrap().is_none());
+	}
 }

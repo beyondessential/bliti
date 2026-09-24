@@ -237,6 +237,7 @@ version = "0.0.0"
 dependencies = [
  "argon2",
  "blake3",
+ "curve25519-dalek",
  "data-encoding",
  "flate2",
  "futures",

@@ -370,14 +370,17 @@ fn board_id() -> Result<()> {
 	Ok(())
 }
 
-/// Print the QR code for this board, deriving its secret if the cache does not already hold it.
+/// Print the QR code for this board, deriving its root if the cache does not already hold it.
 fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 	let identity = identity::establish(cache).context("establishing this board's identity")?;
 	if identity.derived {
-		tracing::info!(source = %identity.kind, "derived this board's presence token");
+		tracing::info!(source = %identity.kind, "derived this board's root");
 	}
 
-	let payload = bliti_core::qr::QrPayload::new(identity.secret);
+	let payload = bliti_core::qr::QrPayload::new(
+		identity.keys.presence_token,
+		identity.keys.static_key.public_key(),
+	);
 	let code = qr::Printable::new(&payload)?;
 
 	if svg {
@@ -419,7 +422,7 @@ async fn connect(code: &str, address: Option<&str>, adapter: Option<&str>) -> Re
 		.map(str::parse::<bluer::Address>)
 		.transpose()
 		.context("reading the device address")?;
-	client::connect(address, payload.secret(), adapter).await
+	client::connect(address, &payload, adapter).await
 }
 
 #[cfg(target_os = "linux")]
@@ -429,7 +432,7 @@ async fn configure(code: &str, address: Option<&str>, adapter: Option<&str>) -> 
 		.map(str::parse::<bluer::Address>)
 		.transpose()
 		.context("reading the device address")?;
-	client::configure(address, payload.secret(), adapter).await
+	client::configure(address, &payload, adapter).await
 }
 
 #[cfg(not(target_os = "linux"))]

@@ -67,7 +67,7 @@ use super::{
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 	write_backlog::WriteBacklog,
 };
-use crate::key_schedule::PresenceToken;
+use crate::key_schedule::{DevicePublicKey, DeviceStaticKey, PresenceToken};
 
 /// The size of the buffer used to pull bytes off the inner transport on each read.
 const READ_CHUNK: usize = 8192;
@@ -333,14 +333,16 @@ where
 	.await
 }
 
-/// Run the `NNpsk0` handshake as the initiator over a byte transport and return the encrypted stream.
-/// The client is the initiator. The handshake reads exactly its two framed messages, leaving no bytes
-/// buffered, so the returned [`NoiseStream`] takes over a clean transport.
+/// Run the `NKpsk0` handshake as the initiator over a byte transport and return the encrypted stream.
+/// The client is the initiator, holding the presence token and the device static public key from the
+/// QR code. The handshake reads exactly its two framed messages, leaving no bytes buffered, so the
+/// returned [`NoiseStream`] takes over a clean transport.
 pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
 	psk: &PresenceToken,
+	device_public_key: &DevicePublicKey,
 ) -> Result<NoiseStream<S>, ChannelError> {
-	let mut handshake = Handshake::initiator(psk)?;
+	let mut handshake = Handshake::initiator(psk, device_public_key)?;
 	let msg1 = handshake.write_message()?;
 	write_delimited::<TRANSPORT_PREFIX, _>(&mut inner, &msg1)
 		.await
@@ -353,13 +355,14 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 	Ok(NoiseStream::new(inner, handshake.into_transport()?))
 }
 
-/// Run the `NNpsk0` handshake as the responder over a byte transport and return the encrypted stream.
-/// The device is the responder.
+/// Run the `NKpsk0` handshake as the responder over a byte transport and return the encrypted stream.
+/// The device is the responder, holding the presence token and its static private key.
 pub async fn accept_responder<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
 	psk: &PresenceToken,
+	device_static_key: &DeviceStaticKey,
 ) -> Result<NoiseStream<S>, ChannelError> {
-	let mut handshake = Handshake::responder(psk)?;
+	let mut handshake = Handshake::responder(psk, device_static_key)?;
 	let msg1 = read_delimited::<TRANSPORT_PREFIX, _>(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
@@ -396,21 +399,36 @@ mod tests {
 	use tokio_util::compat::TokioAsyncReadCompatExt;
 
 	use super::*;
-	use crate::channel::{
-		envelope::{Reading, read},
-		messages::Message,
-		readings::Entry,
+	use crate::{
+		channel::{
+			envelope::{Reading, read},
+			messages::Message,
+			readings::Entry,
+		},
+		key_schedule::Root,
 	};
 
-	/// Set up a client and device connected over an in-memory duplex: a full `NNpsk0` handshake, then
+	type Duplex = tokio_util::compat::Compat<tokio::io::DuplexStream>;
+
+	/// A client and device that have completed the handshake over an in-memory duplex, the client
+	/// holding the device's own QR code.
+	async fn handshaken() -> (
+		Result<NoiseStream<Duplex>, ChannelError>,
+		Result<NoiseStream<Duplex>, ChannelError>,
+	) {
+		let keys = Root::from_bytes([0x5a; 32]).device_keys();
+		let public_key = keys.static_key.public_key();
+		let (a, b) = tokio::io::duplex(1 << 16);
+		tokio::join!(
+			connect_initiator(a.compat(), &keys.presence_token, &public_key),
+			accept_responder(b.compat(), &keys.presence_token, &keys.static_key)
+		)
+	}
+
+	/// Set up a client and device connected over an in-memory duplex: a full `NKpsk0` handshake, then
 	/// yamux on both ends with their drivers spawned. No BLE is involved.
 	async fn paired() -> (Streams, Streams) {
-		let psk = PresenceToken::from_bytes([0x5a; 32]);
-		let (a, b) = tokio::io::duplex(1 << 16);
-		let (client_ns, device_ns) = tokio::join!(
-			connect_initiator(a.compat(), &psk),
-			accept_responder(b.compat(), &psk)
-		);
+		let (client_ns, device_ns) = handshaken().await;
 		let (client_streams, client_driver) = multiplex(client_ns.unwrap(), Mode::Client);
 		let (device_streams, device_driver) = multiplex(device_ns.unwrap(), Mode::Server);
 		tokio::spawn(async move {
@@ -591,12 +609,7 @@ mod tests {
 	/// a deliberate teardown would be reported as a fault (CHN).
 	#[tokio::test]
 	async fn dropping_the_handle_closes_the_connection_cleanly() {
-		let psk = PresenceToken::from_bytes([0x5a; 32]);
-		let (a, b) = tokio::io::duplex(1 << 16);
-		let (client_ns, device_ns) = tokio::join!(
-			connect_initiator(a.compat(), &psk),
-			accept_responder(b.compat(), &psk)
-		);
+		let (client_ns, device_ns) = handshaken().await;
 		let (mut client, client_driver) = multiplex(client_ns.unwrap(), Mode::Client);
 		let (mut device, device_driver) = multiplex(device_ns.unwrap(), Mode::Server);
 		let client_driving = tokio::spawn(client_driver);
