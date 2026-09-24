@@ -25,6 +25,16 @@ The application MUST report a payload it cannot parse and a payload at an unsupp
 > [!NOTE]
 > The link is the path for a device scanned with a generic phone camera, by an operator with nothing installed. The camera is the path for provisioning several devices in one session, where returning through the link each time would mean leaving and re-entering the application.
 
+## Exporting the QR code
+
+The application MUST offer a QR code it has read for download as the SVG image of [QR](qr-code.md).
+
+The downloaded file MUST be named after the last group of the human-readable rendering, as `bliti-` followed by that group and `.svg`.
+
+> [!NOTE]
+> This is how a scuffed code is reprinted with only a phone to hand: the payload is read from what remains of the code, or typed from the rendering beside it, and printed again.
+> The last group of the rendering falls wholly within the device static public key, so the name gives away nothing secret, and it matches the end of the rendering printed beside the code.
+
 ## Finding the device
 
 The application MUST scan for the service UUID of [ADV](discovery.md), and MUST match on the recomputed handle as [ADV](discovery.md) specifies.

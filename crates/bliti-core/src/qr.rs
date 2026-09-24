@@ -6,6 +6,7 @@
 //! and with it the device static private key.
 
 use data_encoding::BASE32_NOPAD;
+use qrcode::{EcLevel, QrCode, render::svg};
 
 use crate::key_schedule::{
 	DEVICE_KEY_LEN, DevicePublicKey, PRESENCE_TOKEN_LEN, PresenceToken, VERSION,
@@ -86,6 +87,25 @@ impl QrPayload {
 	/// The full URL the QR code encodes.
 	pub fn to_url(&self) -> String {
 		format!("{QR_URL_BASE}#{}", self.to_fragment())
+	}
+
+	/// The QR code itself, encoding [`to_url`](Self::to_url).
+	///
+	/// At error correction level H, the most tolerant of damage, because a code on an enclosure gets
+	/// scuffed. Every rendering is drawn from this, so the terminal, the printer and the browser all
+	/// show the same code.
+	pub fn to_qr_code(&self) -> QrCode {
+		QrCode::with_error_correction_level(self.to_url(), EcLevel::H)
+			.expect("a 130-byte URL fits a QR code at level H")
+	}
+
+	/// The QR code as an SVG image for sending to a printer: the code alone, with its quiet zone.
+	pub fn to_svg(&self) -> String {
+		self.to_qr_code()
+			.render::<svg::Color<'_>>()
+			.min_dimensions(256, 256)
+			.quiet_zone(true)
+			.build()
 	}
 
 	/// The human-readable rendering printed beneath the code, so a device whose code is scuffed
@@ -299,6 +319,69 @@ mod tests {
 			QrPayload::from_fragment(&payload.to_fragment()).unwrap(),
 			QrPayload::from_human(&payload.to_human()).unwrap()
 		);
+	}
+
+	/// Scan an SVG image as a camera would: rasterise the dark path and decode whatever code is found.
+	fn scan_svg(svg: &str) -> String {
+		let attr = |name: &str| -> usize {
+			let start = svg.find(&format!(" {name}=\"")).unwrap() + name.len() + 3;
+			let len = svg[start..].find('"').unwrap();
+			svg[start..start + len].parse().unwrap()
+		};
+		let (width, height) = (attr("width"), attr("height"));
+		let mut dark = vec![false; width * height];
+		// The dark path is a run of rectangles, each `M{left} {top}h{width}v{height}H{left}V{top}`.
+		let path = svg.rsplit(" d=\"").next().unwrap();
+		let path = &path[..path.find('"').unwrap()];
+		for rect in path.split('M').filter(|rect| !rect.is_empty()) {
+			let numbers: Vec<usize> = rect
+				.split(|c: char| !c.is_ascii_digit())
+				.filter(|n| !n.is_empty())
+				.map(|n| n.parse().unwrap())
+				.collect();
+			let [left, top, w, h, ..] = numbers[..] else {
+				panic!("not a rectangle: {rect}");
+			};
+			for y in top..top + h {
+				dark[y * width + left..y * width + left + w].fill(true);
+			}
+		}
+		let mut image = rqrr::PreparedImage::prepare_from_greyscale(width, height, |x, y| {
+			if dark[y * width + x] { 0 } else { 255 }
+		});
+		let grids = image.detect_grids();
+		assert_eq!(grids.len(), 1, "exactly one code in the image");
+		grids[0].decode().unwrap().1
+	}
+
+	#[test]
+	fn the_svg_scans_to_the_url() {
+		let payload = sample();
+		let svg = payload.to_svg();
+		assert!(svg.contains("<svg"));
+		assert_eq!(scan_svg(&svg), payload.to_url());
+		assert_eq!(QrPayload::read(&scan_svg(&svg)).unwrap(), payload);
+	}
+
+	#[test]
+	fn the_svg_carries_the_code_alone() {
+		// The rendering is printed separately, not drawn into the image (QR).
+		let payload = sample();
+		let svg = payload.to_svg();
+		assert!(!svg.contains("<text"));
+		assert!(!svg.contains(&payload.to_fragment()));
+		assert!(!svg.contains(&payload.to_human()));
+	}
+
+	#[test]
+	fn the_code_is_at_level_h() {
+		assert_eq!(sample().to_qr_code().error_correction_level(), EcLevel::H);
+	}
+
+	#[test]
+	fn a_payload_produces_the_same_svg_every_time() {
+		// A reprint is byte-identical with no record consulted, wherever it is produced.
+		assert_eq!(sample().to_svg(), sample().to_svg());
 	}
 
 	#[test]

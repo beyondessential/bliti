@@ -68,7 +68,8 @@ enum Command {
 
 	/// Print the QR code for the board this runs on.
 	Qr {
-		/// Write the QR code as SVG rather than drawing it in the terminal.
+		/// Write the QR code to stdout as SVG, the image alone, rather than drawing it in the
+		/// terminal. The rendering printed beneath the code goes to stderr.
 		#[arg(long)]
 		svg: bool,
 	},
@@ -381,17 +382,13 @@ fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 		identity.keys.presence_token,
 		identity.keys.static_key.public_key(),
 	);
-	let code = qr::Printable::new(&payload)?;
-
-	if svg {
-		println!("{}", code.to_svg());
-	} else {
-		println!("{}", code.to_terminal());
-		println!("{}", code.url);
-	}
-	// The human-readable rendering is printed beneath the code, so a scuffed QR code stays usable.
-	println!("\n{}", code.human);
-	Ok(())
+	qr::write(
+		&payload,
+		svg,
+		&mut std::io::stdout().lock(),
+		&mut std::io::stderr().lock(),
+	)
+	.context("writing the QR code")
 }
 
 #[cfg(target_os = "linux")]

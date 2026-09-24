@@ -20,7 +20,7 @@ window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
 		if (!text || text === 'nope') throw new Error('That is not a bliti code.')
-		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', version: 1 }
+		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1 }
 	},
 	async connect(qr, { onEvent, onClosed, onDisconnected }) {
 		this._onEvent = onEvent
@@ -136,7 +136,12 @@ export async function sent(page) {
 }
 
 /// Have the device say something on the open configuration session.
+///
+/// The screen renders that it is asking the device before the session exists: it opens one only once
+/// the wasm module has loaded, so a test that asserts on the waiting state reaches here while the
+/// handle is still absent. Waiting for it is what the screen's own spinner is waiting for.
 export async function say(page, event) {
+	await page.waitForFunction(() => window.__blitiSession !== undefined)
 	await page.evaluate((event) => window.__blitiSession.emit(event), event)
 }
 

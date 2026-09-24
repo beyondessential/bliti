@@ -3,59 +3,34 @@
 //! Behaviour is specified in QR. The payload for a board is fixed, and no record of what was
 //! issued is kept or needed: a damaged QR code is replaced by printing the same payload again.
 
+use std::io::{self, Write};
+
 use bliti_core::qr::QrPayload;
-use qrcode::{EcLevel, QrCode, render::unicode};
+use qrcode::render::unicode;
 
-/// A QR code ready to print.
-pub struct Printable {
-	/// The URL the QR code encodes.
-	pub url: String,
-	/// The human-readable rendering printed beneath the code.
-	pub human: String,
-	/// The QR code itself.
-	code: QrCode,
-}
-
-impl Printable {
-	/// Build a QR code for a payload.
-	///
-	/// The error correction is high, because a QR code on an enclosure gets scuffed and a code that
-	/// still scans after damage is the difference between reprinting and not.
-	pub fn new(payload: &QrPayload) -> Result<Self, QrError> {
-		let url = payload.to_url();
-		let code = QrCode::with_error_correction_level(&url, EcLevel::H)
-			.map_err(|err| QrError::Encode(err.to_string()))?;
-		Ok(Self {
-			url,
-			human: payload.to_human(),
-			code,
-		})
-	}
-
-	/// The code rendered for a terminal, for generating a QR code with the board to hand.
-	pub fn to_terminal(&self) -> String {
-		self.code
+/// Write the QR code for a payload, and the rendering printed beneath it.
+///
+/// Drawn for a terminal, everything goes to `out`. As SVG, `out` gets the image alone, so it can be
+/// redirected straight to a file for a printer, and the rendering goes to `err`.
+pub fn write(
+	payload: &QrPayload,
+	svg: bool,
+	out: &mut impl Write,
+	err: &mut impl Write,
+) -> io::Result<()> {
+	if svg {
+		writeln!(out, "{}", payload.to_svg())?;
+		writeln!(err, "{}", payload.to_human())
+	} else {
+		let code = payload
+			.to_qr_code()
 			.render::<unicode::Dense1x2>()
 			.quiet_zone(true)
-			.build()
+			.build();
+		writeln!(out, "{code}")?;
+		writeln!(out, "{}", payload.to_url())?;
+		writeln!(out, "\n{}", payload.to_human())
 	}
-
-	/// The code as an SVG, for sending to a printer.
-	pub fn to_svg(&self) -> String {
-		self.code
-			.render::<qrcode::render::svg::Color<'_>>()
-			.min_dimensions(256, 256)
-			.quiet_zone(true)
-			.build()
-	}
-}
-
-/// A failure generating a QR code.
-#[derive(Debug, thiserror::Error)]
-pub enum QrError {
-	/// The payload could not be encoded as a QR code.
-	#[error("encoding the QR code: {0}")]
-	Encode(String),
 }
 
 #[cfg(test)]
@@ -69,29 +44,30 @@ mod tests {
 		QrPayload::new(keys.presence_token, keys.static_key.public_key())
 	}
 
-	#[test]
-	fn a_board_produces_the_same_code_every_time() {
-		// The payload for a board is fixed, so a reprint is byte-identical with no record consulted.
-		let a = Printable::new(&payload(0x5a)).unwrap();
-		let b = Printable::new(&payload(0x5a)).unwrap();
-		assert_eq!(a.url, b.url);
-		assert_eq!(a.human, b.human);
-		assert_eq!(a.to_svg(), b.to_svg());
+	fn written(payload: &QrPayload, svg: bool) -> (String, String) {
+		let (mut out, mut err) = (Vec::new(), Vec::new());
+		write(payload, svg, &mut out, &mut err).unwrap();
+		(
+			String::from_utf8(out).unwrap(),
+			String::from_utf8(err).unwrap(),
+		)
 	}
 
 	#[test]
-	fn the_code_and_the_rendering_carry_the_same_payload() {
-		let original = payload(0x31);
-		let code = Printable::new(&original).unwrap();
-		// Scanning the code yields the payload, and so does reading the rendering beneath it.
-		assert_eq!(QrPayload::from_url(&code.url).unwrap(), original);
-		assert_eq!(QrPayload::from_human(&code.human).unwrap(), original);
+	fn svg_output_is_the_image_alone() {
+		// Redirecting stdout to a file gives a file a printer can take.
+		let code = payload(0x5a);
+		let (out, err) = written(&code, true);
+		assert_eq!(out, format!("{}\n", code.to_svg()));
+		assert_eq!(err, format!("{}\n", code.to_human()));
 	}
 
 	#[test]
-	fn renderings_are_produced() {
-		let code = Printable::new(&payload(0x01)).unwrap();
-		assert!(code.to_svg().contains("<svg"));
-		assert!(!code.to_terminal().is_empty());
+	fn terminal_output_carries_the_code_the_url_and_the_rendering() {
+		let code = payload(0x31);
+		let (out, err) = written(&code, false);
+		assert!(out.contains(&code.to_url()));
+		assert!(out.ends_with(&format!("\n{}\n", code.to_human())));
+		assert!(err.is_empty());
 	}
 }
