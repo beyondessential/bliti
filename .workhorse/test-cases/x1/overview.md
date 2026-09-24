@@ -48,10 +48,10 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 ## Several clients at once
 
 - [x] What a client writes reaches only its own session, and one client's session ending leaves another's running. Verifies spec: CHN
-- [ ] A client's writes reach its session in the order it made them, both with and without a response, on the prototype. Verifies spec: CHN
-- [ ] Two clients connected at once each hold a session of their own, and one leaving or failing its handshake leaves the other's running, on the prototype. Verifies spec: CHN
-- [ ] A device serving a session goes on advertising, so a second client finds it, on the prototype. Verifies spec: ADV
-- [ ] A second client opening the network settings while another holds a configuration session is told the device is busy, on the prototype. Verifies spec: CFG
+- [x] A client's writes reach its session in the order it made them, both with and without a response, on the prototype. Verifies spec: CHN
+- [x] Two clients connected at once each hold a session of their own, and one leaving or failing its handshake leaves the other's running, on the prototype. Verifies spec: CHN
+- [x] A device serving a session goes on advertising, so a second client finds it, on the prototype. Verifies spec: ADV
+- [x] A second client opening the network settings while another holds a configuration session is told the device is busy, on the prototype. Verifies spec: CFG
 
 - [x] A device ends, as it starts, every connection made before it started: a phone and the laptop left connected across a redeploy were both disconnected, on the prototype. Verifies spec: CHN
 - [ ] The web client left connected across a restart of the device's daemon reports the channel closed and offers to open it again, rather than waiting on it, on the prototype. Verifies spec: CHN
