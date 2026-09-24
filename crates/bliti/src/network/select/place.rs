@@ -14,8 +14,13 @@ pub(super) struct Placed {
 	pub(super) idle: BTreeMap<usize, State>,
 }
 
+/// Unavailable at `reached`, with no one member at fault.
 fn unavailable(reached: Stage, reason: String) -> State {
-	State::Unavailable { reached, reason }
+	State::Unavailable {
+		reached,
+		member: &[],
+		reason,
+	}
 }
 
 impl Selector {
@@ -46,7 +51,11 @@ impl Selector {
 	/// since.
 	fn failed(&self, rank: usize) -> Result<(), State> {
 		match self.failures.get(&rank) {
-			Some((reached, reason)) => Err(unavailable(*reached, reason.clone())),
+			Some((reached, member, reason)) => Err(State::Unavailable {
+				reached: *reached,
+				member,
+				reason: reason.clone(),
+			}),
 			None => Ok(()),
 		}
 	}

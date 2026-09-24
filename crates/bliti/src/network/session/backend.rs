@@ -80,14 +80,17 @@ pub trait Backend: Send + 'static {
 
 /// A candidate's state as an entry of `state` (CFG).
 ///
-/// `verifying` carries no stage on the wire: the stage it waits on is the selector's to track.
+/// `verifying` carries no stage on the wire: the stage it waits on is the selector's to track. Nor
+/// does `unavailable` carry the member at fault, which only `invalid` names.
 pub fn entry(state: &State) -> Json {
 	match state {
 		State::DefaultRoute => json!({"is": "default-route"}),
 		State::Up => json!({"is": "up"}),
 		State::Verifying { .. } => json!({"is": "verifying"}),
 		State::Standby => json!({"is": "standby"}),
-		State::Unavailable { reached, reason } => {
+		State::Unavailable {
+			reached, reason, ..
+		} => {
 			json!({"is": "unavailable", "reached": reached.as_str(), "reason": reason})
 		}
 	}
@@ -205,6 +208,7 @@ mod tests {
 		assert_eq!(
 			entry(&State::Unavailable {
 				reached: Stage::Carrier,
+				member: &[],
 				reason: "out of range".to_owned(),
 			}),
 			json!({"is": "unavailable", "reached": "carrier", "reason": "out of range"})

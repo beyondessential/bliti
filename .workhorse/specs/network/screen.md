@@ -91,7 +91,7 @@ The application MUST render the verification stages of [LINK](attachment.md), sh
 
 The application MUST render the failure's `reason` as the device wrote it.
 
-The application MUST offer, on the candidate a failure's `at` names, to propose the document again with that candidate's `verify` false.
+The application MUST offer, on the candidate a failure's `at` names or names a member of, to propose the document again with that candidate's `verify` false.
 
 The application MUST give a candidate the operator adds `verify` true, MUST show which candidates carry `verify` false, and MUST let the operator turn verification back on for one while editing.
 

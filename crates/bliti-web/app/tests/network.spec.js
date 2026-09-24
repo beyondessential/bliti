@@ -314,6 +314,27 @@ test.describe('applying without checking', () => {
 		await expect(unchecked(page)).toHaveCount(0)
 	})
 
+	// A refused passphrase names the field beneath its candidate, and the offer is on that candidate.
+	test('a refused passphrase marks its field, and its candidate is offered unchecked', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', message({
+			type: 'invalid',
+			at: "$['attachments'][3]['security']['passphrase']",
+			reason: '"Clinic-Staff" refused the connection; the passphrase is most likely wrong',
+			reached: 'association',
+		}))
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+
+		await expect(page.locator('.candidate').getByLabel('Passphrase')).toHaveClass(/field-fault/)
+		await expect(page.locator('.candidate').getByLabel('SSID')).not.toHaveClass(/field-fault/)
+		await unchecked(page).click()
+		const [failed, again] = await proposals(page)
+		expect(again.document.attachments[3]).toEqual({ ...failed.document.attachments[3], verify: false })
+		expect(again.document.attachments.filter((_, index) => index !== 3)).toEqual(failed.document.attachments.filter((_, index) => index !== 3))
+	})
+
 	test('it is not offered where nothing was checked', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['interface']", reason: 'eth0 is not free.' }))

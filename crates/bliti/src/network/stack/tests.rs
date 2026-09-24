@@ -279,7 +279,7 @@ async fn a_wrong_key_fails_at_association() {
 	let answer = applying(&mut rig, document(json!({"attachments": [clinic()]})));
 	let failed = answer.await.unwrap().unwrap_err();
 	assert_eq!(failed.reached.as_deref(), Some("association"));
-	assert_eq!(failed.at, "$['attachments'][0]");
+	assert_eq!(failed.at, "$['attachments'][0]['security']['passphrase']");
 	assert_eq!(
 		failed.reason,
 		"\"clinic\" refused the connection; the passphrase is most likely wrong"
@@ -290,7 +290,15 @@ async fn a_wrong_key_fails_at_association() {
 		joined.is_some_and(|at| asked[at..].contains(&"scan wld0".to_owned())),
 		"the radio is scanned after the refusal: {asked:?}"
 	);
-	assert_eq!(rig.states()[0]["reached"], "association");
+	assert_eq!(
+		rig.states()[0],
+		json!({
+			"is": "unavailable",
+			"reached": "association",
+			"reason": "\"clinic\" refused the connection; the passphrase is most likely wrong",
+		}),
+		"the state names no member"
+	);
 }
 
 /// Found on a device: with the access point switched off, iwd joined from what it heard while it
@@ -318,6 +326,7 @@ async fn a_network_out_of_range_fails_at_carrier() {
 	let answer = applying(&mut rig, document(json!({"attachments": [clinic()]})));
 	let failed = answer.await.unwrap().unwrap_err();
 	assert_eq!(failed.reached.as_deref(), Some("carrier"));
+	assert_eq!(failed.at, "$['attachments'][0]");
 	assert!(
 		!rig.iwd
 			.calls

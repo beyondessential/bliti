@@ -48,7 +48,8 @@ pub(in crate::network::stack) fn changed(running: &Document, proposal: &Document
 }
 
 /// Applied where every candidate judged holds; else failed at the one of those that do not which
-/// passed the most stages, the first in the ordering among equals.
+/// passed the most stages, the first in the ordering among equals, at the member of it at fault
+/// where its failure names one.
 pub(in crate::network::stack) fn verdict(
 	decision: &Decision,
 	judged: &[Judged],
@@ -66,22 +67,30 @@ pub(in crate::network::stack) fn verdict(
 		.filter(|judged| !judged.interfaces.iter().any(established))
 		.map(|judged| {
 			let failure = match decision.states.get(judged.candidate) {
-				Some(State::Unavailable { reached, reason }) => Some((*reached, reason)),
+				Some(State::Unavailable {
+					reached,
+					member,
+					reason,
+				}) => Some((*reached, *member, reason)),
 				_ => None,
 			};
 			(judged.candidate, failure)
 		})
 		.max_by_key(|(candidate, failure)| {
-			(failure.map(|(reached, _)| reached), Reverse(*candidate))
+			(failure.map(|(reached, ..)| reached), Reverse(*candidate))
 		});
 	let Some((candidate, failure)) = furthest else {
 		return Ok(());
 	};
-	let at = path(&[Segment::Name("attachments"), Segment::Index(candidate)]);
+	let at = |member: &[Segment<'_>]| {
+		let mut segments = vec![Segment::Name("attachments"), Segment::Index(candidate)];
+		segments.extend_from_slice(member);
+		path(&segments)
+	};
 	Err(match failure {
-		Some((reached, reason)) => reached.failed(at, reason.clone()),
+		Some((reached, member, reason)) => reached.failed(at(member), reason.clone()),
 		None => Invalid {
-			at,
+			at: at(&[]),
 			reason: "no interface it could go on was free to bring it up".to_owned(),
 			reached: None,
 		},

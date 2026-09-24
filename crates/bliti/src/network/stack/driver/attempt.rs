@@ -3,6 +3,8 @@
 
 use std::time::Duration;
 
+use bliti_core::channel::config::Segment;
+
 use super::{ASSOCIATE, CONFIGURE, Driver, Internal, LEASE, ROUTE, Scanner};
 use crate::network::{
 	observe::{Joined, NetworkType, Station, render_channel},
@@ -16,6 +18,9 @@ use crate::network::{
 fn refused(joining: &Joining, reason: &str) -> bool {
 	joining.target.kind == NetworkType::Psk && reason.contains("net.connman.iwd.Failed")
 }
+
+/// Where a key-based candidate carries its passphrase, which a refused join is laid at.
+const PASSPHRASE: &[Segment<'static>] = &[Segment::Name("security"), Segment::Name("passphrase")];
 
 impl Driver {
 	pub(super) fn arm(&mut self, attempt: Attempt) {
@@ -99,6 +104,7 @@ impl Driver {
 				self.feed(Event::Failed {
 					attempt,
 					stage: Stage::Association,
+					member: &[],
 					reason,
 				});
 			}
@@ -132,6 +138,7 @@ impl Driver {
 			Err(reason) => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
+				member: &[],
 				reason,
 			}),
 		}
@@ -156,6 +163,7 @@ impl Driver {
 		self.feed(Event::Failed {
 			attempt,
 			stage: Stage::Association,
+			member: PASSPHRASE,
 			reason,
 		});
 	}
@@ -204,6 +212,7 @@ impl Driver {
 					self.feed(Event::Failed {
 						attempt,
 						stage: Stage::Addressing,
+						member: &[],
 						reason: format!("{interface} lost its address"),
 					});
 				}
@@ -231,6 +240,7 @@ impl Driver {
 			Err(reason) => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Gateway,
+				member: &[],
 				reason,
 			}),
 		}
@@ -292,6 +302,7 @@ impl Driver {
 		self.feed(Event::Failed {
 			attempt,
 			stage,
+			member: &[],
 			reason,
 		});
 	}

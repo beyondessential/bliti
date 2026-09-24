@@ -64,6 +64,8 @@ A device MUST answer a proposal with `applied` where, on every interface carryin
 
 A device MUST otherwise answer it with `invalid` at the candidate, among those it is judged on that sit on an interface where none is established, that passed the most stages of [LINK](attachment.md), the first in the ordering among equals.
 
+Where the device can tell which member of that candidate is at fault, `at` MUST name that member rather than the candidate: the `passphrase` of a key-based network whose access point it still hears refusing the join.
+
 A device MUST answer with `invalid` a proposal it cannot apply, whatever its candidates carry.
 
 A device MUST verify and select a candidate carrying `verify` false as it does any other, and report it through `state`.

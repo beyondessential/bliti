@@ -117,6 +117,7 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] After a failure the fields hold what was proposed, not what the device reverted to, and the field named by the failure is marked. Verifies spec: NSCR
 - [x] The verification stages show which passed and which failed. Verifies spec: NSCR
 - [x] Only the candidate a failure names offers to go unchecked, and proposing again leaves every other candidate checked. Verifies spec: NSCR
+- [x] A refused passphrase marks the passphrase field, and the candidate still offers to go unchecked. Verifies spec: CFG, NSCR
 - [x] An unchecked candidate is marked as such, and checking can be turned back on while editing. Verifies spec: NSCR
 - [x] Candidates left unavailable after applying one unchecked show their state. Verifies spec: NSCR
 - [x] The device's reason is rendered as the device wrote it. Verifies spec: NSCR

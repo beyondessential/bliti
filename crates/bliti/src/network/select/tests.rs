@@ -130,6 +130,7 @@ fn fail(selector: &mut Selector, candidate: usize, stage: Stage, reason: &str) -
 		.handle(Event::Failed {
 			attempt,
 			stage,
+			member: &[],
 			reason: reason.into(),
 		})
 		.changes
@@ -181,10 +182,12 @@ fn nothing_observed_leaves_everything_unavailable_at_carrier() {
 		[
 			State::Unavailable {
 				reached: Stage::Carrier,
+				member: &[],
 				reason: "eth0 has no carrier".into()
 			},
 			State::Unavailable {
 				reached: Stage::Carrier,
+				member: &[],
 				reason: "\"clinic\" is out of range".into()
 			},
 		]
@@ -252,6 +255,7 @@ fn a_lease_with_no_route_fails_at_gateway() {
 				candidate: 0,
 				state: State::Unavailable {
 					reached: Stage::Gateway,
+					member: &[],
 					reason: "10.0.0.1 did not answer".into()
 				}
 			},
@@ -410,6 +414,43 @@ fn a_failed_candidate_is_tried_again_once_available_anew_or_on_retry() {
 }
 
 #[test]
+fn a_failure_keeps_the_member_at_fault_until_the_candidate_is_available_anew() {
+	const PASSPHRASE: &[Segment<'static>] =
+		&[Segment::Name("security"), Segment::Name("passphrase")];
+	let mut selector = selector(one_radio(), json!({ "attachments": [wireless("clinic")] }));
+	hear(&mut selector, "wlan0", "clinic", -50);
+	let attempt = attempt(&selector, 0);
+	selector.handle(Event::Failed {
+		attempt,
+		stage: Stage::Association,
+		member: PASSPHRASE,
+		reason: "the key was refused".into(),
+	});
+	assert_eq!(
+		state(&selector, 0),
+		&State::Unavailable {
+			reached: Stage::Association,
+			member: PASSPHRASE,
+			reason: "the key was refused".into(),
+		}
+	);
+
+	lose(&mut selector, "wlan0", "clinic");
+	assert!(
+		matches!(
+			state(&selector, 0),
+			State::Unavailable {
+				reached: Stage::Carrier,
+				member: [],
+				..
+			}
+		),
+		"out of range is the candidate's as a whole: {:?}",
+		state(&selector, 0)
+	);
+}
+
+#[test]
 fn a_report_from_a_superseded_attempt_is_ignored() {
 	let mut selector = selector(one_radio(), json!({ "attachments": [dynamic("eth0")] }));
 	carrier(&mut selector, "eth0", true);
@@ -422,6 +463,7 @@ fn a_report_from_a_superseded_attempt_is_ignored() {
 		.handle(Event::Failed {
 			attempt: stale,
 			stage: Stage::Gateway,
+			member: &[],
 			reason: "late".into(),
 		})
 		.changes;
@@ -453,6 +495,7 @@ fn a_pinned_candidate_stays_on_its_radio() {
 		state(&selector, 0),
 		&State::Unavailable {
 			reached: Stage::Carrier,
+			member: &[],
 			reason: "\"clinic\" is out of range of wlan1".into()
 		}
 	);

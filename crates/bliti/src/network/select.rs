@@ -12,7 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bliti_core::channel::config::{Attachment, AttachmentKind, Document, Hotspot, Invalid};
+use bliti_core::channel::config::{
+	Attachment, AttachmentKind, Document, Hotspot, Invalid, Segment,
+};
 
 use super::render::{Channel, Selection};
 
@@ -144,6 +146,9 @@ pub enum Event {
 		attempt: Attempt,
 		/// The stage it stopped at.
 		stage: Stage,
+		/// The member of the candidate at fault, as a path below it, or empty for the candidate as
+		/// a whole.
+		member: &'static [Segment<'static>],
 		/// What was observed, in the device's own words.
 		reason: String,
 	},
@@ -189,6 +194,9 @@ pub enum State {
 	Unavailable {
 		/// The stage it stopped at.
 		reached: Stage,
+		/// The member of the candidate at fault, as a path below it, or empty for the candidate as
+		/// a whole.
+		member: &'static [Segment<'static>],
 		/// What was observed, in the device's own words.
 		reason: String,
 	},
@@ -280,8 +288,9 @@ pub struct Selector {
 	heard: BTreeMap<(String, String), i32>,
 	/// The channel each radio's wireless client is on.
 	channels: BTreeMap<String, Channel>,
-	/// Candidates that failed, with where and why, until they become available again.
-	failures: BTreeMap<usize, (Stage, String)>,
+	/// Candidates that failed, with the stage, the member at fault and why, until they become
+	/// available again.
+	failures: BTreeMap<usize, (Stage, &'static [Segment<'static>], String)>,
 	/// What each interface brings up, and how far verifying it has got.
 	held: BTreeMap<String, Held>,
 	next_attempt: u64,
@@ -422,10 +431,12 @@ impl Selector {
 			Event::Failed {
 				attempt,
 				stage,
+				member,
 				reason,
 			} => {
 				if let Some(held) = self.held.values().find(|held| held.link.attempt == attempt) {
-					self.failures.insert(held.link.candidate, (stage, reason));
+					self.failures
+						.insert(held.link.candidate, (stage, member, reason));
 				}
 			}
 			Event::StationChannel { interface, channel } => {

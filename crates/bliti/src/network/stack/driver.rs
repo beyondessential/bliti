@@ -471,6 +471,7 @@ impl Driver {
 			Station::Disconnected => self.feed(Event::Failed {
 				attempt,
 				stage: Stage::Association,
+				member: &[],
 				reason: format!("{interface} was disassociated from {ssid:?}"),
 			}),
 		}

@@ -1,6 +1,8 @@
 //! What a proposal comes to: judged per interface on the candidates it adds or changes that carry
 //! `verify` true (CFG).
 
+use bliti_core::channel::config::Segment;
+
 use super::{driver::Judged, *};
 use crate::network::select::{Attempt, Decision, Link, Stage, State};
 
@@ -55,6 +57,7 @@ fn a_candidate_is_changed_where_the_configuration_running_carries_none_equal_to_
 fn a_proposal_fails_at_the_changed_candidate_that_got_furthest_on_an_interface_with_none_up() {
 	let failed = |reached, reason: &str| State::Unavailable {
 		reached,
+		member: &[],
 		reason: reason.into(),
 	};
 	let on = |candidate, interface: &str| Judged {
@@ -107,6 +110,27 @@ fn a_proposal_fails_at_the_changed_candidate_that_got_furthest_on_an_interface_w
 	assert_eq!(invalid.reason, "silent");
 }
 
+#[test]
+fn a_proposal_fails_at_the_member_its_candidate_failed_at() {
+	let decision = Decision {
+		links: BTreeMap::new(),
+		hotspot: None,
+		default_route: None,
+		states: vec![State::Unavailable {
+			reached: Stage::Association,
+			member: &[Segment::Name("security"), Segment::Name("passphrase")],
+			reason: "wrong key".into(),
+		}],
+	};
+	let judged = Judged {
+		candidate: 0,
+		interfaces: vec!["wld0".into()],
+	};
+	let invalid = driver::verdict(&decision, &[judged]).unwrap_err();
+	assert_eq!(invalid.at, "$['attachments'][0]['security']['passphrase']");
+	assert_eq!(invalid.reached.as_deref(), Some("association"));
+}
+
 /// Found on a device beside a working wall port, where any candidate established used to be enough.
 #[tokio::test(start_paused = true)]
 async fn a_wrong_passphrase_beside_a_working_wall_port_fails_at_the_wireless_candidate() {
@@ -122,7 +146,7 @@ async fn a_wrong_passphrase_beside_a_working_wall_port_fails_at_the_wireless_can
 		document(json!({"attachments": [clinic(), dynamic()]})),
 	);
 	let failed = answer.await.unwrap().unwrap_err();
-	assert_eq!(failed.at, "$['attachments'][0]");
+	assert_eq!(failed.at, "$['attachments'][0]['security']['passphrase']");
 	assert_eq!(failed.reached.as_deref(), Some("association"));
 	assert!(failed.reason.contains("passphrase"), "{}", failed.reason);
 	assert_eq!(rig.states()[1], json!({"is": "default-route"}));

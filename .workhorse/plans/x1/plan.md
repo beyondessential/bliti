@@ -87,7 +87,7 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
 - [ ] Wireless joining: PSK, SAE, transitional, enterprise, WPS push-button and PIN
   - [x] A wireless candidate out of range is never tried again: with every network `AutoConnect=false` iwd does not scan by itself, and a retry of a candidate the radio does not hear changes nothing, so a network coming into range goes unnoticed. LINK forbids polling to detect it, so this needs a decision on what scans
   - [x] Reasons from iwd reach the client in iwd's words (`Operation failed (net.connman.iwd.Failed)` for a wrong passphrase); a refused key-based join now says the passphrase is most likely wrong
-  - [ ] A refused passphrase is `invalid` at the candidate rather than at its `passphrase`, so the screen marks the candidate and not the field. Carrying a member path needs the selector's unavailable state to hold one
+  - [x] A refused passphrase is `invalid` at the candidate rather than at its `passphrase`, so the screen marks the candidate and not the field. Carrying a member path needs the selector's unavailable state to hold one
   - [x] An apply connects from iwd's cached scan results while its own scan runs, so a network that has just gone away is tried and fails with status 16 before the scan says it is out of range
 - [x] Hotspot: bring-up, upstream sharing, client isolation, DHCP range (in code; each is still owed a check on hardware in the test cases)
 - [x] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
