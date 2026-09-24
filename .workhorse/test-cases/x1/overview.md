@@ -78,6 +78,12 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Two candidates for one network differing only in the radio they name share one iwd network file, and differing in security or `hidden` the later is refused at its `ssid`, naming what differs. Verifies spec: WLAN
 - [ ] With two radios, a candidate pinned to each joins on its own radio and the hotspot runs on the radio carrying none, on a device with two radios. Verifies spec: LINK, HOT
 - [ ] A site's own names reach the site's resolvers while the candidate names a public resolver of its own, on real hardware. Verifies spec: LINK
+- [x] A candidate without `enabled` is invalid at its `enabled`, and one turned off parses and is written back off. Verifies spec: LINK
+- [x] A candidate turned off is placed nowhere and reported off, takes no radio from a candidate below it and changes nothing for one above it, and turned on again is tried anew. Verifies spec: LINK, CFG
+- [x] A wireless candidate turned off is rendered no iwd network file, is still checked, and shares no file with another candidate for its SSID. Verifies spec: LINK
+- [x] A proposal turning a candidate off applies without verifying it, joins and scans for nothing, and turning a joined one off leaves its network. Verifies spec: LINK, CFG
+- [x] A candidate turned on again is judged, and takes nothing its link still holds until that is announced again. Verifies spec: CFG, LINK
+- [ ] A connection turned off on the prototype is left down, and turned on again is joined. Verifies spec: LINK
 
 ## Wireless
 
@@ -124,7 +130,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A hotspot channel and width whose span takes in a channel no access point may start on is invalid at the width, and a width the channel does not bond to is refused. Verifies spec: HOT
 
 - [x] A hotspot every radio would have to share with a connection joined now on a channel no access point may start on, which the proposal keeps, is refused before anything is applied, and is not refused once the proposal drops that connection. Verifies spec: HOT
-- [x] The screen says, beside the hotspot, that it cannot run beside the connection joined now and that removing it lets it run, and still lets the operator apply. Verifies spec: NSCR
+- [x] A hotspot is not refused up front beside a connection joined now whose candidate the proposal turns off. Verifies spec: HOT
+- [x] A wireless candidate turned off leaves a one-at-a-time radio to the hotspot, and leaves a shared-channel radio's hotspot its own band, channel and width. Verifies spec: HOT, NET
+- [x] The screen says, beside the hotspot, that it cannot run beside the connection joined now and that turning it off lets it run, and still lets the operator apply; turning that connection off takes the notice away. Verifies spec: NSCR
 - [ ] Proposing a hotspot beside a 5 GHz connection on a radar channel is refused at once on the prototype, with nothing applied. Verifies spec: HOT
 
 ## The document
@@ -153,6 +161,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] Only the candidate a failure names offers to go unchecked, and proposing again leaves every other candidate checked. Verifies spec: NSCR
 - [x] A refused passphrase marks the passphrase field, and the candidate still offers to go unchecked. Verifies spec: CFG, NSCR
 - [x] An unchecked candidate is marked as such, and checking can be turned back on while editing. Verifies spec: NSCR
+- [x] A connection is turned off and on again while editing, keeping its fields editable, is marked off in the ordering, and is proposed with `enabled` false or true only on apply. Verifies spec: NSCR
+- [x] A connection the device reports off is shown off. Verifies spec: NSCR
 - [x] Candidates left unavailable after applying one unchecked show their state. Verifies spec: NSCR
 - [x] The device's reason is rendered as the device wrote it. Verifies spec: NSCR
 - [x] A setting the device did not report supporting is not offered, and the screen says why it is absent. Verifies spec: NSCR
