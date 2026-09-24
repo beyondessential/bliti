@@ -127,7 +127,7 @@ impl Shared {
 				.then(|| self.joined_channel(&radio.station))
 				.flatten()
 				.filter(|(ssid, _)| keeps(document, ssid, &radio.station))
-				.and_then(|(_, channel)| driver::hotspot::barred(&radio, channel));
+				.and_then(|(ssid, channel)| driver::hotspot::barred(&radio, Some(&ssid), channel));
 			match reason {
 				Some(reason) => reasons.push(reason),
 				None => return Ok(()),

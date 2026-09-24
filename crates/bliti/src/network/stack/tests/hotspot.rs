@@ -202,7 +202,21 @@ async fn a_hotspot_beside_a_connection_on_a_radar_channel_is_refused_up_front() 
 		))
 		.unwrap_err();
 	assert_eq!(refused.at, "$['hotspot']");
+	assert!(
+		refused
+			.reason
+			.starts_with("the hotspot cannot run while wld0 is connected to \"clinic\""),
+		"{}",
+		refused.reason
+	);
 	assert!(refused.reason.contains("channel 140"), "{}", refused.reason);
+	assert!(
+		refused
+			.reason
+			.ends_with("Turn the connection off to run the hotspot"),
+		"{}",
+		refused.reason
+	);
 	assert_eq!(
 		rig.stack.check(&document(
 			json!({"attachments": [dynamic()], "hotspot": hotspot})

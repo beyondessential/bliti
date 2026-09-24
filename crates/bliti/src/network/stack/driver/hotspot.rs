@@ -44,14 +44,17 @@ impl Driver {
 			.radios()
 			.into_iter()
 			.find(|radio| radio.station == *station)?;
-		barred(&radio, *channel)
+		let ssid = self.shared.report.joined(station).map(|joined| joined.ssid);
+		barred(&radio, ssid.as_deref(), *channel)
 	}
 }
 
-/// Why a hotspot sharing `radio`'s channel cannot run while its wireless client is on `channel`: no
-/// access point may start there (HOT).
+/// Why a hotspot sharing `radio`'s channel cannot run while its wireless connection, to `ssid` where
+/// it is known, is on `channel`: no access point may start there (HOT). Said as the operator meets it,
+/// the connection first and the channel's rule after, with what to do.
 pub(in crate::network::stack) fn barred(
 	radio: &probe::RadioInfo,
+	ssid: Option<&str>,
 	channel: render::Channel,
 ) -> Option<String> {
 	let (band, name) = match channel.band {
@@ -64,13 +67,17 @@ pub(in crate::network::stack) fn barred(
 		.and_then(|info| info.channels.iter().find(|c| c.number == channel.number));
 	let why = match flags {
 		Some(flags) if flags.can_start_ap() => return None,
-		Some(flags) if flags.radar => {
-			"needs radar detection before an access point may start on it"
-		}
-		_ => "is one the regulatory domain lets no access point start on",
+		Some(flags) if flags.radar => "needs radar detection this radio cannot do",
+		_ => "is one the regulatory domain lets no hotspot start on",
+	};
+	let connection = match ssid {
+		Some(ssid) => format!("{} is connected to {ssid:?}", radio.station),
+		None => format!("{}'s wireless connection is up", radio.station),
 	};
 	Some(format!(
-		"the hotspot has to share {}'s channel, {name} channel {}, which {why}",
-		radio.station, channel.number
+		"the hotspot cannot run while {connection}: this radio runs a hotspot only on its \
+		 connection's channel, and {name} channel {} {why}. Turn the connection off to run the \
+		 hotspot",
+		channel.number
 	))
 }
