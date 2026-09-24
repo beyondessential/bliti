@@ -20,6 +20,9 @@ pub struct AccessPoint {
 	pub frequency: u32,
 	/// The width it occupies, in MHz.
 	pub width: u32,
+	/// Its secondary 20 MHz channel's centre frequency, in MHz, where it occupies more than 20 MHz
+	/// and its HT operation element says which side of the primary that is.
+	pub secondary: Option<u32>,
 	/// How strongly it was heard, in dBm.
 	pub signal: i32,
 	/// What it advertises, in CFG's vocabulary, each named once.
@@ -95,6 +98,7 @@ impl AccessPoint {
 			ssid,
 			frequency,
 			width: width(find(HT_OPERATION), find(VHT_OPERATION)),
+			secondary: secondary(find(HT_OPERATION), frequency),
 			signal: signal_mbm.div_euclid(100),
 			security,
 		}
@@ -104,7 +108,7 @@ impl AccessPoint {
 	/// frequency is on no band CFG names.
 	pub fn entry(&self, interface: &str) -> Option<Json> {
 		let (band, number) = channel(self.frequency)?;
-		Some(json!({
+		let mut entry = json!({
 			"interface": interface,
 			"bssid": self.address(),
 			"ssid": self.ssid,
@@ -114,7 +118,11 @@ impl AccessPoint {
 			"channel": number,
 			"channel-width": self.width,
 			"signal": self.signal,
-		}))
+		});
+		if let Some((_, secondary)) = self.secondary.and_then(channel) {
+			entry["secondary-channel"] = secondary.into();
+		}
+		Some(entry)
 	}
 
 	/// Its radio address, lower case and colon-separated.
@@ -195,6 +203,19 @@ fn width(ht: Option<&[u8]>, vht: Option<&[u8]>) -> u32 {
 	}
 }
 
+/// The centre frequency of an access point's secondary 20 MHz channel, from its HT operation
+/// element and its primary's `frequency`.
+fn secondary(ht: Option<&[u8]>, frequency: u32) -> Option<u32> {
+	match ht {
+		Some(&[_, info, ..]) if info & 0b100 != 0 => match info & 0b11 {
+			1 => Some(frequency + 20),
+			3 => frequency.checked_sub(20),
+			_ => None,
+		},
+		_ => None,
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -262,6 +283,25 @@ mod tests {
 		vht160.extend(element(VHT_OPERATION, &[1, 42, 50, 0, 0]));
 		assert_eq!(read(&vht160, 0).width, 160);
 		assert_eq!(read(&element(HT_OPERATION, &[6, 0, 0]), 0).width, 20);
+	}
+
+	#[test]
+	fn a_wide_entry_names_its_secondary_channel() {
+		let below = element(HT_OPERATION, &[6, 0b111, 0, 0, 0, 0]);
+		let ap = AccessPoint::read([2, 0, 0, 0, 0, 1], 2437, -5000, 0, &below);
+		assert_eq!(ap.width, 40);
+		assert_eq!(ap.entry("wld0").unwrap()["secondary-channel"], 2);
+		let above = element(HT_OPERATION, &[36, 0b101, 0, 0, 0, 0]);
+		assert_eq!(
+			read(&above, 0).entry("wld0").unwrap()["secondary-channel"],
+			40
+		);
+		// No secondary channel, or one a station may not use, is none.
+		assert_eq!(
+			read(&element(HT_OPERATION, &[36, 0b001, 0]), 0).secondary,
+			None
+		);
+		assert_eq!(read(&element(HT_OPERATION, &[36, 0, 0]), 0).secondary, None);
 	}
 
 	#[test]

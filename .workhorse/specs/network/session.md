@@ -163,6 +163,7 @@ A device joining by PIN MUST first send `pin`, carrying as `pin` the PIN it gene
 | `band` | string | yes | its band, as [HOT](hotspot.md) names bands |
 | `channel` | number | yes | its channel |
 | `channel-width` | number | yes | the width it occupies, in megahertz |
+| `secondary-channel` | number | no | its secondary 20 MHz channel, where it occupies more than 20 MHz and names which |
 | `signal` | number | yes | how strongly the radio hears it, in dBm |
 
 A device MUST answer a `scan` or `survey` naming an `interface` for that interface's radio alone, and one naming none for every radio able to.
