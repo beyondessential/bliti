@@ -80,6 +80,20 @@ fn failed(error: dbus::Error) -> String {
 	}
 }
 
+/// What iwd answers a WPS join with where the exchange stopped short of credentials it could use.
+const NO_CREDENTIALS: &str = "net.connman.iwd.SimpleConfiguration.NoCredentials";
+
+/// The reason for [`NO_CREDENTIALS`], which iwd gives alike for an access point's message it could
+/// not read and for credentials it cannot join with. Its own "No usable credentials obtained" reads
+/// as the second when, against a MikroTik access point whose M4 carries its WFA vendor extension
+/// before the encrypted settings, it was the first: iwd reads M4 in a fixed order and drops it.
+fn no_credentials(name: &str) -> String {
+	format!(
+		"the exchange with the access point did not finish, or gave no credentials this device can \
+		 use ({name})"
+	)
+}
+
 /// Whether iwd ended a WPS join having found no access point running it, as it names that on the bus.
 fn unfound(error: Option<&str>) -> bool {
 	matches!(
@@ -522,7 +536,10 @@ impl Iwd {
 		};
 		joined.map_err(|error| WpsFailed {
 			found: !unfound(error.name()),
-			reason: failed(error),
+			reason: match error.name() {
+				Some(name @ NO_CREDENTIALS) => no_credentials(name),
+				_ => failed(error),
+			},
 		})?;
 		self.joined(&path).await.map_err(|reason| WpsFailed {
 			found: true,
@@ -643,7 +660,7 @@ impl super::Iwd for Iwd {
 
 #[cfg(test)]
 mod tests {
-	use super::unfound;
+	use super::{NO_CREDENTIALS, no_credentials, unfound};
 
 	/// iwd 3.10 names the walk time running out `WalkTimeExpired`, which a join that found nothing
 	/// ends with.
@@ -659,5 +676,10 @@ mod tests {
 			"net.connman.iwd.SimpleConfiguration.NoCredentials"
 		)));
 		assert!(!unfound(None));
+	}
+
+	#[test]
+	fn a_wps_join_without_credentials_does_not_blame_the_credentials_alone() {
+		assert!(no_credentials(NO_CREDENTIALS).contains("did not finish"));
 	}
 }
