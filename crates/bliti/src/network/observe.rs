@@ -210,6 +210,10 @@ pub trait Air: Send + Sync + 'static {
 	/// How busy `station`'s radio found each channel it has surveyed.
 	fn survey(&self, station: &str) -> BoxFuture<'static, Result<Vec<Surveyed>, String>>;
 
+	/// Each scan `station`'s radio finishes from now on. A backend may scan in parts, each replacing
+	/// what the kernel holds, so what a whole scan heard is read after every part.
+	fn scans(&self, station: &str) -> Result<Scans, String>;
+
 	/// The radio address of `interface`, lower case and colon-separated, where it has one.
 	fn address(&self, interface: &str) -> Option<String>;
 
@@ -218,6 +222,37 @@ pub trait Air: Send + Sync + 'static {
 
 	/// How many clients are joined to the access point on `interface`.
 	fn clients(&self, interface: &str) -> BoxFuture<'static, Result<usize, String>>;
+}
+
+/// The scans a radio finishes, as [`Air::scans`] watches them. Dropping it stops the watch.
+pub struct Scans {
+	finished: tokio::sync::mpsc::UnboundedReceiver<()>,
+	watch: Vec<tokio::task::AbortHandle>,
+}
+
+impl Scans {
+	/// Scans finished as `finished` says, stopping `watch` once dropped.
+	pub fn new(
+		finished: tokio::sync::mpsc::UnboundedReceiver<()>,
+		watch: Vec<tokio::task::AbortHandle>,
+	) -> Self {
+		Self { finished, watch }
+	}
+
+	/// Wait for the next scan to finish. Pends for ever once the watch has stopped.
+	pub async fn next(&mut self) {
+		if self.finished.recv().await.is_none() {
+			std::future::pending::<()>().await;
+		}
+	}
+}
+
+impl Drop for Scans {
+	fn drop(&mut self) {
+		for task in &self.watch {
+			task.abort();
+		}
+	}
 }
 
 /// The channel an interface operates on, as nl80211 reports it.

@@ -4,13 +4,13 @@
 
 use std::{collections::BTreeMap, fs, io};
 
-use futures::{TryStreamExt as _, future::BoxFuture};
+use futures::{StreamExt as _, TryStreamExt as _, future::BoxFuture};
 use wl_nl80211::{
-	Nl80211Attr, Nl80211BssInfo, Nl80211ChannelWidth, Nl80211Handle, Nl80211Survey,
-	Nl80211SurveyInfo,
+	Nl80211Attr, Nl80211BssInfo, Nl80211ChannelWidth, Nl80211Event, Nl80211Handle,
+	Nl80211MulticastGroup, Nl80211Survey, Nl80211SurveyInfo,
 };
 
-use super::{Operating, Surveyed, bss::AccessPoint};
+use super::{Operating, Scans, Surveyed, bss::AccessPoint};
 use crate::network::probe::{Nl80211, RadioInfo};
 
 /// The radios, over nl80211.
@@ -131,6 +131,29 @@ impl super::Air for Air {
 				})
 				.collect())
 		})
+	}
+
+	fn scans(&self, station: &str) -> Result<Scans, String> {
+		let (connection, _handle, mut messages) =
+			wl_nl80211::new_multicast_connection(&[Nl80211MulticastGroup::Scan])
+				.map_err(|error| format!("cannot watch {station}'s scans: {error}"))?;
+		let connection = tokio::spawn(connection);
+		let (finished, rx) = tokio::sync::mpsc::unbounded_channel();
+		let listen = tokio::spawn(async move {
+			while let Some((message, _)) = messages.next().await {
+				// The event names no interface that wl-nl80211 hands on. Another radio finishing only
+				// has this one read again, which what it heard absorbs.
+				if Nl80211Event::parse(message) == Some(Nl80211Event::NewScanResults)
+					&& finished.send(()).is_err()
+				{
+					return;
+				}
+			}
+		});
+		Ok(Scans::new(
+			rx,
+			vec![connection.abort_handle(), listen.abort_handle()],
+		))
 	}
 
 	fn address(&self, interface: &str) -> Option<String> {

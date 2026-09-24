@@ -1,12 +1,14 @@
 //! The acts of CFG: scanning, surveying, and joining by WPS.
 
+use std::collections::BTreeMap;
+
 use bliti_core::channel::config::{Document, Invalid, Segment, path};
 use serde_json::{Map, Value as Json, json};
 use tokio::sync::{mpsc, oneshot};
 
-use super::{Shared, Stack, driver::Command};
+use super::{Platform, Shared, Stack, driver::Command};
 use crate::network::{
-	observe::{Iwd, WpsFailed, channel},
+	observe::{Iwd, WpsFailed, bss::AccessPoint, channel},
 	probe::RadioInfo,
 	select::Stage,
 	session::{Backend, Wps},
@@ -34,6 +36,49 @@ fn radios(
 		.collect()
 }
 
+/// Scan on `station` and read every access point it heard.
+///
+/// iwd scans in parts (on the Pi, three channels of 2.4 GHz, then 5 GHz, then the rest of 2.4 GHz),
+/// and each part replaces what the kernel holds, so what the scan heard is read after every part and
+/// gathered by BSSID, the latest reading of each kept.
+async fn heard(platform: &Platform, station: &str) -> Result<Vec<AccessPoint>, Invalid> {
+	let unread =
+		|reason: String| refused(&[], format!("{station}'s scan could not be read: {reason}"));
+	let mut scans = match platform.air.scans(station) {
+		Ok(scans) => Some(scans),
+		Err(reason) => {
+			tracing::warn!(station, reason, "reading only the last part of the scan");
+			None
+		}
+	};
+	let mut heard = BTreeMap::new();
+	let mut take = |access_points: Vec<AccessPoint>| {
+		for access_point in access_points {
+			heard.insert(access_point.address(), access_point);
+		}
+	};
+	let scanning = platform.iwd.scan(station);
+	tokio::pin!(scanning);
+	loop {
+		// A part finished is read before the scan is taken to be over.
+		tokio::select! {
+			biased;
+			() = async {
+				match &mut scans {
+					Some(scans) => scans.next().await,
+					None => std::future::pending().await,
+				}
+			} => take(platform.air.access_points(station).await.map_err(unread)?),
+			scanned = &mut scanning => {
+				scanned.map_err(|reason| refused(&[], format!("{station} could not scan: {reason}")))?;
+				break;
+			}
+		}
+	}
+	take(platform.air.access_points(station).await.map_err(unread)?);
+	Ok(heard.into_values().collect())
+}
+
 /// Every access point each radio scanned heard, leaving out the device's own hotspot (CFG).
 pub(super) async fn scan(shared: &Shared, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 	let radios = radios(shared, interface, |radio| radio.scan);
@@ -54,18 +99,7 @@ pub(super) async fn scan(shared: &Shared, interface: Option<&str>) -> Result<Vec
 	let mut entries = Vec::new();
 	for radio in radios {
 		let station = &radio.station;
-		platform
-			.iwd
-			.scan(station)
-			.await
-			.map_err(|reason| refused(&[], format!("{station} could not scan: {reason}")))?;
-		let heard = platform
-			.air
-			.access_points(station)
-			.await
-			.map_err(|reason| {
-				refused(&[], format!("{station}'s scan could not be read: {reason}"))
-			})?;
+		let heard = heard(platform, station).await?;
 		entries.extend(
 			heard
 				.iter()
@@ -92,18 +126,7 @@ pub(super) async fn survey(
 	let mut channels = Vec::new();
 	for radio in radios {
 		let station = &radio.station;
-		platform
-			.iwd
-			.scan(station)
-			.await
-			.map_err(|reason| refused(&[], format!("{station} could not scan: {reason}")))?;
-		let heard = platform
-			.air
-			.access_points(station)
-			.await
-			.map_err(|reason| {
-				refused(&[], format!("{station}'s scan could not be read: {reason}"))
-			})?;
+		let heard = heard(platform, station).await?;
 		let surveyed = platform
 			.air
 			.survey(station)

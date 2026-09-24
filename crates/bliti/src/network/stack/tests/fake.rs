@@ -1,7 +1,7 @@
 //! The system, iwd, radios and gateway a [`Stack`] runs on in a test, answering as they are told.
 
 use std::{
-	collections::{BTreeMap, BTreeSet},
+	collections::{BTreeMap, BTreeSet, VecDeque},
 	fs,
 	net::IpAddr,
 	path::PathBuf,
@@ -13,7 +13,7 @@ use futures::future::BoxFuture;
 
 use crate::network::{
 	apply::{Hostapd, System},
-	observe::{Joined, Operating, Surveyed, Target, WpsFailed, bss::AccessPoint},
+	observe::{Joined, Operating, Scans, Surveyed, Target, WpsFailed, bss::AccessPoint},
 	probe::RadioInfo,
 	render,
 };
@@ -215,6 +215,8 @@ pub struct FakeAir {
 	pub clients: usize,
 	/// What each probe of the radios was told of whether they survey, in order.
 	pub probed: Arc<Mutex<Vec<BTreeMap<String, bool>>>>,
+	/// The parts a scan runs in, each what the kernel holds once it finishes, before `heard`.
+	pub parts: Mutex<VecDeque<Vec<AccessPoint>>>,
 }
 
 impl crate::network::observe::Air for FakeAir {
@@ -232,11 +234,20 @@ impl crate::network::observe::Air for FakeAir {
 		Box::pin(async move { Ok(radios) })
 	}
 
+	fn scans(&self, _station: &str) -> Result<Scans, String> {
+		let (finished, rx) = tokio::sync::mpsc::unbounded_channel();
+		for _ in 0..self.parts.lock().unwrap().len() {
+			let _ = finished.send(());
+		}
+		Ok(Scans::new(rx, Vec::new()))
+	}
+
 	fn access_points(
 		&self,
 		_station: &str,
 	) -> BoxFuture<'static, Result<Vec<AccessPoint>, String>> {
-		let heard = self.heard.clone();
+		let part = self.parts.lock().unwrap().pop_front();
+		let heard = part.unwrap_or_else(|| self.heard.clone());
 		Box::pin(async move { Ok(heard) })
 	}
 

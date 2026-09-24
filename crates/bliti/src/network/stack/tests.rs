@@ -1,5 +1,5 @@
 use std::{
-	collections::{BTreeMap, BTreeSet},
+	collections::{BTreeMap, BTreeSet, VecDeque},
 	fs,
 	sync::{Arc, Mutex},
 	time::Duration,
@@ -830,6 +830,42 @@ async fn a_scan_answers_each_access_point_but_the_devices_own() {
 	);
 	assert_eq!(*rig.iwd.calls.lock().unwrap(), ["scan wld0"]);
 	assert!(rig.stack.scan(Some("wlan9")).await.is_err());
+}
+
+/// Found on a device: iwd scans in parts, each replacing what the kernel holds, and reading only
+/// after the last left out every network heard in the others.
+#[tokio::test(start_paused = true)]
+async fn a_scan_gathers_what_every_part_heard() {
+	let heard = |bssid: u8, frequency: u32, ssid: &[u8]| {
+		let mut elements = vec![0, ssid.len() as u8];
+		elements.extend_from_slice(ssid);
+		AccessPoint::read([2, 0, 0, 0, 0, bssid], frequency, -4800, 0, &elements)
+	};
+	let mut rig = Rig::new(FakeAir {
+		radios: vec![radio()],
+		parts: Mutex::new(VecDeque::from([
+			vec![heard(1, 2412, b"clinic")],
+			vec![heard(2, 5180, b"clinic"), heard(3, 5200, b"office")],
+		])),
+		heard: vec![heard(4, 2437, b"cafe"), heard(1, 2412, b"clinic")],
+		..FakeAir::default()
+	})
+	.await;
+	let entries = rig.stack.scan(None).await.unwrap();
+	let mut bssids: Vec<&str> = entries
+		.iter()
+		.map(|entry| entry["bssid"].as_str().unwrap())
+		.collect();
+	bssids.sort_unstable();
+	assert_eq!(
+		bssids,
+		[
+			"02:00:00:00:00:01",
+			"02:00:00:00:00:02",
+			"02:00:00:00:00:03",
+			"02:00:00:00:00:04"
+		]
+	);
 }
 
 #[tokio::test(start_paused = true)]
