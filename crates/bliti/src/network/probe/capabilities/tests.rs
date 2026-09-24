@@ -381,3 +381,54 @@ fn the_capabilities_cross_the_wire() {
 	};
 	assert_eq!(capabilities, Some(device()));
 }
+
+#[test]
+fn a_hotspot_width_fits_only_where_every_channel_it_spans_can_start_an_access_point() {
+	let radar = |number| Channel {
+		radar: true,
+		..channel(number, 80)
+	};
+	let radio = RadioInfo {
+		bands: BTreeMap::from([(
+			Band::Five,
+			band(
+				vec![
+					channel(36, 80),
+					channel(40, 80),
+					channel(44, 80),
+					channel(48, 80),
+					radar(52),
+					radar(56),
+					radar(60),
+					radar(64),
+					channel(165, 20),
+				],
+				&[20, 40, 80],
+			),
+		)]),
+		..builtin()
+	};
+	let fits = |channel: u32, width: u32| {
+		let hotspot = Hotspot {
+			ssid: "bliti".into(),
+			passphrase: "read me aloud".into(),
+			interface: None,
+			share_upstream: None,
+			isolate_clients: None,
+			dhcp_range: None,
+			band: Some("5ghz".into()),
+			channel: Some(channel),
+			channel_width: Some(width),
+		};
+		hotspot_fits(std::slice::from_ref(&radio), &hotspot).map_err(|invalid| {
+			assert_eq!(invalid.at, "$['hotspot']['channel-width']");
+			invalid.reason
+		})
+	};
+	assert_eq!(fits(36, 80), Ok(()));
+	assert_eq!(fits(48, 80), Ok(()));
+	assert_eq!(fits(44, 40), Ok(()));
+	assert!(fits(64, 80).unwrap_err().contains("52, 56, 60, 64"));
+	assert!(fits(165, 40).unwrap_err().contains("cannot be widened"));
+	assert_eq!(fits(165, 20), Ok(()));
+}

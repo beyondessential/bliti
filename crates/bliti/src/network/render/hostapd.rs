@@ -43,8 +43,36 @@ pub(super) fn exists(band: Band, number: u32) -> bool {
 	}
 }
 
+/// The 20 MHz channels a channel of `width` with primary `channel` spans, where it is one: 2.4 GHz
+/// widens away from the band's nearer edge, and 5 GHz bonds in fixed groups.
+pub(super) fn span(channel: Channel, width: u32) -> Option<Vec<u32>> {
+	let number = channel.number;
+	let group = |starts: &[u32], size: u32| {
+		starts
+			.iter()
+			.find(|&&start| {
+				(start..start + 4 * size).contains(&number) && (number - start) % 4 == 0
+			})
+			.map(|&start| (0..size).map(|step| start + 4 * step).collect())
+	};
+	match (channel.band, width) {
+		(_, 20) => Some(vec![number]),
+		(Band::TwoPointFour, 40) if number <= 7 => Some(vec![number, number + 4]),
+		(Band::TwoPointFour, 40) => number.checked_sub(4).map(|lower| vec![lower, number]),
+		(Band::Five, 40) => group(&[36, 44, 52, 60, 100, 108, 116, 124, 132, 140, 149, 157], 2),
+		(Band::Five, 80) => group(&[36, 52, 100, 116, 132, 149], 4),
+		_ => None,
+	}
+}
+
 /// How the channel is widened, as the `ht_capab` and VHT keys that say so.
 fn widen(out: &mut String, channel: Channel, width: u32) -> Result<(), String> {
+	if matches!(width, 40 | 80) && span(channel, width).is_none() {
+		return Err(format!(
+			"channel {} cannot be widened to {width} MHz",
+			channel.number
+		));
+	}
 	match (channel.band, width) {
 		(_, 20) => Ok(()),
 		(Band::TwoPointFour, 40) => {

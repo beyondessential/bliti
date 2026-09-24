@@ -231,6 +231,9 @@ impl Backend for Stack {
 
 	fn check(&self, document: &Document) -> Result<(), Invalid> {
 		select::check(document, &self.shared.select)?;
+		if let Some(hotspot) = &document.hotspot {
+			probe::hotspot_fits(&self.shared.radios(), hotspot)?;
+		}
 		match render::render(document, &self.shared.render, &render::Selection::default()) {
 			Err(render::Error::Invalid(invalid)) => Err(invalid),
 			Err(render::Error::Selection(_)) | Ok(_) => Ok(()),

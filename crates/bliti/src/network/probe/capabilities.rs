@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 
+use bliti_core::channel::config::{Hotspot, Invalid, Segment, path};
 use serde_json::{Map, Value as Json, json};
 
 use super::{Band, RadioInfo, alongside_str};
@@ -161,6 +162,63 @@ fn hotspot(radio: &RadioInfo, backend: &Backend) -> Option<Map<String, Json>> {
 		(true, Alongside::SharedChannel) => Some(Map::new()),
 		(true, Alongside::Independent | Alongside::OneAtATime) => None,
 	}
+}
+
+/// Refuse a hotspot whose chosen channel cannot carry its chosen width on any radio it could run on.
+/// Capabilities offer channels and widths apart, so a pair each allows can still be one no radio
+/// can start an access point on: every 20 MHz channel the width spans has to be one it may start on.
+pub fn hotspot_fits(radios: &[RadioInfo], hotspot: &Hotspot) -> Result<(), Invalid> {
+	let (Some(channel), Some(width)) = (hotspot.channel, hotspot.channel_width) else {
+		return Ok(());
+	};
+	let refused = |reason: String| Invalid {
+		at: path(&[Segment::Name("hotspot"), Segment::Name("channel-width")]),
+		reason,
+		reached: None,
+	};
+	let band = hotspot
+		.band
+		.as_deref()
+		.unwrap_or(if channel <= 14 { "2ghz" } else { "5ghz" });
+	let Some((band, span)) = render::hotspot_span(band, channel, width) else {
+		return Err(refused(format!(
+			"channel {channel} cannot be widened to {width} MHz"
+		)));
+	};
+	let band = match band {
+		render::Band::TwoPointFour => Band::TwoPointFour,
+		render::Band::Five => Band::Five,
+	};
+	let fits = radios
+		.iter()
+		.filter(|radio| radio.alongside.is_some())
+		.filter(|radio| {
+			hotspot
+				.interface
+				.as_ref()
+				.is_none_or(|interface| *interface == radio.station)
+		})
+		.any(|radio| {
+			let channels = radio
+				.bands
+				.get(&band)
+				.map_or(&[][..], |info| &info.channels);
+			span.iter().all(|number| {
+				channels
+					.iter()
+					.any(|c| c.number == *number && c.can_start_ap())
+			})
+		});
+	if fits {
+		return Ok(());
+	}
+	Err(refused(format!(
+		"at {width} MHz, channel {channel} spans channels {} and an access point cannot start on all of them",
+		span.iter()
+			.map(u32::to_string)
+			.collect::<Vec<_>>()
+			.join(", ")
+	)))
 }
 
 fn describe(radio: &RadioInfo) -> Map<String, Json> {

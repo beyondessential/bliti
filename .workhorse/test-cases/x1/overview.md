@@ -107,6 +107,8 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [x] A join iwd reports without a channel takes the channel from the radio, and leaves a running hotspot where it is.
 - [x] A proposal carrying a hotspot and a wireless network on the Pi ends applied, with both up on the network's channel. Verified on 2.4 GHz channel 1 against the laptop's access point; 5 GHz not yet. Verifies spec: HOT
 
+- [x] A hotspot channel and width whose span takes in a channel no access point may start on is invalid at the width, and a width the channel does not bond to is refused. Verifies spec: HOT
+
 ## The document
 
 - [ ] A wireless network absent from a document is forgotten by the device. Verifies spec: NET

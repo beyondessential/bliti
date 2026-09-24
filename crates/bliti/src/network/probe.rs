@@ -13,7 +13,7 @@ use super::{
 	select::{self, Alongside},
 };
 
-pub use self::capabilities::{Backend, capabilities};
+pub use self::capabilities::{Backend, capabilities, hotspot_fits};
 #[cfg(target_os = "linux")]
 pub use self::nl80211::Nl80211;
 

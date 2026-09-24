@@ -288,6 +288,21 @@ fn radios(document: &Document, hardware: &Hardware) -> Result<(), Invalid> {
 	Ok(())
 }
 
+/// The 20 MHz channels the hotspot occupies on `channel` of `band` at `width`, as the band is named
+/// on the wire, where the renderer renders that pair.
+pub fn hotspot_span(band: &str, channel: u32, width: u32) -> Option<(Band, Vec<u32>)> {
+	let band = hostapd::band(band).ok()?;
+	hostapd::exists(band, channel).then_some(())?;
+	let span = hostapd::span(
+		Channel {
+			band,
+			number: channel,
+		},
+		width,
+	)?;
+	Some((band, span))
+}
+
 /// Whether the hotspot renders on `channel` of `band`, as the band is named on the wire.
 ///
 /// The one list of channels hostapd is rendered on, so capabilities never offer a channel the

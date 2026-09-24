@@ -47,6 +47,8 @@ A device MUST NOT move a running hotspot to another radio unless a radio it pref
 
 A device MUST run a hotspot whose `band`, `channel` or `channel-width` is set only on a radio offering them.
 
+A device MUST treat as invalid a hotspot whose `channel-width` spans, from its `channel`, a channel no radio it could run on may start an access point on, and MUST name `channel-width` in `at`.
+
 ## Running alongside a wireless client
 
 A device MUST report, for each radio able to run an access point, whether it runs one beside a wireless client at once, only one at a time, or at once only on one channel.
