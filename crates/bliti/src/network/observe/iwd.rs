@@ -80,6 +80,17 @@ fn failed(error: dbus::Error) -> String {
 	}
 }
 
+/// Whether iwd ended a WPS join having found no access point running it, as it names that on the bus.
+fn unfound(error: Option<&str>) -> bool {
+	matches!(
+		error,
+		Some(
+			"net.connman.iwd.SimpleConfiguration.NotReachable"
+				| "net.connman.iwd.SimpleConfiguration.WalkTimeExpired"
+		)
+	)
+}
+
 fn string(props: &PropMap, key: &str) -> Option<String> {
 	props.get(key)?.0.as_str().map(str::to_owned)
 }
@@ -509,18 +520,9 @@ impl Iwd {
 			Some(pin) => proxy.method_call::<(), _, _, _>(WPS, method, (pin,)).await,
 			None => proxy.method_call::<(), _, _, _>(WPS, method, ()).await,
 		};
-		joined.map_err(|error| {
-			let unfound = matches!(
-				error.name(),
-				Some(
-					"net.connman.iwd.SimpleConfiguration.NotReachable"
-						| "net.connman.iwd.SimpleConfiguration.WalkTimerExpired"
-				)
-			);
-			WpsFailed {
-				found: !unfound,
-				reason: failed(error),
-			}
+		joined.map_err(|error| WpsFailed {
+			found: !unfound(error.name()),
+			reason: failed(error),
 		})?;
 		self.joined(&path).await.map_err(|reason| WpsFailed {
 			found: true,
@@ -636,5 +638,26 @@ impl super::Iwd for Iwd {
 					.to_owned()
 			})
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::unfound;
+
+	/// iwd 3.10 names the walk time running out `WalkTimeExpired`, which a join that found nothing
+	/// ends with.
+	#[test]
+	fn a_wps_join_that_found_nothing_is_told_apart() {
+		assert!(unfound(Some(
+			"net.connman.iwd.SimpleConfiguration.WalkTimeExpired"
+		)));
+		assert!(unfound(Some(
+			"net.connman.iwd.SimpleConfiguration.NotReachable"
+		)));
+		assert!(!unfound(Some(
+			"net.connman.iwd.SimpleConfiguration.NoCredentials"
+		)));
+		assert!(!unfound(None));
 	}
 }
