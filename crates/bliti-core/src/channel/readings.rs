@@ -70,6 +70,8 @@ pub enum Status {
 	Skipped,
 	/// The measurement was attempted and errored.
 	Broken,
+	/// The entry no longer applies, and a reader drops it.
+	Ended,
 }
 
 impl Status {
@@ -81,6 +83,7 @@ impl Status {
 			Self::Failed => "failed",
 			Self::Skipped => "skipped",
 			Self::Broken => "broken",
+			Self::Ended => "ended",
 		}
 	}
 
@@ -223,8 +226,17 @@ impl Entry {
 		entry
 	}
 
+	/// This entry, sent once more to say it no longer applies: the same name and traits, so a reader
+	/// knows which entry it drops, with no value and the reason it ended (NFO).
+	pub fn ended(&self, at: u64, reason: impl Into<String>) -> Self {
+		let mut entry = self.clone();
+		entry.at = at;
+		entry.set_status(Status::Ended, Some(reason.into()));
+		entry
+	}
+
 	/// Set the `status` trait, tying value presence to it: present for `passed`, `warning` and
-	/// `failed`, absent for `skipped` and `broken` (NFO).
+	/// `failed`, absent for `skipped`, `broken` and `ended` (NFO).
 	fn set_status(&mut self, status: Status, reason: Option<String>) {
 		let mut object = Map::new();
 		object.insert("is".to_owned(), Json::String(status.as_str().to_owned()));
@@ -366,6 +378,18 @@ mod tests {
 		);
 		assert_eq!(broken.status(), Some("broken"));
 		assert!(broken.value.is_none());
+	}
+
+	#[test]
+	fn an_ended_entry_keeps_its_traits_and_drops_its_value() {
+		let running = Entry::new(1, "hotspot", "text", serde_json::json!("clinic"))
+			.with_trait("channel", serde_json::json!({"number": 6}));
+		let ended = running.ended(2, "the hotspot stopped");
+		assert_eq!(ended.status(), Some("ended"));
+		assert_eq!(ended.reason(), Some("the hotspot stopped"));
+		assert_eq!(ended.value, None);
+		assert_eq!(ended.at, 2);
+		assert_eq!(ended.traits.get("channel"), running.traits.get("channel"));
 	}
 
 	#[test]

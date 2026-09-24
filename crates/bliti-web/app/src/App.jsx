@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Network from './Network.jsx'
 import Readings from './Readings.jsx'
 import { CLIENT_VERSION, createClient } from './client.js'
-import { entryOf, identityKey, pushHistory } from './readings.js'
+import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // How many notices are kept. The far end decides how many arrive.
@@ -69,8 +69,17 @@ export default function App() {
 						setDevice({ name: message.name, version: message.version })
 					} else if (message.type === 'fact' || message.type === 'reading') {
 						const entry = entryOf(message)
-						setEntries((held) => new Map(held).set(identityKey(entry), entry))
-						setHistory((held) => pushHistory(held, entry))
+						if (isEnded(entry)) {
+							setEntries((held) => {
+								const next = new Map(held)
+								next.delete(identityKey(entry))
+								return next
+							})
+							setHistory((held) => forgetHistory(held, entry))
+						} else {
+							setEntries((held) => new Map(held).set(identityKey(entry), entry))
+							setHistory((held) => pushHistory(held, entry))
+						}
 					}
 					if (!STREAMED.has(message.type)) note('in', describe(message))
 					break

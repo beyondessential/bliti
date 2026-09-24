@@ -150,9 +150,7 @@ impl Sampler {
 			.await
 			.expect("the sampling task neither panics nor is cancelled");
 			source = returned;
-			if readings.is_empty() {
-				continue;
-			}
+			let mut readings = readings;
 
 			{
 				let mut current = self
@@ -160,13 +158,24 @@ impl Sampler {
 					.lock()
 					.expect("the snapshot is never held across a panic");
 				// A slow tick takes every reading, so what it does not take is no longer there, as a
-				// hotspot that has stopped is not (NFO).
-				if slow {
-					current.clear();
-				}
+				// hotspot that has stopped is not, and is sent once more as ended (NFO).
+				let before = if slow {
+					std::mem::take(&mut *current)
+				} else {
+					HashMap::new()
+				};
 				for reading in &readings {
 					current.insert(identity_key(reading), reading.clone());
 				}
+				let at = Facts::since_boot();
+				for (key, gone) in before {
+					if !current.contains_key(&key) {
+						readings.push(gone.ended(at, ENDED));
+					}
+				}
+			}
+			if readings.is_empty() {
+				continue;
 			}
 
 			// Nobody subscribed is the ordinary case, not a failure.
@@ -189,11 +198,14 @@ const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
 	("battery", &["serial", "model", "vendor"]),
 ];
 
+/// The reason an entry that has ended gives. What stopped it is not known this far from it.
+pub(crate) const ENDED: &str = "no longer applies";
+
 /// A stable identity for one reading instance: its name and its distinguishing traits, leaving out
 /// the descriptive ones that change while the thing measured stays the same, as a hotspot's channel
 /// does when it follows its station. This is only the device's own snapshot key; how a reader groups
 /// readings is its own business (NFO).
-fn identity_key(entry: &Entry) -> String {
+pub(crate) fn identity_key(entry: &Entry) -> String {
 	let mut traits = entry.traits.clone();
 	for name in DESCRIPTIVE {
 		traits.remove(name);
@@ -424,5 +436,29 @@ mod tests {
 		assert!(names(&sampler).contains(&"hotspot".to_owned()));
 		tokio::time::sleep(FAST * SLOW_EVERY).await;
 		assert_eq!(names(&sampler), ["memory-usage"]);
+	}
+
+	/// A reader holding what stopped is told, since leaving it out says nothing (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn what_a_slow_tick_no_longer_takes_is_sent_as_ended() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _session = sampler.session();
+		let mut live = sampler.live();
+		tokio::time::sleep(FAST * (SLOW_EVERY * 2 + 1)).await;
+
+		let mut sent = Vec::new();
+		while let Ok(readings) = live.try_recv() {
+			sent.extend(readings);
+		}
+		let hotspot: Vec<_> = sent.iter().filter(|e| e.name == "hotspot").collect();
+		assert_eq!(hotspot.len(), 2, "{hotspot:?}");
+		assert_eq!(hotspot[0].status(), Some("passed"));
+		assert_eq!(hotspot[1].status(), Some("ended"));
+		assert_eq!(hotspot[1].value, None);
+		assert!(
+			sent.iter()
+				.filter(|e| e.name == "memory-usage")
+				.all(|e| e.status() != Some("ended"))
+		);
 	}
 }

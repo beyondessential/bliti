@@ -40,7 +40,7 @@ use crate::{
 		self,
 		session::{Backend, Configurator},
 	},
-	sampler::Sampler,
+	sampler::{ENDED, Sampler, identity_key},
 };
 
 /// How often to look for a change in the facts the device reports about itself.
@@ -351,8 +351,15 @@ where
 				let current = facts::facts(now());
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
-					for fact in &current {
-						if write_message(&mut writer, &Message::Fact(fact.clone()).to_json())
+					// A fact left out says nothing to a client already showing it (NFO).
+					let kept: HashSet<String> = current.iter().map(identity_key).collect();
+					let at = now();
+					let ended = last_facts
+						.iter()
+						.filter(|fact| !kept.contains(&identity_key(fact)))
+						.map(|fact| fact.ended(at, ENDED));
+					for fact in ended.chain(current.iter().cloned()) {
+						if write_message(&mut writer, &Message::Fact(fact).to_json())
 							.await
 							.is_err()
 						{

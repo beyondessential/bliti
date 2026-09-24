@@ -292,6 +292,20 @@ export function pushHistory(history, entry) {
 	return next
 }
 
+/// Drop the history of an entry that has ended, along with its tile (VIEW).
+export function forgetHistory(history, entry) {
+	const key = seriesKey(entry)
+	if (!history.has(key)) return history
+	const next = new Map(history)
+	next.delete(key)
+	return next
+}
+
+/// Whether the device has said this entry no longer applies (NFO).
+export function isEnded(entry) {
+	return statusOf(entry) === 'ended'
+}
+
 /// How far back the graph keeps points. A graph fills forward from connection; no history is sent, so
 /// this is only the trimming of what accumulates (U1 carries bringing sent history back).
 export const WINDOW_MS = 5 * 60 * 1000

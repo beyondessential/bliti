@@ -360,4 +360,19 @@ test.describe('wireless', () => {
 		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Wireless', 'Hotspot', 'Hotspot clients', 'Processor'])
 		await expect(page.getByText('3 clients')).toBeVisible()
 	})
+
+	// Leaving an entry out says nothing to a client already showing it, so a stopped hotspot is sent
+	// once more as ended and its tiles go (NFO, VIEW).
+	test('a hotspot that has stopped loses its tiles', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspot', 'Hotspot clients', 'Processor'])
+
+		const ended = { status: { is: 'ended', reason: 'no longer applies' } }
+		await emit(page, fact('hotspot', { kind: 'text', traits: { ...ended, channel: { number: 11 } } }))
+		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', traits: ended }))
+		await expect(page.locator('.tile .label')).toHaveText(['Processor'])
+	})
 })

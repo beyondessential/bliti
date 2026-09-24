@@ -72,6 +72,8 @@ The application MUST colour a face by its entry's `status`, MUST NOT colour a `p
 
 The application MUST show an entry whose `status` is `skipped` or `broken` as having no value, with its reason, and MUST distinguish the two.
 
+The application MUST remove an entry's tile, and any history drawn for it, when the entry is sent as `ended`.
+
 The application MUST show every reading in a reveal with its own limits, status reason and scale.
 
 > [!NOTE]

@@ -89,10 +89,11 @@ The `status` trait says how the datum stands: whether there is a value, and wher
 | `failed` | what it measures is unwell | present |
 | `skipped` | a precondition was not met, so nothing was measured | absent |
 | `broken` | the measurement was attempted and errored | absent |
+| `ended` | the entry no longer applies, as a hotspot that has stopped does not | absent |
 
 Every fact and reading MUST carry the `status` trait.
 
-An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped` or `broken`.
+An entry MUST carry `value` where `is` is `passed`, `warning` or `failed`, and MUST NOT carry it where `is` is `skipped`, `broken` or `ended`.
 
 `status` MUST carry `reason` where `is` is anything but `passed`, and MUST NOT carry it where `is` is `passed`.
 
@@ -103,7 +104,7 @@ A device MUST report `warning` or `failed` only where the measurement has a noti
 > [!NOTE]
 > The status is the datum's and not the device's: `passed` against a throughput reading says the figure is sound, not that the link is quiet. That is what lets every entry carry a status while a busy link stays no kind of warning.
 > `skipped` and `broken` both leave the value absent and both say nothing about the device, but they are different things to whoever is looking: one is a measurement this platform cannot make, the other is one that should have worked and did not.
-> The vocabulary is the one BES software already reports checks in, so an operator meets the same five words here as elsewhere.
+> The first five are the vocabulary BES software already reports checks in, so an operator meets the same words here as elsewhere. `ended` has no counterpart there, because a check does not stop existing.
 > `reason` is free text because the useful part of a failure is the part nobody anticipated: a path, a permission, an errno. A code would carry the half that was foreseen and drop the half worth reading.
 
 ### Values
@@ -140,6 +141,12 @@ A device MUST report every entry below that its hardware and operating system ca
 Where the hardware an entry measures is not fitted, a device MUST omit the entry entirely rather than report it absent.
 
 Where the hardware is fitted and the measurement errored, a device MUST report the entry as `broken`.
+
+Where a device stops reporting an entry it has sent on a feed, it MUST send that entry on the feed once more as `ended`, carrying the same distinguishing traits, and MUST then leave it out.
+A reader MUST drop an entry it receives as `ended`.
+
+> [!NOTE]
+> Leaving an entry out says nothing to a reader already holding it, so without the last message a hotspot that has stopped would go on showing as running.
 
 Where the hardware is fitted and a precondition for measuring it was not met, a device MUST report the entry as `skipped`.
 
