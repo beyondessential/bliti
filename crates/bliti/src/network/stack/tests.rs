@@ -444,6 +444,32 @@ async fn restore_returns_to_the_recorded_document() {
 	assert_eq!(rig.states(), [json!({"is": "default-route"})]);
 }
 
+/// Found on a device: a wired candidate proposed again under another name failed at its gateway,
+/// since its lease was taken for one left by some other configuration and never announced again.
+#[tokio::test(start_paused = true)]
+async fn renaming_a_candidate_keeps_what_its_link_holds() {
+	let mut rig = Rig::wired().await;
+	rig.answers("198.51.100.1");
+	rig.answers("198.51.100.1");
+	rig.see([carrier(true)]).await;
+	rig.stack
+		.restore(&document(json!({"attachments": [dynamic()]})))
+		.await
+		.unwrap();
+	rig.see([
+		leased("eth0", "198.51.100.10"),
+		routed("eth0", "198.51.100.1"),
+	])
+	.await;
+	assert_eq!(rig.states(), [json!({"is": "default-route"})]);
+
+	let mut renamed = dynamic();
+	renamed["label"] = json!("Office");
+	let answer = applying(&mut rig, document(json!({"attachments": [renamed]})));
+	assert_eq!(answer.await.unwrap(), Ok(()));
+	assert_eq!(rig.states(), [json!({"is": "default-route"})]);
+}
+
 #[tokio::test(start_paused = true)]
 async fn states_are_published_as_candidates_change() {
 	let mut rig = Rig::wired().await;

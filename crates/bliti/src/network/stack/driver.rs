@@ -189,6 +189,13 @@ pub(super) struct Driver {
 	swept: u64,
 }
 
+/// Whether two candidates put the same thing on their interface. What the operator calls one, and
+/// whether a proposal is held to it, change nothing there, so the addresses and gateway it already
+/// holds still stand: nothing will announce them again.
+fn same_link(a: &Attachment, b: &Attachment) -> bool {
+	a.kind == b.kind && a.nameservers == b.nameservers
+}
+
 impl Driver {
 	pub(super) fn new(
 		shared: Arc<Shared>,
@@ -605,7 +612,7 @@ impl Driver {
 			self.placed.insert(link.candidate, interface.clone());
 		}
 		let stale = match self.last.insert(interface.clone(), attachment.clone()) {
-			Some(previous) if previous != *attachment => self.links.held(&interface),
+			Some(previous) if !same_link(&previous, attachment) => self.links.held(&interface),
 			_ => BTreeSet::new(),
 		};
 		let check = Check::new(
