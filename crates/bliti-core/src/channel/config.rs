@@ -121,8 +121,8 @@ pub struct Wireless {
 	pub hidden: Option<bool>,
 	/// The wireless interface it is joined on. Unset, the device chooses one able to carry it (LINK).
 	pub interface: Option<String>,
-	/// The band it is joined on, where the device offers the choice (WLAN).
-	pub band: Option<String>,
+	/// The bands it may be joined on, where the device offers the choice; empty for any (WLAN).
+	pub bands: Vec<String>,
 }
 
 /// How a device authenticates to a wireless network (WLAN).
@@ -411,15 +411,28 @@ impl Wireless {
 		};
 		let interface = optional_string(candidate, "interface")
 			.map_err(|reason| Invalid::at(at("interface"), reason))?;
-		let band =
-			optional_string(candidate, "band").map_err(|reason| Invalid::at(at("band"), reason))?;
+		let bands =
+			string_array(candidate, "bands").map_err(|reason| Invalid::at(at("bands"), reason))?;
+		if candidate.contains_key("bands") && bands.is_empty() {
+			return Err(Invalid::at(at("bands"), "`bands` names at least one band"));
+		}
+		if let Some(twice) = bands
+			.iter()
+			.enumerate()
+			.find_map(|(index, band)| bands[..index].contains(band).then_some(band))
+		{
+			return Err(Invalid::at(
+				at("bands"),
+				format!("{twice:?} is named twice"),
+			));
+		}
 
 		Ok(Self {
 			ssid,
 			security,
 			hidden,
 			interface,
-			band,
+			bands,
 		})
 	}
 
@@ -432,8 +445,11 @@ impl Wireless {
 		if let Some(interface) = &self.interface {
 			map.insert("interface".to_owned(), Json::String(interface.clone()));
 		}
-		if let Some(band) = &self.band {
-			map.insert("band".to_owned(), Json::String(band.clone()));
+		if !self.bands.is_empty() {
+			map.insert(
+				"bands".to_owned(),
+				Json::Array(self.bands.iter().cloned().map(Json::String).collect()),
+			);
 		}
 	}
 }
@@ -700,7 +716,7 @@ mod tests {
 					"ssid": "Clinic",
 					"security": { "kind": "sae", "passphrase": "a good long passphrase" },
 					"hidden": true,
-					"band": "5ghz"
+					"bands": ["5ghz", "6ghz"]
 				},
 				{
 					"kind": "wired-static",
@@ -806,6 +822,22 @@ mod tests {
 				err.at, "$['attachments'][0]['security']['passphrase']",
 				"{kind}"
 			);
+		}
+	}
+
+	/// A set of bands names at least one, and none twice (WLAN).
+	#[test]
+	fn bands_name_at_least_one_and_none_twice() {
+		for bands in [serde_json::json!([]), serde_json::json!(["5ghz", "5ghz"])] {
+			let err = document(serde_json::json!({
+				"attachments": [{
+					"kind": "wireless", "label": "w", "verify": true, "ssid": "S",
+					"security": { "kind": "psk", "passphrase": "a good long passphrase" },
+					"bands": bands
+				}]
+			}))
+			.unwrap_err();
+			assert_eq!(err.at, "$['attachments'][0]['bands']", "{bands}");
 		}
 	}
 

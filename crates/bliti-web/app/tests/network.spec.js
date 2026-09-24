@@ -421,29 +421,47 @@ test.describe('applying without checking', () => {
 })
 
 test.describe('validating before proposing', () => {
-	// A device that cannot hold a connection to one band offers none, and the screen offers only what it
-	// is offered (WLAN, NSCR).
-	test('a wireless band is offered only where the device offers one', async ({ page }) => {
+	// A device that cannot hold a connection to chosen bands offers none, and the screen offers only
+	// what it is offered (WLAN, NSCR).
+	test('wireless bands are offered only where the device offers them', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await open(page, 'Clinic-Staff')
-		await expect(page.locator('.candidate').getByLabel('Band')).toHaveCount(0)
+		await expect(page.locator('.candidate').getByText('Bands')).toHaveCount(0)
 	})
 
-	test('a band the device offers is chosen and proposed', async ({ page }) => {
+	// Every band on is any band, so nothing is written until one is turned off, and the last stays on.
+	test('the bands a device offers are narrowed and proposed', async ({ page }) => {
 		const offering = structuredClone(PI)
-		offering.document.attachments.kind.wireless.interface.wlan0.band = ['2.4ghz', '5ghz']
+		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2.4ghz', '5ghz']
 		await openNetwork(page, { document: IN_FORCE, capabilities: offering })
 		await open(page, 'Clinic-Staff')
-		const band = page.locator('.candidate').getByLabel('Band')
-		await expect(band.locator('option')).toHaveText(['Device picks', '2.4 GHz', '5 GHz'])
-		await band.selectOption('5ghz')
+		const candidate = page.locator('.candidate')
+		const low = candidate.getByRole('checkbox', { name: '2.4 GHz' })
+		const high = candidate.getByRole('checkbox', { name: '5 GHz' })
+		await expect(low).toBeChecked()
+		await expect(high).toBeChecked()
+
+		await low.uncheck()
+		await expect(high).toBeDisabled()
 		await page.getByRole('button', { name: 'Apply' }).click()
 		const [proposal] = await proposals(page)
-		expect(proposal.document.attachments.find((each) => each.label === 'Clinic-Staff')).toMatchObject({ band: '5ghz' })
+		expect(proposal.document.attachments.find((each) => each.label === 'Clinic-Staff').bands).toEqual(['5ghz'])
 	})
 
-	// The shared-channel constraint removes band, channel and width, and with none of them offered the
-	// radio goes unmentioned, heading and all (HOT, NSCR).
+	test('every band left on proposes no bands', async ({ page }) => {
+		const offering = structuredClone(PI)
+		offering.document.attachments.kind.wireless.interface.wlan0.bands = ['2.4ghz', '5ghz']
+		await openNetwork(page, { document: IN_FORCE, capabilities: offering })
+		await open(page, 'Clinic-Staff')
+		const low = page.locator('.candidate').getByRole('checkbox', { name: '2.4 GHz' })
+		await low.uncheck()
+		await low.check()
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [proposal] = await proposals(page)
+		expect(proposal.document.attachments.find((each) => each.label === 'Clinic-Staff')).not.toHaveProperty('bands')
+	})
+
 	test('a hotspot radio offering no settings is left out without comment', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await expect(page.getByText('Radio and addressing')).toHaveCount(0)

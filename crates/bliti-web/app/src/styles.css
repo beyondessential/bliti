@@ -276,6 +276,10 @@ section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--acc
 .network details label:first-of-type, .network .absent + label { margin-top: 12px; }
 .network .check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
 .network .check input { width: auto; padding: 0; }
+/* The bands a wireless connection may use, one box each, reading as the field labels do. */
+.network .bands legend { padding: 0; font-size: 0.8rem; color: var(--muted); margin: 12px 0 0; }
+.network .bands { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.network .bands legend { flex-basis: 100%; }
 .network details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
 .network summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
 .pair { display: flex; gap: 8px; }

@@ -109,15 +109,35 @@ fn an_unlisted_optional_member_is_refused() {
 	assert_eq!(err.at, "$['attachments'][0]['nameservers']");
 }
 
-/// A device that cannot hold a connection to one band offers no `band`, so one asked for is refused at
-/// the member (WLAN).
+/// A device that cannot hold a connection to chosen bands offers no `bands`, so any asked for are
+/// refused at the member (WLAN).
 #[test]
-fn a_band_the_device_does_not_offer_is_refused() {
+fn bands_the_device_does_not_offer_are_refused() {
 	let err = check_on_pi(
-		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "band": "5ghz" }))] }),
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "bands": ["5ghz"] }))] }),
 	)
 	.unwrap_err();
-	assert_eq!(err.at, "$['attachments'][0]['band']");
+	assert_eq!(err.at, "$['attachments'][0]['bands']");
+}
+
+/// Where a device offers some bands, a candidate may name any of them and none other.
+#[test]
+fn bands_are_held_to_those_offered() {
+	let mut caps = Json::Object(pi_with_adapter());
+	caps["attachments"]["kind"]["wireless"]["interface"]["wlan0"]["bands"] =
+		json!(["2.4ghz", "5ghz"]);
+	let caps = object(caps);
+	let within = object(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "bands": ["5ghz"] }))] }),
+	);
+	check(&within, &caps).unwrap();
+	let beyond = object(
+		json!({ "attachments": [wireless(json!({ "interface": "wlan0", "bands": ["5ghz", "6ghz"] }))] }),
+	);
+	assert_eq!(
+		check(&beyond, &caps).unwrap_err().at,
+		"$['attachments'][0]['bands'][1]"
+	);
 }
 
 /// A kind absent from capabilities cannot be proposed, and the fault names the kind.

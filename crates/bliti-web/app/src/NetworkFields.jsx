@@ -174,8 +174,19 @@ function fitWireless(candidate, capabilities) {
 	if (!offersMember(capabilities, 'wireless', 'hidden', next)) next = withMember(next, 'hidden', undefined)
 	else if (next.hidden === undefined) next = { ...next, hidden: false }
 	if (!offersMember(capabilities, 'wireless', 'nameservers', next)) next = withMember(next, 'nameservers', undefined)
-	if (next.band !== undefined && !wirelessBands(capabilities, next).includes(next.band)) next = withMember(next, 'band', undefined)
+	if (next.bands !== undefined) {
+		const offered = wirelessBands(capabilities, next)
+		next = withMember(next, 'bands', choose(offered, next.bands.filter((band) => offered.includes(band))))
+	}
 	return next
+}
+
+/// The bands a candidate is held to after one is turned on or off, in the device's order, and unset
+/// where that is every band offered or none, since unset means any (WLAN).
+function choose(offered, chosen, band, on) {
+	const next = band === undefined ? chosen : on ? [...chosen, band] : chosen.filter((each) => each !== band)
+	const kept = offered.filter((each) => next.includes(each))
+	return kept.length === 0 || kept.length === offered.length ? undefined : kept
 }
 
 /// Which adapter a wireless candidate or the hotspot runs on, where the device has more than one:
@@ -269,6 +280,7 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 	const kinds = [...new Set([...offered, security.kind].filter(Boolean))]
 	const methods = eapMethods(capabilities, candidate) ?? ['peap', 'ttls', 'tls']
 	const eapFields = security.eap === 'tls' ? EAP_FIELDS.tls : EAP_FIELDS.tunnelled
+	const bands = wirelessBands(capabilities, candidate)
 	// Whether a scan has settled that the network is hidden: heard broadcasting this name, it is not;
 	// picked from an access point with no name, it is.
 	const heard = Boolean(candidate.ssid) && (scan?.points ?? []).some((point) => point.ssid === candidate.ssid)
@@ -336,18 +348,25 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 					))}
 				</>
 			)}
-			{wirelessBands(capabilities, candidate).length > 0 && (
-				<SelectField
-					label="Band"
-					path={at('band')}
-					value={candidate.band ?? ''}
-					options={[
-						{ value: '', label: 'Device picks' },
-						...wirelessBands(capabilities, candidate).map((band) => ({ value: band, label: bandName(band) })),
-					]}
-					onChange={(band) => change((held) => withMember(held, 'band', band || undefined))}
-					marks={marks}
-				/>
+			{bands.length > 1 && (
+				<fieldset className="bands">
+					<legend>Bands</legend>
+					{bands.map((band) => {
+						const chosen = candidate.bands ?? bands
+						const on = chosen.includes(band)
+						return (
+							<Check
+								key={band}
+								label={bandName(band)}
+								checked={on}
+								disabled={on && chosen.length === 1}
+								onChange={(checked) =>
+									change((held) => withMember(held, 'bands', choose(bands, held.bands ?? bands, band, checked)))
+								}
+							/>
+						)
+					})}
+				</fieldset>
 			)}
 			{offersMember(capabilities, 'wireless', 'hidden', candidate) && (
 				<>

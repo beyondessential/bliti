@@ -162,14 +162,12 @@ export function offersMember(capabilities, kind, member, candidate = {}) {
 }
 
 /// The bands a wireless candidate may be held to on the adapter it names, or on any where it names
-/// none: empty where the device offers no `band`, as a device that cannot hold a connection to one
-/// band does not (WLAN).
+/// none: empty where the device offers no `bands`, as a device that cannot hold a connection to chosen
+/// bands does not (WLAN).
 export function wirelessBands(capabilities, candidate = {}) {
-	const found = views(kindOf(capabilities, 'wireless'), { ...candidate, band: undefined })
-	const keyed = unique(found.map((view) => view.chosen.band).filter((band) => band !== undefined))
-	if (keyed.length > 0) return BANDS.filter((band) => keyed.includes(band))
-	if (!carries(found, 'band')) return []
-	const listed = valuesAcross(found, 'band')
+	const found = views(kindOf(capabilities, 'wireless'), candidate)
+	if (!carries(found, 'bands')) return []
+	const listed = valuesAcross(found, 'bands')
 	return listed === null ? BANDS : BANDS.filter((band) => listed.includes(band))
 }
 

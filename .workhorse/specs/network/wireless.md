@@ -14,7 +14,7 @@ A `wireless` candidate of [LINK](attachment.md) names a network to join and carr
 | `security` | object | yes | how the device authenticates to it, as below |
 | `hidden` | boolean | no | whether the network is joined without it appearing in a scan |
 | `interface` | string | no | the wireless interface it is joined on; unset, the device chooses, as [LINK](attachment.md) specifies |
-| `band` | string | no | the band it is joined on, named as [HOT](hotspot.md) names bands; unset, the device chooses |
+| `bands` | array | no | the bands it may be joined on, each named as [HOT](hotspot.md) names bands; unset, any |
 
 `security` MUST carry a `kind` of `psk`, `sae`, `psk-sae` or `enterprise`.
 
@@ -38,15 +38,18 @@ Every member a method uses is required, except `anonymous-identity` and `client-
 
 A device MUST treat an enterprise candidate carrying a member its method does not use as invalid.
 
-## Choosing a band
+## Choosing bands
 
-A device SHOULD offer `band` on every radio able to hold a wireless connection to one band.
+`bands` MUST name at least one band, and MUST NOT name one twice.
 
-A device MUST join a candidate carrying `band` only on that band, and MUST treat its network as out of range where no access point of it is heard on that band.
+A device SHOULD offer `bands` on every radio able to hold a wireless connection to the bands chosen for it.
+
+A device MUST join a candidate carrying `bands` only on a band it names, and MUST treat its network as out of range where no access point of it is heard on one.
 
 > [!NOTE]
 > A network on several access points can be heard on more than one band, and which to use is the operator's call as much as the device's: 2.4 GHz reaches further, 5 GHz carries more, and a hotspot sharing the radio has to share its band.
-> A device that cannot hold a connection to one band offers no `band`, and a client offers only what it is offered, as [NET](overview.md) requires. That is the case on iwd, which bliti's own device runs as its wireless client: iwd has no per-network band, and restricts bands only for every network on every radio at once, which stops it scanning the others too. A device on iwd therefore does not meet the SHOULD. A backend that can, or a per-network band in iwd, brings `band` in without a change here.
+> The usual choice is a band to stay off, such as a crowded 2.4 GHz, more than a single band to hold to, which is why a candidate names a set.
+> A device that cannot hold a connection to chosen bands offers no `bands`, and a client offers only what it is offered, as [NET](overview.md) requires. That is the case on iwd, which bliti's own device runs as its wireless client: iwd has no per-network band, and restricts bands only for every network on every radio at once, which stops it scanning the others too. A device on iwd therefore does not meet the SHOULD. A backend that can, or a per-network band in iwd, brings `bands` in without a change here.
 
 ## Which networks a device joins
 
