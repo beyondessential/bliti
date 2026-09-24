@@ -53,6 +53,9 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 - [ ] A device serving a session goes on advertising, so a second client finds it, on the prototype. Verifies spec: ADV
 - [ ] A second client opening the network settings while another holds a configuration session is told the device is busy, on the prototype. Verifies spec: CFG
 
+- [x] A device ends, as it starts, every connection made before it started: a phone and the laptop left connected across a redeploy were both disconnected, on the prototype. Verifies spec: CHN
+- [ ] The web client left connected across a restart of the device's daemon reports the channel closed and offers to open it again, rather than waiting on it, on the prototype. Verifies spec: CHN
+
 ## Attachment and selection
 
 - [ ] A device verifies a candidate through carrier, association, addressing and the gateway answering, in that order. Verifies spec: LINK
