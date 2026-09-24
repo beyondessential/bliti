@@ -51,13 +51,24 @@ mod tests;
 /// The device's configuration sessions, of which at most one is open at a time.
 pub struct Configurator<B> {
 	state: Arc<Mutex<State<B>>>,
+	/// Whether the running system may differ from the recorded configuration, for anyone to read
+	/// while a session holds the state (NFO, `network-configuration`).
+	provisional: Arc<watch::Sender<bool>>,
 }
 
 impl<B> Clone for Configurator<B> {
 	fn clone(&self) -> Self {
 		Self {
 			state: self.state.clone(),
+			provisional: self.provisional.clone(),
 		}
+	}
+}
+
+impl<B> Configurator<B> {
+	/// Whether a proposal is being tried: applied or being applied, and neither confirmed nor undone.
+	pub fn provisional(&self) -> bool {
+		*self.provisional.borrow()
 	}
 }
 
@@ -142,6 +153,7 @@ impl<B: Backend> Configurator<B> {
 		state.restore().await;
 		Ok(Self {
 			state: Arc::new(Mutex::new(state)),
+			provisional: Arc::new(watch::channel(false).0),
 		})
 	}
 }
@@ -168,6 +180,7 @@ where
 		state: Some(state),
 		applied: None,
 		provisional: false,
+		published: configurator.provisional.clone(),
 		told: Map::new(),
 		states,
 		observing: true,
@@ -189,6 +202,8 @@ struct Open<B: Backend> {
 	/// Whether the running system may differ from the recorded configuration: a proposal is applied,
 	/// or an attempt at one was started.
 	provisional: bool,
+	/// Where `provisional` is published beyond the session.
+	published: Arc<watch::Sender<bool>>,
 	/// The capabilities the client was last told of, against which `applied` says whether they changed.
 	told: Map<String, Json>,
 	/// The state of each candidate, as the backend publishes it.
@@ -401,6 +416,13 @@ fn candidates(proposal: &Proposal) -> usize {
 }
 
 impl<B: Backend> Open<B> {
+	/// Mark whether the running system may differ from the recorded configuration, here and for
+	/// anyone reading it beyond the session.
+	fn set_provisional(&mut self, provisional: bool) {
+		self.provisional = provisional;
+		self.published.send_replace(provisional);
+	}
+
 	fn state(&mut self) -> &mut State<B> {
 		self.state
 			.as_mut()
@@ -652,7 +674,7 @@ impl<B: Backend> Open<B> {
 					};
 					tracing::info!("applying a proposal");
 					self.applied = None;
-					self.provisional = true;
+					self.set_provisional(true);
 					self.sent = None;
 					let applying = self.state().backend.apply(&proposal.document);
 					match verify(applying, None, writer, incoming, deferred).await? {
@@ -679,7 +701,7 @@ impl<B: Backend> Open<B> {
 					tracing::info!(%method, ?interface, "joining by WPS");
 					let base = self.in_force();
 					self.applied = None;
-					self.provisional = true;
+					self.set_provisional(true);
 					self.sent = None;
 					let (pin, generated) = oneshot::channel();
 					let joining =
@@ -808,7 +830,7 @@ impl<B: Backend> Open<B> {
 		tracing::info!("proposal confirmed and recorded");
 		let document = proposal.raw.clone();
 		state.recorded = proposal;
-		self.provisional = false;
+		self.set_provisional(false);
 		send(
 			writer,
 			&Message::Configuration {
@@ -827,7 +849,7 @@ impl<B: Backend> Open<B> {
 		if self.provisional {
 			tracing::info!("restoring the recorded network configuration");
 			self.state().restore().await;
-			self.provisional = false;
+			self.set_provisional(false);
 		}
 	}
 }
@@ -842,6 +864,7 @@ impl<B: Backend> Drop for Open<B> {
 		}
 		// Dropped part-way, with a proposal applied or being verified: the session's task was dropped
 		// with the connection. The guard moves to the restoring task, so the next session waits for it.
+		let published = self.published.clone();
 		match tokio::runtime::Handle::try_current() {
 			Ok(runtime) => {
 				runtime.spawn(async move {
@@ -849,6 +872,7 @@ impl<B: Backend> Drop for Open<B> {
 						"configuration session dropped; restoring the recorded configuration"
 					);
 					state.restore().await;
+					published.send_replace(false);
 				});
 			}
 			Err(_) => tracing::error!(

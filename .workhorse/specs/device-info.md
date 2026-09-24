@@ -163,6 +163,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `os` | `text` | — | the operating system and its version |
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
+| `network-configuration` | `text` | — | whether the network runs the recorded configuration, `recorded`, or one being tried, `provisional` |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
 | `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
 | `hotspot` | `text` | `channel` | the network the device's hotspot advertises |
@@ -226,6 +227,8 @@ A device MUST report physical interfaces, wired and wireless, and the overlay th
 A device MUST NOT report loopback or other virtual interfaces.
 
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
+
+A device that configures its network under [CFG](network/session.md) MUST report `network-configuration`, as `provisional` from the moment it begins applying a proposal until that proposal is confirmed or the recorded configuration is back in force, and as `recorded` otherwise.
 
 A device MUST report the wireless network each of its wireless interfaces is joined to, and MUST omit the entry for an interface joined to none.
 

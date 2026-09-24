@@ -150,10 +150,11 @@ async fn converse<B: Backend>(
 	{
 		let sampler = sampler.clone();
 		let served = served.clone();
+		let configurator = configurator.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
-				if let Err(err) = serve_default(&mut feed, &sampler, &served).await {
+				if let Err(err) = serve_default(&mut feed, &sampler, &served, &configurator).await {
 					tracing::debug!(%err, "the pushed feed ended");
 				}
 			}
@@ -224,7 +225,7 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served).await;
+				return serve_default(stream, sampler, served, configurator).await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -283,10 +284,11 @@ where
 /// Claims the topic first. A topic is served on at most one stream, so if it is already being served
 /// this returns without sending anything, which is how a `subscribe` for a feed already pushed is
 /// skipped (MSG).
-async fn serve_default<S>(
+async fn serve_default<S, B>(
 	stream: &mut S,
 	sampler: &Sampler,
 	served: &Served,
+	configurator: &Configurator<B>,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -298,7 +300,7 @@ where
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds.
-	let mut last_facts = facts::facts(now());
+	let mut last_facts = facts_now(configurator);
 	for fact in &last_facts {
 		write_message(stream, &Message::Fact(fact.clone()).to_json())
 			.await
@@ -348,7 +350,7 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts::facts(now());
+				let current = facts_now(configurator);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					// A fact left out says nothing to a client already showing it (NFO).
@@ -371,6 +373,20 @@ where
 			}
 		}
 	}
+}
+
+/// The facts the device reports now: what it reads off the system, and whether its network runs the
+/// recorded configuration (NFO).
+fn facts_now<B>(configurator: &Configurator<B>) -> Vec<Entry> {
+	let at = now();
+	let mut facts = facts::facts(at);
+	let network = if configurator.provisional() {
+		"provisional"
+	} else {
+		"recorded"
+	};
+	facts.push(Entry::text(at, "network-configuration", network));
+	facts
 }
 
 /// Milliseconds since boot, for stamping a message as it is sent.

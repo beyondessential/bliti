@@ -30,11 +30,15 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
+| a notice beneath the header, only while `provisional` | `network-configuration` |
 | tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
+
+While `network-configuration` is `provisional`, the application MUST say that the device is trying network settings that revert unless they are confirmed, and MUST mark the `network-address`, `wireless-network`, `hotspot` and `hotspot-clients` tiles as provisional.
+The application MUST NOT give `network-configuration` a tile.
 
 The application MUST NOT reorder by the `status` trait.
 

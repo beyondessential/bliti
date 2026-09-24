@@ -63,6 +63,11 @@ export const TILE_ORDER = [
 	'last-boot',
 ]
 
+// Whether the network runs what was recorded or a proposal being tried. It marks the tiles below
+// rather than getting one of its own (VIEW).
+export const NETWORK_CONFIGURATION = 'network-configuration'
+export const PROVISIONAL_TILES = new Set(['network-address', 'wireless-network', 'hotspot', 'hotspot-clients'])
+
 // Entries rendered inside another's reveal rather than as a tile of their own.
 export const IN_REVEAL = new Set([
 	'memory-total',

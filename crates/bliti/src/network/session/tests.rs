@@ -334,6 +334,24 @@ async fn discard_after_a_proposal_is_applied_reverts_to_the_recorded_configurati
 	assert_eq!(device.store().load().unwrap(), Some(recorded()));
 }
 
+/// Anyone watching the device is told a proposal is being tried, and when it no longer is (NFO).
+#[tokio::test]
+async fn the_device_says_it_is_provisional_from_applying_until_discard() {
+	let device = Device::new().await;
+	assert!(!device.configurator.provisional());
+	let (mut client, _task, _) = device.opened().await;
+	propose(&mut client, proposal()).await;
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Applied { capabilities: None }
+	);
+	assert!(device.configurator.provisional());
+
+	send(&mut client, Message::Discard).await;
+	assert!(quiet(&mut client).await, "discard is not answered");
+	assert!(!device.configurator.provisional());
+}
+
 #[tokio::test]
 async fn a_session_abandoned_by_closing_the_stream_leaves_the_recorded_configuration() {
 	let device = Device::new().await;

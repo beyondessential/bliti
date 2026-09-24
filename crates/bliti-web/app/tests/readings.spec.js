@@ -375,4 +375,20 @@ test.describe('wireless', () => {
 		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', traits: ended }))
 		await expect(page.locator('.tile .label')).toHaveText(['Processor'])
 	})
+
+	// A proposal being tried shows as such on the network tiles, and gets no tile of its own (VIEW).
+	test('settings being tried mark the network tiles and say they revert', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await emit(page, fact('network-configuration', { kind: 'text', value: 'provisional' }))
+		await expect(page.getByText('They revert unless confirmed')).toBeVisible()
+		await expect(page.locator('.tile.provisional')).toHaveCount(1)
+		await expect(page.locator('.tile.provisional')).toContainText('Hotspot')
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspottrial', 'Processor'])
+
+		await emit(page, fact('network-configuration', { kind: 'text', value: 'recorded' }))
+		await expect(page.getByText('They revert unless confirmed')).toHaveCount(0)
+		await expect(page.locator('.tile.provisional')).toHaveCount(0)
+	})
 })
