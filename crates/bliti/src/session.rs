@@ -51,9 +51,10 @@ const DEFAULT_TOPIC: &str = "default";
 /// What the device calls itself to a client, and the version it is at.
 ///
 /// Both are opaque to the client, which displays them and never acts on them (MSG). They are the
-/// package's own name and version, so a device reports what was actually built and installed.
+/// package's own name and version, so a device reports what was actually built and installed. A
+/// development build's version carries the build it names itself as (see `build.rs`).
 const DEVICE_NAME: &str = env!("CARGO_PKG_NAME");
-const DEVICE_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DEVICE_VERSION: &str = env!("BLITI_VERSION");
 
 /// How long a deliberate teardown waits for the connection to close before dropping it.
 const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);

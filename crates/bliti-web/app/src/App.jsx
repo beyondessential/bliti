@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Network from './Network.jsx'
 import Readings from './Readings.jsx'
-import { createClient } from './client.js'
+import { CLIENT_VERSION, createClient } from './client.js'
 import { entryOf, identityKey, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
@@ -232,6 +232,7 @@ export default function App() {
 	return (
 		<main>
 			<h1>bliti</h1>
+			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 
 			{!code && (
 				<section>

@@ -29,7 +29,7 @@ mod device;
 pub const SALT_ROTATION: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Parser)]
-#[command(name = "bliti", version, about = "QR-anchored BLE device provisioning")]
+#[command(name = "bliti", version = env!("BLITI_VERSION"), about = "QR-anchored BLE device provisioning")]
 struct Cli {
 	#[command(subcommand)]
 	command: Command,

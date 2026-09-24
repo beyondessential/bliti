@@ -287,7 +287,7 @@ async fn open(
 	let mut hello_stream = streams.open().await?;
 	let hello = Message::Hello {
 		name: env!("CARGO_PKG_NAME").to_owned(),
-		version: env!("CARGO_PKG_VERSION").to_owned(),
+		version: env!("BLITI_VERSION").to_owned(),
 	};
 	write_message(&mut hello_stream, &hello.to_json()).await?;
 
