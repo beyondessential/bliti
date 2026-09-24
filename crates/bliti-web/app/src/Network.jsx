@@ -33,6 +33,7 @@ import {
 	HotspotFields,
 	blankCandidate,
 	blankHotspot,
+	fitted,
 	kindName,
 } from './NetworkFields.jsx'
 import { pathOf, within } from './path.js'
@@ -110,7 +111,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage }
 	}, [state.status, state.stage, state.confirming, edits])
 	useEffect(() => () => onStage?.(null), [])
 
-	const change = (edit) => dispatch({ type: 'edit', change: edit })
+	const change = (edit) => dispatch({ type: 'edit', change: (held) => fitted(edit(held), state.capabilities) })
 	const readOnly = !writable(state)
 	const caps = state.capabilities
 	const surveyWith = state.edit.document.hotspot?.interface

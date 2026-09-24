@@ -85,6 +85,14 @@ pub fn check_placement(document: JsValue, capabilities: JsValue) -> Result<JsVal
 	across(&document, &capabilities, placement_fault)
 }
 
+/// Where a document's hotspot chooses its own band, channel and width, and where it follows a
+/// wireless client's channel (HOT), by the rule the device holds a document to: `{ own, follows }`,
+/// each a list of interfaces.
+#[wasm_bindgen]
+pub fn hotspot_channels(document: JsValue, capabilities: JsValue) -> Result<JsValue, JsError> {
+	across(&document, &capabilities, channel_choice)
+}
+
 /// Call `answer` on a document and capabilities given as plain objects, and hand back what it
 /// answers as one, or null for nothing.
 fn across(
@@ -139,6 +147,15 @@ fn capability_fault(
 				"rule": refused.rule.as_str(),
 			})
 		}))
+}
+
+/// What [`hotspot_channels`] answers, from the document and capabilities as JSON text.
+fn channel_choice(document: &str, capabilities: &str) -> Result<Option<serde_json::Value>, String> {
+	let (document, capabilities) = objects(document, capabilities)?;
+	let choice = capabilities::channel_choice(&document, &capabilities);
+	Ok(Some(
+		serde_json::json!({ "own": choice.own, "follows": choice.follows }),
+	))
 }
 
 /// The fault [`check_placement`] reports, from the document and capabilities as JSON text.
@@ -715,6 +732,24 @@ mod tests {
 		assert_eq!(
 			placement_fault(r#"{"attachments": []}"#, capabilities),
 			Ok(None)
+		);
+	}
+
+	/// Where the hotspot chooses its own channel is the core's answer too.
+	#[test]
+	fn the_channel_choice_is_the_cores() {
+		let capabilities = r#"{
+			"document": {"hotspot": {"interface": {"wlan0": {}}}},
+			"radios": {"wlan0": {"model": "m", "bands": ["5ghz"], "alongside": "shared-channel"}}
+		}"#;
+		let beside = r#"{"attachments": [{"kind": "wireless", "label": "a"}], "hotspot": {}}"#;
+		assert_eq!(
+			channel_choice(beside, capabilities),
+			Ok(Some(serde_json::json!({ "own": [], "follows": ["wlan0"] })))
+		);
+		assert_eq!(
+			channel_choice(r#"{"attachments": []}"#, capabilities),
+			Ok(Some(serde_json::json!({ "own": ["wlan0"], "follows": [] })))
 		);
 	}
 

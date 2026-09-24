@@ -473,14 +473,16 @@ function capitalise(text) {
 }
 
 /// A hotspot with what its adapter and band do not carry taken out: an adapter carries its own bands,
-/// and a band its own channels and widths. Sharing and isolation are on where unset, so an adapter
-/// offering them has them written on.
-function fitHotspot(hotspot, capabilities) {
+/// and a band its own channels and widths, and a shared-channel adapter none of the three while a
+/// wireless candidate of `document` could share it (BLI-NSCR). Sharing and isolation are on where
+/// unset, so an adapter offering them has them written on.
+function fitHotspot(hotspot, capabilities, document) {
 	let next = hotspot
+	const around = () => ({ ...document, hotspot: next })
 	const keeps = (member, values) => next[member] === undefined || values === null || values.includes(next[member])
-	if (!keeps('band', bands(capabilities, next))) next = withMember(next, 'band', undefined)
-	if (!keeps('channel', channels(capabilities, next))) next = withMember(next, 'channel', undefined)
-	if (!keeps('channel-width', widths(capabilities, next))) next = withMember(next, 'channel-width', undefined)
+	if (!keeps('band', bands(capabilities, next, around()))) next = withMember(next, 'band', undefined)
+	if (!keeps('channel', channels(capabilities, next, around()))) next = withMember(next, 'channel', undefined)
+	if (!keeps('channel-width', widths(capabilities, next, around()))) next = withMember(next, 'channel-width', undefined)
 	for (const member of ['share-upstream', 'isolate-clients', 'dhcp-range']) {
 		if (!offersHotspotSetting(capabilities, member, next)) next = withMember(next, member, undefined)
 		else if (member !== 'dhcp-range' && next[member] === undefined) next = { ...next, [member]: true }
@@ -488,15 +490,24 @@ function fitHotspot(hotspot, capabilities) {
 	return next
 }
 
+/// An edit with its hotspot fitted to what the rest of its document leaves it, so a wireless
+/// candidate that could share the hotspot's adapter takes the hotspot's band, channel and width out.
+export function fitted(edit, capabilities) {
+	const hotspot = edit.document.hotspot
+	if (!hotspot) return edit
+	const next = fitHotspot(hotspot, capabilities, edit.document)
+	return next === hotspot ? edit : { ...edit, document: { ...edit.document, hotspot: next } }
+}
+
 export function HotspotFields({ document, change, capabilities, marks, survey }) {
 	const hotspot = document.hotspot
 	const at = (member) => pathOf(['hotspot', member])
 	const set = (member) => (value) => change((held) => withMember(held, member, value))
-	const offers = (member) => offersHotspotSetting(capabilities, member, hotspot)
+	const offers = (member) => offersHotspotSetting(capabilities, member, hotspot, document)
 	const radio = ['band', 'channel', 'channel-width'].filter(offers)
-	const usableBands = bands(capabilities, hotspot)
-	const usableChannels = channels(capabilities, hotspot)
-	const usableWidths = widths(capabilities, hotspot)
+	const usableBands = bands(capabilities, hotspot, document)
+	const usableChannels = channels(capabilities, hotspot, document)
+	const usableWidths = widths(capabilities, hotspot, document)
 	// Radio settings no adapter of the device offers are left out without a word, heading included. One
 	// the chosen adapter lacks and another offers is still explained, since picking again brings it back
 	// (NSCR).
@@ -510,8 +521,8 @@ export function HotspotFields({ document, change, capabilities, marks, survey })
 	])
 	const picks = (values, name) => [{ value: '', label: 'Device picks' }, ...(values ?? []).map((value) => ({ value: String(value), label: name(value) }))]
 
-	const setBand = (band) => change((held) => fitHotspot(withMember(held, 'band', band || undefined), capabilities))
-	const setAdapter = (name) => change((held) => fitHotspot(withMember(held, 'interface', name), capabilities))
+	const setBand = (band) => change((held) => fitHotspot(withMember(held, 'band', band || undefined), capabilities, document))
+	const setAdapter = (name) => change((held) => fitHotspot(withMember(held, 'interface', name), capabilities, document))
 	const setNumber = (member) => (value) => set(member)(value === '' ? undefined : Number(value))
 
 	return (

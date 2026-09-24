@@ -17,7 +17,8 @@ export const BAND = {
 	},
 }
 
-// A Raspberry Pi 5 as NET shapes it: a shared-channel radio, one wall port.
+// A Raspberry Pi 5 as NET shapes it: a shared-channel radio, which offers the hotspot a channel of its
+// own while no wireless candidate could share it, and one wall port.
 export const PI = {
 	document: {
 		attachments: {
@@ -26,7 +27,7 @@ export const PI = {
 				...WIRED,
 			},
 		},
-		hotspot: { interface: { wlan0: {} }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
+		hotspot: { interface: { wlan0: BAND }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
 		'regulatory-domain': true,
 	},
 	radios: { wlan0: BUILT_IN },
@@ -34,6 +35,12 @@ export const PI = {
 		scan: { interface: { wlan0: {} } },
 		wps: { interface: { wlan0: { method: ['push-button', 'pin'], ssid: true } } },
 	},
+}
+
+// A shared-channel radio with no channel of its own to offer the hotspot.
+export const UNTUNED = {
+	...PI,
+	document: { ...PI.document, hotspot: { ...PI.document.hotspot, interface: { wlan0: {} } } },
 }
 
 // One radio running the hotspot on channels of its own.
@@ -50,8 +57,8 @@ export const INDEPENDENT = {
 	},
 }
 
-// The Pi with a USB adapter: only the adapter joins enterprise networks, hides, or gives the hotspot
-// a channel of its own.
+// The Pi with a USB adapter: only the adapter joins enterprise networks or hides, and the built-in
+// radio gives the hotspot a channel of its own only while no wireless candidate could share it.
 export const TWO_RADIOS = {
 	document: {
 		attachments: {
@@ -66,7 +73,7 @@ export const TWO_RADIOS = {
 				...WIRED,
 			},
 		},
-		hotspot: { interface: { wlan0: {}, wlx00c0caa1b2c3: BAND }, 'share-upstream': true, 'isolate-clients': true },
+		hotspot: { interface: { wlan0: BAND, wlx00c0caa1b2c3: BAND }, 'share-upstream': true, 'isolate-clients': true },
 		'regulatory-domain': true,
 	},
 	radios: { wlan0: BUILT_IN, wlx00c0caa1b2c3: USB },

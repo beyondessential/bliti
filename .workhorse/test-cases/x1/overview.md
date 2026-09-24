@@ -6,7 +6,11 @@ Scenarios that verify the module, for manual checking and as the brief for autom
 
 - [x] The BLE session survives a wireless client connection change, a switch into AP mode, and AP+STA coming up together, on real target hardware. Verified on a Raspberry Pi 5 (Cypress CYW43455): the LE session carried GATT reads throughout, the controller logged no disconnect, and `brcmfmac` loaded firmware once at boot. Stays on the list because a firmware or hardware change could take it back.
 - [ ] A device reports its radio's real capabilities: AP+STA concurrency, the shared-channel constraint, and the WPS methods offered. Verifies spec: NET
-- [x] On shared-channel hardware the hotspot's band, channel and width are absent from capabilities, and a document carrying them is invalid. Verifies spec: HOT
+- [x] On shared-channel hardware the hotspot's band, channel and width are offered in capabilities, limited to the channels an access point can start on and the renderer renders. Verifies spec: HOT, NET
+- [x] On shared-channel hardware a document setting the hotspot's band, channel or width is valid where no wireless candidate could be carried by that radio, and is rendered on the chosen channel. Verifies spec: HOT
+- [ ] On shared-channel hardware with no wireless candidate, the hotspot comes up on the channel the document chooses. Verifies spec: HOT
+- [x] On shared-channel hardware a document setting the hotspot's band, channel or width beside a wireless candidate that radio could carry is invalid at the first of the three it sets. Verifies spec: HOT, NET
+- [x] The screen offers the hotspot's band, channel and width on a shared-channel adapter while no wireless candidate could share it, and once one could takes them out and says the hotspot runs on that connection's channel. Verifies spec: NSCR
 - [ ] On shared-channel hardware the hotspot follows the wireless client's channel once one associates, and NFO reports the channel both are on. Verifies spec: HOT
 - [ ] On hardware with independent channels the three settings are offered, and a set channel is the one the hotspot comes up on. Verifies spec: HOT
 - [x] A device whose radio runs only one of AP and STA at a time rejects a document carrying both, naming the conflict. Verifies spec: HOT

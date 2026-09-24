@@ -38,6 +38,13 @@ const WIRED = {
 	'wired-static': { interface: ['eth0'], nameservers: true },
 }
 
+const BAND = {
+	band: {
+		'2.4ghz': { channel: [1, 6, 11], 'channel-width': [20] },
+		'5ghz': { channel: [36, 40, 44, 48], 'channel-width': [20, 40, 80] },
+	},
+}
+
 // A Raspberry Pi 5 as NET shapes it: one shared-channel radio, one wall port.
 const PI = {
 	document: {
@@ -47,20 +54,13 @@ const PI = {
 				...WIRED,
 			},
 		},
-		hotspot: { interface: { wlan0: {} }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
+		hotspot: { interface: { wlan0: BAND }, 'share-upstream': true, 'isolate-clients': true, 'dhcp-range': true },
 		'regulatory-domain': true,
 	},
 	radios: { wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' } },
 	acts: {
 		scan: { interface: { wlan0: {} } },
 		wps: { interface: { wlan0: { method: ['push-button', 'pin'] } } },
-	},
-}
-
-const BAND = {
-	band: {
-		'2.4ghz': { channel: [1, 6, 11], 'channel-width': [20] },
-		'5ghz': { channel: [36, 40, 44, 48], 'channel-width': [20, 40, 80] },
 	},
 }
 
@@ -91,7 +91,7 @@ const TWO_RADIOS = {
 				...WIRED,
 			},
 		},
-		hotspot: { interface: { wlan0: {}, wlx00c0caa1b2c3: BAND }, 'share-upstream': true },
+		hotspot: { interface: { wlan0: BAND, wlx00c0caa1b2c3: BAND }, 'share-upstream': true },
 	},
 	radios: {
 		wlan0: { model: 'Cypress CYW43455', bands: ['2.4ghz', '5ghz'], alongside: 'shared-channel' },
@@ -193,9 +193,17 @@ test.describe('check', () => {
 		expect(check({ attachments: [staff] }, TWO_RADIOS)).toBeNull()
 	})
 
-	test('rules out band, channel and width on a shared-channel radio', () => {
-		expect(check({ attachments: [], hotspot: { ...hotspot, band: '5ghz' } }, PI)?.at).toBe("$['hotspot']['band']")
-		expect(check({ attachments: [], hotspot: { ...hotspot, channel: 6 } }, PI)?.at).toBe("$['hotspot']['channel']")
+	test('rules out band, channel and width on a shared-channel radio a wireless network could share', () => {
+		expect(check({ attachments: [staticPort], hotspot: { ...hotspot, band: '5ghz', channel: 44 } }, PI)).toBeNull()
+		expect(check({ attachments: [wireless], hotspot: { ...hotspot, band: '5ghz' } }, PI)).toEqual({
+			at: "$['hotspot']['band']",
+			reason: 'The radio runs the hotspot on the same channel as its wireless connection.',
+		})
+		expect(check({ attachments: [wireless], hotspot: { ...hotspot, channel: 6 } }, PI)?.at).toBe("$['hotspot']['channel']")
+		// Pinned to the other adapter, the network leaves the built-in radio's hotspot its choice.
+		const { hidden: _, ...network } = wireless
+		const pinned = { attachments: [{ ...network, interface: 'wlx00c0caa1b2c3' }], hotspot: { ...hotspot, interface: 'wlan0', channel: 6 } }
+		expect(check(pinned, TWO_RADIOS)).toBeNull()
 	})
 
 	test('holds a channel to the list for the band it sits on', () => {
@@ -262,12 +270,14 @@ test.describe('reading capabilities', () => {
 	})
 
 	test('the hotspot is offered what its adapter and band carry', () => {
-		expect(bands(TWO_RADIOS, { interface: 'wlan0' })).toEqual([])
+		expect(bands(TWO_RADIOS, { interface: 'wlan0' })).toEqual(['2.4ghz', '5ghz'])
+		expect(bands(TWO_RADIOS, { interface: 'wlan0' }, { attachments: [wireless] })).toEqual([])
+		expect(bands(TWO_RADIOS, {}, { attachments: [wireless] })).toEqual(['2.4ghz', '5ghz'])
 		expect(bands(TWO_RADIOS, {})).toEqual(['2.4ghz', '5ghz'])
 		expect(channels(TWO_RADIOS, { band: '2.4ghz' })).toEqual([1, 6, 11])
 		expect(channels(TWO_RADIOS, {})).toEqual([1, 6, 11, 36, 40, 44, 48])
 		expect(widths(TWO_RADIOS, { interface: 'wlx00c0caa1b2c3', band: '5ghz' })).toEqual([20, 40, 80])
-		expect(channels(TWO_RADIOS, { interface: 'wlan0' })).toEqual([])
+		expect(channels(TWO_RADIOS, { interface: 'wlan0' }, { attachments: [wireless] })).toEqual([])
 	})
 
 	test('acts name the radios that do each, and the WPS methods each offers', () => {
@@ -293,7 +303,8 @@ test.describe('reading capabilities', () => {
 
 test.describe('absent', () => {
 	test('says why a setting is not offered', () => {
-		expect(absent(PI, 'hotspot.channel')?.reason).toBe('shared-channel')
+		expect(absent(PI, 'hotspot.channel', { attachments: [staticPort], hotspot })).toBeNull()
+		expect(absent(PI, 'hotspot.channel', { attachments: [wireless], hotspot })?.reason).toBe('shared-channel')
 		expect(absent(INDEPENDENT, 'hotspot.channel')).toBeNull()
 		expect(absent(INDEPENDENT, 'hotspot.dhcp-range')?.reason).toBe('unreported')
 		expect(absent({ document: { attachments: { kind: {} } } }, 'hotspot')?.reason).toBe('no-radio')
@@ -304,12 +315,13 @@ test.describe('absent', () => {
 	})
 
 	test('a shared-channel adapter says why it has no band, by its model', () => {
-		const onBuiltIn = { attachments: [], hotspot: { ...hotspot, interface: 'wlan0' } }
+		const onBuiltIn = { attachments: [wireless], hotspot: { ...hotspot, interface: 'wlan0' } }
 		expect(absent(TWO_RADIOS, 'hotspot.band', onBuiltIn)).toEqual({
 			reason: 'shared-channel',
 			sentence: 'The Cypress CYW43455 runs the hotspot on the same channel as its wireless connection.',
 		})
-		expect(absent(TWO_RADIOS, 'hotspot.band', { attachments: [], hotspot })).toBeNull()
+		expect(absent(TWO_RADIOS, 'hotspot.band', { attachments: [wireless], hotspot })).toBeNull()
+		expect(absent(TWO_RADIOS, 'hotspot.band', { attachments: [], hotspot: { ...hotspot, interface: 'wlan0' } })).toBeNull()
 	})
 })
 

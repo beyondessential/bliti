@@ -19,7 +19,7 @@
 // whatever any of its keys admits.
 
 import { segmentsOf } from './path.js'
-import { check_capabilities as sharedCheck, check_placement as sharedPlacement } from './wasm/bliti_web.js'
+import { check_capabilities as sharedCheck, check_placement as sharedPlacement, hotspot_channels as sharedChannels } from './wasm/bliti_web.js'
 import { bandName, widthName } from './wireless.js'
 
 const KINDS = ['wireless', 'wired-dynamic', 'wired-static']
@@ -137,10 +137,6 @@ export function adapters(capabilities, part) {
 	return keys ?? radios(capabilities).map((radio) => radio.interface)
 }
 
-function radio(capabilities, name) {
-	return radios(capabilities).find((each) => each.interface === name) ?? null
-}
-
 // Candidates
 
 /// Which kinds of candidate the device accepts, in the order the screen offers them.
@@ -213,28 +209,52 @@ export function offersHotspot(capabilities) {
 	return views(hotspotOf(capabilities)).length > 0
 }
 
+const CHANNEL_MEMBERS = ['band', 'channel', 'channel-width']
+
+/// Where the hotspot of `document` chooses its own band, channel and width, and where it follows a
+/// wireless connection's channel (BLI-HOT), by the rule the device holds a document to:
+/// `{ own, follows }`, each a list of interfaces.
+function channelChoice(capabilities, document) {
+	return sharedChannels({ attachments: [], ...document }, isObject(capabilities) ? capabilities : {})
+}
+
+/// The hotspot's views where it may choose its own band, channel and width beside the wireless
+/// candidates of `document`: one on a shared-channel adapter a candidate could take is dropped
+/// (BLI-HOT). Every view where no document is given.
+function channelViews(capabilities, hotspot, document) {
+	const found = views(hotspotOf(capabilities), hotspot)
+	if (!document) return found
+	const { own, follows } = channelChoice(capabilities, { ...document, hotspot })
+	if (follows.length === 0) return found
+	return found.filter((view) => (view.chosen.interface === undefined ? own.length > 0 : own.includes(view.chosen.interface)))
+}
+
 /// Whether the hotspot may carry the optional `member`: `share-upstream`, `isolate-clients`,
-/// `dhcp-range`, `band`, `channel` or `channel-width`, on the adapter it names or on any.
-export function offersHotspotSetting(capabilities, member, hotspot = {}) {
-	if (member === 'band') return bands(capabilities, hotspot).length > 0
+/// `dhcp-range`, `band`, `channel` or `channel-width`, on the adapter it names or on any. Given the
+/// document, band, channel and width are held to where the hotspot chooses its own channel beside
+/// its wireless candidates.
+export function offersHotspotSetting(capabilities, member, hotspot = {}, document = null) {
+	if (member === 'band') return bands(capabilities, hotspot, document).length > 0
+	if (CHANNEL_MEMBERS.includes(member)) return carries(channelViews(capabilities, hotspot, document), member)
 	return carries(views(hotspotOf(capabilities), hotspot), member)
 }
 
 /// The bands a hotspot may be put on, on the adapter it names or on any.
-export function bands(capabilities, hotspot = {}) {
-	const keys = keysOf(hotspotOf(capabilities), hotspot, 'band')
-	return keys ?? BANDS
+export function bands(capabilities, hotspot = {}, document = null) {
+	const found = channelViews(capabilities, { ...hotspot, band: undefined }, document)
+	if (found.some((view) => view.caps === true)) return BANDS
+	return unique(found.map((view) => view.chosen.band).filter((key) => key !== undefined))
 }
 
 /// The channels a hotspot may use where it stands: on its adapter and band, or on any where either is
 /// unset. A list, or null where any is accepted.
-export function channels(capabilities, hotspot = {}) {
-	return valuesAcross(views(hotspotOf(capabilities), hotspot), 'channel')
+export function channels(capabilities, hotspot = {}, document = null) {
+	return valuesAcross(channelViews(capabilities, hotspot, document), 'channel')
 }
 
 /// The channel widths a hotspot may use where it stands, in megahertz.
-export function widths(capabilities, hotspot = {}) {
-	return valuesAcross(views(hotspotOf(capabilities), hotspot), 'channel-width')
+export function widths(capabilities, hotspot = {}, document = null) {
+	return valuesAcross(channelViews(capabilities, hotspot, document), 'channel-width')
 }
 
 // The country
@@ -313,13 +333,6 @@ const SENTENCES = {
 const RADIO_SETTINGS = new Set(['wireless', 'hotspot', 'regulatory-domain', 'scan', 'survey', 'wps'])
 const CHANNEL_SETTINGS = new Set(['hotspot.band', 'hotspot.channel', 'hotspot.channel-width'])
 
-/// The radios a hotspot could be run on: the one it names, or every one able to.
-function hotspotRadios(capabilities, hotspot) {
-	if (!unset(hotspot?.interface)) return [hotspot.interface]
-	const keys = keysOf(hotspotOf(capabilities), {}, 'interface')
-	return keys ?? radios(capabilities).filter((each) => each.alongside).map((each) => each.interface)
-}
-
 /// Whether the hotspot and a wireless candidate of `document` could be carried only by one radio
 /// running one at a time (BLI-HOT), by the rule the device holds a document to.
 function clashes(capabilities, document) {
@@ -329,25 +342,23 @@ function clashes(capabilities, document) {
 /// Why a setting is not offered, or null where it is. `setting` is one of `wireless`, `hotspot`,
 /// `hotspot.<member>`, `regulatory-domain`, `scan`, `survey` or `wps`. The document being edited
 /// decides a conflict and which adapter the hotspot is on: a radio that runs one thing at a time rules
-/// out a hotspot only while a wireless network needs that radio, and a band is missing for the reason
-/// its adapter gives.
+/// out a hotspot only while a wireless network needs that radio, and a shared-channel one rules out
+/// the hotspot's band, channel and width only while a wireless network could share it.
 ///
 /// Returns `{ reason, sentence }`, where `reason` is `no-radio`, `shared-channel`, `one-at-a-time` or
 /// `unreported`, and `sentence` is what the screen shows in the setting's place.
 export function absent(capabilities, setting, document = null) {
 	const why = (reason, sentence = SENTENCES[reason]) => ({ reason, sentence })
 	const hotspot = document?.hotspot ?? {}
-	if (!offered(capabilities, setting, hotspot)) {
+	if (!offered(capabilities, setting, hotspot, document)) {
 		if (RADIO_SETTINGS.has(setting) && radios(capabilities).length === 0) return why('no-radio')
-		if (CHANNEL_SETTINGS.has(setting)) {
-			const names = hotspotRadios(capabilities, hotspot)
-			if (names.length > 0 && names.every((name) => radio(capabilities, name)?.alongside === 'shared-channel')) {
-				const sentence =
-					radios(capabilities).length > 1 && names.length === 1
-						? `The ${adapterName(capabilities, names[0])} runs the hotspot on the same channel as its wireless connection.`
-						: SENTENCES['shared-channel']
-				return why('shared-channel', sentence)
-			}
+		if (CHANNEL_SETTINGS.has(setting) && offered(capabilities, setting, hotspot)) {
+			const { follows } = channelChoice(capabilities, { ...document, hotspot })
+			const sentence =
+				radios(capabilities).length > 1 && follows.length === 1
+					? `The ${adapterName(capabilities, follows[0])} runs the hotspot on the same channel as its wireless connection.`
+					: SENTENCES['shared-channel']
+			return why('shared-channel', sentence)
 		}
 		return why('unreported')
 	}
@@ -361,13 +372,13 @@ export function absent(capabilities, setting, document = null) {
 	return null
 }
 
-function offered(capabilities, setting, hotspot) {
+function offered(capabilities, setting, hotspot, document = null) {
 	if (setting === 'wireless') return kindOf(capabilities, 'wireless') !== undefined
 	if (setting === 'hotspot') return offersHotspot(capabilities)
 	if (setting === 'regulatory-domain') return countries(capabilities) !== null
 	if (setting === 'scan' || setting === 'survey') return acts(capabilities)[setting]
 	if (setting === 'wps') return acts(capabilities).wps.length > 0
-	if (setting.startsWith('hotspot.')) return offersHotspotSetting(capabilities, setting.slice(8), hotspot)
+	if (setting.startsWith('hotspot.')) return offersHotspotSetting(capabilities, setting.slice(8), hotspot, document)
 	return false
 }
 
