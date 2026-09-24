@@ -55,6 +55,11 @@ const SCAN: Duration = Duration::from_secs(30);
 /// How long a WPS join may take: its walk time is two minutes.
 const WALK: Duration = Duration::from_secs(150);
 
+/// How long to wait for a station iwd has not brought up yet, as it has not just after starting,
+/// and how often to look again meanwhile.
+const STATION_APPEARS: Duration = Duration::from_secs(10);
+const STATION_POLL: Duration = Duration::from_millis(250);
+
 /// iwd, over the system bus.
 #[derive(Clone)]
 pub(super) struct Iwd {
@@ -113,20 +118,34 @@ impl Iwd {
 			.map_err(failed)
 	}
 
-	/// The station object whose device is `name`.
+	/// The station object whose device is `name`, waiting a while for one iwd is still bringing up.
+	///
+	/// The applier restarts iwd when its main configuration changes, and iwd takes a moment after
+	/// starting to put its stations back, so a scan or join right behind a restart would otherwise
+	/// find nothing to act on.
 	async fn station(&self, name: &str) -> Result<ObjectPath<'static>, String> {
-		self.objects()
-			.await?
-			.into_iter()
-			.find(|(_, interfaces)| {
-				interfaces.contains_key(STATION)
-					&& interfaces
-						.get(DEVICE)
-						.and_then(|device| string(device, "Name"))
-						.is_some_and(|device| device == name)
-			})
-			.map(|(path, _)| path)
-			.ok_or_else(|| format!("iwd has no station on {name}"))
+		let deadline = tokio::time::Instant::now() + STATION_APPEARS;
+		loop {
+			let found = self.objects().await.ok().and_then(|objects| {
+				objects
+					.into_iter()
+					.find(|(_, interfaces)| {
+						interfaces.contains_key(STATION)
+							&& interfaces
+								.get(DEVICE)
+								.and_then(|device| string(device, "Name"))
+								.is_some_and(|device| device == name)
+					})
+					.map(|(path, _)| path)
+			});
+			if let Some(path) = found {
+				return Ok(path);
+			}
+			if tokio::time::Instant::now() >= deadline {
+				return Err(format!("iwd has no station on {name}"));
+			}
+			tokio::time::sleep(STATION_POLL).await;
+		}
 	}
 
 	/// What the station at `path` is joined to.
@@ -242,6 +261,7 @@ impl Iwd {
 							let _ = observations.send(Observation::Heard {
 								interface,
 								networks: BTreeMap::new(),
+								scanned: false,
 							});
 						}
 						if !new.is_empty() {
@@ -308,6 +328,7 @@ impl Iwd {
 				let _ = observations.send(Observation::Heard {
 					interface,
 					networks,
+					scanned: false,
 				});
 			}
 			Err(reason) => tracing::warn!(interface, reason, "cannot read what the station hears"),
@@ -352,6 +373,7 @@ impl Iwd {
 					let _ = observations.send(Observation::Heard {
 						interface: name,
 						networks,
+						scanned: true,
 					});
 				}
 			}
@@ -378,6 +400,7 @@ impl Iwd {
 					let _ = observations.send(Observation::Heard {
 						interface,
 						networks: BTreeMap::new(),
+						scanned: false,
 					});
 				}
 			}

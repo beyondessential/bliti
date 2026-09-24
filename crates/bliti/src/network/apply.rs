@@ -135,6 +135,15 @@ impl Changes {
 			.all(|backend| self.get(backend).is_empty())
 	}
 
+	/// Whether the file at `path` changed.
+	pub fn touches(&self, path: &Path) -> bool {
+		Backend::ORDER.into_iter().any(|backend| {
+			self.get(backend).iter().any(|change| match change {
+				Change::Written(changed) | Change::Removed(changed) => changed == path,
+			})
+		})
+	}
+
 	/// The files `backend` reads that changed.
 	pub fn get(&self, backend: Backend) -> &[Change] {
 		match backend {

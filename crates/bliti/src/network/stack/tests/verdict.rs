@@ -185,6 +185,7 @@ async fn a_join_waits_for_the_proposals_scan() {
 	rig.see([Observation::Heard {
 		interface: "wld0".into(),
 		networks: BTreeMap::from([("clinic".to_owned(), -60)]),
+		scanned: true,
 	}])
 	.await;
 	rig.iwd

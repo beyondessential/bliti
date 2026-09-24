@@ -385,20 +385,33 @@ impl Driver {
 			Observation::Heard {
 				interface,
 				networks,
-			} => self.heard(interface, networks),
+				scanned,
+			} => self.heard(interface, networks, scanned),
 			Observation::Station { interface, station } => self.station(interface, station),
 		}
 	}
 
 	/// What a radio hears now, as the selector's in-range and out-of-range events.
-	fn heard(&mut self, interface: String, networks: BTreeMap<String, i32>) {
-		let before = self.heard.insert(interface.clone(), networks.clone());
-		let before = before.unwrap_or_default();
-		for ssid in before.keys().filter(|ssid| !networks.contains_key(*ssid)) {
-			self.feed(Event::OutOfRange {
-				interface: interface.clone(),
-				ssid: ssid.clone(),
-			});
+	///
+	/// Only a finished scan takes a network out of range. What iwd merely holds adds to what is
+	/// heard and never takes from it, since iwd restarting empties it with the radio hearing no less.
+	fn heard(&mut self, interface: String, networks: BTreeMap<String, i32>, scanned: bool) {
+		let before = self.heard.get(&interface).cloned().unwrap_or_default();
+		let now = if scanned {
+			networks.clone()
+		} else {
+			let mut merged = before.clone();
+			merged.extend(networks.clone());
+			merged
+		};
+		self.heard.insert(interface.clone(), now);
+		if scanned {
+			for ssid in before.keys().filter(|ssid| !networks.contains_key(*ssid)) {
+				self.feed(Event::OutOfRange {
+					interface: interface.clone(),
+					ssid: ssid.clone(),
+				});
+			}
 		}
 		for (ssid, signal) in networks {
 			if before.get(&ssid) != Some(&signal) {
@@ -470,6 +483,13 @@ impl Driver {
 						if !changes.regdom.is_empty() {
 							self.reprobe();
 						}
+						// A restarted iwd aborted any scan the proposal started and has heard nothing
+						// since, so the proposal's joins wait for a scan made after it came back.
+						if changes.touches(&self.shared.render.paths.iwd_config)
+							&& matches!(self.pending, Some((Pending::Apply { .. }, _)))
+						{
+							self.scan_for_pending();
+						}
 					}
 					Err(error) => {
 						tracing::error!(%error, "applying the network configuration failed");
@@ -500,7 +520,7 @@ impl Driver {
 				by,
 			} => {
 				match result {
-					Ok(networks) => self.heard(interface.clone(), networks),
+					Ok(networks) => self.heard(interface.clone(), networks, true),
 					Err(reason) => tracing::warn!(interface, reason, "scanning failed"),
 				}
 				match by {

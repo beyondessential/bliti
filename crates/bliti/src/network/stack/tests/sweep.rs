@@ -86,6 +86,7 @@ async fn a_device_on_its_best_candidate_does_not_scan() {
 	rig.see([Observation::Heard {
 		interface: "wld0".into(),
 		networks: BTreeMap::from([("clinic".to_owned(), -55)]),
+		scanned: true,
 	}])
 	.await;
 	rig.stack
@@ -115,6 +116,33 @@ async fn a_network_ranked_below_the_default_route_is_not_looked_for() {
 	assert_eq!(scans(&rig), 0);
 }
 
+/// Found on a device: iwd restarting, as the applier has it do when its main configuration changes,
+/// forgets every scan result, and a network the radio still heard was failed as out of range.
+#[tokio::test(start_paused = true)]
+async fn iwd_forgetting_what_it_heard_takes_nothing_out_of_range() {
+	let mut rig = Rig::wireless().await;
+	rig.hears(
+		"clinic",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+	rig.see([Observation::Heard {
+		interface: "wld0".into(),
+		networks: BTreeMap::from([("clinic".to_owned(), -55)]),
+		scanned: true,
+	}])
+	.await;
+	on_the_wall(&mut rig, json!({"attachments": [clinic(), dynamic()]})).await;
+	assert_eq!(rig.states()[0]["reached"], "association");
+
+	rig.see([Observation::Heard {
+		interface: "wld0".into(),
+		networks: BTreeMap::new(),
+		scanned: false,
+	}])
+	.await;
+	assert_eq!(rig.states()[0]["reached"], "association");
+}
+
 /// Found on a device: a network gone out of range between its failing and its retry was never
 /// joined once it returned, since nothing looked for it.
 #[tokio::test(start_paused = true)]
@@ -127,6 +155,7 @@ async fn a_network_that_failed_and_went_out_of_range_is_joined_when_it_returns()
 	rig.see([Observation::Heard {
 		interface: "wld0".into(),
 		networks: BTreeMap::from([("clinic".to_owned(), -55)]),
+		scanned: true,
 	}])
 	.await;
 	on_the_wall(&mut rig, json!({"attachments": [clinic(), dynamic()]})).await;
@@ -136,6 +165,7 @@ async fn a_network_that_failed_and_went_out_of_range_is_joined_when_it_returns()
 	rig.see([Observation::Heard {
 		interface: "wld0".into(),
 		networks: BTreeMap::new(),
+		scanned: true,
 	}])
 	.await;
 	assert_eq!(rig.states()[0]["reached"], "carrier");

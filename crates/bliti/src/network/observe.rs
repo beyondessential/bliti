@@ -66,13 +66,17 @@ pub enum Observation {
 		/// Whether it was added, rather than removed.
 		present: bool,
 	},
-	/// What a radio heard in its latest scan: each network by SSID, at the strongest signal any of
-	/// its access points was heard at, in dBm. Hidden networks are not among them.
+	/// What a radio hears: each network by SSID, at the strongest signal any of its access points
+	/// was heard at, in dBm. Hidden networks are not among them.
 	Heard {
 		/// The radio's station interface.
 		interface: String,
 		/// The networks.
 		networks: BTreeMap<String, i32>,
+		/// Whether a scan that has just finished heard these. Otherwise they are what iwd happened to
+		/// hold, as when it starts or a station appears, and a network missing from them has not
+		/// gone out of range: iwd restarting forgets every result without the radio hearing less.
+		scanned: bool,
 	},
 	/// A radio's wireless client changed state.
 	Station {
