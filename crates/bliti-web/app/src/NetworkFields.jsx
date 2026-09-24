@@ -110,10 +110,10 @@ export function SelectField({ label, path, value, options, onChange, marks, hide
 	)
 }
 
-function Check({ label, checked, onChange }) {
+function Check({ label, checked, disabled = false, onChange }) {
 	return (
 		<label className="check">
-			<input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} />{' '}
+			<input type="checkbox" checked={Boolean(checked)} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />{' '}
 			{label}
 		</label>
 	)
@@ -267,6 +267,8 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 	const kinds = [...new Set([...offered, security.kind].filter(Boolean))]
 	const methods = eapMethods(capabilities, candidate) ?? ['peap', 'ttls', 'tls']
 	const eapFields = security.eap === 'tls' ? EAP_FIELDS.tls : EAP_FIELDS.tunnelled
+	// A network the last scan heard by this name is broadcasting it, so it cannot be hidden.
+	const heard = Boolean(candidate.ssid) && (scan?.points ?? []).some((point) => point.ssid === candidate.ssid)
 
 	// The name follows the SSID until the operator gives it one of its own.
 	const setSsid = (ssid) =>
@@ -321,7 +323,15 @@ function WirelessFields({ candidate, at, change, capabilities, marks, scan }) {
 				</>
 			)}
 			{offersMember(capabilities, 'wireless', 'hidden', candidate) && (
-				<Check label="Hidden network" checked={candidate.hidden} onChange={(hidden) => change((held) => ({ ...held, hidden }))} />
+				<>
+					<Check
+						label="Hidden network"
+						checked={candidate.hidden && !heard}
+						disabled={heard}
+						onChange={(hidden) => change((held) => ({ ...held, hidden }))}
+					/>
+					{heard && <p className="muted hint">The scan heard it by name, so it is not hidden.</p>}
+				</>
 			)}
 		</>
 	)
@@ -349,7 +359,14 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan 
 				/>
 				{scanning && (
 					<button type="button" className="secondary" onClick={() => scan.start(adapter || undefined)} disabled={scan.busy}>
-						{scan.busy ? 'Scanning' : 'Scan'}
+						{scan.busy ? (
+							<>
+								<span className="spinner" aria-hidden="true" />
+								Scanning
+							</>
+						) : (
+							'Scan'
+						)}
 					</button>
 				)}
 			</div>
@@ -519,7 +536,14 @@ function Survey({ survey, capabilities }) {
 	return (
 		<>
 			<button type="button" className="secondary small survey" onClick={survey.start} disabled={survey.busy}>
-				{survey.busy ? 'Surveying' : 'Survey the spectrum'}
+				{survey.busy ? (
+					<>
+						<span className="spinner" aria-hidden="true" />
+						Surveying
+					</>
+				) : (
+					'Survey the spectrum'
+				)}
 			</button>
 			{survey.failure && <p className="why">{survey.failure.reason}</p>}
 			{Array.isArray(channels) && (

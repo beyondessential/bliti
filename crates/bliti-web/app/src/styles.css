@@ -236,6 +236,15 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .order button.grip:disabled { cursor: default; opacity: 0.4; background: transparent; }
 .order button.what { flex: 1 1 auto; min-width: 0; cursor: pointer; }
 .order li.selected .what .name { color: var(--accent); }
+/* The candidate being edited, and its fields below, are unmistakably the same one. */
+.order li.selected {
+	background: #eef2fd;
+	box-shadow: inset 3px 0 0 var(--accent);
+	margin: 0 -12px;
+	padding-left: 12px;
+	padding-right: 12px;
+}
+section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .what .name { overflow-wrap: anywhere; }
 .what .kind { color: var(--muted); font-size: 0.8rem; }
 .state { font-size: 0.8rem; white-space: nowrap; }
@@ -247,7 +256,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Where a change failed. The stages are the device's own account of how far it got, so an operator
    reads "the key was right, the network is not routing" without being told it in prose. */
-.stages { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 0; font-size: 0.8rem; }
+.stages { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; font-size: 0.8rem; }
 .stages span::before { margin-right: 4px; }
 .stages .done { color: var(--good); }
 .stages .done::before { content: "\2713"; }
@@ -314,3 +323,18 @@ button.link { background: transparent; color: var(--accent); padding: 0; min-hei
 .bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
 .bar-state .row > * { flex: 0 1 auto; }
 .bar-state.sticky { position: sticky; bottom: 8px; z-index: 1; }
+
+/* Something under way: an apply being checked, a scan, a survey, the session opening. */
+.spinner {
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-right: 6px;
+	vertical-align: -0.05em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }

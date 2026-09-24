@@ -28,6 +28,12 @@ The application MUST fill the fields on entering editing with the configuration 
 
 The application MUST NOT let the operator edit a field while a proposal is being verified.
 
+The application MUST show that it is waiting on the device while a proposal is being verified, a scan or survey is running, or a session is opening.
+
+The application MUST keep the configuration session open when the operator leaves the screen while a proposal is being applied or is applied, and MUST then offer, wherever the operator is, to confirm or discard it, or to return to the screen.
+Where a proposal kept open this way fails, the application MUST keep what it proposed until the operator has returned to the screen.
+The application MUST close the session when the operator leaves the screen with nothing applied.
+
 > [!NOTE]
 > An application that proposed as the operator typed would hand the device a gateway half entered, and the device would fail it for a reason that is not real.
 > Filling the errored stage from what was proposed rather than from what the device returned to is what lets an operator correct the one field that was wrong. The device keeps no record of the attempt, as [CFG](session.md) requires, so the application is the only end that can offer it back.
@@ -48,6 +54,10 @@ The application MUST say why a setting is absent where the device's capabilities
 
 The application MUST render the attachment ordering of [LINK](attachment.md) as a list the operator can reorder.
 
+The application MUST say beside the list, in terms of what the device does, that it tries the candidates from the top, uses the first that connects, and moves to another when that changes.
+
+The application MUST make plain which candidate the fields being edited belong to.
+
 The application MUST show each candidate's state against it, distinguishing the candidate carrying the default route, one that is up, and each way a candidate is unavailable.
 
 The application MUST describe an unavailable candidate by what the device observed of it.
@@ -60,6 +70,8 @@ The application MUST describe an unavailable candidate by what the device observ
 The application MUST list what a scan heard by SSID, showing for each network the strongest signal among its access points and how many there are, with the access points behind it on request.
 
 The application MUST leave out access points with no SSID unless the operator asks to see hidden networks.
+
+The application MUST NOT let the operator mark as hidden a network the last scan heard by its name.
 
 The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use, counting every channel a wide access point spans.
 

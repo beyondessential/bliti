@@ -98,7 +98,7 @@ test.describe('editing is the application\'s own', () => {
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(bar(page)).toContainText('Applied, not saved.')
-		await expect(bar(page)).toContainText('Discarded if you leave or disconnect.')
+		await expect(bar(page)).toContainText('Discarded if you disconnect.')
 		await page.getByRole('button', { name: 'Confirm' }).click()
 
 		await expect(bar(page)).toContainText('Saved.')
@@ -123,6 +123,41 @@ test.describe('editing is the application\'s own', () => {
 	test('leaving the screen ends the session', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+	})
+
+	// A proposal left running goes on running while the operator looks at the device, and is confirmed
+	// or discarded from there (NSCR).
+	test('leaving with a proposal applied keeps the session, and the device view confirms it', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', message({ type: 'applied' }))
+		await answer(page, 'confirm', message({ type: 'configuration', document: { ...IN_FORCE, 'regulatory-domain': 'FJ' } }))
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+		const held = page.locator('.bar-state:visible')
+		await expect(held).toContainText('Network settings applied, not saved.')
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
+		await held.getByRole('button', { name: 'Confirm' }).click()
+
+		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'confirm'])
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+	})
+
+	test('a proposal left applied is discarded from the device view', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', message({ type: 'applied' }))
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+		await page.locator('.bar-state:visible').getByRole('button', { name: 'Discard' }).click()
+		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard'])
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
 	})
 

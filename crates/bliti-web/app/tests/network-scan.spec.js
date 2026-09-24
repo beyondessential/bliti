@@ -46,6 +46,16 @@ test('networks are listed by SSID, with the strongest signal and how many access
 	await expect(points.nth(3)).toContainText('ch 149, 5 GHz · WPA2 · -78 dBm')
 })
 
+// A network heard by name is broadcasting it, so it is not hidden, and cannot be marked so (NSCR).
+test('a network picked from the scan is not hidden, and cannot be marked hidden', async ({ page }) => {
+	await scanned(page)
+	await page.getByRole('button', { name: 'Clinic', exact: true }).click()
+	const hidden = page.locator('.candidate').getByRole('checkbox', { name: 'Hidden network' })
+	await expect(hidden).not.toBeChecked()
+	await expect(hidden).toBeDisabled()
+	await expect(page.getByText('The scan heard it by name')).toBeVisible()
+})
+
 test('an access point with no SSID is left out until hidden networks are shown', async ({ page }) => {
 	await scanned(page)
 	await expect(page.getByRole('button', { name: 'Hidden network', exact: true })).toHaveCount(0)

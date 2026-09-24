@@ -59,12 +59,14 @@ function Networks({ points, candidate, change, capabilities }) {
 				const next = { ...held, security }
 				return offersMember(capabilities, 'wireless', 'hidden', held) ? { ...next, hidden: true } : next
 			}
-			return {
+			const next = {
 				...held,
 				ssid: network.ssid,
 				label: !held.label || held.label === held.ssid ? network.ssid : held.label,
 				security,
 			}
+			// Heard by name, so it is not hidden.
+			return offersMember(capabilities, 'wireless', 'hidden', held) ? { ...next, hidden: false } : next
 		})
 
 	const toggle = (key) =>

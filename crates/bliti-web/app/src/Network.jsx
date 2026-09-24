@@ -38,14 +38,15 @@ import {
 import { pathOf, within } from './path.js'
 import { loadProtocol } from './protocol.js'
 
-export default function Network({ client, onActivity, onEvent, onBack }) {
+export default function Network({ client, onActivity, onEvent, onBack, onStage }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
 	const session = useRef(null)
 
-	// The session lasts as long as the screen: leaving it closes the stream, which the device reads as
-	// abandoning whatever was not confirmed (BLI-CFG). It opens once the checker a document is held to
-	// before it is proposed is loaded, so nothing can be applied unchecked.
+	// The session lasts as long as this is mounted: unmounting closes the stream, which the device
+	// reads as abandoning whatever was not confirmed (CFG). The application keeps it mounted while a
+	// proposal runs, so the operator can leave the screen and come back to it (NSCR). It opens once the
+	// checker a document is held to before it is proposed is loaded, so nothing can be applied unchecked.
 	useEffect(() => {
 		let live = true
 		let opened = null
@@ -84,6 +85,16 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 			return false
 		}
 	}
+
+	// Where the session stands, and what can be done about it from elsewhere in the application.
+	useEffect(() => {
+		onStage?.(
+			state.status === 'open'
+				? { stage: state.stage, confirming: !!state.confirming, confirm, cancel }
+				: null,
+		)
+	}, [state.status, state.stage, state.confirming])
+	useEffect(() => () => onStage?.(null), [])
 
 	const change = (edit) => dispatch({ type: 'edit', change: edit })
 	const readOnly = !writable(state)
@@ -145,7 +156,12 @@ export default function Network({ client, onActivity, onEvent, onBack }) {
 		return (
 			<div className="network">
 				{title}
-				{state.status === 'opening' && <p className="muted">Asking the device for its network settings...</p>}
+				{state.status === 'opening' && (
+					<p className="muted">
+						<span className="spinner" aria-hidden="true" />
+						Asking the device for its network settings.
+					</p>
+				)}
 				{state.status === 'closed' && (
 					<>
 						<p className="notice fault">
@@ -288,7 +304,8 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 			</>
 		) : (
 			<>
-				<strong>Applying.</strong> Checking the new settings. Leaving cancels it.
+				<span className="spinner" aria-hidden="true" />
+				<strong>Applying.</strong> Checking the new settings.
 			</>
 		)
 		actions = (
@@ -303,7 +320,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 			</>
 		) : (
 			<>
-				<strong>Applied, not saved.</strong> Running now. Discarded if you leave or disconnect.
+				<strong>Applied, not saved.</strong> Running now. Discarded if you disconnect.
 			</>
 		)
 		actions = (
@@ -368,6 +385,54 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 	)
 }
 
+/// The session's state on the device view, while a proposal the operator left the screen with is still
+/// being applied, is applied, or has failed there (NSCR).
+export function HeldBar({ held, onReview }) {
+	const review = (
+		<button className="secondary" onClick={onReview}>
+			Review
+		</button>
+	)
+	if (held.stage === 'applying') {
+		return (
+			<section className="bar-state working" role="status">
+				<p>
+					<span className="spinner" aria-hidden="true" />
+					<strong>Applying network settings.</strong>
+				</p>
+				<div className="row">{review}</div>
+			</section>
+		)
+	}
+	if (held.stage === 'applied') {
+		return (
+			<section className="bar-state" role="status">
+				<p>
+					<strong>{held.confirming ? 'Saving network settings.' : 'Network settings applied, not saved.'}</strong>
+					{!held.confirming && ' Discarded if you disconnect.'}
+				</p>
+				<div className="row">
+					<button onClick={held.confirm} disabled={held.confirming}>
+						Confirm
+					</button>
+					<button className="secondary" onClick={held.cancel} disabled={held.confirming}>
+						Discard
+					</button>
+					{review}
+				</div>
+			</section>
+		)
+	}
+	return (
+		<section className="bar-state failed" role="status">
+			<p>
+				<strong>Could not apply the network settings.</strong> The device is back on its saved configuration.
+			</p>
+			<div className="row">{review}</div>
+		</section>
+	)
+}
+
 /// The ordering of LINK as a list the operator rearranges, each candidate with the state the device
 /// reports of it.
 function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps }) {
@@ -414,11 +479,14 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 	return (
 		<section>
 			<div className="heading">
-				<h2>Order tried</h2>
+				<h2>Connections</h2>
 				<button className="secondary small" onClick={() => setAdding(!adding)} disabled={readOnly} aria-expanded={adding}>
 					Add
 				</button>
 			</div>
+			<p className="muted hint">
+				Tried from the top. The device uses the first one that connects, and moves to another when that changes. Drag to reorder.
+			</p>
 			{failure && <Failure failure={failure} />}
 			{wpsFailure && (
 				<>

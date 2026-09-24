@@ -146,5 +146,5 @@ export async function openNetwork(page, { document, capabilities, states }) {
 	if (states) answers.push(message({ type: 'state', attachments: states }))
 	await answer(page, 'configure', answers)
 	await page.getByRole('button', { name: 'Network settings' }).click()
-	await page.getByRole('heading', { name: 'Order tried' }).waitFor()
+	await page.getByRole('heading', { name: 'Connections' }).waitFor()
 }

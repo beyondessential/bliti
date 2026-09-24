@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import Network from './Network.jsx'
+import Network, { HeldBar } from './Network.jsx'
 import Readings from './Readings.jsx'
 import { CLIENT_VERSION, createClient } from './client.js'
 import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
@@ -32,6 +32,11 @@ export default function App() {
 	const [device, setDevice] = useState(null)
 	// Which screen of a connected device is showing: its readings, or its network configuration.
 	const [screen, setScreen] = useState('device')
+	// Where the configuration session stands, as the network screen reports it, and whether to keep
+	// that screen, and its session, while the operator is on the device view: from leaving it with a
+	// proposal applying or applied, until it is confirmed or discarded, or its failure reviewed (NSCR).
+	const [held, setHeld] = useState(null)
+	const [keep, setKeep] = useState(false)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
 	// the device; a graph fills forward from connection.
@@ -184,6 +189,7 @@ export default function App() {
 		client.disconnect()
 		setConnected(false)
 		setScreen('device')
+		setKeep(false)
 		setConnecting(false)
 		setConnectStatus('')
 		setEntries(new Map())
@@ -217,6 +223,11 @@ export default function App() {
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
+	// Done with what it was kept for: confirmed or discarded, or the session gone.
+	useEffect(() => {
+		if (screen !== 'network' && keep && (!held || held.stage === 'editing')) setKeep(false)
+	}, [screen, keep, held])
+
 	if (unsupported) {
 		return (
 			<main>
@@ -229,17 +240,31 @@ export default function App() {
 		)
 	}
 
+	function leaveNetwork() {
+		setScreen('device')
+		setKeep(held?.stage === 'applying' || held?.stage === 'applied')
+	}
+
+	const network = connected && (screen === 'network' || keep) && (
+		<div hidden={screen !== 'network'}>
+			<Network client={client} onActivity={note} onEvent={noteSession} onBack={leaveNetwork} onStage={setHeld} />
+		</div>
+	)
+
 	if (connected && screen === 'network') {
 		return (
 			<main>
-				<Network client={client} onActivity={note} onEvent={noteSession} onBack={() => setScreen('device')} />
+				{network}
 				<Activity log={log} />
 			</main>
 		)
 	}
 
+	const holding = keep && held !== null
+
 	return (
 		<main>
+			{network}
 			<h1>bliti</h1>
 			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 
@@ -309,7 +334,8 @@ export default function App() {
 							{each.detail}
 						</p>
 					))}
-					<Readings entries={[...entries.values()]} history={history} />
+					{holding && <HeldBar held={held} onReview={() => setScreen('network')} />}
+					<Readings entries={[...entries.values()]} history={history} showProvisional={!holding} />
 				</>
 			)}
 
