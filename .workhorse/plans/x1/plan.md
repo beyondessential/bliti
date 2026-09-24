@@ -78,8 +78,8 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
   - [x] `state`, `pin`, capabilities on `applied` and on `state`, and the capabilities checked before a proposal or act reaches the backend
 - [x] Render a document, for a given selection of candidates, as the files iwd, hostapd and networkd read, in `crates/bliti/src/network/render.rs`. Pure: no filesystem, processes or D-Bus. `Paths::owns` tells the applier which files are bliti's so it can delete stale ones
 - [x] Candidate selection, in `network/select.rs`: a pure, event-driven selector placing candidates on interfaces and the hotspot on a radio by LINK and HOT, with per-candidate states and the changes to apply. No timers; a retry is an event the caller schedules
-- [ ] The event sources feeding it: carrier and addresses (rtnetlink), association and range (iwd over D-Bus), and the gateway answering
-- [ ] A real `Backend` joining the selector, renderer and applier
+- [x] The event sources feeding it: carrier and addresses (rtnetlink), association and range (iwd over D-Bus), and the gateway answering
+- [x] A real `Backend` joining the selector, renderer and applier. `--network-backend stack` chooses it; `Inert` stays the default until the image carries iwd and hostapd
 - [x] Event-driven reselection on carrier, failure and a higher candidate returning
 - [x] Put rendered files in place and have the stack pick them up, in `network/apply.rs`: atomic writes, stale bliti files removed, a record by digest of what was written so iwd's own rewrites are not drift, and regdom, hostapd, iwd, networkd, resolved picked up in that order. Real `System` over systemd and networkd D-Bus, with `iw` until nl80211 replaces it
   - [ ] Replace `apply/iw.rs` with the probe module's nl80211 setters. They are async and `System` is not, so the real `System` holds a runtime handle and blocks on them from the blocking pool apply runs on; then `iw` leaves `services/README.md`
@@ -89,8 +89,8 @@ On the board this targets (Cypress CYW43455) the answers are yes, yes, and both.
   - [x] Reasons from iwd reach the client in iwd's words (`Operation failed (net.connman.iwd.Failed)` for a wrong passphrase); a refused key-based join now says the passphrase is most likely wrong
   - [ ] A refused passphrase is `invalid` at the candidate rather than at its `passphrase`, so the screen marks the candidate and not the field. Carrying a member path needs the selector's unavailable state to hold one
   - [x] An apply connects from iwd's cached scan results while its own scan runs, so a network that has just gone away is tried and fails with status 16 before the scan says it is out of range
-- [ ] Hotspot: bring-up, upstream sharing, client isolation, DHCP range
-- [ ] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
+- [x] Hotspot: bring-up, upstream sharing, client isolation, DHCP range (in code; each is still owed a check on hardware in the test cases)
+- [x] The new NFO entries and their traits, in the sampler, as part of `Facts` (which is the sampler's `Source`, gathered on the blocking pool). The wireless network and hotspot are facts and belong on the slow tick; the client count is a reading and belongs on the fast one
 - [x] Teach the web client that `security` and `channel` are descriptive traits, in `readings.js`, with the wireless and hotspot tiles placed where VIEW puts them
 - [x] The configuration screen in the web app, following [NSCR](../../specs/network/screen.md): `Channel::configure` in the wasm crate, `Network.jsx` for the four stages, and `capabilities.js` as the only module that reads the capabilities shape
   - [x] The settled shapes on screen: the shared checker through wasm, adapter pickers, `state`, `pin`, capabilities on `applied` and `state`, scanning by SSID with hidden ones on request, one-adapter scans and the siting view
@@ -157,9 +157,9 @@ The document model carries `interface` already, and the renderer refuses any nam
 - [ ] iwd's known networks are global to iwd rather than per interface, so a pin is enforced by bliti connecting that interface's station itself, with every network at `AutoConnect=false`
 - [ ] Two candidates for one SSID differing only in `interface` share one iwd file. The renderer refuses a repeated SSID today; it should accept one where the credentials match
 - [x] The radio assignment of LINK and HOT in candidate selection, re-run on the same events
-- [ ] `wireless-network` in NFO carries `interface`, distinguishing
+- [x] `wireless-network` in NFO carries `interface`, distinguishing
 - [x] `scan`, `survey` and `wps` take an optional `interface` on the wire and through the `Backend` trait; unset, scan and survey run on every radio able to
-- [ ] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
+- [x] `scan` and `survey` entries carry the `interface` whose radio heard them, from the real backend
 - [x] The screen offers scanning one adapter, so a technician can spare a radio carrying the uplink or the hotspot
 - [x] The web screen picks an adapter per wireless candidate and for the hotspot, labelled by `model`
 - [ ] The one-at-a-time placement rule of HOT lives in `select/check.rs` and again in the web client's `capabilities.js`. Move it into `bliti-core` beside the capabilities checker, reading `radios` and the `interface` keys, so the device and the client share one implementation
