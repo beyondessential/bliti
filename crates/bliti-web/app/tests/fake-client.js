@@ -20,7 +20,7 @@ window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
 		if (!text || text === 'nope') throw new Error('That is not a bliti code.')
-		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', version: 1 }
+		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1 }
 	},
 	async connect(qr, { onEvent, onClosed, onDisconnected }) {
 		this._onEvent = onEvent

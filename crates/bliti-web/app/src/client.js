@@ -45,7 +45,7 @@ export function createClient() {
 		async readCode(text) {
 			await protocol()
 			const qr = new QrCode(text)
-			return { qr, human: qr.human, version: qr.version }
+			return { qr, human: qr.human, svg: qr.svg, version: qr.version }
 		},
 
 		// Finding the device the QR code belongs to (ADV, "Matching").

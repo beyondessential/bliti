@@ -314,6 +314,11 @@ export default function App() {
 				<section>
 					<h2>QR code read</h2>
 					<p className="code">{code.human}</p>
+					<p>
+						<button className="link" onClick={() => download(code)}>
+							Download SVG
+						</button>
+					</p>
 					<p className="muted">
 						Your device appears as a jumble of letters that changes. Pick it, and this checks it
 						against your code.
@@ -404,6 +409,18 @@ function describe(message) {
 		})
 		.join(', ')
 	return summary ? `${type}  ${summary}` : type
+}
+
+/// Save the code as SVG, for printing a replacement. Named after the rendering's last group, which is
+/// all public key and matches the end of the rendering printed beside the code (WEB).
+function download(code) {
+	const url = URL.createObjectURL(new Blob([code.svg], { type: 'image/svg+xml' }))
+	const link = document.createElement('a')
+	link.href = url
+	link.download = `bliti-${code.human.split('-').pop()}.svg`
+	link.click()
+	// Revoked once the browser has had a turn to start the download from it.
+	setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function TypedCode({ onRead }) {

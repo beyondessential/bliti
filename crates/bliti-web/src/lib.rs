@@ -211,6 +211,12 @@ impl QrCode {
 		self.payload.to_human()
 	}
 
+	/// The QR code as the SVG image a generator produces for it, for printing a replacement.
+	#[wasm_bindgen(getter)]
+	pub fn svg(&self) -> String {
+		self.payload.to_svg()
+	}
+
 	/// Read a local name heard over the air against this QR code (ADV, "Matching").
 	///
 	/// `undefined` where the name is not a bliti payload at all, which is the ordinary case for every
