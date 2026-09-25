@@ -22,6 +22,7 @@ The X1201 reaches the Pi through pogo contacts pressed onto the underside of the
 On the first boot the gauge did not answer at all, and nothing on bus 1 did, while GPIO6 was already driven: the contacts under header pins 3 and 5 (SDA, SCL) were not touching and the one under pin 31 was.
 A reseat fixed it.
 Under the current code such a unit reports no battery and no power source, since the power line is only read once the gauge answers, which is the fallback NFO already describes for a device with no backup board.
+Flagging it from GPIO6 held low while the gauge is silent was considered and left out: it only works off mains, and v3 is being replaced by v4, whose fit is reliable.
 
 ## Other differences from v4
 
