@@ -29,13 +29,14 @@ The URL the QR code is carried in, and the human-readable rendering printed bene
 
 ## Acting on the marker
 
-A client MUST read the advertised marker before it recomputes a handle.
+A client MUST read the advertised marker before it compares a handle.
 
-Where the client does not implement the advertised version it MUST report a device present at a version it does not support, and MUST go no further.
+Where the client does not implement the advertised version it MUST go no further, and SHOULD report a device present at a version it does not support.
 
 > [!NOTE]
 > No shared secret could be computed under a version the client does not implement, and nothing it said afterwards would be understood.
 > No two versions produce a matching handle, so reading the marker is what separates an unsupported device from one the client cannot hear at all.
+> The report is a SHOULD because not every client hears what is advertised. A browser's chooser filtered on the name of [WEB](web-app.md) passes over a device at any other version, so the web application never sees one to report.
 
 ## Nothing else gates behaviour
 

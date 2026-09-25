@@ -4,7 +4,7 @@ id: ADV
 
 # Discovery and matching
 
-A device advertises continuously, and a client that holds a QR code recomputes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against what it hears.
+A device advertises continuously, and a client that holds a QR code computes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against what it hears.
 
 ## Borrowed terms
 
@@ -22,18 +22,22 @@ A device MUST advertise a 128-bit service UUID identifying it as speaking bliti,
 
 A device MUST carry its payload in the local name.
 
-The payload MUST be 13 bytes: the eight-byte handle, the four-byte [rotation salt](overview.md#rotation-salt), then the one-byte [version marker](overview.md#version-marker), rendered as 21 characters of base32 without padding.
+The payload MUST be nine bytes: the one-byte [version marker](overview.md#version-marker), then the eight-byte handle, rendered as 15 characters of base32 without padding.
+
+A device MUST advertise the same local name for as long as it holds the same presence token.
 
 > [!NOTE]
 > A scan filter is applied to advertisement data and never to the scan response, so a service UUID a client filters on has to sit in the advertisement.
 > The payload rides in the local name because a host, not a device, decides which element goes in which packet. On a legacy controller the mandatory flags take three bytes and a 128-bit service UUID eighteen, leaving ten of the advertisement's 31, while service data keyed by that same UUID would need 31 of its own before it fit anywhere. A local name costs two bytes of element header rather than eighteen of repeated UUID, and is the one element a host will place in the scan response.
-> Eight bytes of handle makes a collision between two devices at one site implausible. The handle is not secret, so carrying it in the clear costs nothing, and a client that can only filter by name prefix has the rendering to filter on.
+> Eight bytes of handle makes a collision between two devices at one site implausible. The handle is not secret, so carrying it in the clear costs nothing.
+> The marker comes first so that a client can read it however a later version lays out what follows.
+> Because the name is fixed and follows from the QR code alone, a client that can only filter by name computes the whole of it before it listens.
 
 ## Matching
 
-A client MUST read the version marker before recomputing a handle, as [VER](version.md) requires.
+A client MUST read the version marker before comparing a handle, as [VER](version.md) requires.
 
-A client MUST recompute the handle from the QR code it holds together with the salt it observes, and compare that against what it read.
+A client MUST compute the handle from the QR code it holds, and compare that against what it read.
 
 A client MUST match on the payload rather than on the peer's address.
 
@@ -41,17 +45,7 @@ A local name that is not a bliti payload MUST be passed over.
 
 > [!NOTE]
 > Matching on the payload means a client that is never shown the peer's address can still identify a device, and a device whose address rotates is still recognised.
-> The cost to a client is one fast hash per advertisement heard, per QR code held.
-
-## Rotation
-
-A device SHOULD change its rotation salt every fifteen minutes, and MUST re-register its advertisement when it does.
-
-A client MUST recompute against whatever salt it observes.
-
-> [!NOTE]
-> Were the salt fixed, a passive observer could follow a device by its handle alone, even though the handle reveals nothing about which device it is.
-> Because a client recomputes against what it observes, nothing a client does depends on the rotation period.
+> The cost to a client is one fast hash per QR code held.
 
 ## Advertising continuously
 

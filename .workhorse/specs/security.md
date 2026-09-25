@@ -43,7 +43,7 @@ Upheld by the derivation of [KEY](key-schedule.md), which does not run backwards
 
 An observer who has not scanned a device's QR code cannot tell which device an advertisement belongs to.
 
-Upheld by the handle derivation of [KEY](key-schedule.md) and the rotation of [ADV](discovery.md).
+Upheld by the handle derivation of [KEY](key-schedule.md), which yields nothing about the presence token or the board ID.
 
 ### A photograph does not permit impersonation
 
@@ -79,9 +79,16 @@ Any software on a device can read its board ID, so anyone who has had access to 
 
 An observer who has not scanned the QR code can still tell that some bliti device is present, because the service UUID is advertised in the clear so that clients can filter a scan on it.
 
-Such an observer can also tell that two advertisements come from the same device whenever the adapter's address does not rotate, which is a property of how the host is configured rather than something bliti controls.
+### A device can be followed
 
-bliti claims only that such an observer cannot tell *which* device it is hearing.
+A device's handle is fixed for as long as its presence token is, as [ADV](discovery.md) specifies.
+An observer who has not scanned the QR code can therefore recognise a device each time they hear it, and follow it over time and from place to place, whether or not the adapter's address rotates.
+
+What an observer gains is recognition alone.
+The handle reveals nothing about the presence token, and holding it opens nothing, because a session needs the token from the QR code.
+
+> [!NOTE]
+> A handle that changes would stop an observer following a device, and would equally stop a browser's chooser from being narrowed to the one device whose QR code was read, because the chooser can only filter on a name known before it opens. Picking out the device outweighs hiding it.
 
 ### A board ID can be searched for
 

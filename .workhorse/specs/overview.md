@@ -61,11 +61,6 @@ Defined in [KEY](key-schedule.md).
 The value a device broadcasts.
 Defined in [KEY](key-schedule.md).
 
-### Rotation salt
-
-The short random value a device advertises alongside its handle.
-Defined in [ADV](discovery.md).
-
 ### Version marker
 
 The number identifying the version of the protocol a device speaks.
