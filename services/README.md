@@ -1,10 +1,11 @@
 # Device-side requirements
 
-What a bliti device needs beyond the `bliti` binary: the systemd unit, the
-bluetoothd configuration BLI-CHN's peripheral-only requirement calls for, and
-for the network configuration module the hostapd unit bliti drives and the iwd
-drop-in keeping iwd off the hotspot's interface. Each file in this directory
-says where it installs and why it exists.
+What a bliti device needs beyond the `bliti` binary: the systemd unit; the
+bluetoothd configuration BLI-CHN's peripheral-only requirement calls for; for
+the network configuration module, the hostapd unit bliti drives and the iwd
+drop-in keeping iwd off the hotspot's interface; and on a device with a backup
+supply, the journald drop-in that keeps the log's last minutes before a power
+cut. Each file in this directory says where it installs and why it exists.
 
 This file records the packages a device needs at runtime. Nothing installs them
 yet, and deployment is by hand. It is written down so that a Debian package,
