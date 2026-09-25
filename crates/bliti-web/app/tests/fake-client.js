@@ -11,6 +11,8 @@
 // is recorded in window.__blitiSent, in order, and window.__blitiAnswers holds the device's scripted
 // answers: for each message type, a queue whose next entry is sent back when the page sends one. An
 // entry is one outcome or a list of them. Anything else a test wants the device to say it emits.
+//
+// Setting window.__blitiNothingPicked makes connect fail as a chooser closed with nothing picked does.
 export const installFakeClient = `
 window.__blitiFeeds = []
 window.__blitiSent = []
@@ -20,9 +22,14 @@ window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
 		if (!text || text === 'nope') throw new Error('That is not a bliti code.')
-		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1 }
+		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1, localName: 'AHOW2EZUD4343RQ' }
 	},
 	async connect(qr, { onEvent, onClosed, onDisconnected }) {
+		if (window.__blitiNothingPicked) {
+			const nothing = new Error('No device was picked.')
+			nothing.name = 'NothingPicked'
+			throw nothing
+		}
 		this._onEvent = onEvent
 		window.__blitiEmit = onEvent
 		window.__blitiDisconnect = onDisconnected

@@ -146,9 +146,9 @@ async fn find(
 	seconds: u64,
 ) -> Result<bluer::Address> {
 	// Discovery has to be running for names to be refreshed, but the events it emits are not enough
-	// on their own: a device the host already knows is announced once, carrying whatever name it was
-	// last seen with, which after a salt roll is a handle that no longer matches. So the names of
-	// every device known are re-read while the scan runs, rather than read once when it is announced.
+	// on their own: a device is announced once, and its name rides in the scan response, which can
+	// arrive after the announcement. So the names of every device known are re-read while the scan
+	// runs, rather than read once when it is announced.
 	let _discovery = adapter.discover_devices().await?;
 	let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
 

@@ -1,7 +1,7 @@
 //! The browser client for bliti: the protocol half of the web application (WEB).
 //!
 //! This crate compiles to wasm and carries everything the specs describe — reading a QR code
-//! (QR), recomputing and matching the advertised handle (ADV), the `NKpsk0` handshake, the
+//! (QR), computing and matching the advertised handle (ADV), the `NKpsk0` handshake, the
 //! stream layer, and the JSON messages (CHN). It is the same code the daemon and the
 //! command-line client run, which is the point: one implementation of the key schedule and the
 //! handshake rather than a Rust one and a JavaScript one that must agree forever.
@@ -217,6 +217,13 @@ impl QrCode {
 		self.payload.to_svg()
 	}
 
+	/// The local name the device this QR code belongs to advertises, at the QR code's version. Known
+	/// before anything is heard, so the chooser is filtered on it and the operator told it (WEB).
+	#[wasm_bindgen(getter)]
+	pub fn local_name(&self) -> String {
+		self.advertised().to_local_name()
+	}
+
 	/// Read a local name heard over the air against this QR code (ADV, "Matching").
 	///
 	/// `undefined` where the name is not a bliti payload at all, which is the ordinary case for every
@@ -229,6 +236,15 @@ impl QrCode {
 			matches: advertised.version == self.payload.version()
 				&& advertised.matches(self.payload.presence_token()),
 		})
+	}
+}
+
+impl QrCode {
+	fn advertised(&self) -> Advertised {
+		Advertised {
+			version: self.payload.version(),
+			handle: self.payload.presence_token().handle(),
+		}
 	}
 }
 
@@ -761,6 +777,27 @@ mod tests {
 			channel_choice(r#"{"attachments": []}"#, capabilities),
 			Ok(Some(serde_json::json!({ "own": ["wlan0"], "follows": [] })))
 		);
+	}
+
+	/// The name a page filters the chooser on is the one the device advertises, and it matches.
+	#[test]
+	fn the_expected_local_name_is_the_devices() {
+		let token = bliti_core::key_schedule::PresenceToken::from_bytes([0x42; 32]);
+		let public = bliti_core::key_schedule::DevicePublicKey::from_bytes([0x07; 32]);
+		let code = QrCode {
+			payload: QrPayload::new(token.clone(), public),
+		};
+		assert_eq!(code.local_name(), Advertised::new(&token).to_local_name());
+		let advertisement = code.read_local_name(&code.local_name()).unwrap();
+		assert!(advertisement.matches());
+
+		let other = QrCode {
+			payload: QrPayload::new(
+				bliti_core::key_schedule::PresenceToken::from_bytes([0x43; 32]),
+				public,
+			),
+		};
+		assert!(!other.read_local_name(&code.local_name()).unwrap().matches());
 	}
 
 	#[test]

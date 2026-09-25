@@ -6,7 +6,7 @@
 //!
 //! Behaviour is specified under `.workhorse/specs/`.
 
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -23,10 +23,6 @@ mod session;
 mod client;
 #[cfg(target_os = "linux")]
 mod device;
-
-/// How often the rotation salt changes (ADV, "Rotation"). A client recomputes against whatever
-/// salt it observes, so nothing a client does depends on this period.
-pub const SALT_ROTATION: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Parser)]
 #[command(name = "bliti", version = env!("BLITI_VERSION"), about = "QR-anchored BLE device provisioning")]

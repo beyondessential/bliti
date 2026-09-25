@@ -20,11 +20,11 @@ A chooser closed with nothing picked (`NotFoundError`) can't be told apart from 
 
 ## Build
 
-- [ ] bliti-core `key_schedule.rs`: handle over the constant alone; drop `RotationSalt` and `ROTATION_SALT_LEN`; new known-answer vector
-- [ ] bliti-core `advertisement.rs`: payload is version then handle; `Advertised` loses `salt`; `matches` takes no salt; a constructor for the expected local name from a presence token
-- [ ] bliti `device.rs` and `main.rs`: drop `SALT_ROTATION` and the rotation tick; keep the re-advertise on session open and end
-- [ ] bliti `client.rs`: match on the fixed handle
-- [ ] bliti-web `lib.rs`: expose the expected local name on `QrCode`; `read_local_name` follows the new `Advertised`
-- [ ] bliti-web `client.js`: filter on `name` plus the service; keep the version and match checks on the pick; update the comment
-- [ ] bliti-web `App.jsx`: show the name before the chooser; the conditional message after a chooser closes with nothing picked
-- [ ] Tests for each of the above
+- [x] bliti-core `key_schedule.rs`: handle over the constant alone; drop `RotationSalt` and `ROTATION_SALT_LEN`; new known-answer vector
+- [x] bliti-core `advertisement.rs`: payload is version then handle; `Advertised` loses `salt`; `matches` takes no salt; a constructor for the expected local name from a presence token
+- [x] bliti `device.rs` and `main.rs`: drop `SALT_ROTATION` and the rotation tick; keep the re-advertise on session open and end
+- [x] bliti `client.rs`: match on the fixed handle
+- [x] bliti-web `lib.rs`: expose the expected local name on `QrCode`; `read_local_name` follows the new `Advertised`
+- [x] bliti-web `client.js`: filter on `name` plus the service; keep the version and match checks on the pick; update the comment
+- [x] bliti-web `App.jsx`: show the name before the chooser; the conditional message after a chooser closes with nothing picked
+- [x] Tests for each of the above
