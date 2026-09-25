@@ -186,7 +186,8 @@ fn wireless(interface: &str, kind: &str) -> Json {
 }
 
 fn hotspot(extra: Json) -> Json {
-	let mut hotspot = object(json!({ "ssid": "setup", "passphrase": "read this aloud" }));
+	let mut hotspot =
+		object(json!({ "enabled": true, "ssid": "setup", "passphrase": "read this aloud" }));
 	hotspot.extend(object(extra));
 	json!({ "attachments": [], "hotspot": hotspot })
 }
@@ -201,7 +202,7 @@ fn a_document_the_device_can_carry_passes() {
 			  "addresses": ["192.168.60.20/24"], "gateway": "192.168.60.1",
 			  "nameservers": ["1.1.1.1"] }
 		],
-		"hotspot": { "ssid": "setup", "passphrase": "read this aloud",
+		"hotspot": { "enabled": true, "ssid": "setup", "passphrase": "read this aloud",
 			"interface": "wlx00c0caa1b2c3", "band": "5ghz", "channel": 40, "channel-width": 80,
 			"isolate-clients": false },
 		"regulatory-domain": "VU"
@@ -410,6 +411,7 @@ fn a_hotspot_width_fits_only_where_every_channel_it_spans_can_start_an_access_po
 	};
 	let fits = |channel: u32, width: u32| {
 		let hotspot = Hotspot {
+			enabled: true,
 			ssid: "bliti".into(),
 			passphrase: "read me aloud".into(),
 			interface: None,

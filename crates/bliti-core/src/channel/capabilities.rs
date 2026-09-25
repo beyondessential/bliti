@@ -142,7 +142,7 @@ fn required(context: Context, kind: Option<&str>, member: &str) -> bool {
 		}
 		(Context::Security, Some("psk" | "sae" | "psk-sae")) => member == "passphrase",
 		(Context::Security, Some("enterprise")) => member != "eap",
-		(Context::Hotspot, _) => matches!(member, "ssid" | "passphrase"),
+		(Context::Hotspot, _) => matches!(member, "enabled" | "ssid" | "passphrase"),
 		_ => false,
 	}
 }

@@ -1,5 +1,5 @@
-// Turning a connection off and on again (NSCR): an edit like any other, proposed on apply, with the
-// connection's fields kept.
+// Turning a connection or the hotspot off and on again (NSCR): an edit like any other, proposed on
+// apply, with its fields kept.
 
 import { expect, test } from '@playwright/test'
 
@@ -7,6 +7,7 @@ import { emit, message, openNetwork, sent } from './fake-client.js'
 import { IN_FORCE, PI, STATES, bar, open, proposals, row } from './network-fixtures.js'
 
 const toggle = (page, name) => page.locator('.candidate').getByRole('button', { name, exact: true })
+const hotspotButton = (page, name) => page.locator('section.hotspot').getByRole('button', { name, exact: true })
 
 test('a connection turned off keeps its fields, and is proposed off on apply', async ({ page }) => {
 	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
@@ -76,4 +77,96 @@ test('turning off the connection a hotspot cannot run beside takes the notice aw
 	await open(page, 'Clinic-Staff')
 	await toggle(page, 'Turn off').click()
 	await expect(notice).toHaveCount(0)
+})
+
+test('the hotspot turned off keeps its settings, and is proposed off on apply', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	await hotspotButton(page, 'Turn off').click()
+
+	const hotspot = page.locator('section.hotspot')
+	await expect(hotspot).toContainText('Off. Kept, but not used until turned on.')
+	await expect(hotspot.getByLabel('SSID')).toHaveValue('Clinic-Field-04')
+	await expect(hotspot.getByLabel('SSID')).toBeEditable()
+	await expect(bar(page)).toContainText('1 change not applied.')
+
+	await page.getByRole('button', { name: 'Apply' }).click()
+	const [proposal] = await proposals(page)
+	expect(proposal.document.hotspot).toEqual({ ...IN_FORCE.hotspot, enabled: false })
+})
+
+test('the hotspot turned off is turned on again with its settings', async ({ page }) => {
+	const document = structuredClone(IN_FORCE)
+	document.hotspot.enabled = false
+	await openNetwork(page, { document, capabilities: PI })
+	await expect(page.locator('section.hotspot')).toContainText('Off. Kept, but not used until turned on.')
+	await hotspotButton(page, 'Turn on').click()
+
+	await expect(hotspotButton(page, 'Turn off')).toBeVisible()
+	await expect(page.locator('section.hotspot')).not.toContainText('Off.')
+	await page.getByRole('button', { name: 'Apply' }).click()
+	const [proposal] = await proposals(page)
+	expect(proposal.document.hotspot).toEqual(IN_FORCE.hotspot)
+})
+
+test('turning the hotspot off and on again leaves nothing to apply', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	await hotspotButton(page, 'Turn off').click()
+	await hotspotButton(page, 'Turn on').click()
+	await expect(bar(page)).toContainText('Saved.')
+})
+
+test('a hotspot turned off says nothing about the connection it cannot run beside', async ({ page }) => {
+	const document = structuredClone(IN_FORCE)
+	document.hotspot.enabled = false
+	await openNetwork(page, { document, capabilities: PI })
+	await emit(
+		page,
+		message({
+			type: 'fact',
+			at: 1,
+			fact: 'wireless-network',
+			kind: 'text',
+			value: 'Clinic-Staff',
+			traits: { status: { is: 'passed' }, interface: { name: 'wlan0' }, security: 'sae', channel: { band: '5ghz', number: 136 } },
+		}),
+	)
+	const notice = page.locator('section.hotspot .notice')
+	await expect(notice).toHaveCount(0)
+	await hotspotButton(page, 'Turn on').click()
+	await expect(notice).toHaveText("Can't run beside Clinic-Staff on 5 GHz channel 136; turning that connection off lets it run.")
+})
+
+test('a hotspot turned off before it is filled in is removed', async ({ page }) => {
+	const document = structuredClone(IN_FORCE)
+	delete document.hotspot
+	await openNetwork(page, { document, capabilities: PI })
+	await hotspotButton(page, 'Turn on').click()
+	await page.locator('section.hotspot').getByLabel('SSID').fill('Clinic-Field-05')
+	await hotspotButton(page, 'Turn off').click()
+
+	await expect(page.locator('section.hotspot')).toContainText('Off.')
+	await expect(page.locator('section.hotspot').getByLabel('SSID')).toHaveCount(0)
+	await expect(bar(page)).toContainText('Saved.')
+})
+
+test('a hotspot turned off with settings that cannot work is removed, and proposed with none', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	await page.locator('section.hotspot').getByLabel('Passphrase').fill('short')
+	await hotspotButton(page, 'Turn off').click()
+
+	await expect(page.locator('section.hotspot').getByLabel('SSID')).toHaveCount(0)
+	await page.getByRole('button', { name: 'Apply' }).click()
+	const [proposal] = await proposals(page)
+	expect(proposal.document).not.toHaveProperty('hotspot')
+})
+
+test('a hotspot kept off is not proposed once its settings cannot work', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	await hotspotButton(page, 'Turn off').click()
+	await page.locator('section.hotspot').getByLabel('Passphrase').fill('short')
+	await page.getByRole('button', { name: 'Apply' }).click()
+
+	expect(await proposals(page)).toEqual([])
+	await expect(page.getByText('A passphrase is 8 to 63 characters.')).toBeVisible()
+	await expect(bar(page)).toContainText('Fix the marked field first.')
 })

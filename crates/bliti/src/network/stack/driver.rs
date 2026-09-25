@@ -852,7 +852,7 @@ impl Driver {
 		let hardware = self.shared.render.clone();
 		let hotspot =
 			hostapd
-				.zip(self.document.hotspot.as_ref())
+				.zip(self.document.enabled_hotspot())
 				.map(|((interface, _), hotspot)| Hotspot {
 					ssid: hotspot.ssid.clone(),
 					interface,

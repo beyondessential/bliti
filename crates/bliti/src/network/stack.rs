@@ -245,6 +245,8 @@ impl Backend for Stack {
 		select::check(document, &self.shared.select)?;
 		if let Some(hotspot) = &document.hotspot {
 			probe::hotspot_fits(&self.shared.radios(), hotspot)?;
+		}
+		if let Some(hotspot) = document.enabled_hotspot() {
 			self.shared.hotspot_beside_joined(document, hotspot)?;
 		}
 		match render::render(document, &self.shared.render, &render::Selection::default()) {

@@ -99,7 +99,7 @@ async fn the_hotspot_runs_on_the_radio_carrying_no_candidate() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -144,7 +144,7 @@ async fn a_shared_channel_hotspot_follows_the_client_on_its_own_radio() {
 
 	let proposal = document(json!({
 		"attachments": [pinned("clinic", "wld0"), pinned("depot", "wlan1")],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud", "interface": "wlan1"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud", "interface": "wlan1"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -193,7 +193,7 @@ async fn an_independent_radios_client_on_a_radar_channel_leaves_its_hotspot_alon
 
 	let proposal = document(json!({
 		"attachments": [clinic(), dynamic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;

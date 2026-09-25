@@ -349,7 +349,8 @@ fn checked_on<'a>(hardware: &'a Hardware, attachment: &'a Attachment) -> Option<
 /// The hotspot's files on the radio the selection runs it on, where it runs on one.
 ///
 /// It is checked first on the radio it names, else the first able to run one, with no client's
-/// channel to follow, so that what it chooses for itself is checked in every state.
+/// channel to follow, so that what it chooses for itself is checked in every state. One turned off
+/// is checked all the same and runs on none (HOT).
 fn hotspot(
 	hotspot: &Hotspot,
 	hardware: &Hardware,
@@ -379,6 +380,11 @@ fn hotspot(
 	let Some(station) = &selection.hotspot else {
 		return Ok(Vec::new());
 	};
+	if !hotspot.enabled {
+		return Err(Error::Selection(format!(
+			"the hotspot is turned off and is selected on {station:?}"
+		)));
+	}
 	let Some(access_point) = hardware
 		.radio(station)
 		.and_then(|radio| radio.access_point.as_ref())

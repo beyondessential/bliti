@@ -58,7 +58,7 @@ impl Invalid {
 pub struct Document {
 	/// The ordered candidates a device works down to attach to a network (LINK).
 	pub attachments: Vec<Attachment>,
-	/// The hotspot the device runs, or none (HOT).
+	/// The hotspot, turned on or off, or none (HOT).
 	pub hotspot: Option<Hotspot>,
 	/// The domain the radio operates under, as an ISO 3166-1 alpha-2 code. Unset restricts the radio
 	/// to what every domain permits (NET).
@@ -175,6 +175,8 @@ impl Security {
 /// The wireless access point a device runs for clients to join directly (HOT).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hotspot {
+	/// Whether the device runs it. One turned off is kept as it is and uses no radio (HOT).
+	pub enabled: bool,
 	/// The network the hotspot advertises. No default; a device derives it from nothing (HOT).
 	pub ssid: String,
 	/// What a client joins with. No default; kept clear of every other value on the device (HOT).
@@ -196,6 +198,11 @@ pub struct Hotspot {
 }
 
 impl Document {
+	/// The hotspot the device runs: the one the document carries, where it is turned on (HOT).
+	pub fn enabled_hotspot(&self) -> Option<&Hotspot> {
+		self.hotspot.as_ref().filter(|hotspot| hotspot.enabled)
+	}
+
 	/// Parse a document from the raw JSON a `configuration` message carried, applying the structural
 	/// rules the specs pin without reference to a device.
 	///
@@ -529,6 +536,15 @@ impl Security {
 
 impl Hotspot {
 	fn parse(hotspot: &Map<String, Json>) -> Result<Self, Invalid> {
+		let enabled = match hotspot.get("enabled") {
+			Some(Json::Bool(enabled)) => *enabled,
+			_ => {
+				return Err(Invalid::at(
+					hotspot_at("enabled"),
+					"the hotspot carries `enabled`, a boolean",
+				));
+			}
+		};
 		let ssid = string(hotspot, "ssid")
 			.map_err(|reason| Invalid::at(hotspot_at("ssid"), reason))?
 			.to_owned();
@@ -562,6 +578,7 @@ impl Hotspot {
 			.map_err(|reason| Invalid::at(hotspot_at("channel-width"), reason))?;
 
 		Ok(Self {
+			enabled,
 			ssid,
 			passphrase,
 			interface,
@@ -576,6 +593,7 @@ impl Hotspot {
 
 	fn to_json(&self) -> Map<String, Json> {
 		let mut map = Map::new();
+		map.insert("enabled".to_owned(), Json::Bool(self.enabled));
 		map.insert("ssid".to_owned(), Json::String(self.ssid.clone()));
 		map.insert(
 			"passphrase".to_owned(),

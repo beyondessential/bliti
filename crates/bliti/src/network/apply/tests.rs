@@ -175,7 +175,7 @@ fn full() -> Json {
 			{ "kind": "wired-dynamic", "label": "wall", "enabled": true, "verify": true, "interface": "eth0", "nameservers": ["1.1.1.1"] },
 			wireless("Clinic", "a long passphrase")
 		],
-		"hotspot": { "ssid": "bliti-setup", "passphrase": "read this aloud" }
+		"hotspot": { "enabled": true, "ssid": "bliti-setup", "passphrase": "read this aloud" }
 	})
 }
 
@@ -509,6 +509,31 @@ fn a_dropped_hotspot_stops_hostapd_and_deletes_its_interface() {
 	let mut without = full();
 	without.as_object_mut().unwrap().remove("hotspot");
 	let changes = device.apply(&without);
+	assert_eq!(
+		changes.hostapd,
+		[Change::Removed(device.path("etc/hostapd/ap0.conf"))]
+	);
+	assert_eq!(
+		device.system.take(),
+		[
+			Call::Hostapd(Hostapd::Stop, "ap0".into()),
+			Call::DeleteAp("ap0".into()),
+			Call::ReloadNetworkd,
+		]
+	);
+}
+
+/// A hotspot turned off goes down as one dropped does, its settings kept in the document (HOT).
+#[test]
+fn a_hotspot_turned_off_stops_hostapd_and_deletes_its_interface() {
+	let mut device = Device::new();
+	device.apply(&full());
+	device.system.take();
+
+	let mut off = full();
+	off["hotspot"]["enabled"] = json!(false);
+	device.selection.hotspot = None;
+	let changes = device.apply(&off);
 	assert_eq!(
 		changes.hostapd,
 		[Change::Removed(device.path("etc/hostapd/ap0.conf"))]

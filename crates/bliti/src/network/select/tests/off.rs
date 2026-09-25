@@ -1,4 +1,4 @@
-//! Candidates turned off (LINK).
+//! Candidates and the hotspot turned off (LINK, HOT).
 
 use super::*;
 
@@ -102,4 +102,19 @@ fn a_wireless_candidate_turned_off_leaves_the_radio_to_the_hotspot() {
 	hear(&mut selector, "wlan0", "clinic", -30);
 	assert!(selector.decision().links.is_empty());
 	assert_eq!(hotspot_radio(&selector), Some("wlan0"));
+}
+
+/// A hotspot turned off is placed on no radio, and leaves a one-at-a-time radio to a client (HOT).
+#[test]
+fn a_hotspot_turned_off_leaves_the_radio_to_a_client() {
+	let mut hotspot = hotspot(None);
+	hotspot["enabled"] = json!(false);
+	let mut selector = selector(
+		hardware(vec![radio("wlan0", Some(Alongside::OneAtATime))]),
+		json!({ "attachments": [wireless("clinic")], "hotspot": hotspot }),
+	);
+	assert_eq!(hotspot_radio(&selector), None);
+	hear(&mut selector, "wlan0", "clinic", -30);
+	assert_eq!(on(&selector, 0), Some("wlan0"));
+	assert_eq!(hotspot_radio(&selector), None);
 }

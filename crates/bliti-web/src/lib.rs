@@ -732,7 +732,7 @@ mod tests {
 		let document = r#"{
 			"attachments": [{"kind": "wireless", "label": "a", "enabled": true, "verify": true, "ssid": "a",
 			                 "security": {"kind": "psk", "passphrase": "12345678"}}],
-			"hotspot": {"ssid": "s", "passphrase": "12345678"}
+			"hotspot": {"enabled": true, "ssid": "s", "passphrase": "12345678"}
 		}"#;
 		let fault = capability_fault(document, capabilities).unwrap().unwrap();
 		assert_eq!(fault["at"], "$['hotspot']");

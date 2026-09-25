@@ -4,7 +4,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, wpsMethods, wpsRadios } from './capabilities.js'
+import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, hotspotOn, wpsMethods, wpsRadios } from './capabilities.js'
 import {
 	candidateAt,
 	changes,
@@ -22,6 +22,7 @@ import {
 	stateFor,
 	stateWording,
 	turning,
+	turningHotspot,
 	uncheckable,
 	unedited,
 	updateCandidate,
@@ -695,23 +696,29 @@ function Candidate({ state, candidateKey, readOnly, change, marks, failure, unch
 	)
 }
 
+/// The hotspot's fields. It is turned off and on again from here, keeping its fields (NSCR).
 function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 	const caps = state.capabilities
 	const hotspot = state.edit.document.hotspot
+	const on = hotspotOn(state.edit.document)
 	const why = absent(caps, 'hotspot', state.edit.document)
-	const blocked = hotspot ? hotspotBlockedBy(caps, state.edit.document, joined ?? []) : null
+	const blocked = hotspotBlockedBy(caps, state.edit.document, joined ?? [])
 
 	return (
 		<section className="hotspot">
 			<div className="heading">
 				<h2>Hotspot</h2>
-				{hotspot ? (
-					<button className="secondary small" onClick={() => change((edit) => setMember(edit, 'hotspot', undefined))} disabled={readOnly}>
+				{on ? (
+					<button className="secondary small" onClick={() => change((edit) => turningHotspot(edit, false))} disabled={readOnly}>
 						Turn off
 					</button>
 				) : (
 					!why && (
-						<button className="secondary small" onClick={() => change((edit) => setMember(edit, 'hotspot', blankHotspot(caps)))} disabled={readOnly}>
+						<button
+							className="secondary small"
+							onClick={() => change((edit) => (hotspot ? turningHotspot(edit, true) : setMember(edit, 'hotspot', blankHotspot(caps))))}
+							disabled={readOnly}
+						>
 							Turn on
 						</button>
 					)
@@ -724,6 +731,7 @@ function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 				</p>
 			)}
 			{why && <p className="muted absent">{why.sentence}</p>}
+			{hotspot && !on && <p className="muted">Off. Kept, but not used until turned on.</p>}
 			{!hotspot && !why && <p className="muted">Off.</p>}
 			{hotspot && (
 				<fieldset disabled={readOnly}>

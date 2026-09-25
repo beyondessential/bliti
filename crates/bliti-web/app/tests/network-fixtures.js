@@ -104,7 +104,7 @@ export const IN_FORCE = {
 		{ kind: 'wireless', label: 'Clinic-Staff', enabled: true, verify: true, ssid: 'Clinic-Staff', security: { kind: 'sae', passphrase: 'correct horse battery' } },
 		{ kind: 'wireless', label: 'BackupLink', enabled: true, verify: true, ssid: 'BackupLink', security: { kind: 'psk', passphrase: 'backup-link-77' } },
 	],
-	hotspot: { ssid: 'Clinic-Field-04', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true, 'isolate-clients': true },
+	hotspot: { enabled: true, ssid: 'Clinic-Field-04', passphrase: 'ripe-anchor-glass-77', 'share-upstream': true, 'isolate-clients': true },
 	'regulatory-domain': 'VU',
 }
 

@@ -12,7 +12,7 @@ async fn the_hotspot_waits_for_its_station_to_join() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -42,7 +42,7 @@ async fn a_station_knocked_off_as_the_hotspot_starts_joins_again() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -98,7 +98,7 @@ async fn a_join_reported_without_a_channel_takes_it_from_the_radio() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -149,7 +149,7 @@ async fn a_hotspot_cannot_follow_its_station_onto_a_radar_channel() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -194,7 +194,7 @@ async fn a_hotspot_beside_a_connection_on_a_radar_channel_is_refused_up_front() 
 		.await;
 	assert_eq!(answer.await.unwrap(), Ok(()));
 
-	let hotspot = json!({"ssid": "bliti", "passphrase": "read me aloud"});
+	let hotspot = json!({"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"});
 	let refused = rig
 		.stack
 		.check(&document(
@@ -233,6 +233,15 @@ async fn a_hotspot_beside_a_connection_on_a_radar_channel_is_refused_up_front() 
 		Ok(()),
 		"with that connection turned off the hotspot can run"
 	);
+	let mut hotspot_off = hotspot.clone();
+	hotspot_off["enabled"] = json!(false);
+	assert_eq!(
+		rig.stack.check(&document(
+			json!({"attachments": [clinic()], "hotspot": hotspot_off})
+		)),
+		Ok(()),
+		"a hotspot turned off keeps its settings beside that connection"
+	);
 }
 
 /// Where its station cannot join, the hotspot stops waiting and runs on a channel of its own.
@@ -249,7 +258,7 @@ async fn the_hotspot_runs_where_its_station_does_not_join() {
 			"kind": "wireless", "label": "clinic", "enabled": true, "verify": false, "ssid": "clinic",
 			"security": {"kind": "psk", "passphrase": "correct horse"}
 		}],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -275,7 +284,7 @@ async fn the_hotspot_follows_the_station_onto_a_new_channel() {
 
 	let proposal = document(json!({
 		"attachments": [clinic()],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
@@ -314,7 +323,7 @@ async fn a_connection_turned_off_holds_the_hotspot_back_from_nothing() {
 
 	let proposal = document(json!({
 		"attachments": [off],
-		"hotspot": {"ssid": "bliti", "passphrase": "read me aloud"},
+		"hotspot": {"enabled": true, "ssid": "bliti", "passphrase": "read me aloud"},
 	}));
 	let answer = applying(&mut rig, proposal);
 	idle().await;
