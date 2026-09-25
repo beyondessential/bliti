@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
 	advertisement::Advertised,
-	key_schedule::{DeviceKeys, Handle, RotationSalt},
+	key_schedule::{DeviceKeys, Handle},
 	qr::QrPayload,
 };
 use bluer::{
@@ -29,7 +29,7 @@ use futures::StreamExt;
 use tracing::Instrument;
 
 use crate::{
-	NetworkBackend, SALT_ROTATION,
+	NetworkBackend,
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
@@ -117,19 +117,15 @@ pub async fn run(
 		.abort_handle(),
 	);
 
-	// A device advertises whenever it is running, re-registering the advertisement each time the salt
-	// rolls and each time a session ends. Anyone in range can connect and begin a handshake that will
-	// fail; that is expected, and there is no lockout, because someone in range could otherwise deny an
-	// operator their own device.
-	let mut rotation = tokio::time::interval(SALT_ROTATION);
-	// An interval yields its first tick immediately; take it here so the first salt lasts a full
-	// period rather than being replaced the instant it is advertised.
-	rotation.tick().await;
+	// A device advertises whenever it is running, re-registering the advertisement each time a session
+	// opens or ends. Anyone in range can connect and begin a handshake that will fail; that is expected,
+	// and there is no lockout, because someone in range could otherwise deny an operator their own
+	// device.
 	let mut shutdown = std::pin::pin!(shutdown());
 	let mut backoff = ADVERTISE_RETRY;
+	// The same name every time: a client computes it from the QR code before it listens (ADV).
+	let advertised = Advertised::new(&keys.presence_token);
 	loop {
-		let salt = random_salt();
-		let advertised = Advertised::new(keys.presence_token.handle(salt), salt);
 		let registered = match adapter.advertise(advertisement(advertised)).await {
 			Ok(registered) => {
 				backoff = ADVERTISE_RETRY;
@@ -157,10 +153,8 @@ pub async fn run(
 		tracing::info!(local_name = %advertised.to_local_name(), "advertising");
 
 		tokio::select! {
-			_ = rotation.tick() => {}
 			// A client connected or left, so the controller has stopped advertising: drop this
-			// advertisement and register a fresh one, which resumes it. A fresh salt comes with it,
-			// which is harmless.
+			// advertisement and register it afresh, which resumes it.
 			_ = readvertise.notified() => {
 				tracing::info!("a session opened or ended; resuming advertising");
 			}
@@ -266,17 +260,11 @@ fn hex(handle: Handle) -> String {
 		.collect()
 }
 
-/// A fresh rotation salt. Advertised in the clear; what it buys is that a passive observer cannot
-/// follow a device by its handle across a change.
-fn random_salt() -> RotationSalt {
-	RotationSalt::from_bytes(rand::random())
-}
-
 /// The advertisement a device registers.
 ///
 /// The service UUID goes in the advertisement, because filtering a scan by service UUID is the only
-/// filtering some client platforms offer and it is applied to the advertisement. The handle, salt and
-/// version ride in the local name, which is the one element a host will place in the scan response,
+/// filtering some client platforms offer and it is applied to the advertisement. The version and handle
+/// ride in the local name, which is the one element a host will place in the scan response,
 /// and so the only way the whole thing fits a controller that does only legacy advertising.
 fn advertisement(advertised: Advertised) -> Advertisement {
 	Advertisement {
@@ -470,8 +458,8 @@ async fn serve_session(
 
 /// Scan for bliti devices and report which one the QR code in hand belongs to.
 ///
-/// This is the client half of ADV: recompute the handle from the QR code against whatever salt
-/// each device advertises, and compare. It exists so discovery and matching can be exercised without
+/// This is the client half of ADV: compute the handle from the QR code and compare it against what
+/// each device advertises. It exists so discovery and matching can be exercised without
 /// a browser; the web application does the same thing.
 pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>) -> Result<()> {
 	let session = bluer::Session::new().await?;
@@ -523,7 +511,7 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 			continue;
 		};
 
-		// The version is read before recomputing, so a device speaking a version this client does not
+		// The version is read before comparing, so a device speaking a version this client does not
 		// hold is reported as exactly that rather than as a device that simply did not match.
 		if advertised.version != payload.version() {
 			println!(

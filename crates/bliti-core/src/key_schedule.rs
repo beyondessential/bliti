@@ -66,9 +66,6 @@ pub const DEVICE_KEY_LEN: usize = 32;
 /// at one site implausible and fits the advertising budget in ADV.
 pub const HANDLE_LEN: usize = 8;
 
-/// The length of the rotation salt in bytes.
-pub const ROTATION_SALT_LEN: usize = 4;
-
 /// A root: the output of the memory-hard derivation, from which the presence token and the device
 /// static key descend (KEY, "The root"). It never leaves the device that derived it, other than into
 /// the QR code generator's own derivation of the same board.
@@ -179,16 +176,12 @@ impl PresenceToken {
 		&self.0
 	}
 
-	/// Derive the advertised handle for a given rotation salt (KEY, "Advertised handle").
+	/// Derive the advertised handle (KEY, "Advertised handle"), fixed for the life of the token.
 	///
-	/// This is a fast keyed hash, deliberately cheap: a client recomputes it for every advertisement
-	/// it hears against every QR code it holds, so a memory-hard function here would be felt during
-	/// scanning. It runs in the browser, where the memory-hard derivation never does.
-	pub fn handle(&self, salt: RotationSalt) -> Handle {
-		let mut data = [0u8; HANDLE_CONSTANT.len() + ROTATION_SALT_LEN];
-		data[..HANDLE_CONSTANT.len()].copy_from_slice(&HANDLE_CONSTANT);
-		data[HANDLE_CONSTANT.len()..].copy_from_slice(&salt.0);
-		let digest = blake3::keyed_hash(&self.0, &data);
+	/// This is a fast keyed hash, deliberately cheap: a client computes it for every QR code it
+	/// holds. It runs in the browser, where the memory-hard derivation never does.
+	pub fn handle(&self) -> Handle {
+		let digest = blake3::keyed_hash(&self.0, &HANDLE_CONSTANT);
 		let mut handle = [0u8; HANDLE_LEN];
 		handle.copy_from_slice(&digest.as_bytes()[..HANDLE_LEN]);
 		Handle(handle)
@@ -202,7 +195,7 @@ impl core::fmt::Debug for PresenceToken {
 	}
 }
 
-/// An advertised handle: the eight-byte value a device broadcasts and a client recomputes to match.
+/// An advertised handle: the eight-byte value a device broadcasts and a client computes to match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Handle([u8; HANDLE_LEN]);
 
@@ -214,23 +207,6 @@ impl Handle {
 
 	/// The raw bytes of the handle.
 	pub fn as_bytes(&self) -> &[u8; HANDLE_LEN] {
-		&self.0
-	}
-}
-
-/// The rotation salt: a short random value advertised in the clear that changes every fifteen
-/// minutes (ADV, "Rotation"), so a passive observer cannot follow a device by its handle alone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RotationSalt([u8; ROTATION_SALT_LEN]);
-
-impl RotationSalt {
-	/// Wrap raw bytes as a rotation salt, as observed in an advertisement.
-	pub fn from_bytes(bytes: [u8; ROTATION_SALT_LEN]) -> Self {
-		Self(bytes)
-	}
-
-	/// The raw bytes of the salt.
-	pub fn as_bytes(&self) -> &[u8; ROTATION_SALT_LEN] {
 		&self.0
 	}
 }
@@ -378,19 +354,9 @@ mod tests {
 
 	#[test]
 	fn handle_known_answer() {
-		// Pins the handle derivation: constant, keying, salt handling, and eight-byte truncation.
+		// Pins the handle derivation: constant, keying, and eight-byte truncation.
 		let token = PresenceToken::from_bytes([0x42; PRESENCE_TOKEN_LEN]);
-		let salt = RotationSalt::from_bytes([0x01, 0x02, 0x03, 0x04]);
-		let handle = token.handle(salt);
-		assert_eq!(hex(handle.as_bytes()), "5a22650058575721");
-	}
-
-	#[test]
-	fn handle_changes_with_the_salt() {
-		let token = PresenceToken::from_bytes([0x42; PRESENCE_TOKEN_LEN]);
-		let a = token.handle(RotationSalt::from_bytes([0, 0, 0, 0]));
-		let b = token.handle(RotationSalt::from_bytes([0, 0, 0, 1]));
-		assert_ne!(a, b);
+		assert_eq!(hex(token.handle().as_bytes()), "dd6d13341f37cdc6");
 	}
 
 	/// The root the canonical board of `root_production_known_answer` derives. The cheap derivations

@@ -1,8 +1,8 @@
 //! What a device broadcasts, and how a client reads it back.
 //!
 //! Behaviour is specified in `.workhorse/specs/discovery.md` (ADV). The advertisement
-//! carries the service UUID; the local name carries the handle, the rotation salt, and the version
-//! marker, rendered as base32.
+//! carries the service UUID; the local name carries the version marker and the handle, rendered as
+//! base32.
 //!
 //! This lives in the core rather than in the daemon because both ends need it: the device renders
 //! the name and the client parses it, and the client is the web application, which compiles this
@@ -10,7 +10,7 @@
 
 use data_encoding::BASE32_NOPAD;
 
-use crate::key_schedule::{HANDLE_LEN, Handle, ROTATION_SALT_LEN, RotationSalt, VERSION};
+use crate::key_schedule::{HANDLE_LEN, Handle, PresenceToken, VERSION};
 
 /// A legacy advertising payload carries 31 bytes.
 pub const ADVERTISING_BUDGET: usize = 31;
@@ -24,8 +24,8 @@ const FLAGS_LEN: usize = AD_HEADER + 1;
 /// A 128-bit service UUID element: header plus sixteen bytes.
 const SERVICE_UUID_LEN: usize = AD_HEADER + 16;
 
-/// The raw payload: handle, salt, version.
-pub const PAYLOAD_LEN: usize = HANDLE_LEN + ROTATION_SALT_LEN + 1;
+/// The raw payload: version, then handle.
+pub const PAYLOAD_LEN: usize = 1 + HANDLE_LEN;
 
 /// The payload rendered as unpadded base32, which is what the local name holds.
 pub const LOCAL_NAME_LEN: usize = (PAYLOAD_LEN * 8).div_ceil(5);
@@ -39,36 +39,34 @@ const _: () = {
 	assert!(AD_HEADER + LOCAL_NAME_LEN <= ADVERTISING_BUDGET);
 };
 
-/// What a device advertises: the handle, the salt it was computed under, and the version marker.
+/// What a device advertises: the version marker and the handle.
 ///
-/// A client reads the version before recomputing, so that a device speaking a version the client
+/// A client reads the version before comparing, so that a device speaking a version the client
 /// does not hold is reported as exactly that rather than as silence (ADV, "Matching").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Advertised {
-	/// The advertised handle.
-	pub handle: Handle,
-	/// The rotation salt the handle was computed under.
-	pub salt: RotationSalt,
 	/// The version marker.
 	pub version: u8,
+	/// The advertised handle.
+	pub handle: Handle,
 }
 
 impl Advertised {
-	/// The payload for a handle and salt at the current version.
-	pub fn new(handle: Handle, salt: RotationSalt) -> Self {
+	/// What the device holding `token` advertises at the current version. Fixed for the life of the
+	/// token, which is what lets a client compute the name before it listens.
+	pub fn new(token: &PresenceToken) -> Self {
 		Self {
-			handle,
-			salt,
 			version: VERSION,
+			handle: token.handle(),
 		}
 	}
 
-	/// The raw payload bytes: handle, then salt, then version.
+	/// The raw payload bytes: version, then handle. The version leads so a client can read it however
+	/// a later version lays out the rest.
 	pub fn to_bytes(self) -> [u8; PAYLOAD_LEN] {
 		let mut bytes = [0u8; PAYLOAD_LEN];
-		bytes[..HANDLE_LEN].copy_from_slice(self.handle.as_bytes());
-		bytes[HANDLE_LEN..HANDLE_LEN + ROTATION_SALT_LEN].copy_from_slice(self.salt.as_bytes());
-		bytes[PAYLOAD_LEN - 1] = self.version;
+		bytes[0] = self.version;
+		bytes[1..].copy_from_slice(self.handle.as_bytes());
 		bytes
 	}
 
@@ -82,14 +80,10 @@ impl Advertised {
 		if bytes.len() != PAYLOAD_LEN {
 			return None;
 		}
-		let handle: [u8; HANDLE_LEN] = bytes[..HANDLE_LEN].try_into().ok()?;
-		let salt: [u8; ROTATION_SALT_LEN] = bytes[HANDLE_LEN..HANDLE_LEN + ROTATION_SALT_LEN]
-			.try_into()
-			.ok()?;
+		let handle: [u8; HANDLE_LEN] = bytes[1..].try_into().ok()?;
 		Some(Self {
+			version: bytes[0],
 			handle: Handle::from_bytes(handle),
-			salt: RotationSalt::from_bytes(salt),
-			version: bytes[PAYLOAD_LEN - 1],
 		})
 	}
 
@@ -107,41 +101,47 @@ impl Advertised {
 
 	/// Whether this advertisement belongs to the device holding `token`.
 	///
-	/// One fast hash per advertisement heard per QR code held. The caller checks the version first,
-	/// because no two versions produce a matching handle and silence would not say which it was.
-	pub fn matches(self, token: &crate::key_schedule::PresenceToken) -> bool {
-		token.handle(self.salt) == self.handle
+	/// The caller checks the version first, because no two versions produce a matching handle and
+	/// silence would not say which it was.
+	pub fn matches(self, token: &PresenceToken) -> bool {
+		token.handle() == self.handle
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::key_schedule::PresenceToken;
-
-	fn handle(first: u8) -> Handle {
-		Handle::from_bytes([first, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
-	}
 
 	#[test]
 	fn the_payload_is_the_stated_shape() {
 		// That it fits the budget is asserted at compile time above; these are the sizes the spec
 		// states, which a client in another language has to agree with.
 		assert_eq!(FLAGS_LEN + SERVICE_UUID_LEN, 21);
-		assert_eq!(PAYLOAD_LEN, 13);
-		assert_eq!(LOCAL_NAME_LEN, 21);
+		assert_eq!(PAYLOAD_LEN, 9);
+		assert_eq!(LOCAL_NAME_LEN, 15);
 	}
 
 	#[test]
 	fn the_rendering_is_the_stated_length() {
-		let name =
-			Advertised::new(handle(0x11), RotationSalt::from_bytes([1, 2, 3, 4])).to_local_name();
+		let name = Advertised::new(&PresenceToken::from_bytes([0x11; 32])).to_local_name();
 		assert_eq!(name.len(), LOCAL_NAME_LEN);
 	}
 
 	#[test]
+	fn the_local_name_known_answer() {
+		// Pins the layout: version first, then the handle, as unpadded base32. The handle is the
+		// known answer of KEY for this token.
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0x42; 32]));
+		assert_eq!(
+			advertised.to_bytes()[1..],
+			[0xdd, 0x6d, 0x13, 0x34, 0x1f, 0x37, 0xcd, 0xc6]
+		);
+		assert_eq!(advertised.to_local_name(), "AHOW2EZUD4343RQ");
+	}
+
+	#[test]
 	fn a_local_name_round_trips() {
-		let advertised = Advertised::new(handle(0xab), RotationSalt::from_bytes([9, 8, 7, 6]));
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0xab; 32]));
 		assert_eq!(
 			Advertised::from_local_name(&advertised.to_local_name()),
 			Some(advertised)
@@ -149,16 +149,17 @@ mod tests {
 	}
 
 	#[test]
-	fn the_version_marker_is_carried_and_readable_when_unsupported() {
-		let advertised = Advertised::new(handle(0x01), RotationSalt::from_bytes([0; 4]));
-		assert_eq!(advertised.to_bytes()[PAYLOAD_LEN - 1], VERSION);
+	fn the_version_marker_leads_and_is_readable_when_unsupported() {
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0x01; 32]));
+		assert_eq!(advertised.to_bytes()[0], VERSION);
 
 		// A client must be able to read a version it does not hold, which is what separates "a device
 		// at an unsupported version" from hearing nothing at all.
 		let mut bytes = advertised.to_bytes();
-		bytes[PAYLOAD_LEN - 1] = 99;
+		bytes[0] = 99;
 		let foreign = Advertised::from_local_name(&BASE32_NOPAD.encode(&bytes)).unwrap();
 		assert_eq!(foreign.version, 99);
+		assert_eq!(foreign.handle, advertised.handle);
 	}
 
 	#[test]
@@ -178,26 +179,9 @@ mod tests {
 	fn a_client_matches_only_the_device_whose_code_it_holds() {
 		let ours = PresenceToken::from_bytes([0x5a; 32]);
 		let theirs = PresenceToken::from_bytes([0x5b; 32]);
-		let salt = RotationSalt::from_bytes([4, 3, 2, 1]);
 
-		let advertised = Advertised::new(ours.handle(salt), salt);
+		let advertised = Advertised::new(&ours);
 		assert!(advertised.matches(&ours));
 		assert!(!advertised.matches(&theirs));
-	}
-
-	#[test]
-	fn a_device_is_recognised_across_a_salt_change() {
-		let ours = PresenceToken::from_bytes([0x77; 32]);
-		let first = RotationSalt::from_bytes([0, 0, 0, 1]);
-		let second = RotationSalt::from_bytes([0, 0, 0, 2]);
-
-		let before = Advertised::new(ours.handle(first), first);
-		let after = Advertised::new(ours.handle(second), second);
-
-		// An observer without the QR code sees two unrelated handles.
-		assert_ne!(before.handle, after.handle);
-		// A client holding it recognises both.
-		assert!(before.matches(&ours));
-		assert!(after.matches(&ours));
 	}
 }

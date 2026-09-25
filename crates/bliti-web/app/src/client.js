@@ -16,6 +16,10 @@ import { loadProtocol as protocol } from './protocol.js'
 export const CLIENT_NAME = 'bliti-web'
 export const CLIENT_VERSION = __APP_VERSION__
 
+/// The name of the error connect throws where the chooser closed with nothing picked. The browser
+/// does not say whether the list was empty or the operator dismissed it (WEB).
+export const NOTHING_PICKED = 'NothingPicked'
+
 export function createClient() {
 	let device = null
 	let channel = null
@@ -45,22 +49,32 @@ export function createClient() {
 		async readCode(text) {
 			await protocol()
 			const qr = new QrCode(text)
-			return { qr, human: qr.human, svg: qr.svg, version: qr.version }
+			return { qr, human: qr.human, svg: qr.svg, version: qr.version, localName: qr.local_name }
 		},
 
 		// Finding the device the QR code belongs to (ADV, "Matching").
 		//
-		// The browser gives a chooser rather than the advertisements themselves, and the payload it
-		// filters on holds a salt that changes, so the chooser cannot be narrowed to one device ahead
-		// of time. It is filtered to devices carrying the bliti service, and the one the operator picks
-		// is checked against the QR code before anything is sent to it.
+		// The browser gives a chooser rather than the advertisements themselves. The name a device
+		// advertises follows from its QR code alone, so the chooser is filtered on that exact name and
+		// the bliti service, which leaves the one device the code belongs to. The pick is still checked
+		// against the QR code before anything is sent to it.
 		async connect(qr, { onEvent, onClosed, onDisconnected, onActivity }) {
 			const say = (direction, text) => onActivity?.(direction, text)
 			await protocol()
-			say('note', 'asking the browser to choose a device')
-			device = await navigator.bluetooth.requestDevice({
-				filters: [{ services: [service_uuid()] }],
-			})
+			say('note', `asking the browser to choose ${qr.local_name}`)
+			try {
+				device = await navigator.bluetooth.requestDevice({
+					filters: [{ services: [service_uuid()], name: qr.local_name }],
+				})
+			} catch (error) {
+				// Told apart here because a GATT lookup below rejects with the same name.
+				if (error.name === 'NotFoundError') {
+					const nothing = new Error('No device was picked.')
+					nothing.name = NOTHING_PICKED
+					throw nothing
+				}
+				throw error
+			}
 
 			const advertised = device.name ? qr.read_local_name(device.name) : undefined
 			if (!advertised) {

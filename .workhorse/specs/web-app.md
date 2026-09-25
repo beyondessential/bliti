@@ -37,12 +37,19 @@ The downloaded file MUST be named after the last group of the human-readable ren
 
 ## Finding the device
 
-The application MUST scan for the service UUID of [ADV](discovery.md), and MUST match on the recomputed handle as [ADV](discovery.md) specifies.
+The application MUST compute the local name of [ADV](discovery.md) that the device whose QR code it has read advertises, at the version marked on that QR code.
 
-Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by the local name.
+Before offering the chooser, the application MUST show the operator that name, and that it should be the only device listed.
+
+Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by the service UUID of [ADV](discovery.md) and by that exact local name.
+
+The application MUST match the device picked against the QR code as [ADV](discovery.md) specifies before it sends that device anything.
+
+Where the chooser closes without a device picked, the application MUST tell the operator that, if their device was not listed, it may be off or out of range, and MUST let them open the chooser again.
 
 > [!NOTE]
-> Filtering the chooser is what puts the device whose QR code was read in front of the operator, rather than every bliti device in range.
+> Filtering the chooser is what puts the device whose QR code was read in front of the operator, rather than every bliti device in range, and showing the name first tells them what to expect there.
+> The browser does not say why a chooser closed with nothing picked, so the application cannot tell an empty list from an operator who dismissed it.
 
 ## Opening the channel
 

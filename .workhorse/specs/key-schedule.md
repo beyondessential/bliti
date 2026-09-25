@@ -65,10 +65,10 @@ The device static public key MUST be the X25519 public key for that private key,
 
 ## Advertised handle
 
-The advertised handle MUST be the first eight bytes of a keyed hash taking the presence token as the key, and as its message the constant `159f0a929c9d0b80417e9b8775bb1839` followed by the current four-byte [rotation salt](overview.md#rotation-salt).
+The advertised handle MUST be the first eight bytes of a keyed hash taking the presence token as the key and the constant `159f0a929c9d0b80417e9b8775bb1839` as its message.
 
 > [!NOTE]
-> This derivation is deliberately cheap. A client recomputes it for every advertisement it hears against every QR code it holds, so a memory-hard function here would be felt during scanning.
+> This derivation is deliberately cheap. A client computes it for every QR code it holds, so a memory-hard function here would be felt before every scan.
 > Eight bytes makes a collision between two devices at one site implausible, and fits the advertising budget of [ADV](discovery.md).
 
 ## Deriving on the device

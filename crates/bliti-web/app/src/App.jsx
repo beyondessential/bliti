@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Network, { HeldBar } from './Network.jsx'
 import Readings from './Readings.jsx'
-import { CLIENT_VERSION, createClient } from './client.js'
+import { CLIENT_VERSION, NOTHING_PICKED, createClient } from './client.js'
 import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
@@ -179,8 +179,9 @@ export default function App() {
 			setConnected(true)
 		} catch (error) {
 			const why = error.message ?? String(error)
-			note('note', error.name === 'NotFoundError' ? 'no device chosen' : `could not connect: ${why}`)
-			setConnectStatus(error.name === 'NotFoundError' ? '' : why)
+			const nothing = error.name === NOTHING_PICKED
+			note('note', nothing ? 'no device chosen' : `could not connect: ${why}`)
+			setConnectStatus(nothing ? 'If your device was not in the list, check it is on and nearby.' : why)
 			setConnecting(false)
 			client.disconnect()
 		}
@@ -320,8 +321,8 @@ export default function App() {
 						</button>
 					</p>
 					<p className="muted">
-						Your device appears as a jumble of letters that changes. Pick it, and this checks it
-						against your code.
+						A device named <span className="code">{code.localName}</span> will show up. It should be
+						the only one in the list.
 					</p>
 					<div className="row">
 						<button onClick={connect} disabled={connecting}>
