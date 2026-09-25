@@ -7,6 +7,8 @@ The marker first keeps it readable whatever a later version does to the rest, ma
 Since the marker is inside any prefix, the chooser filters on the exact name computed at the QR code's version, alongside the service UUID.
 A device advertising another version does not appear; VER's report of an unsupported version is a SHOULD, reachable by the native client, which hears every advertisement.
 
+The marker stays a whole byte, the same as the QR payload carries it. A base32-character varint would save one character of name, which the advertising budget doesn't need.
+
 The handle stays under the version marker, so VER's "no two versions produce a matching handle" still holds.
 
 ## Naming the device before the chooser opens
