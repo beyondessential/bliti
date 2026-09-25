@@ -98,6 +98,10 @@ pub async fn run(
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless);
+	// Unlike sampling, this never stops: a power cut rarely happens with anyone connected (DEV).
+	if let Err(err) = crate::facts::record_supply() {
+		tracing::warn!(%err, "cannot watch the backup supply; power changes go unrecorded");
+	}
 	let (writes, writes_handle) = characteristic_control();
 	let (subscriptions, subscriptions_handle) = characteristic_control();
 	let _application = adapter

@@ -30,8 +30,11 @@ use serde_json::{Map, Value as Json};
 mod battery;
 mod gpio;
 mod i2c;
+mod record;
 mod sysfs;
 mod upower;
+
+pub use record::record_supply;
 
 /// Where the gauge sits: bus 1, address 0x36, across the whole X120x family.
 const I2C_BUS: &str = "/dev/i2c-1";
@@ -69,7 +72,7 @@ pub struct Watch {
 }
 
 /// What the gauge answered.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Gauge {
 	volts: f64,
 	charge: f64,
@@ -97,6 +100,16 @@ impl Source {
 	}
 }
 
+fn read_gauge() -> Result<Gauge, i2c::Error> {
+	let mut bus = i2c::Bus::open(I2C_BUS, GAUGE)?;
+	let vcell = bus.read_word(REG_VCELL)?;
+	let soc = bus.read_word(REG_SOC)?;
+	Ok(Gauge {
+		volts: f64::from(vcell >> 4) * VCELL_STEP_MV / 1000.0,
+		charge: f64::from(soc >> 8) + f64::from(soc & 0xff) / 256.0,
+	})
+}
+
 impl Watch {
 	/// The power-source and battery readings.
 	///
@@ -109,7 +122,7 @@ impl Watch {
 	/// unconnected pin reads as external power present, and a machine with no backup board would
 	/// otherwise report itself confidently running on mains.
 	pub fn readings(&mut self, at: u64) -> Vec<Entry> {
-		let gauge = match self.gauge() {
+		let gauge = match read_gauge() {
 			Ok(gauge) => gauge,
 			Err(i2c::Error::NoDevice) => {
 				self.seen.clear();
@@ -151,16 +164,6 @@ impl Watch {
 				.with_trait("battery", about),
 		);
 		readings
-	}
-
-	fn gauge(&self) -> Result<Gauge, i2c::Error> {
-		let mut bus = i2c::Bus::open(I2C_BUS, GAUGE)?;
-		let vcell = bus.read_word(REG_VCELL)?;
-		let soc = bus.read_word(REG_SOC)?;
-		Ok(Gauge {
-			volts: f64::from(vcell >> 4) * VCELL_STEP_MV / 1000.0,
-			charge: f64::from(soc >> 8) + f64::from(soc & 0xff) / 256.0,
-		})
 	}
 
 	fn remember(&mut self, volts: f64) {

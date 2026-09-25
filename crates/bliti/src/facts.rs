@@ -27,6 +27,8 @@ use bliti_core::channel::readings::Entry;
 
 use crate::network::stack::Report;
 
+pub use power::record_supply;
+
 mod board;
 mod compute;
 mod network;
