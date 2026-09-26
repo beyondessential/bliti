@@ -5,7 +5,7 @@ Measured on `tamanu-iti-v3-test-device` (Pi 5 Model B Rev 1.1, Geekworm X1201) o
 ## Result
 
 The X1201 follows the X120x convention: **GPIO6, high while external power reaches the board's input**.
-This is what `POWER_LINE` and `GAUGE` in `crates/bliti/src/facts/power.rs` already assume for the whole family, so nothing in the code or the NFO spec changes.
+This is what `POWER_LINE` and `GAUGE` in `crates/bliti/src/facts/power.rs` already assume for the whole family, so the power-source reading and the NFO spec need no change for v3.
 
 - [x] Header chip resolved by line name: `GPIO6` is on the RP1 chip, `gpiochip0` on this kernel, same as v4.
 - [x] Mains into the X1201 input: GPIO6 low to high. Mains pulled: high to low. No other free header line moved.
@@ -35,3 +35,13 @@ The differences are in the v3 image's software, and matter when bliti is first d
 - Wireless is wpa_supplicant, enabled, with neither iwd nor hostapd installed; bliti starts iwd.
 - The radio is `wld0` rather than `wlan0`. The code discovers interfaces, so no name is assumed outside tests.
 - No `raspi-utils` (`pinctrl`, `vcgencmd`).
+
+## Backup supply history in the log
+
+Added on this card once the v4 run-down showed that nothing on a device recorded when mains went or when it died (DEV, "Reporting").
+
+- [x] The daemon reports the backup supply at start, on each change of external power, and each 10 mV the cell falls while it is absent, with how long it has been gone, on its own thread so it runs whether or not sampling is (`facts/power/record.rs`).
+- [x] `services/bliti-journald.conf` syncs the journal every 15 s, so those reports survive a hard cut. On v4's cut the journal lost about a second, against four minutes before.
+- [x] Running kept on v3 and v4 as `b300300`.
+
+Follow-on work is on other cards: T2 (orderly shutdown at 2.8 V, calibrated charge), V2 (battery control), X2 (a board that protects its own cells).
