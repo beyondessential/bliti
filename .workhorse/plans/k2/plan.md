@@ -8,3 +8,4 @@
 - "Reload while connected" needs its own marker beside the list: the payload of the device the page is on, set when a channel opens, kept through a going-away, and cleared by `disconnect()`, by `endGoing()`, and by `closed()` when no act is under way. On mount, with no fragment, a marker present means holding that payload.
 - Clear the fragment with `history.replaceState` straight after taking it in the mount effect, whether or not it parsed.
 - The chooser still needs a user gesture after a reload, because `reconnect`'s `device` handle does not survive. That is why the reload lands on "QR code read" rather than connecting.
+- On mount, run each remembered payload, and the reload marker's, through `client.readCode`. Anything that throws is dropped from storage there and then, so the list and the reload path never see an unreadable entry. Listing needs the parsed rendering for its last group anyway.

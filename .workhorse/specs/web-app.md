@@ -62,6 +62,8 @@ The application MUST keep what it remembers for the life of the tab, so that a r
 
 The application MUST remember at most three devices, forgetting the one whose channel opened least recently to make room for another.
 
+The application MUST forget a remembered device whose payload it can no longer read, as after an update that drops the payload's version.
+
 Where it holds no payload, the application MUST list the devices it remembers beneath the means of reading a QR code, the one whose channel opened most recently first.
 Each MUST be listed by its hostname and the last group of the human-readable rendering of [QR](qr-code.md), or by that group alone where the device has reported no hostname.
 
@@ -77,7 +79,7 @@ Wherever the application shows a payload it holds that is a remembered device's,
 
 Where the page is reloaded while a channel is open, or while the device carries out an act as [When the device goes away](#when-the-device-goes-away) has it, the application MUST come back holding that device's payload, ready for the operator to find it again.
 
-Where the page is reloaded otherwise, the application MUST come back holding no payload.
+Where the page is reloaded otherwise, or where it can no longer read that device's payload, the application MUST come back holding no payload.
 
 > [!NOTE]
 > A reload ends the channel, and any attempt to reach a device coming back ends with it. What survives is the payload, so finding the device again is one choice in the chooser.
