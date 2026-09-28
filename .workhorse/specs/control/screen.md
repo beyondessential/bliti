@@ -26,11 +26,13 @@ The application MUST leave out the power section until the device has listed its
 
 ## Asking for an act
 
-The application MUST ask the operator to confirm an act before asking the device for it.
+The application MUST ask the operator to confirm every act, each time, before asking the device for it.
 
-Where the device reports `network-configuration` as `provisional`, as in [NFO](../device-info.md), the confirmation MUST say that the network settings the device is trying are not saved and will be lost.
+The confirmation MUST name the act.
 
-Where the application holds a configuration session open with edits not applied, as [NSCR](../network/screen.md) has it, the confirmation MUST say that those edits will be lost.
+Where the device reports `network-configuration` as `provisional`, as in [NFO](../device-info.md), the confirmation MUST also say that the network settings the device is trying are not saved and will be lost.
+
+Where the application holds a configuration session open with edits not applied, as [NSCR](../network/screen.md) has it, the confirmation MUST also say that those edits will be lost.
 
 The confirmation of a power off MUST say that the device stays off until it is turned on at the device.
 

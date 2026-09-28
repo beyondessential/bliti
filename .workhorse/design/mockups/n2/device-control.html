@@ -168,7 +168,59 @@ button.danger-fill { background: var(--bad); }
 		</main>
 	</div>
 
-	<!-- 3. Confirming, while network settings are being tried and not saved. -->
+	<!-- 3a. Confirming, the ordinary case: every act asks, every time. -->
+	<div class="frame">
+		<p class="caption">Confirming</p>
+		<main>
+			<div class="heading title">
+				<h1>Control</h1>
+				<button class="secondary small">Back</button>
+			</div>
+			<section>
+				<h2>Network</h2>
+				<button class="secondary">Network settings</button>
+			</section>
+			<section>
+				<h2>Power</h2>
+				<div class="bar-state">
+					<p><strong>Reboot the device?</strong></p>
+					<div class="row">
+						<button>Reboot</button>
+						<button class="secondary">Cancel</button>
+					</div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<!-- 3b. Confirming a power off: its line is always there. -->
+	<div class="frame">
+		<p class="caption">Confirming a power off</p>
+		<main>
+			<div class="heading title">
+				<h1>Control</h1>
+				<button class="secondary small">Back</button>
+			</div>
+			<section>
+				<h2>Network</h2>
+				<button class="secondary">Network settings</button>
+			</section>
+			<section>
+				<h2>Power</h2>
+				<div class="bar-state">
+					<p><strong>Power off the device?</strong></p>
+					<p>It stays off until it is turned on at the device.</p>
+					<div class="row">
+						<button class="danger-fill">Power off</button>
+						<button class="secondary">Cancel</button>
+					</div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<!-- 3c. Confirming, while network settings are being tried and not saved: the same
+	     confirmation, with a line added.  -->
 	<div class="frame">
 		<p class="caption">Confirming, with unsaved network settings</p>
 		<main>
