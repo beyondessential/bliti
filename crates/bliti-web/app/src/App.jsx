@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import Control from './Control.jsx'
 import Network, { HeldBar } from './Network.jsx'
-import Readings from './Readings.jsx'
-import { CLIENT_VERSION, NOTHING_PICKED, createClient } from './client.js'
+import Readings, { Identity } from './Readings.jsx'
+import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
 import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
 import { cameraAvailable, scan } from './scanner.js'
 
@@ -17,6 +18,22 @@ const LOGGED = 100
 // running rather than every reading on it. Facts and the hello are rare and are recorded.
 const STREAMED = new Set(['reading'])
 
+// What the application says while a device carries an act out. Only ever that it is under way: an
+// act accepted is not an act done, and nothing is left connected to say which it was (WEB).
+const UNDER_WAY = { restart: 'Restarting bliti…', reboot: 'Rebooting…', 'power-off': 'Shutting down…' }
+
+// How long to wait between attempts to reach a device coming back, how long to go on trying before
+// saying it has not come back, and how long "Shutting down…" stays up once the channel has closed.
+// The harness shortens them, which is the only thing it changes.
+const TIMINGS = {
+	retry: 3_000,
+	giveUp: 180_000,
+	hold: 3_000,
+	...(__TEST_SEAM__ ? window.__blitiTimings : undefined),
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
 	// Bluetooth in the loop. Compiled out of any build but the harness's.
@@ -30,8 +47,18 @@ export default function App() {
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
 	const [device, setDevice] = useState(null)
-	// Which screen of a connected device is showing: its readings, or its network configuration.
+	// Which screen of a connected device is showing: its readings, its control, or its network
+	// configuration.
 	const [screen, setScreen] = useState('device')
+	// The act the device is carrying out, from being told of it until it is back, has not come back,
+	// or the operator lets it go (WEB). Mirrored in a ref for the channel's callbacks, which outlive
+	// any one render.
+	const [going, setGoing] = useState(null)
+	const going_ = useRef(null)
+	// The attempt to reach a device coming back, and the hold on "Shutting down…", either of which
+	// disconnecting cancels.
+	const returning = useRef(null)
+	const holding_ = useRef(null)
 	// Where the configuration session stands, as the network screen reports it, and whether to keep
 	// that screen, and its session, while the operator is on the device view: from leaving it with edits
 	// not applied or a proposal applying or applied, until there is nothing left to apply, confirm or
@@ -47,6 +74,8 @@ export default function App() {
 	const [log, setLog] = useState([])
 	const video = useRef(null)
 	const scanning_ = useRef(null)
+	const code_ = useRef(null)
+	code_.current = code
 
 	const note = useCallback(
 		(direction, text) =>
@@ -63,6 +92,19 @@ export default function App() {
 		[],
 	)
 
+	// The device is about to carry out an act: say so until it is over (WEB). An act this build does
+	// not know is left to end the channel as anything else does.
+	const startGoing = useCallback(
+		(act) => {
+			if (!UNDER_WAY[act] || going_.current) return
+			going_.current = act
+			setGoing(act)
+			setScreen('device')
+			note('note', `the device is carrying out ${act}`)
+		},
+		[note],
+	)
+
 	// One message off the wire, already sorted into the outcomes of MSG by the protocol half. The
 	// application renders what it understood and says what it could not, and never blanks the view for
 	// either: a device newer than this build is ordinary, and most of a view beats none of it.
@@ -73,6 +115,8 @@ export default function App() {
 					const message = event.message
 					if (message.type === 'hello') {
 						setDevice({ name: message.name, version: message.version })
+					} else if (message.type === 'going-away') {
+						startGoing(message.act)
 					} else if (message.type === 'fact' || message.type === 'reading') {
 						const entry = entryOf(message)
 						if (isEnded(entry)) {
@@ -103,7 +147,7 @@ export default function App() {
 					break
 			}
 		},
-		[note, notice],
+		[note, notice, startGoing],
 	)
 
 	// The configuration session's messages go to the log as the feed's do. Only the log: the screen
@@ -157,24 +201,92 @@ export default function App() {
 		}
 	}, [connected, client, onEvent, note])
 
+	// The end of a going-away, however it ends: the operator back at the code they read, with the
+	// device let go of and `status` said.
+	const endGoing = useCallback(
+		(status) => {
+			returning.current = null
+			clearTimeout(holding_.current)
+			holding_.current = null
+			going_.current = null
+			setGoing(null)
+			client.disconnect()
+			setConnected(false)
+			setConnecting(false)
+			setScreen('device')
+			setKeep(false)
+			setEntries(new Map())
+			setHistory(new Map())
+			setConnectStatus(status)
+		},
+		[client],
+	)
+
+	// What a channel reports back, the same for the first connection and every one after it.
+	const handlers = () => ({
+		onEvent,
+		onActivity: note,
+		onClosed: (why) => note('note', why ? `the feed ended: ${why}` : 'the feed ended'),
+		onDisconnected: closed,
+	})
+
+	function closed(why) {
+		note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
+		setConnected(false)
+		setConnecting(false)
+		const act = going_.current
+		if (act === 'power-off') {
+			// Said for long enough to be read, then gone (WEB).
+			holding_.current = setTimeout(() => endGoing('The device disconnected.'), TIMINGS.hold)
+			return
+		}
+		if (act) {
+			comeBack()
+			return
+		}
+		setScreen('device')
+		setConnectStatus(why ? `The connection to the device failed: ${why}` : 'The device disconnected.')
+	}
+
+	// Reach the device again once it is back, on its own and without the chooser, until it answers
+	// or is unlikely to (WEB).
+	async function comeBack() {
+		const attempt = {}
+		returning.current = attempt
+		const deadline = Date.now() + TIMINGS.giveUp
+		while (Date.now() < deadline) {
+			await sleep(TIMINGS.retry)
+			if (returning.current !== attempt) return
+			try {
+				await client.reconnect(code_.current.qr, handlers())
+			} catch (error) {
+				if (returning.current !== attempt) return
+				if (error.name === NEEDS_CHOOSER) {
+					endGoing('The device has to be picked again. Find it to reconnect.')
+					return
+				}
+				note('note', `not back yet: ${error.message ?? error}`)
+				continue
+			}
+			if (returning.current !== attempt) return
+			returning.current = null
+			going_.current = null
+			setGoing(null)
+			setEntries(new Map())
+			setHistory(new Map())
+			setScreen('device')
+			setConnected(true)
+			note('note', 'the device is back')
+			return
+		}
+		if (returning.current === attempt) endGoing('The device has not come back. Check it is on and nearby.')
+	}
+
 	async function connect() {
 		setConnecting(true)
 		setConnectStatus('Looking for the device...')
 		try {
-			await client.connect(code.qr, {
-				onEvent,
-				onActivity: note,
-				onClosed: (why) => note('note', why ? `the feed ended: ${why}` : 'the feed ended'),
-				onDisconnected: (why) => {
-					note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
-					setConnected(false)
-					setConnecting(false)
-					setScreen('device')
-					setConnectStatus(
-						why ? `The connection to the device failed: ${why}` : 'The device disconnected.',
-					)
-				},
-			})
+			await client.connect(code.qr, handlers())
 			setConnectStatus('')
 			setConnected(true)
 		} catch (error) {
@@ -188,6 +300,11 @@ export default function App() {
 	}
 
 	function disconnect() {
+		returning.current = null
+		clearTimeout(holding_.current)
+		holding_.current = null
+		going_.current = null
+		setGoing(null)
 		client.disconnect()
 		setConnected(false)
 		setScreen('device')
@@ -243,7 +360,7 @@ export default function App() {
 	}
 
 	function leaveNetwork() {
-		setScreen('device')
+		setScreen('control')
 		setKeep(held?.stage === 'applying' || held?.stage === 'applied' || held?.changes > 0)
 	}
 
@@ -257,7 +374,14 @@ export default function App() {
 			channel: entry.traits?.channel?.number,
 		}))
 
-	const network = connected && (screen === 'network' || keep) && (
+	const all = [...entries.values()]
+	const provisional = all.some(
+		(entry) => entry.fact && entry.name === 'network-configuration' && entry.value === 'provisional',
+	)
+	// Edits the network screen holds that no proposal carries yet, which an act would cost (CSCR).
+	const unapplied = held !== null && held.changes > 0 && (held.stage === 'editing' || held.stage === 'errored')
+
+	const network = connected && !going && (screen === 'network' || keep) && (
 		<div hidden={screen !== 'network'}>
 			<Network
 				client={client}
@@ -271,7 +395,7 @@ export default function App() {
 		</div>
 	)
 
-	if (connected && screen === 'network') {
+	if (connected && !going && screen === 'network') {
 		return (
 			<main>
 				{network}
@@ -281,6 +405,97 @@ export default function App() {
 	}
 
 	const holding = keep && held !== null
+	// The kept configuration session's bar, on every screen but the network screen's own (NSCR).
+	const heldBar = holding && !going && <HeldBar held={held} onReview={() => setScreen('network')} />
+
+	// A screen of a connected device: its title with its actions beside it, where every such screen
+	// carries them, and the kept session's bar beneath (VIEW, CSCR).
+	const screenOf = (title, actions, body) => (
+		<main>
+			{network}
+			<div className="heading title">
+				<h1>{title}</h1>
+				<div className="actions">{actions}</div>
+			</div>
+			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
+			{heldBar}
+			{body}
+			<Activity log={log} />
+		</main>
+	)
+
+	const disconnectButton = (
+		<button className="secondary small" onClick={disconnect}>
+			Disconnect
+		</button>
+	)
+	const identity = (
+		<>
+			<h2>Device</h2>
+			{device && (
+				<p className="muted software">
+					{device.name} {device.version}
+				</p>
+			)}
+		</>
+	)
+
+	// The device carrying an act out: who it is, and what it is doing, until it is over (WEB).
+	if (going) {
+		return screenOf(
+			'Info',
+			disconnectButton,
+			<>
+				{identity}
+				<Identity entries={all} />
+				<section className="bar-state working" role="status">
+					<p>
+						<span className="spinner" aria-hidden="true" />
+						{UNDER_WAY[going]}
+					</p>
+				</section>
+			</>,
+		)
+	}
+
+	if (connected && screen === 'control') {
+		return screenOf(
+			'Control',
+			<button className="secondary small" onClick={() => setScreen('device')}>
+				Back
+			</button>,
+			<Control
+				client={client}
+				onNetwork={() => setScreen('network')}
+				onActivity={note}
+				onEvent={noteSession}
+				onAccepted={startGoing}
+				provisional={provisional}
+				unapplied={unapplied}
+			/>,
+		)
+	}
+
+	if (connected) {
+		return screenOf(
+			'Info',
+			<>
+				<button className="small" onClick={() => setScreen('control')}>
+					Control
+				</button>
+				{disconnectButton}
+			</>,
+			<>
+				{identity}
+				{notices.map((each) => (
+					<p key={each.id} className={`notice ${each.kind}`}>
+						{each.detail}
+					</p>
+				))}
+				<Readings entries={all} history={history} showProvisional={!holding} />
+			</>,
+		)
+	}
 
 	return (
 		<main>
@@ -334,34 +549,6 @@ export default function App() {
 					</div>
 					{connectStatus && <p className="muted">{connectStatus}</p>}
 				</section>
-			)}
-
-			{connected && (
-				<>
-					<div className="heading">
-						<h2>Device</h2>
-						<div className="actions">
-							<button className="secondary small" onClick={() => setScreen('network')}>
-								Network settings
-							</button>
-							<button className="secondary small" onClick={disconnect}>
-								Disconnect
-							</button>
-						</div>
-					</div>
-					{device && (
-						<p className="muted software">
-							{device.name} {device.version}
-						</p>
-					)}
-					{notices.map((each) => (
-						<p key={each.id} className={`notice ${each.kind}`}>
-							{each.detail}
-						</p>
-					))}
-					{holding && <HeldBar held={held} onReview={() => setScreen('network')} />}
-					<Readings entries={[...entries.values()]} history={history} showProvisional={!holding} />
-				</>
 			)}
 
 			<Activity log={log} />

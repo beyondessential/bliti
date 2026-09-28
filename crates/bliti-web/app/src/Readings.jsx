@@ -80,6 +80,13 @@ export default function Readings({ entries, history, showProvisional = true }) {
 	)
 }
 
+/// The header naming the device, alone: what is kept on screen while the device carries an act out,
+/// in place of the tiles (WEB).
+export function Identity({ entries }) {
+	const single = (name) => entries.find((entry) => entry.name === name)
+	return <Header single={single} />
+}
+
 /// The header names the device from the facts that say which device this is. They get no tiles of
 /// their own (VIEW).
 function Header({ single }) {

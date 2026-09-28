@@ -12,24 +12,51 @@
 // answers: for each message type, a queue whose next entry is sent back when the page sends one. An
 // entry is one outcome or a list of them. Anything else a test wants the device to say it emits.
 //
+// A control stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
+// in window.__blitiControlSent, apart from the configuration session's.
+//
+// window.__blitiReturns scripts reconnecting to a device coming back: one entry per attempt, 'ok' to
+// reach it, 'chooser' where it can only be picked again, anything else to fail. An attempt with no
+// entry fails. Attempts are counted in window.__blitiReconnects.
+//
 // Setting window.__blitiNothingPicked makes connect fail as a chooser closed with nothing picked does.
 export const installFakeClient = `
 window.__blitiFeeds = []
 window.__blitiSent = []
+window.__blitiControlSent = []
 window.__blitiAnswers = {}
 window.__blitiSessions = []
+window.__blitiControls = []
+window.__blitiReturns = []
+window.__blitiReconnects = 0
+// Short enough that coming back, giving up and the power-off hold all happen within a test.
+window.__blitiTimings = { retry: 50, giveUp: 1500, hold: 400 }
 window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
 		if (!text || text === 'nope') throw new Error('That is not a bliti code.')
 		return { qr: { fake: true }, human: 'AHFY-TP4T-6K2M-9WQX', svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1, localName: 'AHOW2EZUD4343RQ' }
 	},
-	async connect(qr, { onEvent, onClosed, onDisconnected }) {
+	async connect(qr, handlers) {
 		if (window.__blitiNothingPicked) {
 			const nothing = new Error('No device was picked.')
 			nothing.name = 'NothingPicked'
 			throw nothing
 		}
+		this._open(handlers)
+	},
+	async reconnect(qr, handlers) {
+		window.__blitiReconnects++
+		const outcome = window.__blitiReturns.shift()
+		if (outcome === 'chooser') {
+			const chooser = new Error('The device has to be picked again.')
+			chooser.name = 'NeedsChooser'
+			throw chooser
+		}
+		if (outcome !== 'ok') throw new Error('Connection attempt failed.')
+		this._open(handlers)
+	},
+	_open({ onEvent, onDisconnected }) {
 		this._onEvent = onEvent
 		window.__blitiEmit = onEvent
 		window.__blitiDisconnect = onDisconnected
@@ -99,6 +126,35 @@ window.__blitiClient = {
 			},
 		}
 	},
+	async control({ onEvent, onClosed }) {
+		const stream = { open: true, closedByPage: false }
+		window.__blitiControls.push(stream)
+		const send = (message) => {
+			if (!stream.open) throw new Error('The control stream has ended.')
+			window.__blitiControlSent.push(message)
+			const queue = window.__blitiAnswers[message.type]
+			const next = Array.isArray(queue) ? queue.shift() : undefined
+			if (next === undefined) return
+			setTimeout(() => {
+				for (const event of Array.isArray(next) ? next : [next]) if (stream.open) onEvent(event)
+			}, 0)
+		}
+		window.__blitiControl = {
+			emit: (event) => stream.open && onEvent(event),
+			close: (why) => {
+				stream.open = false
+				onClosed?.(why ?? null)
+			},
+		}
+		send({ type: 'control' })
+		return {
+			act: (act) => send({ type: 'act', act }),
+			close: () => {
+				stream.open = false
+				stream.closedByPage = true
+			},
+		}
+	},
 	disconnect() {
 		this._feed = null
 	},
@@ -159,6 +215,22 @@ export async function openNetwork(page, { document, capabilities, states }) {
 	const answers = [message({ type: 'configuration', document, capabilities })]
 	if (states) answers.push(message({ type: 'state', attachments: states }))
 	await answer(page, 'configure', answers)
-	await page.getByRole('button', { name: 'Network settings' }).click()
+	await openNetworkScreen(page)
 	await page.getByRole('heading', { name: 'Connections' }).waitFor()
+}
+
+/// Go from the device view to the network screen, through the Control screen that holds it (CSCR).
+export async function openNetworkScreen(page) {
+	await page.getByRole('button', { name: 'Control' }).click()
+	await page.getByRole('button', { name: 'Network settings' }).click()
+}
+
+/// Every message the page has sent on control streams, in order.
+export async function controlSent(page) {
+	return page.evaluate(() => window.__blitiControlSent)
+}
+
+/// Script the outcome of each attempt to reach a device coming back: 'ok', 'chooser', or a failure.
+export async function returns(page, ...outcomes) {
+	await page.evaluate((outcomes) => window.__blitiReturns.push(...outcomes), outcomes)
 }

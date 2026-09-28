@@ -444,54 +444,120 @@ impl Channel {
 	pub fn configure(&self, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
-			let opener = inner
-				.opener
-				.borrow()
-				.clone()
-				.ok_or_else(|| JsError::new("this channel is not connected"))?;
-			let mut stream = opener
-				.open()
-				.await
-				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
-			write_message(&mut stream, &Message::Configure.to_json())
-				.await
-				.map_err(|err| JsError::new(&format!("opening a configuration session: {err}")))?;
-
-			// The session is read and written at once, so the stream is split: a read is pending
-			// essentially always, and a write must not wait on it.
-			let (mut reader, mut writer) = AsyncReadExt::split(stream);
-			let (outbound, mut queued) = mpsc::unbounded::<Vec<u8>>();
-			spawn_local(async move {
-				while let Some(message) = queued.next().await {
-					if write_message(&mut writer, &message).await.is_err() {
-						break;
-					}
-				}
-				let _ = writer.close().await;
-			});
-
-			let (closer, closing) = oneshot::channel();
-			let ending = outbound.clone();
-			spawn_local(async move {
-				let ended = report(&mut reader, closing, &on_message).await;
-				// However the read ended, the session has, so the write half closes too.
-				ending.close_channel();
-				call_closed(&on_closed, ended);
-			});
-
-			Ok(JsValue::from(ConfigurationHandle {
-				outbound: RefCell::new(Some(outbound)),
-				closer: RefCell::new(Some(closer)),
-			}))
+			let exchange = Exchange::open(
+				&inner,
+				Message::Configure,
+				"a configuration session",
+				on_message,
+				on_closed,
+			)
+			.await?;
+			Ok(JsValue::from(ConfigurationHandle { exchange }))
 		})
+	}
+
+	/// Open a control stream: a stream whose first message is `control` (CTL).
+	///
+	/// Everything the device sends on it is passed to `on_message` as a subscription's messages are,
+	/// and `on_closed` is called once the stream ends. The handle this resolves to asks for acts on
+	/// the same stream.
+	pub fn control(&self, on_message: Function, on_closed: Function) -> Promise {
+		let inner = self.inner.clone();
+		future_to_promise(async move {
+			let exchange = Exchange::open(
+				&inner,
+				Message::Control,
+				"a control stream",
+				on_message,
+				on_closed,
+			)
+			.await?;
+			Ok(JsValue::from(ControlHandle { exchange }))
+		})
+	}
+}
+
+/// A stream the client opened and both ends then speak on: read and written at once, until either
+/// end closes it.
+struct Exchange {
+	outbound: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
+	closer: RefCell<Option<oneshot::Sender<()>>>,
+	/// What the stream is, for an error to name.
+	what: &'static str,
+}
+
+impl Exchange {
+	/// Open a stream whose first message is `first`, and report everything the device sends on it.
+	async fn open(
+		inner: &Inner,
+		first: Message,
+		what: &'static str,
+		on_message: Function,
+		on_closed: Function,
+	) -> Result<Self, JsError> {
+		let opener = inner
+			.opener
+			.borrow()
+			.clone()
+			.ok_or_else(|| JsError::new("this channel is not connected"))?;
+		let mut stream = opener
+			.open()
+			.await
+			.map_err(|err| JsError::new(&format!("opening {what}: {err}")))?;
+		write_message(&mut stream, &first.to_json())
+			.await
+			.map_err(|err| JsError::new(&format!("opening {what}: {err}")))?;
+
+		// The stream is read and written at once, so it is split: a read is pending essentially
+		// always, and a write must not wait on it.
+		let (mut reader, mut writer) = AsyncReadExt::split(stream);
+		let (outbound, mut queued) = mpsc::unbounded::<Vec<u8>>();
+		spawn_local(async move {
+			while let Some(message) = queued.next().await {
+				if write_message(&mut writer, &message).await.is_err() {
+					break;
+				}
+			}
+			let _ = writer.close().await;
+		});
+
+		let (closer, closing) = oneshot::channel();
+		let ending = outbound.clone();
+		spawn_local(async move {
+			let ended = report(&mut reader, closing, &on_message).await;
+			// However the read ended, the stream has, so the write half closes too.
+			ending.close_channel();
+			call_closed(&on_closed, ended);
+		});
+
+		Ok(Self {
+			outbound: RefCell::new(Some(outbound)),
+			closer: RefCell::new(Some(closer)),
+			what,
+		})
+	}
+
+	fn send(&self, message: Vec<u8>) -> Result<(), JsError> {
+		self.outbound
+			.borrow()
+			.as_ref()
+			.and_then(|outbound| outbound.unbounded_send(message).ok())
+			.ok_or_else(|| JsError::new(&format!("{} has ended", self.what)))
+	}
+
+	/// End the stream. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.
+	fn close(&self) {
+		self.outbound.borrow_mut().take();
+		if let Some(closer) = self.closer.borrow_mut().take() {
+			let _ = closer.send(());
+		}
 	}
 }
 
 /// One open configuration session, which lasts exactly as long as its stream (CFG).
 #[wasm_bindgen]
 pub struct ConfigurationHandle {
-	outbound: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
-	closer: RefCell<Option<oneshot::Sender<()>>>,
+	exchange: Exchange,
 }
 
 #[wasm_bindgen]
@@ -545,20 +611,32 @@ impl ConfigurationHandle {
 		)
 	}
 
-	/// End the session. Closed rather than dropped, for the reason [`SubscriptionHandle::close`] gives.
+	/// End the session, which a device reads as abandoning any proposal not confirmed.
 	pub fn close(&self) {
-		self.outbound.borrow_mut().take();
-		if let Some(closer) = self.closer.borrow_mut().take() {
-			let _ = closer.send(());
-		}
+		self.exchange.close();
 	}
 
 	fn send(&self, message: Vec<u8>) -> Result<(), JsError> {
-		self.outbound
-			.borrow()
-			.as_ref()
-			.and_then(|outbound| outbound.unbounded_send(message).ok())
-			.ok_or_else(|| JsError::new("this configuration session has ended"))
+		self.exchange.send(message)
+	}
+}
+
+/// One open control stream, which lasts exactly as long as its stream (CTL).
+#[wasm_bindgen]
+pub struct ControlHandle {
+	exchange: Exchange,
+}
+
+#[wasm_bindgen]
+impl ControlHandle {
+	/// Ask the device to carry out an act, by its wire name.
+	pub fn act(&self, act: String) -> Result<(), JsError> {
+		self.exchange.send(Message::Act { act }.to_json())
+	}
+
+	/// End the control stream.
+	pub fn close(&self) {
+		self.exchange.close();
 	}
 }
 
@@ -709,6 +787,41 @@ mod tests {
 		assert_eq!(capabilities, None);
 		// A member this build does not know is sent as the operator's document carried it.
 		assert_eq!(document["later"]["kept"], 1);
+	}
+
+	/// The control stream's answers and the feed's `going-away` reach the application with their
+	/// members as the wire names them, which is what it reads the act from (CTL).
+	#[test]
+	fn the_control_messages_are_described_as_the_wire_names_them() {
+		for (message, expected) in [
+			(
+				Message::Acts {
+					acts: vec!["reboot".to_owned()],
+				},
+				serde_json::json!({"type": "acts", "acts": ["reboot"]}),
+			),
+			(Message::Accepted, serde_json::json!({"type": "accepted"})),
+			(
+				Message::Refused {
+					reason: "no".to_owned(),
+				},
+				serde_json::json!({"type": "refused", "reason": "no"}),
+			),
+			(
+				Message::GoingAway {
+					act: "power-off".to_owned(),
+				},
+				serde_json::json!({"type": "going-away", "act": "power-off"}),
+			),
+		] {
+			let (described, fault) = describe(&message.to_json());
+			assert_eq!(fault, None);
+			let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+			assert_eq!(
+				described,
+				serde_json::json!({"kind": "message", "message": expected})
+			);
+		}
 	}
 
 	/// The pre-proposal check is the core's, naming the first member capabilities do not cover.
