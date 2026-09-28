@@ -194,16 +194,17 @@ button.danger-fill { background: var(--bad); }
 		</main>
 	</div>
 
-	<!-- 4. After a reboot or restart: every connected operator sees this, and reconnects. -->
+	<!-- 4. After a reboot or restart: every connected operator sees this, and reconnects. It goes
+	     when the device is back, and the device view returns. A restart reads "Restarting bliti…". -->
 	<div class="frame">
-		<p class="caption">Reconnecting</p>
+		<p class="caption">Rebooting, until the device is back</p>
 		<main>
 			<h1>bliti</h1>
 			<section>
 				<h2>QR code read</h2>
 				<p class="code">7K2Q-9XWM-4TPA-HD3R-LN8E</p>
 				<div class="bar-state working">
-					<p><span class="spinner"></span>The device is rebooting. Reconnecting when it is back.</p>
+					<p><span class="spinner"></span>Rebooting…</p>
 					<div class="row">
 						<button class="secondary">Stop</button>
 					</div>
@@ -229,19 +230,18 @@ button.danger-fill { background: var(--bad); }
 		</main>
 	</div>
 
-	<!-- 6. After a power off. -->
+	<!-- 6. After a power off: shown for a moment once the connection closes, then it goes and this is
+	     the ordinary QR code read section. Nothing says the device is off, because nothing knows. -->
 	<div class="frame">
-		<p class="caption">Powered off</p>
+		<p class="caption">Shutting down, then gone</p>
 		<main>
 			<h1>bliti</h1>
 			<section>
 				<h2>QR code read</h2>
 				<p class="code">7K2Q-9XWM-4TPA-HD3R-LN8E</p>
-				<div class="row">
-					<button>Find the device</button>
-					<button class="secondary">Use another code</button>
+				<div class="bar-state working">
+					<p><span class="spinner"></span>Shutting down…</p>
 				</div>
-				<p class="muted">The device has been turned off. Turn it on at the device to reconnect.</p>
 			</section>
 		</main>
 	</div>

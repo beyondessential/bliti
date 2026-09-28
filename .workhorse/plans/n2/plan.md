@@ -8,3 +8,5 @@
 - The device sends `going-away` on each open `default` feed, then ends every connection, then acts. The feed runs through the send-rate ceiling of CHN, so "sent" means handed to the link, not received by the client.
 - The Control screen replaces the device view's Network settings button. Back from the network screen returns to Control, not to the device view.
 - While connected, the device view's `h1` becomes Info, and Control (filled) and Disconnect move into that title row, using the network screen's `heading title` layout. The Device `h2` stays and heads only the identity block: the hostname header from `Readings.jsx` and the software line.
+- `HeldBar` renders only on the device view in `App.jsx` today, while NSCR has it on every other connected screen. It moves out of the device view to the app shell, so the Control screen and any later screen carry it without each opting in.
+- Act progress (Restarting bliti…, Rebooting…, Shutting down…) lives in the same `connectStatus` slot on the QR code read section that a closed channel already uses, with the spinner from the network screen.

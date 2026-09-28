@@ -31,7 +31,7 @@ The application MUST NOT let the operator edit a field while a proposal is being
 The application MUST show that it is waiting on the device while a proposal is being verified, a scan or survey is running, or a session is opening.
 
 The application MUST keep the configuration session open, and the operator's edits with it, when the operator leaves the screen with edits not applied, a proposal being applied, or one applied.
-While it keeps a session open this way, the application MUST say so wherever the operator is, and MUST offer there to return to the screen, and to confirm or discard an applied proposal or discard the edits.
+While it keeps a session open this way, the application MUST say so on every other screen it shows while connected, and MUST offer there to return to the screen, and to confirm or discard an applied proposal or discard the edits.
 Where a proposal kept open this way fails, the application MUST keep what it proposed until the operator returns to the screen or discards it.
 The application MUST close the session when the operator leaves the screen with nothing changed, and once nothing is left to apply, confirm or discard.
 
