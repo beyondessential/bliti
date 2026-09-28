@@ -12,6 +12,15 @@ This spec says what ours makes of it, and binds nothing else that reads the same
 > [!NOTE]
 > The wire carries data and the client carries the intelligence. Holding the rendering here is what lets our application know the catalogue intimately without that knowledge becoming a rule every reader of a bliti device has to follow.
 
+## Title and actions
+
+The application MUST title the device view Info, and MUST offer beside that title to open the Control screen of [CSCR](control/screen.md), as the view's primary action, and to disconnect.
+
+The application MUST carry the header naming the device beneath the title, under a heading of its own.
+
+> [!NOTE]
+> The device view, the Control screen and the network screen each carry their title in the same place, with their actions beside it, so moving between them keeps the operator at one level.
+
 ## Everything is rendered
 
 The application MUST render every fact and reading it receives, whether or not it recognises the catalogue name.

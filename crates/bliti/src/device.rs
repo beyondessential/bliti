@@ -30,6 +30,7 @@ use tracing::Instrument;
 
 use crate::{
 	NetworkBackend,
+	control::{Controller, systemd::Systemd},
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
@@ -85,7 +86,9 @@ pub async fn run(
 	};
 	adapter.set_powered(true).await?;
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
-	end_earlier_connections(&adapter).await?;
+	end_connections(&adapter, "ending a connection made before this start").await?;
+
+	let controller = control(&adapter).await;
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume by
@@ -112,11 +115,16 @@ pub async fn run(
 	let _sessions = AbortOnDrop(
 		tokio::spawn(serve_sessions(
 			subscriptions,
-			sink,
-			keys.clone(),
-			readvertise.clone(),
-			sampler,
-			configurator,
+			Shared {
+				sink,
+				keys: keys.clone(),
+				readvertise: readvertise.clone(),
+				sampler,
+				configurator,
+				controller,
+				// One allowance for the whole device, since every session shares the one radio.
+				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
+			},
 		))
 		.abort_handle(),
 	);
@@ -360,53 +368,46 @@ async fn serve_writes(mut writes: CharacteristicControl, sink: InboundSink) {
 	tracing::error!("BlueZ stopped reporting writes; clients can no longer reach a session");
 }
 
-/// Open a session for each client that subscribes, and run them side by side.
-async fn serve_sessions(
-	mut subscriptions: CharacteristicControl,
+/// What every session on the device shares.
+///
+/// `readvertise` is fired as a session opens and as it ends, so the daemon can resume advertising: a
+/// client connecting stops the controller advertising, and only re-registering the advertisement
+/// brings it back.
+#[derive(Clone)]
+struct Shared {
 	sink: InboundSink,
 	keys: Arc<DeviceKeys>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
 	configurator: Configurator<Chosen>,
-) {
-	// One allowance for the whole device, since every session shares the one radio.
-	let pacer = Arc::new(Mutex::new(Pacer::new(std::time::Instant::now())));
+	controller: Controller,
+	pacer: Arc<Mutex<Pacer>>,
+}
+
+/// Open a session for each client that subscribes, and run them side by side.
+async fn serve_sessions(mut subscriptions: CharacteristicControl, shared: Shared) {
 	while let Some(event) = subscriptions.next().await {
 		let CharacteristicControlEvent::Notify(notifier) = event else {
 			continue;
 		};
 		// Every line a session logs names its client, so sessions running side by side read apart.
 		let span = tracing::info_span!("session", client = %notifier.device_address());
-		tokio::spawn(
-			serve_session(
-				notifier,
-				sink.clone(),
-				keys.clone(),
-				readvertise.clone(),
-				sampler.clone(),
-				configurator.clone(),
-				pacer.clone(),
-			)
-			.instrument(span),
-		);
+		tokio::spawn(serve_session(notifier, shared.clone()).instrument(span));
 	}
 	tracing::error!("BlueZ stopped reporting subscriptions; no further sessions can open");
 }
 
 /// Serve one client's session, from its subscribing to its leaving or the session ending.
-///
-/// `readvertise` is fired as the session opens and as it ends, so the daemon can resume advertising:
-/// a client connecting stops the controller advertising, and only re-registering the advertisement
-/// brings it back.
-async fn serve_session(
-	notifier: CharacteristicWriter,
-	sink: InboundSink,
-	keys: Arc<DeviceKeys>,
-	readvertise: Arc<tokio::sync::Notify>,
-	sampler: crate::sampler::Sampler,
-	configurator: Configurator<Chosen>,
-	pacer: Arc<Mutex<Pacer>>,
-) {
+async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
+	let Shared {
+		sink,
+		keys,
+		readvertise,
+		sampler,
+		configurator,
+		controller,
+		pacer,
+	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
 	// it is the point at which a handshake can run.
 	let client = notifier.device_address();
@@ -421,7 +422,7 @@ async fn serve_session(
 	// transport ends, and the transport only ends when the session drops it, so without this the two
 	// wait on each other and the device stays busy with a client that left.
 	let (left, gone) = tokio::sync::oneshot::channel();
-	let pump = tokio::spawn(async move {
+	let mut pump = tokio::spawn(async move {
 		loop {
 			tokio::select! {
 				chunk = outbound.next() => {
@@ -450,9 +451,16 @@ async fn serve_session(
 	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
 	// stays reachable afterwards.
 	tokio::select! {
-		result = session::run(transport, &keys, sampler, configurator) => match result {
-			Ok(()) => tracing::info!("session ended"),
-			Err(err) => tracing::info!(%err, "session ended"),
+		result = session::run(transport, &keys, sampler, configurator, controller) => {
+			match result {
+				Ok(()) => tracing::info!("session ended"),
+				Err(err) => tracing::info!(%err, "session ended"),
+			}
+			// What the session last wrote may still be held back by the pacer, and it is often what
+			// the client most needs, as `going-away` is (CTL). The pump ends once it has sent it all.
+			if tokio::time::timeout(DRAIN_TIMEOUT, &mut pump).await.is_err() {
+				tracing::debug!("the last notifications did not go out in time; dropping them");
+			}
 		},
 		_ = gone => tracing::info!("client unsubscribed; session ended"),
 	}
@@ -546,18 +554,59 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 	Ok(())
 }
 
-/// End every connection made before this start: the channel its client held was served by an
-/// earlier daemon, and the client would otherwise wait on it with nothing to tell it the channel is
-/// gone (CHN).
-async fn end_earlier_connections(adapter: &bluer::Adapter) -> Result<()> {
+/// How long a session's last notifications may take to go out once it has ended.
+const DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// The acts this device offers, and what drops its connections before it carries one out (CTL).
+///
+/// A device whose systemd cannot be reached offers none, and says why.
+async fn control(adapter: &bluer::Adapter) -> Controller {
+	let probed = tokio::task::spawn_blocking(Systemd::probe)
+		.await
+		.unwrap_or_else(|err| Err(anyhow::anyhow!("probing systemd panicked: {err}")));
+	let systemd = match probed {
+		Ok(systemd) => systemd,
+		Err(err) => {
+			tracing::warn!(
+				err = format!("{err:#}"),
+				"cannot reach systemd; offering no act"
+			);
+			return Controller::none();
+		}
+	};
+	let acts = systemd.acts();
+	tracing::info!(acts = ?acts.iter().map(|act| act.name()).collect::<Vec<_>>(), "acts offered");
+	let adapter = adapter.clone();
+	Controller::new(
+		acts,
+		Arc::new(systemd),
+		Box::new(move || {
+			let adapter = adapter.clone();
+			Box::pin(async move {
+				if let Err(err) =
+					end_connections(&adapter, "ending a connection before going away").await
+				{
+					tracing::warn!(%err, "could not list the connections to end");
+				}
+			})
+		}),
+	)
+}
+
+/// End every connection to the adapter.
+///
+/// As a device starts, a connection made before it was served by an earlier daemon, and its client
+/// would otherwise wait on it with nothing to tell it the channel is gone (CHN). As a device goes away,
+/// a connection is ended so its client reads the channel closing rather than the link dying (CTL).
+async fn end_connections(adapter: &bluer::Adapter, why: &str) -> Result<()> {
 	for address in adapter.device_addresses().await? {
 		let device = adapter.device(address)?;
 		if !device.is_connected().await.unwrap_or(false) {
 			continue;
 		}
-		tracing::info!(%address, "ending a connection made before this start");
+		tracing::info!(%address, "{why}");
 		if let Err(error) = device.disconnect().await {
-			tracing::warn!(%address, %error, "could not end a connection made before this start");
+			tracing::warn!(%address, %error, "could not end a connection");
 		}
 	}
 	Ok(())

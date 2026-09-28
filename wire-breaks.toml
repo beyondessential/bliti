@@ -30,3 +30,12 @@ A configuration message carries the whole network configuration, and a device ac
 reading of one would apply something other than what was asked for. Marking the document critical \
 is what says an end which cannot read it must not act on the message carrying it (CFG).
 """
+
+[[critical]]
+message = "act"
+member = "act"
+reason = """
+An act is a request to do something that cannot be taken back, and a device that acted on one \
+whose selector it had not read would do something other than what was asked. Marking the selector \
+critical is what says so on the wire (CTL).
+"""

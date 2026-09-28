@@ -177,6 +177,13 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => prop::collection::vec(json(), 0..3)
 			.prop_map(|access_points| Message::Networks { access_points }),
 		1 => object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
+		// The control stream of CTL. Acts are open strings on the wire, so any are generated.
+		1 => Just(Message::Control),
+		1 => prop::collection::vec("[a-z-]{1,10}", 0..4).prop_map(|acts| Message::Acts { acts }),
+		1 => "[a-z-]{1,10}".prop_map(|act| Message::Act { act }),
+		1 => Just(Message::Accepted),
+		1 => "[a-z ]{1,20}".prop_map(|reason| Message::Refused { reason }),
+		1 => "[a-z-]{1,10}".prop_map(|act| Message::GoingAway { act }),
 	]
 }
 

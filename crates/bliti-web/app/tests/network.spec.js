@@ -5,7 +5,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { answer, message, openChannel, openNetwork, say, sent } from './fake-client.js'
+import { answer, message, openChannel, openNetwork, openNetworkScreen, say, sent } from './fake-client.js'
 import { IN_FORCE, INDEPENDENT, PI, STATES, TWO_RADIOS, UNTUNED, WIRED_ONLY, addWireless, ap, bar, open, proposals, row } from './network-fixtures.js'
 
 test.describe('editing is the application\'s own', () => {
@@ -227,7 +227,7 @@ test.describe('editing is the application\'s own', () => {
 	test('a device already in a session says so', async ({ page }) => {
 		await openChannel(page)
 		await answer(page, 'configure', message({ type: 'busy' }))
-		await page.getByRole('button', { name: 'Network settings' }).click()
+		await openNetworkScreen(page)
 		await expect(page.getByText("Someone else is changing this device's network.")).toBeVisible()
 	})
 
@@ -920,7 +920,7 @@ test.describe('waiting on the device', () => {
 
 	test('opening a session shows it is waiting until the device answers', async ({ page }) => {
 		await openChannel(page)
-		await page.getByRole('button', { name: 'Network settings' }).click()
+		await openNetworkScreen(page)
 		const asking = page.getByText('Asking the device for its network settings.')
 		await expect(asking).toBeVisible()
 		await expect(spinning(page.locator('.network'))).toHaveCount(1)

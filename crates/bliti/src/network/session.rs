@@ -634,7 +634,13 @@ impl<B: Backend> Open<B> {
 			| Message::Invalid { .. }
 			| Message::Busy
 			| Message::Networks { .. }
-			| Message::Spectrum { .. } => {
+			| Message::Spectrum { .. }
+			| Message::Control
+			| Message::Acts { .. }
+			| Message::Act { .. }
+			| Message::Accepted
+			| Message::Refused { .. }
+			| Message::GoingAway { .. } => {
 				// Nothing a configuration session does anything about, which MSG makes a no-op.
 				tracing::debug!("a message the configuration session has nothing to do about");
 			}
