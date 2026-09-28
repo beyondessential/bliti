@@ -4,7 +4,8 @@ import Control from './Control.jsx'
 import Network, { HeldBar } from './Network.jsx'
 import Readings, { Identity } from './Readings.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
-import { entryOf, forgetHistory, identityKey, isEnded, pushHistory } from './readings.js'
+import { entryOf, forgetHistory, hasValue, identityKey, isEnded, pushHistory } from './readings.js'
+import { lastGroup, loadOn, loadRecent, remember, saveOn, saveRecent } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // How many notices are kept. The far end decides how many arrive.
@@ -72,6 +73,12 @@ export default function App() {
 	const [history, setHistory] = useState(() => new Map())
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
+	// What the tab held before this load, read once, so that a second run of the mount effect under
+	// StrictMode sees the same fragment and the same device as the first (WEB, "After a reload").
+	const [start] = useState(() => ({ fragment: location.hash, on: loadOn(), recent: loadRecent() }))
+	// The devices this tab has opened a channel with, most recent first, once those stored have been
+	// checked to still read. Null until then (WEB, "Remembering devices").
+	const [recent, setRecent] = useState(null)
 	const video = useRef(null)
 	const scanning_ = useRef(null)
 	const code_ = useRef(null)
@@ -173,10 +180,49 @@ export default function App() {
 		[client, note],
 	)
 
-	// Following the link opens the application with the payload already in the fragment.
+	// Following the link opens the application with the payload already in the fragment, which is
+	// taken off the address once read so a reload comes back to what the page held (WEB). Otherwise, a
+	// page reloaded while on a device comes back holding its code. A remembered code that no longer
+	// reads is forgotten, and never held.
 	useEffect(() => {
-		if (location.hash.length > 1) readFrom(location.hash)
-	}, [readFrom])
+		let live = true
+		const stillReads = (text) => client.readCode(text).catch(() => null)
+		if (start.fragment.length > 1) {
+			window.history.replaceState(null, '', location.pathname + location.search)
+			readFrom(start.fragment)
+		}
+		;(async () => {
+			const read = await Promise.all(start.recent.map((each) => stillReads(each.code)))
+			if (!live) return
+			setRecent((held) => held ?? start.recent.filter((_, index) => read[index]))
+			if (start.fragment.length > 1 || !start.on) return
+			const back = await stillReads(start.on)
+			if (!live || !back) return
+			setCode((held) => held ?? back)
+			note('note', `code held from before the reload  ${back.human}`)
+		})()
+		return () => {
+			live = false
+		}
+	}, [client, readFrom, note, start])
+
+	// Remembered whenever a channel opens, which also puts it at the top, and again once it says what
+	// it is called.
+	const hostnameEntry = connected
+		? [...entries.values()].find((entry) => entry.fact && entry.name === 'hostname' && hasValue(entry))
+		: undefined
+	const hostname = hostnameEntry ? String(hostnameEntry.value) : undefined
+	useEffect(() => {
+		if (connected && code) setRecent((held) => remember(held ?? [], code.human, hostname))
+	}, [connected, code, hostname])
+	useEffect(() => {
+		if (recent) saveRecent(recent)
+	}, [recent])
+
+	// The device the page is on, for as long as a reload should come back to it: while the channel is
+	// open, and while the device carries out an act.
+	const on = code && (connected || going) ? code.human : null
+	useEffect(() => saveOn(on), [on])
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
 	// showing it again subscribes to `default` to resume. This is what keeps a phone in a pocket from
@@ -497,6 +543,9 @@ export default function App() {
 		)
 	}
 
+	// The code held is a remembered device's, which is shown with its hostname (WEB).
+	const known = code && recent?.find((each) => each.code === code.human)
+
 	return (
 		<main>
 			{network}
@@ -526,9 +575,33 @@ export default function App() {
 				</section>
 			)}
 
+			{!code && recent?.length > 0 && (
+				<section>
+					<h2>Recent</h2>
+					<ul className="acts recent">
+						{recent.map((each) => (
+							<li key={each.code}>
+								<div>
+									{each.hostname && <span className="name">{each.hostname}</span>}
+									<span className="code">…-{lastGroup(each.code)}</span>
+								</div>
+								<button
+									className="secondary"
+									aria-label={`Use ${each.hostname ?? lastGroup(each.code)}`}
+									onClick={() => readFrom(each.code)}
+								>
+									Use
+								</button>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+
 			{code && !connected && (
 				<section>
 					<h2>QR code read</h2>
+					{known?.hostname && <strong className="device-name">{known.hostname}</strong>}
 					<p className="code">{code.human}</p>
 					<p>
 						<button className="link" onClick={() => download(code)}>

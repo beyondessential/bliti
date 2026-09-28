@@ -247,6 +247,7 @@ test.describe('aggregation', () => {
 
 		// Where no interface is named as carrying the default route, the headline takes the first choice
 		// among the rest.
+		await page.getByRole('button', { name: 'Disconnect' }).click()
 		await openChannel(page)
 		await emit(page, addr('wlan0', 'ipv6', '2407:8b00::10', {}))
 		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
