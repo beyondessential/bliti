@@ -68,10 +68,10 @@ A photograph of the QR code yields the token, because the code carries it outrig
 
 A client that has read the code holds the token as well.
 The web application keeps it in its tab's storage for the life of that tab, as [WEB](web-app.md) specifies, and a browser that opened the code by its link records it among the pages it has visited.
-Whoever can read either holds what a photograph would give them.
+Anyone who can read either can open a session, just as with a photograph of the code.
 
 > [!NOTE]
-> What a tab keeps is what the operator already had in hand while working with the device, and closing the tab lets it go.
+> The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
 
 ### The board ID yields everything
 

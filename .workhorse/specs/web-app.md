@@ -72,8 +72,8 @@ Choosing a remembered device MUST hold its payload as though it had just been re
 Wherever the application shows a payload it holds that is a remembered device's, it MUST show that device's hostname with it.
 
 > [!NOTE]
-> Remembering only what a channel has opened with keeps a mistyped code, or one for a device never reached, off the list.
-> The chooser is opened by the operator every time, because a browser offers it only in answer to a gesture. What a remembered device saves is reading the code again.
+> A device is remembered only once a channel to it has opened, so a mistyped code, or one for a device never reached, stays off the list.
+> The chooser is opened by the operator every time, because a browser offers it only in answer to a gesture. Remembering a device saves reading its code again, not picking it in the chooser.
 
 ## After a reload
 
@@ -82,7 +82,7 @@ Where the page is reloaded while a channel is open, or while the device carries 
 Where the page is reloaded otherwise, or where it can no longer read that device's payload, the application MUST come back holding no payload.
 
 > [!NOTE]
-> A reload ends the channel, and any attempt to reach a device coming back ends with it. What survives is the payload, so finding the device again is one choice in the chooser.
+> A reload ends the channel, and any attempt to reach a device coming back ends with it. The payload is kept, so finding the device again is one pick in the chooser.
 
 ## Opening the channel
 
