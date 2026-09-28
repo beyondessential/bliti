@@ -287,6 +287,8 @@ dependencies = [
  "futures",
  "getrandom 0.3.4",
  "js-sys",
+ "qrcode",
+ "quircs",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1590,6 +1592,17 @@ name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
+
+[[package]]
+name = "quircs"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d71dee9e56835add6f9c26227e6c690b19eda9414f5affc666c3ec833ba140dc"
+dependencies = [
+ "num-derive",
+ "num-traits",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "quote"
