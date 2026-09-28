@@ -675,7 +675,7 @@ test.describe('the ordering', () => {
 			],
 		}))
 		await addWireless(page)
-		await page.getByRole('button', { name: 'Scan' }).click()
+		await page.locator('.candidate').getByRole('button', { name: 'Scan' }).click()
 		await expect(page.getByRole('button', { name: 'Guest', exact: true })).toBeDisabled()
 		await page.getByRole('button', { name: 'Clinic', exact: true }).click()
 		await expect(page.locator('.candidate').getByLabel('SSID')).toHaveValue('Clinic')
@@ -942,12 +942,12 @@ test.describe('waiting on the device', () => {
 	test('scanning shows it is waiting until the device answers', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await addWireless(page)
-		await page.getByRole('button', { name: 'Scan', exact: true }).click()
-		const scanning = page.getByRole('button', { name: 'Scanning' })
+		await page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true }).click()
+		const scanning = page.locator('.candidate').getByRole('button', { name: 'Scanning' })
 		await expect(scanning).toBeDisabled()
 		await expect(spinning(scanning)).toHaveCount(1)
 		await say(page, message({ type: 'networks', 'access-points': [ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', signal: -52 })] }))
-		await expect(page.getByRole('button', { name: 'Scan', exact: true })).toBeEnabled()
+		await expect(page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true })).toBeEnabled()
 		await expect(page.getByRole('button', { name: 'Clinic', exact: true })).toBeVisible()
 	})
 

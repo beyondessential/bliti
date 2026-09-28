@@ -215,6 +215,8 @@ pub struct FakeAir {
 	pub clients: usize,
 	/// What each probe of the radios was told of whether they survey, in order.
 	pub probed: Arc<Mutex<Vec<BTreeMap<String, bool>>>>,
+	/// The radios a probe finds in place of `radios`, once set, as a new regulatory domain leaves them.
+	pub retuned: Arc<Mutex<Option<Vec<RadioInfo>>>>,
 	/// The parts a scan runs in, each what the kernel holds once it finishes, before `heard`.
 	pub parts: Mutex<VecDeque<Vec<AccessPoint>>>,
 }
@@ -225,7 +227,8 @@ impl crate::network::observe::Air for FakeAir {
 		surveyed: BTreeMap<String, bool>,
 	) -> BoxFuture<'static, anyhow::Result<Vec<RadioInfo>>> {
 		self.probed.lock().unwrap().push(surveyed.clone());
-		let mut radios = self.radios.clone();
+		let retuned = self.retuned.lock().unwrap().clone();
+		let mut radios = retuned.unwrap_or_else(|| self.radios.clone());
 		for radio in &mut radios {
 			if let Some(survey) = surveyed.get(&radio.station) {
 				radio.survey = *survey;

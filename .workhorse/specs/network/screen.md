@@ -96,6 +96,22 @@ The application MUST offer to join by WPS from a network the scan lists by SSID,
 > Joining asks which network to add. Siting asks where the device's signal comes from and which channel a new access point should take, and it is the same scan read differently.
 > Scanning takes a radio off its channel for a moment, so scanning one adapter spares a radio carrying the uplink or the hotspot.
 
+## Suggesting the country
+
+The application MUST offer to scan beside the country, where the device can scan.
+
+The application MUST suggest, from the last scan of the session, the country named by the most access points it heard, counting only countries the device offers.
+Where several are named by as many access points, the application MUST suggest each of them, none above the others.
+The application MUST offer beside the suggestion every other such country the scan heard named.
+
+The application MUST offer to set the country to each country it suggests or offers.
+
+While the country is unset, the application MUST make setting a suggested country the section's primary action.
+While the country is set to one it does not suggest, the application MUST say in a line beneath the field which country the access points name.
+While the country is set to one it suggests, the application MUST show none of this.
+
+The application MUST say where the last scan heard no access point naming a country the device offers.
+
 ## Rendering a failure
 
 The application MUST mark the field named by the failure's `at`.

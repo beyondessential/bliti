@@ -23,7 +23,7 @@ import {
 	widths,
 	wirelessBands,
 } from './capabilities.js'
-import { countryOptions } from './countries.js'
+import { countryName, countryOptions, suggestedCountries } from './countries.js'
 import { generatePassphrase, same } from './network.js'
 import { pathOf, within } from './path.js'
 import { ScanResults } from './Scan.jsx'
@@ -87,28 +87,55 @@ export function ListField({ value, onChange, ...rest }) {
 	)
 }
 
-export function SelectField({ label, path, value, options, onChange, marks, hideLabel }) {
+/// A select, with `beside` it where given, as a button acting for the field.
+export function SelectField({ label, path, value, options, onChange, marks, hideLabel, beside }) {
 	const id = useId()
+	const select = (
+		<select
+			id={id}
+			className={faultClass(path, marks)}
+			aria-invalid={within(marks.at, path) || undefined}
+			value={value ?? ''}
+			onChange={(event) => onChange(event.target.value)}
+		>
+			{options.map((option) => (
+				<option key={option.value} value={option.value}>
+					{option.label}
+				</option>
+			))}
+		</select>
+	)
 	return (
 		<>
 			<label htmlFor={id} className={hideLabel ? 'sr-only' : undefined}>
 				{label}
 			</label>
-			<select
-				id={id}
-				className={faultClass(path, marks)}
-				aria-invalid={within(marks.at, path) || undefined}
-				value={value ?? ''}
-				onChange={(event) => onChange(event.target.value)}
-			>
-				{options.map((option) => (
-					<option key={option.value} value={option.value}>
-						{option.label}
-					</option>
-				))}
-			</select>
+			{beside ? (
+				<div className="pair">
+					{select}
+					{beside}
+				</div>
+			) : (
+				select
+			)}
 			<Marked path={path} marks={marks} />
 		</>
+	)
+}
+
+/// Scanning, from beside the field it fills: the SSID, or the country (NSCR).
+function ScanButton({ busy, onClick }) {
+	return (
+		<button type="button" className="secondary" onClick={onClick} disabled={busy}>
+			{busy ? (
+				<>
+					<span className="spinner" aria-hidden="true" />
+					Scanning
+				</>
+			) : (
+				'Scan'
+			)}
+		</button>
 	)
 }
 
@@ -409,18 +436,7 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan,
 					autoCapitalize="off"
 					spellCheck="false"
 				/>
-				{scanning && (
-					<button type="button" className="secondary" onClick={() => scan.start(adapter || undefined)} disabled={scan.busy}>
-						{scan.busy ? (
-							<>
-								<span className="spinner" aria-hidden="true" />
-								Scanning
-							</>
-						) : (
-							'Scan'
-						)}
-					</button>
-				)}
+				{scanning && <ScanButton busy={scan.busy} onClick={() => scan.start(adapter || undefined)} />}
 			</div>
 			<Marked path={path} marks={marks} />
 			{able.length > 1 && (
@@ -671,18 +687,89 @@ export function blankHotspot(capabilities) {
 
 // The country
 
-export function CountryField({ value, onChange, capabilities, marks }) {
+export function CountryField({ value, onChange, capabilities, marks, scan }) {
 	const codes = countries(capabilities)
 	const options = [{ value: '', label: 'Unset, world-safe channels only' }, ...countryOptions(codes ?? [], value)]
+	const scanning = scan && acts(capabilities).scan
+	// Scanned every adapter: the country is the device's, not one radio's.
+	const heard = scanning && scan.points ? suggestedCountries(scan.points, codes) : null
+	const hint = <p className="muted hint">Sets which channels the radio may use.</p>
 	return (
-		<SelectField
-			label="Country"
-			path={pathOf(['regulatory-domain'])}
-			value={value ?? ''}
-			options={options}
-			onChange={(code) => onChange(code || undefined)}
-			marks={marks}
-			hideLabel
-		/>
+		<>
+			<SelectField
+				label="Country"
+				path={pathOf(['regulatory-domain'])}
+				value={value ?? ''}
+				options={options}
+				onChange={(code) => onChange(code || undefined)}
+				marks={marks}
+				hideLabel
+				beside={scanning && <ScanButton busy={scan.busy} onClick={() => scan.start(undefined)} />}
+			/>
+			{scanning && scan.failure && <p className="why">{scan.failure.reason}</p>}
+			{!value && heard?.suggested.length > 0 ? (
+				<>
+					{hint}
+					<Heard value={value} heard={heard} onUse={onChange} />
+				</>
+			) : (
+				<>
+					{heard && <Heard value={value} heard={heard} onUse={onChange} />}
+					{hint}
+				</>
+			)}
+		</>
+	)
+}
+
+const either = (codes) =>
+	new Intl.ListFormat(undefined, { type: 'disjunction' }).format(codes.map(countryName))
+
+/// The countries the last scan heard named (NSCR): the suggestion leads while the country is unset,
+/// is a line beneath it while it is another, and goes unsaid while it is one suggested.
+function Heard({ value, heard, onUse }) {
+	const { suggested, others } = heard
+	if (suggested.length === 0) return <p className="muted aside">No nearby access point names a country.</p>
+	if (value && suggested.includes(value)) return null
+
+	const links = (codes, label) =>
+		codes.map((code) => (
+			<button key={code} type="button" className="link" onClick={() => onUse(code)}>
+				{label(countryName(code))}
+			</button>
+		))
+	const rest = others.filter((code) => code !== value)
+	const also = rest.length > 0 && <p className="muted also">Also heard: {links(rest, (name) => name)}</p>
+
+	if (value) {
+		return (
+			<>
+				<p className="muted aside">
+					Nearby access points say {either(suggested)}. {links(suggested, (name) => `Use ${name}`)}
+				</p>
+				{also}
+			</>
+		)
+	}
+	return (
+		<div className="suggest">
+			<p>
+				{suggested.length === 1 ? (
+					<>
+						Nearby access points say <strong>{countryName(suggested[0])}</strong>.
+					</>
+				) : (
+					'Nearby access points disagree.'
+				)}
+			</p>
+			<div className="row">
+				{suggested.map((code) => (
+					<button key={code} type="button" onClick={() => onUse(code)}>
+						Use {countryName(code)}
+					</button>
+				))}
+			</div>
+			{also}
+		</div>
 	)
 }

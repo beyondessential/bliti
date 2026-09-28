@@ -21,6 +21,7 @@ mod fake;
 mod hotspot;
 mod off;
 mod radios;
+mod regulatory;
 mod sweep;
 mod verdict;
 

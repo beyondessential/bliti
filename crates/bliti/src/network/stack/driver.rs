@@ -178,6 +178,8 @@ pub(super) struct Driver {
 	taken: u64,
 	done: u64,
 	reprobing: bool,
+	/// The regulatory domain changed again while the radios were being probed.
+	reprobe_again: bool,
 	/// Scans a pending proposal waits on, by radio.
 	scanning: BTreeMap<String, usize>,
 	/// The radio the last render held the hotspot back on until its scan is in.
@@ -246,6 +248,7 @@ impl Driver {
 			taken: 0,
 			done: 0,
 			reprobing: false,
+			reprobe_again: false,
 			scanning: BTreeMap::new(),
 			hotspot_scanning: None,
 			hostapd: None,
@@ -430,6 +433,8 @@ impl Driver {
 				scanned,
 			} => self.heard(interface, networks, scanned),
 			Observation::Station { interface, station } => self.station(interface, station),
+			Observation::Regulatory if self.reprobing => self.reprobe_again = true,
+			Observation::Regulatory => self.reprobe(),
 		}
 	}
 
@@ -557,12 +562,22 @@ impl Driver {
 				}
 			}
 			Internal::Reprobed(result) => {
-				self.reprobing = false;
 				match result {
-					Ok(radios) => self.shared.reprobed(radios),
+					Ok(radios) => {
+						// A domain the kernel took from an access point joined changes what the device can
+						// do with no proposal to answer, so the session is woken to say so in `state` (CFG).
+						if self.shared.reprobed(radios) {
+							self.states.send_modify(|_| {});
+						}
+					}
 					Err(error) => {
 						tracing::warn!(%error, "could not probe the radios again after the regulatory domain changed");
 					}
+				}
+				if std::mem::take(&mut self.reprobe_again) {
+					self.reprobe();
+				} else {
+					self.reprobing = false;
 				}
 			}
 			Internal::Scanned {

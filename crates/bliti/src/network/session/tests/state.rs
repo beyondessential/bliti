@@ -115,3 +115,31 @@ async fn state_carries_the_capabilities_a_revert_changed_back() {
 		}
 	);
 }
+
+/// A regulatory domain the kernel takes from an access point joined changes the capabilities with no
+/// proposal, and the backend waking the session with every candidate's state as it was is enough for
+/// `state` to say so (NET, CFG).
+#[tokio::test]
+async fn state_carries_capabilities_changed_with_no_proposal() {
+	let device = Device::observing().await;
+	let (mut client, _task, _) = device.opened().await;
+	assert_eq!(state(&mut client).await, observed(1));
+
+	let mut widened = capabilities();
+	widened["document"]
+		.as_object_mut()
+		.unwrap()
+		.insert("hotspot".to_owned(), json!(true));
+	device.log.capabilities(widened.clone());
+	device.log.publish(observed(1));
+	assert_eq!(
+		recv(&mut client).await,
+		Message::State {
+			attachments: observed(1),
+			capabilities: Some(widened),
+		}
+	);
+
+	device.log.publish(observed(1));
+	assert!(quiet(&mut client).await, "said once");
+}

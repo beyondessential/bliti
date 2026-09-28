@@ -27,10 +27,15 @@ pub struct AccessPoint {
 	pub signal: i32,
 	/// What it advertises, in CFG's vocabulary, each named once.
 	pub security: Vec<&'static str>,
+	/// The country its Country element names, upper case, where it sends one.
+	pub country: Option<String>,
+	/// Where its Country element says it operates, in CFG's vocabulary, where it says.
+	pub environment: Option<&'static str>,
 }
 
 /// The element IDs read here (IEEE 802.11-2020, 9.4.2).
 const SSID: u8 = 0;
+const COUNTRY: u8 = 7;
 const HT_OPERATION: u8 = 61;
 const RSN: u8 = 48;
 const VHT_OPERATION: u8 = 192;
@@ -93,6 +98,8 @@ impl AccessPoint {
 			push("open");
 		}
 
+		let (country, environment) = find(COUNTRY).map_or((None, None), country);
+
 		Self {
 			bssid,
 			ssid,
@@ -101,6 +108,8 @@ impl AccessPoint {
 			secondary: secondary(find(HT_OPERATION), frequency),
 			signal: signal_mbm.div_euclid(100),
 			security,
+			country,
+			environment,
 		}
 	}
 
@@ -121,6 +130,12 @@ impl AccessPoint {
 		});
 		if let Some((_, secondary)) = self.secondary.and_then(channel) {
 			entry["secondary-channel"] = secondary.into();
+		}
+		if let Some(country) = &self.country {
+			entry["country"] = country.as_str().into();
+		}
+		if let Some(environment) = self.environment {
+			entry["environment"] = environment.into();
 		}
 		Some(entry)
 	}
@@ -182,6 +197,29 @@ fn akm_suites(body: &[u8], skip: usize) -> Vec<&'static str> {
 			_ => None,
 		})
 		.collect()
+}
+
+/// The country a Country element names and the environment it gives, where its first two octets
+/// are letters. The third octet is an environment only where it is a space, `I` or `O`; any other
+/// value names an operating class table instead (IEEE 802.11-2020, 9.4.2.8).
+fn country(body: &[u8]) -> (Option<String>, Option<&'static str>) {
+	let [first, second, rest @ ..] = body else {
+		return (None, None);
+	};
+	if !first.is_ascii_alphabetic() || !second.is_ascii_alphabetic() {
+		return (None, None);
+	}
+	let code = [*first, *second]
+		.map(|byte| char::from(byte.to_ascii_uppercase()))
+		.iter()
+		.collect();
+	let environment = match rest.first() {
+		Some(b' ') => Some("any"),
+		Some(b'I') => Some("indoor"),
+		Some(b'O') => Some("outdoor"),
+		_ => None,
+	};
+	(Some(code), environment)
 }
 
 /// The width an access point occupies, from its HT and VHT operation elements.
@@ -311,6 +349,48 @@ mod tests {
 		let ap = read(&elements, 0);
 		assert_eq!(ap.ssid.as_deref(), Some("ok"));
 		assert_eq!(ap.security, ["open"]);
+	}
+
+	#[test]
+	fn the_country_element_names_the_country_and_where_it_operates() {
+		let ap = read(&element(COUNTRY, b"VUO\x01\x0b\x14"), 0);
+		assert_eq!(ap.country.as_deref(), Some("VU"));
+		assert_eq!(ap.environment, Some("outdoor"));
+		let entry = ap.entry("wld0").unwrap();
+		assert_eq!(entry["country"], "VU");
+		assert_eq!(entry["environment"], "outdoor");
+
+		assert_eq!(
+			read(&element(COUNTRY, b"nz "), 0).country.as_deref(),
+			Some("NZ")
+		);
+		assert_eq!(read(&element(COUNTRY, b"NZ "), 0).environment, Some("any"));
+		assert_eq!(
+			read(&element(COUNTRY, b"NZI"), 0).environment,
+			Some("indoor")
+		);
+	}
+
+	#[test]
+	fn a_country_element_naming_an_operating_class_table_gives_no_environment() {
+		let ap = read(&element(COUNTRY, &[b'F', b'J', 0x04]), 0);
+		assert_eq!(ap.country.as_deref(), Some("FJ"));
+		assert_eq!(ap.environment, None);
+		assert!(ap.entry("wld0").unwrap().get("environment").is_none());
+	}
+
+	#[test]
+	fn a_country_element_not_starting_with_two_letters_names_nothing() {
+		for body in [&b"1A "[..], &[0, 0, b' '], b"N", b""] {
+			let ap = read(&element(COUNTRY, body), 0);
+			assert_eq!(
+				(ap.country.as_deref(), ap.environment),
+				(None, None),
+				"{body:?}"
+			);
+			let entry = ap.entry("wld0").unwrap();
+			assert!(entry.get("country").is_none() && entry.get("environment").is_none());
+		}
 	}
 
 	#[test]
