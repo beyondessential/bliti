@@ -7,7 +7,8 @@
 //! handshake rather than a Rust one and a JavaScript one that must agree forever.
 //!
 //! What stays in JavaScript is Web Bluetooth, the camera, and the interface. Those are browser APIs
-//! with no protocol in them, and binding them through wasm would buy nothing.
+//! with no protocol in them, and binding them through wasm would buy nothing. Decoding what the
+//! camera sees is here, for a browser with no QR detector of its own.
 //!
 //! The memory-hard derivation of KEY never runs here: a client reads the presence token and the
 //! device static public key from the payload and only computes the handle, which is a fast hash. The crate therefore takes `bliti-core`
@@ -34,6 +35,7 @@ use js_sys::{Function, JSON, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
+mod scan;
 mod transport;
 
 use transport::WebTransport;
