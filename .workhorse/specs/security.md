@@ -66,6 +66,13 @@ Anyone holding a device's presence token can open a session with that device.
 
 A photograph of the QR code yields the token, because the code carries it outright.
 
+A client that has read the code holds the token as well.
+The web application keeps it in its tab's storage for the life of that tab, as [WEB](web-app.md) specifies, and a browser that opened the code by its link records it among the pages it has visited.
+Whoever can read either holds what a photograph would give them.
+
+> [!NOTE]
+> What a tab keeps is what the operator already had in hand while working with the device, and closing the tab lets it go.
+
 ### The board ID yields everything
 
 Anyone who learns a device's board ID can derive that device's root, and so both its presence token and its device static key.

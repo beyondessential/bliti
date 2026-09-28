@@ -18,12 +18,15 @@ The web application is a client that runs in a browser: it reads a QR code, find
 
 The application MUST accept a payload by either path: following the link, which opens the application with the payload already in the fragment, or capturing the code with the camera while the application is already open.
 
-The application MUST treat a payload identically however it arrived.
+The application MUST treat a payload identically however it arrived, including one it held from before, as [Remembering devices](#remembering-devices) and [After a reload](#after-a-reload) have it.
 
 The application MUST report a payload it cannot parse and a payload at an unsupported version as the distinct conditions they are.
 
+Once it has taken the fragment, whether or not it could parse it, the application MUST remove the fragment from its address.
+
 > [!NOTE]
 > The link is the path for a device scanned with a generic phone camera, by an operator with nothing installed. The camera is the path for provisioning several devices in one session, where returning through the link each time would mean leaving and re-entering the application.
+> Removing the fragment is what lets a reload come back to what the page held rather than to the link it was opened with, and keeps the token out of an address copied from the page.
 
 ## Exporting the QR code
 
@@ -50,6 +53,34 @@ Where the chooser closes without a device picked, the application MUST tell the 
 > [!NOTE]
 > Filtering the chooser is what puts the device whose QR code was read in front of the operator, rather than every bliti device in range, and showing the name first tells them what to expect there.
 > The browser does not say why a chooser closed with nothing picked, so the application cannot tell an empty list from an operator who dismissed it.
+
+## Remembering devices
+
+Once a channel to a device has opened, the application MUST remember that device, by keeping its payload together with the `hostname` it last reported, as [NFO](device-info.md) has it.
+
+The application MUST keep what it remembers for the life of the tab, so that a reload or a restored tab keeps it and closing the tab forgets it.
+
+The application MUST remember at most three devices, forgetting the one whose channel opened least recently to make room for another.
+
+Where it holds no payload, the application MUST list the devices it remembers beneath the means of reading a QR code, the one whose channel opened most recently first.
+Each MUST be listed by its hostname and the last group of the human-readable rendering of [QR](qr-code.md), or by that group alone where the device has reported no hostname.
+
+Choosing a remembered device MUST hold its payload as though it had just been read, and the application MUST then find the device as [Finding the device](#finding-the-device) specifies, the operator opening the chooser as for any other payload.
+
+Wherever the application shows a payload it holds that is a remembered device's, it MUST show that device's hostname with it.
+
+> [!NOTE]
+> Remembering only what a channel has opened with keeps a mistyped code, or one for a device never reached, off the list.
+> The chooser is opened by the operator every time, because a browser offers it only in answer to a gesture. What a remembered device saves is reading the code again.
+
+## After a reload
+
+Where the page is reloaded while a channel is open, or while the device carries out an act as [When the device goes away](#when-the-device-goes-away) has it, the application MUST come back holding that device's payload, ready for the operator to find it again.
+
+Where the page is reloaded otherwise, the application MUST come back holding no payload.
+
+> [!NOTE]
+> A reload ends the channel, and any attempt to reach a device coming back ends with it. What survives is the payload, so finding the device again is one choice in the chooser.
 
 ## Opening the channel
 

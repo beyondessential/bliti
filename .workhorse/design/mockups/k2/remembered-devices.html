@@ -1,0 +1,116 @@
+<!-- spec: web-app.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remembered devices</title>
+<style>
+	/* The client's own tokens and components, from crates/bliti-web/app/src/styles.css. */
+	:root {
+		--page: #fbfbfa;
+		--surface: #ffffff;
+		--line: #e4e2dd;
+		--text: #1c1917;
+		--muted: #57534e;
+		--accent: #1d4ed8;
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 24px; background: #eceae5; color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+	.frames { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+	.frame { width: 380px; }
+	.caption { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; }
+	.phone { background: var(--page); padding: 16px; border-radius: 12px; border: 1px solid var(--line); min-height: 560px; }
+	main { max-width: 34rem; margin: 0 auto; }
+	h1 { font-size: 1.25rem; margin: 0 0 16px; }
+	section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+	h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+	p { margin: 0 0 12px; }
+	button { font: inherit; padding: 12px 16px; min-height: 44px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+	button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+	button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+	input { font: inherit; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); color: var(--text); }
+	.row { display: flex; gap: 8px; flex-wrap: wrap; }
+	.row > * { flex: 1 1 auto; }
+	.row input { flex: 1 1 0; min-width: 0; }
+	.code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+	.muted { color: var(--muted); font-size: 0.9rem; }
+
+	/* New: the remembered devices, one row each, laid out as the Control screen's acts are. */
+	.acts { list-style: none; margin: 0; padding: 0; }
+	.acts li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+	.acts li:first-child { border-top: 0; padding-top: 0; }
+	.acts li > div { flex: 1 1 auto; min-width: 0; }
+	.acts .name { display: block; overflow-wrap: anywhere; }
+	.acts .code { color: var(--muted); font-size: 0.8rem; }
+	.acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
+
+	/* New: the hostname above the code, where the code is one a channel has opened with. */
+	.device-name { display: block; margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<div class="frames">
+
+	<div class="frame">
+		<p class="caption">QR code screen, two devices reached earlier in this tab</p>
+		<div class="phone">
+			<main>
+				<h1>bliti</h1>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type the letters printed under it.</p>
+					<div class="row">
+						<input placeholder="AHFY-TP4T-...">
+						<button>Use</button>
+					</div>
+					<div class="row" style="margin-top: 8px">
+						<button class="secondary">Scan with camera</button>
+					</div>
+				</section>
+				<section>
+					<h2>Recent</h2>
+					<ul class="acts">
+						<li>
+							<div>
+								<span class="name">clinic-store-2</span>
+								<span class="code">…-2KXA</span>
+							</div>
+							<button class="secondary">Use</button>
+						</li>
+						<li>
+							<div>
+								<span class="name">ward-b-fridge</span>
+								<span class="code">…-H6TE</span>
+							</div>
+							<button class="secondary">Use</button>
+						</li>
+					</ul>
+				</section>
+			</main>
+		</div>
+	</div>
+
+	<div class="frame">
+		<p class="caption">After a reload while connected to clinic-store-2, or after tapping Use</p>
+		<div class="phone">
+			<main>
+				<h1>bliti</h1>
+				<section>
+					<h2>QR code read</h2>
+					<strong class="device-name">clinic-store-2</strong>
+					<p class="code">AHFY-TP4T-7NQC-LW2E-…-2KXA</p>
+					<p><button class="link">Download SVG</button></p>
+					<p class="muted">A device named <span class="code">BAB3HNRVZ2WQK4A</span> will show up. It should be the only one in the list.</p>
+					<div class="row">
+						<button>Find the device</button>
+						<button class="secondary">Use another code</button>
+					</div>
+				</section>
+			</main>
+		</div>
+	</div>
+
+</div>
+</body>
+</html>
