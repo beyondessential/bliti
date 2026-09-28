@@ -62,6 +62,9 @@ button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bott
 .heading.title { margin-bottom: 16px; }
 .heading.title h1 { margin: 0; }
 .heading.title button.small { margin-bottom: 0; padding: 6px 10px; }
+.device { margin: 0 0 4px; }
+.device .name { font-weight: 600; overflow-wrap: anywhere; }
+.device .sub { font-size: 0.85rem; }
 .software { margin: 0 0 12px; }
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
@@ -106,17 +109,22 @@ button.danger-fill { background: var(--bad); }
 <body>
 <div class="frames">
 
-	<!-- 1. The device view: one entry into control, beside Disconnect. -->
+	<!-- 1. The device view: titled Info, with Control as its primary action. The title row sits
+	     where the Control and Network screens carry theirs, so moving between them keeps one level. -->
 	<div class="frame">
 		<p class="caption">Device view</p>
 		<main>
-			<h1>bliti</h1>
-			<div class="heading">
-				<h2>Device</h2>
+			<div class="heading title">
+				<h1>Info</h1>
 				<div class="actions">
-					<button class="secondary small">Control</button>
+					<button class="small">Control</button>
 					<button class="secondary small">Disconnect</button>
 				</div>
+			</div>
+			<h2>Device</h2>
+			<div class="device">
+				<div class="name">tamanu-iti-04</div>
+				<div class="sub muted">Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 · 6.17.0</div>
 			</div>
 			<p class="muted software">bliti 0.9.0</p>
 			<div class="tiles">

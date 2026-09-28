@@ -7,3 +7,4 @@
 - `reboot` and `power-off` need the privilege to shut the system down. The daemon runs as root under `bliti.service`, so both are available there.
 - The device sends `going-away` on each open `default` feed, then ends every connection, then acts. The feed runs through the send-rate ceiling of CHN, so "sent" means handed to the link, not received by the client.
 - The Control screen replaces the device view's Network settings button. Back from the network screen returns to Control, not to the device view.
+- While connected, the device view's `h1` becomes Info, and Control (filled) and Disconnect move into that title row, using the network screen's `heading title` layout. The Device `h2` stays and heads only the identity block: the hostname header from `Readings.jsx` and the software line.

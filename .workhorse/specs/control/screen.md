@@ -11,6 +11,8 @@ This spec says what ours makes of it, and binds nothing else that controls a bli
 
 ## What it holds
 
+The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
+
 The application MUST offer the network configuration screen of [NSCR](../network/screen.md) from the Control screen, and MUST return the operator to the Control screen when they leave it.
 
 The application MUST open a control stream when the operator opens the Control screen, and MUST close it when they leave.
