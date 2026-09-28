@@ -39,11 +39,12 @@ An absent setting MUST be read as unset, and a device MUST supply its own behavi
 | `hotspot` | object | no | the hotspot of [HOT](hotspot.md); absent means the device runs none |
 | `regulatory-domain` | string | no | the domain the radio operates under, as an ISO 3166-1 alpha-2 code |
 
-A device whose `regulatory-domain` is unset MUST restrict its radio to what every domain permits.
+A device whose `regulatory-domain` is unset MUST restrict its radio to what every domain permits, except that it MAY operate under the domain of the country named by an access point its wireless client has joined, for as long as it stays joined.
 
 > [!NOTE]
-> The operator is the party standing in the country, and a device imaged elsewhere has no other way to learn it.
+> The operator is the party standing in the country, and a device imaged elsewhere has no other way of its own to learn it.
 > Restricting an unset device to the intersection leaves it legal wherever it is switched on, at the cost of channels it could have used.
+> An access point the device has joined is already transmitting where the device stands, so the country it names is not the device's to overrule.
 
 ## Capabilities
 

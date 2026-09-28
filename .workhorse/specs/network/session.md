@@ -28,7 +28,7 @@ A device MUST answer every proposal exactly once, counting a `wps` as a proposal
 
 A device MUST NOT answer `discard`.
 
-A device MUST carry `capabilities` on `applied` where applying the proposal changed them, as a new regulatory domain changes the usable channels, and on the `state` it sends next where returning to its recorded configuration changed them back.
+A device MUST carry `capabilities` on the next `applied` or `state` it sends whenever they differ from those it last sent in the session, as a new regulatory domain changes the usable channels, whether a proposal, a return to the recorded configuration, or an access point joined under [NET](overview.md) brought that domain into force.
 
 A client MUST check what it proposes next against the capabilities it was last sent.
 
@@ -44,8 +44,8 @@ A device MUST serve at most one configuration session at a time across all its c
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
 | `configuration` | either end | `document`, and `capabilities` on the first from a device |
-| `state` | device | `attachments`, and `capabilities` where returning to the recorded configuration changed them |
-| `applied` | device | `capabilities` where the proposal changed them |
+| `state` | device | `attachments`, and `capabilities` where they changed |
+| `applied` | device | `capabilities` where they changed |
 | `invalid` | device | `at`, `reason`, and `reached` where a proposal was applied and then failed |
 | `confirm` | client | nothing beyond `type` |
 | `discard` | client | nothing beyond `type` |
@@ -97,7 +97,7 @@ A device MUST verify and select a candidate carrying `verify` false as it does a
 
 ## The state of each candidate
 
-A device MUST send `state` after the first `configuration` it sends in a session, and again whenever the state of a candidate changes.
+A device MUST send `state` after the first `configuration` it sends in a session, and again whenever the state of a candidate or its capabilities change.
 
 A device MUST NOT send `state` while a proposal is being verified, and MUST send it once the proposal is answered.
 
@@ -169,6 +169,12 @@ A device joining by PIN MUST first send `pin`, carrying as `pin` the PIN it gene
 | `channel-width` | number | yes | the width it occupies, in megahertz |
 | `secondary-channel` | number | no | its secondary 20 MHz channel, where it occupies more than 20 MHz and names which |
 | `signal` | number | yes | how strongly the radio hears it, in dBm |
+| `country` | string | no | the country its Country element names, as the two letters it sends |
+| `environment` | string | no | where its Country element says it operates: `indoor`, `outdoor` or `any` |
+
+A device MUST leave `country` out where the access point sends no Country element, or one whose country is not two ASCII letters, and MUST send the letters upper case.
+
+A device MUST leave `environment` out where it leaves `country` out, and where the Country element names an operating class table in place of an environment.
 
 A device MUST answer a `scan` or `survey` naming an `interface` for that interface's radio alone, and one naming none for every radio able to.
 
