@@ -8,19 +8,19 @@ A client configures a device's network over the channel of [CHN](../channel.md):
 
 This spec covers the configuration document and the rules every part of it obeys.
 [LINK](attachment.md) specifies how a device attaches to a network, [WLAN](wireless.md) which wireless networks it may join, [HOT](hotspot.md) the hotspot, and [CFG](session.md) the exchange a client configures through.
-[NSCR](screen.md) specifies what our client makes of all of it.
+[NSCR](screen.md) specifies how our client handles all of it.
 
 ## The document
 
 A device's network configuration MUST be one declarative document covering the whole device.
 
-A client MUST configure a device by sending that document whole, and a device MUST make its running configuration match what the document describes.
+A client MUST configure a device by sending that document whole, and a device MUST make its running configuration match the configuration the document describes.
 
 Applying a document a device is already running MUST change nothing.
 
 > [!NOTE]
-> One document for the device rather than one per interface is what lets the ordering of [LINK](attachment.md) span links, which an ordering held inside any one of them could not express.
-> Sending it whole leaves a client nothing to sequence, and makes a repeated write a no-op, which is what lets a client read, edit and write back without tracking what it touched.
+> One document for the device rather than one per interface lets the ordering of [LINK](attachment.md) span links, which an ordering held inside any one of them could not express.
+> Sending it whole leaves a client nothing to sequence, and makes a repeated write a no-op, which lets a client read, edit and write back without tracking the members it touched.
 
 ## What an absent member means
 
@@ -39,7 +39,7 @@ An absent setting MUST be read as unset, and a device MUST supply its own behavi
 | `hotspot` | object | no | the hotspot of [HOT](hotspot.md); absent means the device runs none |
 | `regulatory-domain` | string | no | the domain the radio operates under, as an ISO 3166-1 alpha-2 code |
 
-A device whose `regulatory-domain` is unset MUST restrict its radio to what every domain permits, except that it MAY operate under the domain of the country named by an access point its wireless client has joined, for as long as it stays joined.
+A device whose `regulatory-domain` is unset MUST restrict its radio to the operation every domain permits, except that it MAY operate under the domain of the country named by an access point its wireless client has joined, for as long as it stays joined.
 
 > [!NOTE]
 > The operator is the party standing in the country, and a device imaged elsewhere has no other way of its own to learn it.
@@ -48,7 +48,7 @@ A device whose `regulatory-domain` is unset MUST restrict its radio to what ever
 
 ## Capabilities
 
-A device MUST state what it supports when a configuration session opens, as [CFG](session.md) specifies.
+A device MUST state its capabilities when a configuration session opens, as [CFG](session.md) specifies.
 
 A device MUST treat a document asking for anything it did not state as invalid, and MUST NOT apply any part of such a document.
 
@@ -60,7 +60,7 @@ Capabilities MUST be an object carrying:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
-| `document` | object | yes | what a document may carry, as below |
+| `document` | object | yes | the members a document may carry, as below |
 | `radios` | object | no | the device's radios, keyed by the wireless interface of each; absent where it has none |
 | `acts` | object | yes | the acts of [CFG](session.md) the device performs, keyed by message type |
 
@@ -76,7 +76,7 @@ Capabilities MUST be an object carrying:
 
 An array in the document MUST be mirrored by the constraints on its elements.
 
-A member whose value decides what its siblings may carry MUST be mirrored keyed by its values: an attachment's `kind`, a security `kind`, a wireless `interface`, and a hotspot's `interface` and `band` are such members.
+A member whose value decides the constraints its siblings are held to MUST be mirrored keyed by its values: an attachment's `kind`, a security `kind`, a wireless `interface`, and a hotspot's `interface` and `band` are such members.
 
 A kind present in capabilities MUST support every member the document requires of that kind, and capabilities MUST list only its optional members and constrained values; for `enterprise` that is `eap` alone, each method carrying the members [WLAN](wireless.md) gives it.
 
@@ -91,15 +91,15 @@ Each entry of `radios` MUST carry:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
-| `model` | string | yes | what the adapter is |
+| `model` | string | yes | the adapter's model |
 | `bands` | array | yes | the bands the radio can use, as [HOT](hotspot.md) names bands |
 | `alongside` | string | where the radio can run an access point | `independent`, `shared-channel` or `one-at-a-time`, as [HOT](hotspot.md) requires it be reported |
 
 `acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each, and `wps` keyed by `interface` with the `method` values each radio offers and `ssid` where it joins by WPS for a named network.
 
 > [!NOTE]
-> A client that has been told what a device supports has no reason to ask for more, which is what removes partial application and the unhonoured setting as outcomes, and what makes the document's declarative reading true rather than aspirational.
-> The rule reaches into what a client draws: a setting absent from a device's capabilities is one the client does not offer, rather than one it offers and the device quietly overrides. A setting whose fate depended on something that changes while nobody is watching would be the worst kind to offer.
+> A client that has been told a device's capabilities has no reason to ask for more, which removes partial application and the unhonoured setting as outcomes, and makes the document's declarative reading true rather than aspirational.
+> The rule reaches into the controls a client draws: a setting absent from a device's capabilities is one the client does not offer, rather than one it offers and the device quietly overrides. A setting whose fate depended on something that changes while nobody is watching would be the worst kind to offer.
 
 ## Secrets
 
@@ -107,7 +107,7 @@ A device MUST report the secrets its configuration holds in full, including pre-
 
 > [!NOTE]
 > The channel is authenticated and encrypted under [CHN](../channel.md), and a client holding the presence token has already established that it is physically at the device.
-> Withholding a secret from such a client protects nothing, and would make writing back what was read a special case rather than the ordinary path.
+> Withholding a secret from such a client protects nothing, and would make writing back the document it read a special case rather than the ordinary path.
 
 ## The model is the contract
 

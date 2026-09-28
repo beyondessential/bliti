@@ -23,7 +23,7 @@ The payload MUST be encoded as base32 without padding, giving 104 characters.
 
 > [!NOTE]
 > RFC 4648 pads by default and leaves it to a referencing specification to say when padding is omitted.
-> The static public key is what lets a client authenticate the device rather than merely share a secret with whoever holds one. It is a public key, so carrying it in the clear costs nothing.
+> The static public key lets a client authenticate the device rather than merely share a secret with whoever holds one. It is a public key, so carrying it in the clear costs nothing.
 
 ## The URL
 
@@ -35,7 +35,7 @@ A client that is already open MAY read the code with its own camera rather than 
 
 > [!NOTE]
 > A generic phone camera opens the page, so a device is reachable without installing anything first, and the fragment never leaves the device that scanned it.
-> A native application claims a link by matching scheme and host literally, which is what fixes the case.
+> A native application claims a link by matching scheme and host literally, so the case of the URL is fixed.
 
 ## Printing
 
@@ -47,9 +47,9 @@ A generator MUST offer the code as an SVG image, for sending to a printer.
 The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
 
 > [!NOTE]
-> Level H tolerates the most damage of the four, which is what a code fixed to an enclosure needs.
-> The rendering is what keeps a device reachable once the code itself is scuffed.
-> Base32 draws a coarser code than mixed-case text carrying the same payload would, because the symbology spends fewer bits on upper-case letters and digits, and a coarser code is what a phone camera reads off an enclosure.
+> Level H tolerates the most damage of the four, and a code fixed to an enclosure needs that tolerance.
+> The rendering keeps a device reachable once the code itself is scuffed.
+> Base32 draws a coarser code than mixed-case text carrying the same payload would, because the symbology spends fewer bits on upper-case letters and digits, and a phone camera reads a coarser code off an enclosure more reliably.
 
 ## Generation
 
@@ -63,4 +63,4 @@ Generation MUST be refused where the board offers no usable source, as [BID](boa
 
 > [!NOTE]
 > Whether a list can be gathered before the boards are to hand depends on which source wins the precedence in [BID](board-id.md). A platform serial can be known without the board present, while an Endorsement Key name or written one-time-programmable memory is readable only from the board itself.
-> Because the payload for a board is fixed, no record of what was issued is kept or needed, and a damaged code is replaced by printing the same payload again, recovered from the code, from the rendering alongside it, or by deriving it from the board once more.
+> Because the payload for a board is fixed, no record of the codes issued is kept or needed, and a damaged code is replaced by printing the same payload again, recovered from the code, from the rendering alongside it, or by deriving it from the board once more.

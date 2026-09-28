@@ -4,10 +4,10 @@ id: CSCR
 
 # Control screen
 
-The screen an operator changes what a device is doing from: its network, through the screen of [NSCR](../network/screen.md), and its power, through the acts of [CTL](overview.md), by our application.
+The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), and its power, through the acts of [CTL](overview.md), by our application.
 
 [CTL](overview.md) binds every implementation.
-This spec says what ours makes of it, and binds nothing else that controls a bliti device.
+This spec says how ours applies it, and binds nothing else that controls a bliti device.
 
 ## What it holds
 
@@ -22,7 +22,7 @@ The application MUST offer the acts the device listed, and no others, in the ord
 The application MUST leave out the power section until the device has listed its acts, and where it lists none.
 
 > [!NOTE]
-> A device older than the application skips `control` as it skips anything else it does not recognise, and never answers. Leaving the section out until an answer arrives is what makes that device look like one that offers no acts, rather than one the application is forever waiting on.
+> A device older than the application skips `control` as it skips anything else it does not recognise, and never answers. Leaving the section out until an answer arrives makes that device look like one that offers no acts, rather than one the application is forever waiting on.
 
 ## Asking for an act
 
@@ -38,10 +38,10 @@ The confirmation of a power off MUST say that the device stays off until it is t
 
 The application MUST render a `refused` reason as the device wrote it.
 
-What the application does once an act is accepted is specified in [WEB](../web-app.md).
+[WEB](../web-app.md) specifies how the application behaves once an act is accepted.
 
 > [!NOTE]
-> Every act ends every session, so a proposal being tried reverts under [CFG](../network/session.md) whoever proposed it. The device reports that a proposal is running to every operator, which is what lets the one asking for the act be warned about another's.
+> Every act ends every session, so a proposal being tried reverts under [CFG](../network/session.md) whoever proposed it. The device reports that a proposal is running to every operator, which lets the one asking for the act be warned about another's.
 
 ## Wording
 

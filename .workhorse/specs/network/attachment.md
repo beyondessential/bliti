@@ -23,7 +23,7 @@ Each candidate MUST carry:
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `kind` | string | yes | `wireless`, `wired-dynamic` or `wired-static` |
-| `label` | string | yes | what the operator calls this candidate |
+| `label` | string | yes | the operator's name for this candidate |
 | `enabled` | boolean | yes | whether the device brings this candidate up |
 | `verify` | boolean | yes | whether a proposal fails where this candidate cannot be established (CFG) |
 | `nameservers` | array | no | the resolvers of this link, in the order they are queried |
@@ -39,9 +39,9 @@ A device MUST accept at most one `wired-dynamic` candidate per interface, and MA
 A device MUST treat a `wired-static` candidate carrying no `gateway` as invalid.
 
 > [!NOTE]
-> A flat ordering is what expresses a site whose own wireless is better than whatever its wall port reaches. An ordering by link could not, because the two would not be comparable.
-> Several statics on one interface is what carries a device between sites: two sites offering a wall port on different subnets, neither handing out DHCP, are two candidates the device tells apart by trying them.
-> The gateway is what makes a static candidate distinguishable, so a candidate without one cannot be told from any other. A wired network with no router is configured as the only static on its interface, where there is nothing to tell apart.
+> A flat ordering expresses a site whose own wireless is better than whatever its wall port reaches. An ordering by link could not, because the two would not be comparable.
+> Several statics on one interface carry a device between sites: two sites offering a wall port on different subnets, neither handing out DHCP, are two candidates the device tells apart by trying them.
+> The gateway makes a static candidate distinguishable, so a candidate without one cannot be told from any other. A wired network with no router is configured as the only static on its interface, where there is nothing to tell apart.
 
 ## Selecting a candidate
 
@@ -60,7 +60,7 @@ A device MUST NOT leave the network of a wireless candidate whose `enabled` is f
 > [!NOTE]
 > The ordering decides which attachment carries traffic, not which exists. A device reachable on both a wall port and a wireless network at the same time is easier to find than one reachable on whichever it preferred.
 > A wireless candidate naming no interface means the same on devices whose interfaces are named differently, as a USB adapter's commonly carries its address. Naming one is for an operator who wants a particular adapter to carry a particular network.
-> A candidate turned off keeps what it carries, credentials and all, so turning it on again is one change rather than typing it in anew. It stays in the document, which is what tells it from one removed: a device forgets a network the document does not carry ([NET](overview.md)). Keeping it only in the document, and not among the networks the wireless client knows, is what stops anything joining it.
+> A candidate turned off keeps its settings, credentials and all, so turning it on again is one change rather than typing it in anew. It stays in the document, which tells it from one removed: a device forgets a network the document does not carry ([NET](overview.md)). Keeping it only in the document, and not among the networks the wireless client knows, stops anything joining it.
 
 ## Verification
 
@@ -98,8 +98,8 @@ A device MUST NOT poll its candidates to detect these, except as follows.
 A device MUST scan for a `wireless` candidate ranked above the candidate carrying the default route while the network is out of range, backing off between scans, and MUST NOT scan for one ranked below it.
 
 > [!NOTE]
-> Selecting on the candidate in force failing is what catches a site that changed around a device whose cable never moved.
-> Selecting when something better returns is what stops a device sitting on a fallback for the rest of its life.
+> Selecting on the candidate in force failing catches a site that changed around a device whose cable never moved.
+> Selecting when something better returns stops a device sitting on a fallback for the rest of its life.
 > Driving all three from events leaves a settled device doing nothing, which matters on a device that may be running from a battery.
 > A network coming into range is the one event nothing announces: a radio hears it only by scanning. A device on its best candidate has nothing to scan for, so it still settles.
 
@@ -113,4 +113,4 @@ A device MUST send a query for a name under a search domain a network supplies f
 
 > [!NOTE]
 > Resolvers belong to a link because a site's internal names commonly resolve only on that site's own network, and a device may hold several links at once.
-> A configured resolver answering that a name does not exist has answered, so nothing falls through to the site's own. Sending the site's own domain to the site's resolvers is what lets an operator add a public resolver without losing the site's names, where the site hands out its domain.
+> A configured resolver answering that a name does not exist has answered, so nothing falls through to the site's own. Sending the site's own domain to the site's resolvers lets an operator add a public resolver without losing the site's names, where the site hands out its domain.

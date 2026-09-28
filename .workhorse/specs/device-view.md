@@ -6,11 +6,11 @@ id: VIEW
 
 The device view is the screen an operator reads a device from: the facts and readings of [NFO](device-info.md), rendered by our application.
 
-[NFO](device-info.md) says what a device sends, and binds every implementation.
-This spec says what ours makes of it, and binds nothing else that reads the same data.
+[NFO](device-info.md) says which entries a device sends, and binds every implementation.
+This spec says how ours renders them, and binds nothing else that reads the same data.
 
 > [!NOTE]
-> The wire carries data and the client carries the intelligence. Holding the rendering here is what lets our application know the catalogue intimately without that knowledge becoming a rule every reader of a bliti device has to follow.
+> The wire carries data and the client carries the intelligence. Holding the rendering here lets our application know the catalogue intimately without that knowledge becoming a rule every reader of a bliti device has to follow.
 
 ## Title and actions
 
@@ -51,7 +51,7 @@ The application MUST NOT give `network-configuration` a tile.
 
 The application MUST NOT reorder by the `status` trait.
 
-The application MUST supply its own wording for every catalogue name, trait, distinguishing trait value and unit it recognises, and MUST choose for itself how to write a unit and at what magnitude to show a value.
+The application MUST supply its own wording for every catalogue name, trait, distinguishing trait value and unit it recognises, and MUST choose for itself how to write a unit and the magnitude to show a value at.
 
 The application MUST render a `reason` as the sender wrote it.
 
@@ -73,13 +73,13 @@ The application MUST render an entry whose `kind` it does not recognise as the s
 
 > [!NOTE]
 > Two entries sharing a catalogue name and differing only in traits would otherwise appear as two tiles under one label with different values and nothing to tell them apart.
-> Generic rendering is what makes version skew survivable: a device ahead of an installed application degrades to a plain reading card, and renders properly again when the application is next updated.
+> Generic rendering makes version skew survivable: a device ahead of an installed application degrades to a plain reading card, and renders properly again when the application is next updated.
 
 ## The face and the reveal
 
 The application MUST show each tile's face carrying a label and a headline value, and nothing else.
 
-The application MUST reveal what is behind the headline, any scale drawn as a bar, and any history drawn as a graph, when the operator opens the tile.
+The application MUST reveal the detail behind the headline, any scale drawn as a bar, and any history drawn as a graph, when the operator opens the tile.
 
 The application MUST colour a face by its entry's `status`, MUST NOT colour a `passed` face, and MUST NOT add a further element to the face to carry that.
 
@@ -119,7 +119,7 @@ The application MUST pair each battery's `battery-voltage` and `battery-directio
 The application MUST draw a `fraction` against its own scale, and MUST NOT draw a `quantity` against a scale unless its `limits` trait or its total above gives it one.
 
 > [!NOTE]
-> An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. One address for the network the device is reached on and one for the overlay are what an operator reads it for, and an overlay's addresses are recognisable without naming it.
+> An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. An operator reads the tile for one address for the network the device is reached on and one for the overlay, and an overlay's addresses are recognisable without naming it.
 
 ## Joining the hotspot
 

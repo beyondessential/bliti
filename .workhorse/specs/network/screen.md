@@ -7,7 +7,7 @@ id: NSCR
 The screen an operator configures a device from: the document of [NET](overview.md), edited through the session of [CFG](session.md), by our application.
 
 [NET](overview.md) and [CFG](session.md) bind every implementation.
-This spec says what ours makes of them, and binds nothing else that configures a bliti device.
+This spec covers how ours handles them, and binds nothing else that configures a bliti device.
 
 ## Editing is the application's own
 
@@ -32,12 +32,12 @@ The application MUST show that it is waiting on the device while a proposal is b
 
 The application MUST keep the configuration session open, and the operator's edits with it, when the operator leaves the screen with edits not applied, a proposal being applied, or one applied.
 While it keeps a session open this way, the application MUST say so on every other screen it shows while connected, and MUST offer there to return to the screen, and to confirm or discard an applied proposal or discard the edits.
-Where a proposal kept open this way fails, the application MUST keep what it proposed until the operator returns to the screen or discards it.
+Where a proposal kept open this way fails, the application MUST keep the proposal it sent until the operator returns to the screen or discards it.
 The application MUST close the session when the operator leaves the screen with nothing changed, and once nothing is left to apply, confirm or discard.
 
 > [!NOTE]
 > An application that proposed as the operator typed would hand the device a gateway half entered, and the device would fail it for a reason that is not real.
-> Filling the errored stage from what was proposed rather than from what the device returned to is what lets an operator correct the one field that was wrong. The device keeps no record of the attempt, as [CFG](session.md) requires, so the application is the only end that can offer it back.
+> Filling the errored stage from the proposal rather than from the configuration the device returned to lets an operator correct the one field that was wrong. The device keeps no record of the attempt, as [CFG](session.md) requires, so the application is the only end that can offer it back.
 > A field edited part way through verification belongs to neither the attempt being verified nor the next one.
 
 ## Validating before proposing
@@ -59,7 +59,7 @@ Once one could, the application MUST take those settings out of the hotspot, and
 
 The application MUST render the attachment ordering of [LINK](attachment.md) as a list the operator can reorder.
 
-The application MUST say beside the list, in terms of what the device does, that it tries the candidates from the top, uses the first that connects, and moves to another when that changes.
+The application MUST say beside the list, in terms of the device's behaviour, that it tries the candidates from the top, uses the first that connects, and moves to another when that changes.
 
 The application MUST make plain which candidate the fields being edited belong to.
 
@@ -73,14 +73,14 @@ The application MUST say, beside a hotspot that is on, where it cannot run besid
 
 The application MUST show each candidate's state against it, distinguishing the candidate carrying the default route, one that is up, one that is off, and each way a candidate is unavailable.
 
-The application MUST describe an unavailable candidate by what the device observed of it.
+The application MUST describe an unavailable candidate by the device's observation of it.
 
 > [!NOTE]
-> "No gateway", "no lease" and "out of range" are the same facts as "not here" and "not offered" with the diagnosis left in. An operator reads the first three and knows what to change.
+> "No gateway", "no lease" and "out of range" are the same facts as "not here" and "not offered" with the diagnosis left in. An operator reads the first three and knows which setting to change.
 
 ## Scanning
 
-The application MUST list what a scan heard by SSID, showing for each network the strongest signal among its access points and how many there are, with the access points behind it on request.
+The application MUST list the networks a scan heard by SSID, showing for each network the strongest signal among its access points and how many there are, with the access points behind it on request.
 
 The application MUST leave out access points with no SSID unless the operator asks to see hidden networks.
 
@@ -131,9 +131,9 @@ The application MUST give a candidate the operator adds `verify` true, MUST show
 
 ## The state of the session
 
-The application MUST show whether what the device is running has been made durable, and MUST keep that in view while the operator scrolls.
+The application MUST show whether the configuration the device is running has been made durable, and MUST keep that in view while the operator scrolls.
 
-The application MUST say what ending the session would cost while a proposal is unconfirmed.
+The application MUST name the cost of ending the session while a proposal is unconfirmed.
 
 The application MUST say where the session has ended and offer to open it again, and where it cannot be opened again, MUST say so and offer to disconnect from the device so the operator can connect again.
 
@@ -147,5 +147,5 @@ The application MUST supply its own wording for everything it renders, and MUST 
 The application MUST name a setting by the term a technician configuring a network would use, except where a plainer term is the one they would look for.
 
 > [!NOTE]
-> SSID, passphrase and DHCP range say what the thing is; name, password and addresses handed out are vaguer, and vagueness is what costs someone a second visit to a site.
+> SSID, passphrase and DHCP range name the thing precisely; name, password and addresses handed out are vaguer, and vagueness costs someone a second visit to a site.
 > Country is the exception that shows the limit: someone hunting for the regulatory domain setting looks for the country, so the more correct term would be the harder to find. Precision gives way to discoverability, and to nothing else.

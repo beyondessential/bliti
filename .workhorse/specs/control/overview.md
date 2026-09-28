@@ -10,7 +10,7 @@ The control stream is a stream role beyond those of [MSG](../messages.md), estab
 
 ## The acts
 
-| act | what the device does |
+| act | effect |
 | --- | --- |
 | `restart` | stops its bliti software and starts it again, leaving the rest of the system running |
 | `reboot` | restarts the whole system |
@@ -38,7 +38,7 @@ A device MUST refuse an act it did not list, and every act asked for once it has
 A device MUST serve any number of control streams at once, on one channel or across several.
 
 > [!NOTE]
-> An act is a request to do something that cannot be taken back, which is the case [MSG](../messages.md) reserves critical members for: a device that acted on an `act` whose selector it had not read would do something other than what was asked.
+> An act is a request to do something that cannot be taken back, which is the case [MSG](../messages.md) reserves critical members for: a device that acted on an `act` whose selector it had not read would do something it was not asked to do.
 > Several operators may each have a control stream open. The first act accepted is the one carried out, and the refusal each later one receives says so.
 
 ## Going away
@@ -51,12 +51,12 @@ A device MUST end every connection and carry the act out even where it cannot se
 
 A device MUST log every act asked for, with whether it was accepted, and the `name` and `version` the asking client gave in its `hello`.
 
-A device MUST log an act it accepted and then failed to carry out, with what went wrong.
+A device MUST log an act it accepted and then failed to carry out, with the reason it failed.
 
 > [!NOTE]
-> `going-away` is what lets every operator watching a device tell a device that is restarting from one that has dropped, and wait for it rather than go looking for a fault.
+> `going-away` lets every operator watching a device tell a device that is restarting from one that has dropped, and wait for it rather than go looking for a fault.
 > A client that has declined `default` is not being looked at, so its channel ends as any other channel ends.
-> Ending every connection before acting is what makes the channel close the same way whichever act follows, rather than on however the system happens to wind down.
+> Ending every connection before acting makes the channel close the same way whichever act follows, rather than on however the system happens to wind down.
 
 ## Message types
 

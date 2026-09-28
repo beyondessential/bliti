@@ -25,7 +25,7 @@ The URL the QR code is carried in, and the human-readable rendering printed bene
 
 > [!NOTE]
 > Moving the marker orphans every QR code already fixed to an enclosure, so it moves only when something it covers has actually changed.
-> The marker is the only version signal that exists before a connection does, which is why it covers the layers above the key schedule as well as the key schedule itself. Were it to cover only what changes the secret, two peers running incompatible handshakes would derive matching handles, recognise each other, and fail with nothing to tell an operator.
+> The marker is the only version signal that exists before a connection does, which is why it covers the layers above the key schedule as well as the key schedule itself. Were it to cover only the inputs that change the secret, two peers running incompatible handshakes would derive matching handles, recognise each other, and fail with nothing to tell an operator.
 
 ## Acting on the marker
 
@@ -35,12 +35,12 @@ Where the client does not implement the advertised version it MUST go no further
 
 > [!NOTE]
 > No shared secret could be computed under a version the client does not implement, and nothing it said afterwards would be understood.
-> No two versions produce a matching handle, so reading the marker is what separates an unsupported device from one the client cannot hear at all.
-> The report is a SHOULD because not every client hears what is advertised. A browser's chooser filtered on the name of [WEB](web-app.md) passes over a device at any other version, so the web application never sees one to report.
+> No two versions produce a matching handle, so reading the marker separates an unsupported device from one the client cannot hear at all.
+> The report is a SHOULD because not every client hears every advertisement. A browser's chooser filtered on the name of [WEB](web-app.md) passes over a device at any other version, so the web application never sees one to report.
 
 ## Nothing else gates behaviour
 
-A client and a device MUST NOT withhold or refuse any message type, member or feature on the grounds of what software the other end reported running.
+A client and a device MUST NOT withhold or refuse any message type, member or feature on the grounds of the software the other end reported running.
 
 The software each end runs carries its own version, exchanged and displayed under [MSG](messages.md).
 

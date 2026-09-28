@@ -12,7 +12,7 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 ## External documents
 
-| document | what it covers |
+| document | covers |
 | --- | --- |
 | [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) | the requirement keywords above |
 | [The Noise Protocol Framework](https://noiseprotocol.org/noise.html), revision 34 | the handshake of [CHN](channel.md) |

@@ -42,9 +42,9 @@ A device MUST NOT put more than 40 KiB of notification payload on the air in any
 A device that reaches the ceiling MUST hold the remainder until the window allows it, and MUST NOT discard it.
 
 > [!NOTE]
-> The ceiling counts payload bytes rather than notifications because the notification count is not what the link spends. A peer may coalesce many notifications into one ATT protocol data unit, so at the same count a device can occupy the air anywhere from one unit to dozens depending on how large each notification is and on whether the peer coalesces at all, neither of which the device is told. Bytes track the air time the device is asking for, across peers that differ in both.
+> The ceiling counts payload bytes rather than notifications because the link spends air time, which the notification count does not track. A peer may coalesce many notifications into one ATT protocol data unit, so at the same count a device can occupy the air anywhere from one unit to dozens depending on how large each notification is and on whether the peer coalesces at all, neither of which the device is told. Bytes track the air time the device is asking for, across peers that differ in both.
 > Past roughly 60 KiB a second a peer stops being reliable rather than merely slow: delivery becomes erratic, notifications begin to go missing, and the connection is eventually lost to a supervision timeout. Where that happens varies between connections at a fixed rate, so the ceiling sits far enough below it to stay out of that region rather than close enough to be efficient near it. Below it a link runs steadily for as long as it is asked to.
-> The ceiling does not bind in ordinary operation. A peer slower than this paces the device by taking notifications more slowly, and the device clears its backlog at whatever rate that peer allows. What the ceiling governs is a peer fast enough to be driven into the unreliable region, which is the only case where sending harder ends the session instead of filling it.
+> The ceiling does not bind in ordinary operation. A peer slower than this paces the device by taking notifications more slowly, and the device clears its backlog at whatever rate that peer allows. The ceiling only matters for a peer fast enough to be driven into the unreliable region, which is the only case where sending harder ends the session instead of filling it.
 > A device with a backlog therefore clears it more slowly, because a slow reading beats a dropped session.
 
 ## Transport
@@ -61,19 +61,19 @@ The device MUST accept both a write with response and a write without response o
 
 Each direction is a stream of bytes.
 The sender MUST chunk it into writes or notifications whose payload is at most the negotiated ATT_MTU less the three-byte ATT header.
-The receiver MUST concatenate what arrives in the order it arrives and read messages out of the result; a chunk boundary is not a message boundary.
+The receiver MUST concatenate the chunks in the order they arrive and read messages out of the result; a chunk boundary is not a message boundary.
 
 Within that byte stream, each Noise message, handshake or transport, MUST be prefixed with its length as two bytes, big-endian, giving the number of bytes that follow.
 A Noise message is at most 65535 bytes, including its 16-byte authentication tag.
 
 > [!NOTE]
 > A two-byte prefix expresses exactly the range a Noise message can occupy, so a receiver cannot be asked to buffer more than the maximum and needs no rule refusing one.
-> The prefix is also what lets a message exceed the negotiated ATT_MTU.
+> The prefix also lets a message exceed the negotiated ATT_MTU.
 
 ## Several clients at once
 
 A device MUST serve a channel to each client connected to it, each independently of the others.
-What a client writes MUST reach only that client's channel, and what the device sends on a channel MUST reach only that channel's client.
+The data a client writes MUST reach only that client's channel, and the data the device sends on a channel MUST reach only that channel's client.
 A client connecting, failing its handshake, or leaving MUST NOT end or disturb another client's channel.
 
 > [!NOTE]
@@ -101,7 +101,7 @@ A context MUST NOT use a preset dictionary.
 A sender MUST NOT leave a message it has finished writing unreadable by the receiver.
 A sender MAY defer flushing while it has more to write.
 
-A receiver that cannot decompress what arrives MUST treat it as a fault in the peer and MUST close the connection.
+A receiver that cannot decompress the bytes it receives MUST treat it as a fault in the peer and MUST close the connection.
 
 The receiver MUST report it: a device by logging it, a client by telling the operator that the connection to the device has failed.
 
@@ -109,10 +109,10 @@ A receiver whose transport ends before the compressed stream it carries does MUS
 
 > [!NOTE]
 > Compression is unconditional, so there is nothing to negotiate, nothing to carry in a hello, and no uncompressed path. The marker of [VER](version.md) covers this section, and both ends are at the same marker before a channel exists.
-> One context per direction, rather than one per stream or one per message, is what sees the redundancy that lives across messages rather than within one: every reading a device sends repeats the catalogue names, trait names, units and state strings of the one before it. What it costs is that a receiver cannot skip an unknown message without decompressing it, since the context must stay fed, and it has to decompress to learn the type in any case.
-> Flushing at each message boundary satisfies the rule above, and deferring is what lets a burst compress as one run.
+> One context per direction, rather than one per stream or one per message, sees the redundancy that lives across messages rather than within one: every reading a device sends repeats the catalogue names, trait names, units and state strings of the one before it. The cost is that a receiver cannot skip an unknown message without decompressing it, since the context must stay fed, and it has to decompress to learn the type in any case.
+> Flushing at each message boundary satisfies the rule above, and deferring lets a burst compress as one run.
 > The context is shared by every stream and is unrecoverable once it has diverged, which is why a decompression failure ends the connection rather than the one stream, unlike the message faults of [MSG](messages.md). A conforming peer cannot produce one: the compressed bytes sit inside the Noise transport, so neither corruption on the link nor an observer can reach them.
-> A transport that ends mid-stream is a different thing from one whose bytes will not decompress, and is nobody's fault: a client that walks out of range ends a connection exactly that way. What it must not do is read as a complete exchange, since a receiver holds part of a block it can never finish.
+> A transport that ends mid-stream is a different thing from one whose bytes will not decompress, and is nobody's fault: a client that walks out of range ends a connection exactly that way. It must not read as a complete exchange, since a receiver holds part of a block it can never finish.
 
 ## Streams
 

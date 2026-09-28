@@ -4,10 +4,10 @@ id: NFO
 
 # Device information
 
-A device reports what board it is, what it is running, and how it is doing, as the facts and readings below.
+A device reports which board it is, the software it is running, and how it is doing, as the facts and readings below.
 
-This spec is the catalogue: which entries a device reports and what each is about.
-What a reader does with them is its own; [VIEW](device-view.md) specifies what ours does.
+This spec is the catalogue: which entries a device reports and the subject of each.
+Each reader decides how to use them; [VIEW](device-view.md) specifies how ours does.
 
 ## Borrowed terms
 
@@ -23,27 +23,27 @@ A device MUST send its facts and readings on the topic `default`.
 
 ## Facts and readings
 
-A device reports what it knows about itself as `fact` and `reading` messages, within the envelope of [MSG](messages.md).
+A device reports on itself in `fact` and `reading` messages, within the envelope of [MSG](messages.md).
 
 Both are ordinary feature message types: either end may send them, and an end with nothing to do about one received treats it as the no-op [MSG](messages.md) requires.
 
 A `fact` is something true about the device.
 A `reading` is a measurement, whose history is worth keeping.
 
-The two are one shape, and what separates them is which catalogue names them.
+The two are one shape, separated only by the catalogue that names them.
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `at` | number | yes | milliseconds since the sender booted, when it was taken |
-| `fact` or `measurement` | string | yes | what it is, named against the catalogue below; `fact` on a `fact`, `measurement` on a `reading` |
-| `traits` | object | yes | what it is about, as below |
-| `kind` | string | yes | what the value is |
+| `fact` or `measurement` | string | yes | the entry's name in the catalogue below; `fact` on a `fact`, `measurement` on a `reading` |
+| `traits` | object | yes | the entry's subject, as below |
+| `kind` | string | yes | the type of the value |
 | `unit` | string | no | the unit the value is in |
 | `value` | any | no | the value |
 
 A receiver MUST treat `at` as meaningful only relative to other `at` values from the same sender.
 
-A device MUST send one message per fact or reading, at whatever cadence suits what it reports.
+A device MUST send one message per fact or reading, at a cadence suited to the entry it reports.
 
 > [!NOTE]
 > Times are measured from boot rather than from an epoch because a device in the field may have no set clock and no way to reach one.
@@ -51,9 +51,9 @@ A device MUST send one message per fact or reading, at whatever cadence suits wh
 
 ### What a message is about
 
-`traits` says what a fact or reading is about.
+`traits` names the subject of a fact or reading.
 
-A trait either distinguishes what a measurement was taken on, or describes it.
+A trait either distinguishes the instance a measurement was taken on, or describes the measurement.
 
 A distinguishing trait MUST be a dimension the sender could aggregate across: one that slices its catalogue entry into instances which can meaningfully be summed, ranked or compared.
 
@@ -70,25 +70,25 @@ Where the sender holds a piece of information a trait could carry, it MUST send 
 
 ### Telling entries apart
 
-A device MUST emit entries a reader can tell apart: two entries that are about different things MUST differ somewhere in what is sent.
+A device MUST emit entries a reader can tell apart: two entries that are about different things MUST differ somewhere in the messages that carry them.
 
 A device MUST NOT rely on the order entries arrive in to distinguish them.
 
 An entry is told apart from another by its name, its `kind` and its distinguishing traits, and, where the catalogue below lists it as one entry per value held, by its `value` as well.
 
 > [!NOTE]
-> How a reader groups entries, and what it treats as one thing measured over time, is the reader's own business. The device's obligation is only that what it sends is distinguished well enough for a reader to do that unambiguously.
+> How a reader groups entries, and which of them it treats as one thing measured over time, is the reader's own business. The device's obligation is only that its entries are distinguished well enough for a reader to do that unambiguously.
 > An interface commonly holds an IPv4 address and more than one IPv6 address, a global one and a unique local one among them, so its addresses share a name, a `kind` and every trait, and only their values separate them.
 
 ### Status
 
-The `status` trait says how the datum stands: whether there is a value, and where the measurement has a notion of being in difficulty, what it says about the thing measured.
+The `status` trait says how the datum stands: whether there is a value, and where the measurement has a notion of being in difficulty, its verdict on the thing measured.
 
 | `is` | meaning | `value` |
 | --- | --- | --- |
-| `passed` | the measurement was taken and what it measures is well | present |
-| `warning` | what it measures is degraded, but not gravely | present |
-| `failed` | what it measures is unwell | present |
+| `passed` | the measurement was taken and the thing it measures is well | present |
+| `warning` | the thing it measures is degraded, but not gravely | present |
+| `failed` | the thing it measures is unwell | present |
 | `skipped` | a precondition was not met, so nothing was measured | absent |
 | `broken` | the measurement was attempted and errored | absent |
 | `ended` | the entry no longer applies, as a hotspot that has stopped does not | absent, except on an entry told apart by its value |
@@ -100,19 +100,19 @@ An entry MUST carry `value` where `is` is `ended` only where it is told apart by
 
 `status` MUST carry `reason` where `is` is anything but `passed`, and MUST NOT carry it where `is` is `passed`.
 
-`reason` is free text, in the sender's own words, saying what happened.
+`reason` is free text, in the sender's own words, explaining the status.
 
 A device MUST report `warning` or `failed` only where the measurement has a notion of being in difficulty.
 
 > [!NOTE]
-> The status is the datum's and not the device's: `passed` against a throughput reading says the figure is sound, not that the link is quiet. That is what lets every entry carry a status while a busy link stays no kind of warning.
+> The status is the datum's and not the device's: `passed` against a throughput reading says the figure is sound, not that the link is quiet. That lets every entry carry a status while a busy link stays no kind of warning.
 > `skipped` and `broken` both leave the value absent and both say nothing about the device, but they are different things to whoever is looking: one is a measurement this platform cannot make, the other is one that should have worked and did not.
 > The first five are the vocabulary BES software already reports checks in, so an operator meets the same words here as elsewhere. `ended` has no counterpart there, because a check does not stop existing.
 > `reason` is free text because the useful part of a failure is the part nobody anticipated: a path, a permission, an errno. A code would carry the half that was foreseen and drop the half worth reading.
 
 ### Values
 
-`kind` names what the value is, and its vocabulary is open.
+`kind` names the type of the value, and its vocabulary is open.
 
 This catalogue uses:
 
@@ -134,8 +134,8 @@ A `unit` MUST be named in full, and MUST NOT be abbreviated.
 A sender MUST round a numeric `value` to at most four decimal places.
 
 > [!NOTE]
-> An abbreviated unit is presentation, and an ambiguous one is worse than none: `B/s` and `bps` differ by a factor of eight and are routinely written for each other. How a reader writes the unit, and at what magnitude it shows the value, is the reader's.
-> Rounding nearly halves what the values cost compressed, and no reading this protocol carries is meaningful past four places.
+> An abbreviated unit is presentation, and an ambiguous one is worse than none: `B/s` and `bps` differ by a factor of eight and are routinely written for each other. How a reader writes the unit, and the magnitude it shows the value at, is the reader's.
+> Rounding nearly halves the compressed size of the values, and no reading this protocol carries is meaningful past four places.
 
 ## What a device reports
 
@@ -158,7 +158,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 
 ### Facts
 
-| `fact` | kind | traits | what it reports |
+| `fact` | kind | traits | reports |
 | --- | --- | --- | --- |
 | `hostname` | `text` | — | the name the system answers to, from the kernel |
 | `board` | `text` | — | the board's model, falling back to the machine's vendor and product |
@@ -176,7 +176,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 
 ### Readings
 
-| `measurement` | kind | traits | what it reports |
+| `measurement` | kind | traits | reports |
 | --- | --- | --- | --- |
 | `cpu-usage` | `fraction` | — | processor in use across all cores |
 | `cpu-frequency` | `quantity`, `hertz` | — | the speed the processor is running at |
@@ -193,12 +193,12 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 
 ### Traits
 
-| trait | members | what it names |
+| trait | members | names |
 | --- | --- | --- |
 | `interface` | `name`, `route`, `overlay` | a network interface; `route` is `default` on the one carrying the default route, and `overlay` names the overlay where it is one |
 | `security` | — | how a wireless link is secured |
 | `channel` | `number`, `band`, `width` | the channel a wireless link is on; `band` is named as [HOT](network/hotspot.md) names bands, and `width` is in megahertz |
-| `passphrase` | — | what a client joins the hotspot with |
+| `passphrase` | — | the secret a client joins the hotspot with |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
@@ -222,7 +222,7 @@ A device MUST report one filesystem per block device, choosing the shortest moun
 A device MUST mark a boot partition with the `boot` role.
 
 > [!NOTE]
-> Boot partitions are small, written once when the device is imaged, and sit near full for the device's whole life. Marking them is what lets a reader leave them out of a headline without knowing the mount paths a distribution happens to use.
+> Boot partitions are small, written once when the device is imaged, and sit near full for the device's whole life. Marking them lets a reader leave them out of a headline without knowing the mount paths a distribution happens to use.
 
 ## Network
 
@@ -242,7 +242,7 @@ A device MUST report the channel of its hotspot and of its wireless link both.
 
 A device MUST report the passphrase its hotspot runs with.
 
-What a device joins, and the hotspot it runs, are configured under [NET](network/overview.md).
+The networks a device joins, and the hotspot it runs, are configured under [NET](network/overview.md).
 
 > [!NOTE]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.
@@ -301,7 +301,7 @@ Where a device has both a backup supply's signal and the movement of the cell vo
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.
 > The distinction is in the movement and not the level. A cell under load and an idle cell rest at the same voltage at different charges, while an idle cell's voltage does not move at all and a cell carrying the device drifts down continuously.
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
-> A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case is what tells it from an external supply the same device might also report.
+> A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case tells it from an external supply the same device might also report.
 > A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
 
 ## Temperature and processor speed
@@ -315,7 +315,7 @@ A device MUST report `cpu-frequency` as `warning`, with a reason saying the plat
 A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequency-max`.
 
 > [!NOTE]
-> Carrying the board's own thresholds draws the reading against what the board means by hot, rather than against an invented scale.
+> Carrying the board's own thresholds draws the reading against the temperature the board considers hot, rather than against an invented scale.
 > Ordinary idle scaling lowers the frequency, so a device that inferred throttling from the two figures would report it on a device that is simply not busy.
 
 ## Sampling
@@ -326,8 +326,8 @@ A device MUST hold enough recent history of a reading it derives another from to
 
 A device MUST NOT hold readings to send later.
 
-A device MUST choose each reading's update rate to suit what it measures, and a reader MUST NOT assume a fixed interval between readings.
+A device MUST choose each reading's update rate to suit the quantity it measures, and a reader MUST NOT assume a fixed interval between readings.
 
 > [!NOTE]
-> Sampling before a session opens is what gives the device something current to send the moment one does, and what gives the cell voltage the history its direction of travel is derived from.
-> Nothing is kept for replay: a reader that comes back is sent what is current rather than what accumulated while it was away, as [MSG](messages.md) requires.
+> Sampling before a session opens gives the device something current to send the moment one does, and gives the cell voltage the history its direction of travel is derived from.
+> Nothing is kept for replay: a reader that comes back is sent the current entries rather than those accumulated while it was away, as [MSG](messages.md) requires.

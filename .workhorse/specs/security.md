@@ -66,6 +66,13 @@ Anyone holding a device's presence token can open a session with that device.
 
 A photograph of the QR code yields the token, because the code carries it outright.
 
+A client that has read the code holds the token as well.
+The web application keeps it in its tab's storage for the life of that tab, as [WEB](web-app.md) specifies, and a browser that opened the code by its link records it among the pages it has visited.
+Anyone who can read either can open a session, just as with a photograph of the code.
+
+> [!NOTE]
+> The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
+
 ### The board ID yields everything
 
 Anyone who learns a device's board ID can derive that device's root, and so both its presence token and its device static key.
@@ -73,7 +80,7 @@ Anyone who learns a device's board ID can derive that device's root, and so both
 Any software on a device can read its board ID, so anyone who has had access to a device can obtain it.
 
 > [!NOTE]
-> Physical access therefore still permits impersonation. What the static key closes is the path that needs no access at all.
+> Physical access therefore still permits impersonation. The static key only closes the path that needs no access at all.
 
 ### A device's presence is not hidden
 
@@ -84,7 +91,7 @@ An observer who has not scanned the QR code can still tell that some bliti devic
 A device's handle is fixed for as long as its presence token is, as [ADV](discovery.md) specifies.
 An observer who has not scanned the QR code can therefore recognise a device each time they hear it, and follow it over time and from place to place, whether or not the adapter's address rotates.
 
-What an observer gains is recognition alone.
+An observer gains nothing beyond recognising the device.
 The handle reveals nothing about the presence token, and holding it opens nothing, because a session needs the token from the QR code.
 
 > [!NOTE]
@@ -97,24 +104,24 @@ Search here means exhaustive enumeration, not consulting a record: an attacker d
 Because the derivation constants are public, that attack needs neither the device's QR code nor physical access to it.
 A recorded handshake serves as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
-What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
+The attack is held back only by the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
 
-Where a board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, that space is large enough that the derivation cost is not what holds the scheme up.
+Where a board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, that space is large enough that the scheme does not depend on the derivation cost.
 
-Where it comes from a platform serial, the cost is what the guarantee rests on, and it does not make every such board safe.
+Where it comes from a platform serial, the guarantee rests on the derivation cost, and that cost does not make every such board safe.
 A Raspberry Pi 4 or 5 serial occupies its full width and is out of reach.
 A serial that collapses to a short value, as on earlier boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 
 ### Compressed sizes carry a signal about content
 
-The channel compresses what it carries, as [CHN](channel.md) specifies, so what crosses the link varies with a message's content and not with its length alone.
+The channel compresses the messages it carries, as [CHN](channel.md) specifies, so the bytes crossing the link vary with a message's content and not with its length alone.
 
 An observer counts notifications rather than messages, which is coarser than a compressed size for each: one context spans every stream, and its output is chunked for the link rather than at message boundaries.
 
-An observer learns nothing of what is said, and something of how much of a message the compression context had already seen.
+An observer learns nothing of a message's content, and something of how much of it the compression context had already seen.
 
 > [!NOTE]
-> The attacks that recover a secret from compressed sizes need input an attacker chooses to share a context with the secret. Neither direction offers that: the presence token is never sent, and each end compresses only what it chose to say.
+> The attacks that recover a secret from compressed sizes need input an attacker chooses to share a context with the secret. Neither direction offers that: the presence token is never sent, and each end compresses only the messages it chose to send.
 
 ### What a handshake proves
 
