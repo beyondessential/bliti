@@ -355,6 +355,19 @@ pub async fn connect(
 					)) => {
 						println!("config:   a configuration-session message");
 					}
+					Ok(Reading::Message(Message::GoingAway { act })) => {
+						println!("going:    the device is carrying out {act}");
+					}
+					// The control stream of CTL. This diagnostic client opens none.
+					Ok(Reading::Message(
+						Message::Control
+						| Message::Acts { .. }
+						| Message::Act { .. }
+						| Message::Accepted
+						| Message::Refused { .. },
+					)) => {
+						println!("control:  a control-stream message");
+					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
 					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),

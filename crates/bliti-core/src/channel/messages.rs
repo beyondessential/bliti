@@ -141,6 +141,39 @@ pub enum Message {
 		/// What the radio can see of the spectrum.
 		spectrum: Map<String, Json>,
 	},
+
+	/// A client opening a control stream, first on the stream it opens for it (CTL).
+	Control,
+
+	/// A device's answer to `control`: the acts it can carry out (CTL). Named as strings rather than
+	/// as a closed set, so a client passes over an act a newer device lists rather than failing to
+	/// read the message.
+	Acts {
+		/// The acts, by wire name.
+		acts: Vec<String>,
+	},
+
+	/// A client asking a device to carry out an act (CTL). Its selector is critical, so a device does
+	/// not act on a request whose selector it has not read.
+	Act {
+		/// The act, by wire name.
+		act: String,
+	},
+
+	/// A device's answer that it will carry out the act asked for (CTL).
+	Accepted,
+
+	/// A device's answer that it will not carry out the act asked for (CTL).
+	Refused {
+		/// Why, in the device's own words.
+		reason: String,
+	},
+
+	/// A device telling a client on its `default` feed that it is about to carry out an act (CTL).
+	GoingAway {
+		/// The act accepted, by wire name.
+		act: String,
+	},
 }
 
 impl Message {
@@ -265,6 +298,31 @@ impl Message {
 				map.insert("type".to_owned(), "spectrum".into());
 				map.insert("spectrum".to_owned(), Json::Object(spectrum.clone()));
 			}
+			Self::Control => {
+				map.insert("type".to_owned(), "control".into());
+			}
+			Self::Acts { acts } => {
+				map.insert("type".to_owned(), "acts".into());
+				map.insert(
+					"acts".to_owned(),
+					Json::Array(acts.iter().cloned().map(Json::String).collect()),
+				);
+			}
+			Self::Act { act } => {
+				map.insert("type".to_owned(), "act".into());
+				map.insert("act".to_owned(), act.clone().into());
+			}
+			Self::Accepted => {
+				map.insert("type".to_owned(), "accepted".into());
+			}
+			Self::Refused { reason } => {
+				map.insert("type".to_owned(), "refused".into());
+				map.insert("reason".to_owned(), reason.clone().into());
+			}
+			Self::GoingAway { act } => {
+				map.insert("type".to_owned(), "going-away".into());
+				map.insert("act".to_owned(), act.clone().into());
+			}
 		}
 		map
 	}
@@ -362,6 +420,20 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"spectrum" => Ok(Message::Spectrum {
 				spectrum: object(&map, "spectrum")?,
 			}),
+			"control" => Ok(Message::Control),
+			"acts" => Ok(Message::Acts {
+				acts: strings(&map, "acts")?,
+			}),
+			"act" => Ok(Message::Act {
+				act: string(&map, "act")?,
+			}),
+			"accepted" => Ok(Message::Accepted),
+			"refused" => Ok(Message::Refused {
+				reason: string(&map, "reason")?,
+			}),
+			"going-away" => Ok(Message::GoingAway {
+				act: string(&map, "act")?,
+			}),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -405,6 +477,16 @@ fn optional_object<E: de::Error>(
 	}
 }
 
+fn strings<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Vec<String>, E> {
+	array(map, member)?
+		.into_iter()
+		.map(|item| match item {
+			Json::String(value) => Ok(value),
+			_ => Err(de::Error::custom(format!("`{member}` holds strings"))),
+		})
+		.collect()
+}
+
 fn array<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Vec<Json>, E> {
 	match map.get(member) {
 		Some(Json::Array(items)) => Ok(items.clone()),
@@ -435,6 +517,12 @@ impl MessageSet for Message {
 			"wps",
 			"networks",
 			"spectrum",
+			"control",
+			"acts",
+			"act",
+			"accepted",
+			"refused",
+			"going-away",
 		]
 	}
 
@@ -455,6 +543,9 @@ impl MessageSet for Message {
 			// `configuration` pins its document critical, so a peer that cannot read the document does not
 			// act on the message carrying it (CFG). Recorded in `wire-breaks.toml`.
 			"configuration" => &["document"],
+			// `act` pins its selector critical, so a device does not carry out an act it has not read
+			// (CTL). Recorded in `wire-breaks.toml`.
+			"act" => &["act"],
 			_ => &[],
 		}
 	}
@@ -607,6 +698,63 @@ mod tests {
 				"{message:?}"
 			);
 		}
+	}
+
+	/// The control stream's messages round trip, and `act` carries its selector critical (CTL).
+	#[test]
+	fn the_control_messages_round_trip() {
+		for message in [
+			Message::Control,
+			Message::Acts {
+				acts: vec!["restart".to_owned(), "reboot".to_owned()],
+			},
+			Message::Act {
+				act: "reboot".to_owned(),
+			},
+			Message::Accepted,
+			Message::Refused {
+				reason: "already going".to_owned(),
+			},
+			Message::GoingAway {
+				act: "power-off".to_owned(),
+			},
+		] {
+			let json = message.to_json();
+			assert_eq!(read(&json).unwrap(), Reading::Message(message.clone()));
+			assert_eq!(round_trip_omissions(&message), Vec::<String>::new());
+		}
+		assert_eq!(
+			String::from_utf8(
+				Message::Act {
+					act: "reboot".to_owned()
+				}
+				.to_json()
+			)
+			.unwrap(),
+			r#"{"ACT":"reboot","type":"act"}"#
+		);
+		assert_eq!(
+			String::from_utf8(
+				Message::GoingAway {
+					act: "reboot".to_owned()
+				}
+				.to_json()
+			)
+			.unwrap(),
+			r#"{"act":"reboot","type":"going-away"}"#
+		);
+	}
+
+	/// An act a newer device lists is still read, as a string this build does not know (CTL).
+	#[test]
+	fn acts_are_read_whatever_they_name() {
+		assert_eq!(
+			parse(r#"{"type":"acts","acts":["reboot","hibernate"]}"#).unwrap(),
+			Reading::Message(Message::Acts {
+				acts: vec!["reboot".to_owned(), "hibernate".to_owned()]
+			})
+		);
+		assert!(parse(r#"{"type":"acts","acts":["reboot",7]}"#).is_err());
 	}
 
 	/// `wps` names the network it is for by `ssid`, and leaves it out where it is for any (CFG).

@@ -31,7 +31,7 @@ A client MUST ask for an act by sending `act` on the control stream, carrying as
 
 A device MUST answer every `act` exactly once, with `accepted` where it will carry the act out, and otherwise with `refused`.
 
-A device MUST refuse an act it did not list, and every act asked for once it has accepted one.
+A device MUST refuse an act it did not list, and every act asked for once it has accepted one, until it has failed to carry that one out.
 
 `refused` MUST carry `reason`, in the device's own words, saying why.
 
