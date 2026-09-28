@@ -194,22 +194,27 @@ button.danger-fill { background: var(--bad); }
 		</main>
 	</div>
 
-	<!-- 4. After a reboot or restart: every connected operator sees this, and reconnects. It goes
-	     when the device is back, and the device view returns. A restart reads "Restarting bliti…". -->
+	<!-- 4. After a reboot or restart: every connected operator sees this while the app reconnects. It goes
+	     when the device is back and the tiles return. A restart reads "Restarting bliti…".
+	     Disconnect stops the reconnecting and returns to the QR code read section. -->
 	<div class="frame">
 		<p class="caption">Rebooting, until the device is back</p>
 		<main>
-			<h1>bliti</h1>
-			<section>
-				<h2>QR code read</h2>
-				<p class="code">7K2Q-9XWM-4TPA-HD3R-LN8E</p>
-				<div class="bar-state working">
-					<p><span class="spinner"></span>Rebooting…</p>
-					<div class="row">
-						<button class="secondary">Stop</button>
-					</div>
+			<div class="heading title">
+				<h1>Info</h1>
+				<div class="actions">
+					<button class="secondary small">Disconnect</button>
 				</div>
-			</section>
+			</div>
+			<h2>Device</h2>
+			<div class="device">
+				<div class="name">tamanu-iti-04</div>
+				<div class="sub muted">Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 · 6.17.0</div>
+			</div>
+			<p class="muted software">bliti 0.9.0</p>
+			<div class="bar-state working">
+				<p><span class="spinner"></span>Rebooting…</p>
+			</div>
 		</main>
 	</div>
 
@@ -230,19 +235,26 @@ button.danger-fill { background: var(--bad); }
 		</main>
 	</div>
 
-	<!-- 6. After a power off: shown for a moment once the connection closes, then it goes and this is
-	     the ordinary QR code read section. Nothing says the device is off, because nothing knows. -->
+	<!-- 6. After a power off: shown for a moment once the connection closes, then it goes and the app is
+	     on the ordinary QR code read section. Nothing says the device is off, because nothing knows. -->
 	<div class="frame">
 		<p class="caption">Shutting down, then gone</p>
 		<main>
-			<h1>bliti</h1>
-			<section>
-				<h2>QR code read</h2>
-				<p class="code">7K2Q-9XWM-4TPA-HD3R-LN8E</p>
-				<div class="bar-state working">
-					<p><span class="spinner"></span>Shutting down…</p>
+			<div class="heading title">
+				<h1>Info</h1>
+				<div class="actions">
+					<button class="secondary small">Disconnect</button>
 				</div>
-			</section>
+			</div>
+			<h2>Device</h2>
+			<div class="device">
+				<div class="name">tamanu-iti-04</div>
+				<div class="sub muted">Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 · 6.17.0</div>
+			</div>
+			<p class="muted software">bliti 0.9.0</p>
+			<div class="bar-state working">
+				<p><span class="spinner"></span>Shutting down…</p>
+			</div>
 		</main>
 	</div>
 

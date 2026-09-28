@@ -65,15 +65,17 @@ The application MUST NOT run the memory-hard derivation of [KEY](key-schedule.md
 The application MUST treat `accepted` for an act it asked for as it treats `going-away` for that act, as [CTL](control/overview.md) specifies both.
 
 On either, the application MUST say that the act is under way, as restarting bliti, rebooting or shutting down, and MUST keep the QR code it read.
+While it says so, the application MUST keep the device view's title and the header naming the device, as [VIEW](device-view.md) has them, MUST show the act under way in place of the tiles, and MUST offer to disconnect beside the title.
 The application MUST NOT say that an act has completed.
 
 After a `restart` or a `reboot`, the application MUST reconnect to the same device on its own once the channel has closed, without offering the chooser, and MUST go on trying until the channel is open again.
-While it tries, the application MUST go on saying that the act is under way, and MUST let the operator stop.
+While it tries, the application MUST go on saying that the act is under way.
+Disconnecting MUST stop it trying.
 Once the channel is open again, the application MUST stop saying so and show the device view.
 The application MUST stop trying once a device that has not come back is unlikely to, and MUST then say that the device has not come back and offer to find it again.
 Where the browser cannot reach the device again without the chooser, the application MUST offer to find it again.
 
-After a `power-off`, the application MUST go on saying that the act is under way for a moment once the channel has closed, long enough to be read, and MUST then stop saying so and offer to find the device again, as after any closed channel.
+After a `power-off`, the application MUST go on saying that the act is under way for a moment once the channel has closed, long enough to be read, unless the operator disconnects first, and MUST then stop saying so and offer to find the device again, as after any closed channel.
 The application MUST NOT reconnect on its own after a `power-off`.
 
 > [!NOTE]
