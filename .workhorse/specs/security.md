@@ -80,7 +80,7 @@ Anyone who learns a device's board ID can derive that device's root, and so both
 Any software on a device can read its board ID, so anyone who has had access to a device can obtain it.
 
 > [!NOTE]
-> Physical access therefore still permits impersonation. What the static key closes is the path that needs no access at all.
+> Physical access therefore still permits impersonation. The static key only closes the path that needs no access at all.
 
 ### A device's presence is not hidden
 
@@ -91,7 +91,7 @@ An observer who has not scanned the QR code can still tell that some bliti devic
 A device's handle is fixed for as long as its presence token is, as [ADV](discovery.md) specifies.
 An observer who has not scanned the QR code can therefore recognise a device each time they hear it, and follow it over time and from place to place, whether or not the adapter's address rotates.
 
-What an observer gains is recognition alone.
+An observer gains nothing beyond recognising the device.
 The handle reveals nothing about the presence token, and holding it opens nothing, because a session needs the token from the QR code.
 
 > [!NOTE]
@@ -104,11 +104,11 @@ Search here means exhaustive enumeration, not consulting a record: an attacker d
 Because the derivation constants are public, that attack needs neither the device's QR code nor physical access to it.
 A recorded handshake serves as well as a recorded advertisement does, because either lets a candidate be tested offline.
 
-What stands against it is the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
+The attack is held back only by the cost of one derivation multiplied by the size of the board ID's space, both specified in [KEY](key-schedule.md).
 
-Where a board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, that space is large enough that the derivation cost is not what holds the scheme up.
+Where a board ID comes from a TPM Endorsement Key or from written one-time-programmable memory, that space is large enough that the scheme does not depend on the derivation cost.
 
-Where it comes from a platform serial, the cost is what the guarantee rests on, and it does not make every such board safe.
+Where it comes from a platform serial, the guarantee rests on the derivation cost, and that cost does not make every such board safe.
 A Raspberry Pi 4 or 5 serial occupies its full width and is out of reach.
 A serial that collapses to a short value, as on earlier boards, is small enough to be searched by an adversary willing to spend on it, and no parameters tolerable on a provisioning path change that.
 
