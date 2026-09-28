@@ -287,6 +287,19 @@ section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--acc
 .pair > * { flex: 1 1 0; }
 .pair > button { flex: 0 0 auto; }
 .network .hint { margin: 6px 0 0; }
+/* The countries a scan heard named. Unset, the suggestion is the next thing to do, so it carries the
+   primary button; set to another country, it is a line beneath the field. */
+.network .suggest { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.network .suggest > p:first-child { margin: 0 0 8px; font-size: 0.9rem; }
+.network .suggest .row > * { flex: 0 1 auto; }
+.network .aside, .network .also { margin: 6px 0 0; font-size: 0.85rem; }
+.network .suggest .also { margin-top: 8px; }
+.network .aside button.link { margin-left: 4px; }
+.network .aside button.link + button.link::before, .network .also button.link + button.link::before {
+	content: "\00b7";
+	color: var(--muted);
+	margin: 0 6px;
+}
 .network .absent { margin: 12px 0 0; }
 .network .survey { margin-top: 12px; }
 

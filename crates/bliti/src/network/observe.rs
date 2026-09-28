@@ -85,6 +85,9 @@ pub enum Observation {
 		/// Its state now.
 		station: Station,
 	},
+	/// The regulatory domain changed, whoever changed it: the device setting it, or the kernel taking
+	/// the one an access point joined names (NET).
+	Regulatory,
 }
 
 /// Where a wireless client stands, as iwd reports it.

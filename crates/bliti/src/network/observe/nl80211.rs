@@ -1,16 +1,17 @@
 //! What the radios heard, found busy and are doing, over nl80211: `NL80211_CMD_GET_SCAN`,
 //! `NL80211_CMD_GET_SURVEY`, `NL80211_CMD_GET_INTERFACE` and `NL80211_CMD_GET_STATION`, all dumps
-//! that read what the kernel holds and change nothing.
+//! that read what the kernel holds and change nothing, and the regulatory group's events.
 
 use std::{collections::BTreeMap, fs, io};
 
 use futures::{StreamExt as _, TryStreamExt as _, future::BoxFuture};
+use tokio::sync::mpsc;
 use wl_nl80211::{
-	Nl80211Attr, Nl80211BssInfo, Nl80211ChannelWidth, Nl80211Event, Nl80211Handle,
+	Nl80211Attr, Nl80211BssInfo, Nl80211ChannelWidth, Nl80211Command, Nl80211Event, Nl80211Handle,
 	Nl80211MulticastGroup, Nl80211Survey, Nl80211SurveyInfo,
 };
 
-use super::{Operating, Scans, Surveyed, bss::AccessPoint};
+use super::{Observation, Operating, Scans, Surveyed, bss::AccessPoint};
 use crate::network::probe::{Nl80211, RadioInfo};
 
 /// The radios, over nl80211.
@@ -29,6 +30,28 @@ impl Air {
 			handle,
 		})
 	}
+}
+
+/// Send [`Observation::Regulatory`] whenever the kernel says the regulatory domain changed, globally
+/// or for one radio.
+pub(super) fn watch_regulatory(observations: mpsc::UnboundedSender<Observation>) -> io::Result<()> {
+	let (connection, _handle, mut messages) =
+		wl_nl80211::new_multicast_connection(&[Nl80211MulticastGroup::Regulatory])?;
+	tokio::spawn(connection);
+	tokio::spawn(async move {
+		while let Some((message, _)) = messages.next().await {
+			let changed = matches!(
+				Nl80211Event::parse(message),
+				Some(Nl80211Event::Unknown {
+					cmd: Nl80211Command::RegChange | Nl80211Command::WiphyRegChange
+				})
+			);
+			if changed && observations.send(Observation::Regulatory).is_err() {
+				return;
+			}
+		}
+	});
+	Ok(())
 }
 
 fn index(interface: &str) -> Result<u32, String> {

@@ -18,9 +18,11 @@ pub async fn linux(
 	rtnl::watch(observations.clone())
 		.await
 		.context("watching links over rtnetlink")?;
-	let iwd = iwd::Iwd::start(paths, observations)
+	let iwd = iwd::Iwd::start(paths, observations.clone())
 		.await
 		.context("watching iwd over the system bus")?;
+	nl80211::watch_regulatory(observations.clone())
+		.context("watching the regulatory domain over nl80211")?;
 	let air = nl80211::Air::connect().context("connecting to nl80211")?;
 	let platform = Platform {
 		iwd: Arc::new(iwd),

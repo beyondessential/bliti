@@ -217,6 +217,14 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 	const countryPath = pathOf(['regulatory-domain'])
 	const failureElsewhere =
 		failure && !failedKey && !within(failure.at, hotspotPath) && !within(failure.at, countryPath)
+	const scan = {
+		busy: state.act?.type === 'scan' && !state.act.failure,
+		failure: state.act?.type === 'scan' ? state.act.failure : null,
+		points: state.networks,
+		start: (name) => {
+			if (send((handle) => handle.scan(name))) dispatch({ type: 'act', act: 'scan', interface: name })
+		},
+	}
 
 	return (
 		<div className="network">
@@ -245,15 +253,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 					unchecked={
 						uncheckable(state) === state.selected ? { enabled: unedited(state), apply: applyUnchecked } : null
 					}
-					scan={{
-						busy: state.act?.type === 'scan' && !state.act.failure,
-						failure: state.act?.type === 'scan' ? state.act.failure : null,
-						points: state.networks,
-						start: (name) => {
-							if (send((handle) => handle.scan(name))) dispatch({ type: 'act', act: 'scan', interface: name })
-						},
-						joinByWps,
-					}}
+					scan={{ ...scan, joinByWps }}
 					onRemove={() => change((edit) => removeCandidate(edit, state.selected))}
 				/>
 			)}
@@ -289,9 +289,9 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 							onChange={(code) => change((edit) => setMember(edit, 'regulatory-domain', code))}
 							capabilities={caps}
 							marks={marks}
+							scan={scan}
 						/>
 					</fieldset>
-					<p className="muted hint">Sets which channels the radio may use.</p>
 				</section>
 			)}
 

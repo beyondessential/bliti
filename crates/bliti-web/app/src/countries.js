@@ -33,3 +33,25 @@ export function countryOptions(codes, current) {
 		.map((code) => ({ value: code, label: countryName(code) }))
 		.sort((a, b) => a.label.localeCompare(b.label))
 }
+
+/// The countries the access points of a scan name (NSCR), among `codes` as the device offers them:
+/// `suggested`, those named by the most access points, and `others`, every other one named, most
+/// named first. An access point heard by several radios counts once.
+export function suggestedCountries(points, codes) {
+	const offered = new Set(codes === 'any' ? CODES : (codes ?? []))
+	const named = new Map()
+	for (const point of Array.isArray(points) ? points : []) {
+		const code = typeof point?.country === 'string' ? point.country.toUpperCase() : null
+		if (!code || !offered.has(code)) continue
+		if (!named.has(code)) named.set(code, new Set())
+		named.get(code).add(point.bssid)
+	}
+	const byCount = [...named]
+		.map(([code, bssids]) => ({ code, count: bssids.size }))
+		.sort((a, b) => b.count - a.count || countryName(a.code).localeCompare(countryName(b.code)))
+	const most = byCount[0]?.count
+	return {
+		suggested: byCount.filter((each) => each.count === most).map((each) => each.code),
+		others: byCount.filter((each) => each.count !== most).map((each) => each.code),
+	}
+}

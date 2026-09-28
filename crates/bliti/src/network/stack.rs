@@ -89,14 +89,17 @@ impl Shared {
 		self.probed.lock().unwrap_or_else(PoisonError::into_inner)
 	}
 
-	/// Take in what the radios can do, as probed now.
-	fn reprobed(&self, radios: Vec<RadioInfo>) {
+	/// Take in what the radios can do, as probed now, and say whether the capabilities changed.
+	fn reprobed(&self, radios: Vec<RadioInfo>) -> bool {
 		let capabilities =
 			probe::capabilities(&radios, &self.config.wired, &probe::Backend::stack());
-		*self.probed() = Probed {
+		let mut probed = self.probed();
+		let changed = probed.capabilities != capabilities;
+		*probed = Probed {
 			radios,
 			capabilities,
 		};
+		changed
 	}
 
 	fn radios(&self) -> Vec<RadioInfo> {

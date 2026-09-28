@@ -24,7 +24,7 @@ async function scanned(page, capabilities = TWO_RADIOS, heard = HEARD) {
 	await openNetwork(page, { document: IN_FORCE, capabilities })
 	await answer(page, 'scan', message({ type: 'networks', 'access-points': heard }))
 	await addWireless(page)
-	await page.getByRole('button', { name: 'Scan', exact: true }).click()
+	await page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true }).click()
 }
 
 const networks = (page) => page.locator('.networks > li')
@@ -87,7 +87,7 @@ test('a scan goes to one adapter where one is picked, and to all otherwise', asy
 	await scanned(page)
 	await answer(page, 'scan', message({ type: 'networks', 'access-points': HEARD.filter((each) => each.interface === USB) }))
 	await page.getByLabel('Scan with').selectOption(USB)
-	await page.getByRole('button', { name: 'Scan', exact: true }).click()
+	await page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true }).click()
 	const scans = (await sent(page)).filter((each) => each.type === 'scan')
 	expect(scans).toEqual([{ type: 'scan' }, { type: 'scan', interface: USB }])
 	await expect(networks(page)).toHaveCount(1)

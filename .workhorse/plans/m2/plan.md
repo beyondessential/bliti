@@ -24,3 +24,14 @@
 - An unset device may take the country advertised by the access point its wireless client has joined. This needs an exception to the rule in the network overview spec (NET) that an unset device stays on channels every domain permits.
 - bliti never asks the kernel to ignore Country elements: it only sets the domain, through the cfg80211 module option at boot and `NL80211_CMD_REQ_SET_REG` after that. Whether the hint is honoured is up to the kernel and the driver. So the device-side work is checking on the prototype device (`iw reg get` before and after joining an access point that advertises a country), not code to turn anything off.
 - A domain the kernel adopts from a joined access point changes the usable channels without a proposal. CFG only has the device send `capabilities` when a proposal or a return to the recorded configuration changes them, so it needs to cover this case too.
+
+## Build
+
+- [x] Read the Country element into each access point, and put `country` and `environment` on its `access-points` entry
+- [x] Watch nl80211's regulatory group, re-probe the radios on each change, and probe again for a change arriving mid-probe
+- [x] Wake the session where the capabilities changed, so `state` carries them
+- [x] Tally the countries a scan heard in the client, among those the device offers
+- [x] Scan button beside the country, sharing the SSID field's
+- [x] The suggestion in each state of the country: unset, a tie, another country, the one suggested, none named
+- [x] Scope the existing tests' Scan lookups to the candidate, now there are two
+- [ ] Check on the prototype device that the kernel takes the country of a joined access point while unset, and that the session says so
