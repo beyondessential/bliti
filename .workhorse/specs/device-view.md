@@ -112,6 +112,12 @@ The application MUST draw a `fraction` against its own scale, and MUST NOT draw 
 > [!NOTE]
 > An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. One address for the network the device is reached on and one for the overlay are what an operator reads it for, and an overlay's addresses are recognisable without naming it.
 
+## Joining the hotspot
+
+The application MUST show, in the reveal of a `hotspot` carrying a value, its passphrase and a QR code a phone joins the hotspot by.
+
+The QR code MUST encode the hotspot's SSID and passphrase as the Wi-Fi URI of the WPA3 Specification.
+
 ## Graphs
 
 The application MUST hold a history for each `reading` it receives, and MUST NOT hold one for a `fact`.
