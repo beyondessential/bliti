@@ -10,10 +10,10 @@ A device runs a wireless access point that clients join directly, described by t
 
 A device MUST run a hotspot only where its configuration carries one whose `enabled` is true.
 
-A device MUST treat a hotspot whose `enabled` is false as it would an absent one in choosing what each radio carries and in every rule here relating the hotspot to a wireless candidate, and MUST keep it in the document as it is.
+A device MUST treat a hotspot whose `enabled` is false as it would an absent one in choosing which candidate or hotspot each radio carries and in every rule here relating the hotspot to a wireless candidate, and MUST keep it in the document as it is.
 
 > [!NOTE]
-> A device out of the box is reached over the channel of [CHN](../channel.md), which is what the QR code is for.
+> A device out of the box is reached over the channel of [CHN](../channel.md), which the QR code is for.
 
 ## What it carries
 
@@ -22,7 +22,7 @@ A device MUST treat a hotspot whose `enabled` is false as it would an absent one
 | `enabled` | boolean | yes | whether the device runs this hotspot |
 | `ssid` | string | yes | the network the hotspot advertises |
 | `interface` | string | no | the wireless interface whose radio runs the hotspot |
-| `passphrase` | string | yes | what a client joins with |
+| `passphrase` | string | yes | the secret a client joins with |
 | `share-upstream` | boolean | no | whether clients reach the device's own network; enabled where unset |
 | `isolate-clients` | boolean | no | whether clients are kept from reaching each other; enabled where unset |
 | `dhcp-range` | string | no | the subnet clients are addressed from |
@@ -75,5 +75,5 @@ A device MUST NOT run such a hotspot while that client is associated on a channe
 Where every radio the hotspot could run on is such a radio, and its wireless client is associated now, on such a channel, to a network the proposal keeps an enabled candidate for, a device MUST refuse the proposal at `hotspot` before applying any of it.
 
 > [!NOTE]
-> Holding the choice to what the document says rather than to whether a client happens to be associated is what keeps a setting that appears from being one that silently stops holding.
+> Holding the choice to the document rather than to whether a client happens to be associated keeps a setting that appears from being one that silently stops holding.
 > The channel a hotspot is on is reported under [NFO](../device-info.md), so an operator who cannot choose it can still see it.

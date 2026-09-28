@@ -4,7 +4,7 @@ id: BID
 
 # Board ID
 
-A board MUST yield the same [board ID](overview.md#board-id) every time it is read, so that a QR code can be reproduced from the board rather than from a record of what was issued.
+A board MUST yield the same [board ID](overview.md#board-id) every time it is read, so that a QR code can be reproduced from the board rather than from a record of the codes issued.
 
 A board ID is not a secret, and any software on a device can read it.
 
@@ -32,7 +32,7 @@ Precedence MUST be evaluated by kind of source, never by platform.
 
 > [!NOTE]
 > Combining sources would give each one its own way to change the board ID, and a board ID that changes orphans a QR code already fixed to an enclosure.
-> Evaluating by kind rather than by platform means a board gains a stronger source by having the hardware for it, with no rule naming a model, and a device and a generator reach the same answer without either being told what machine it runs on.
+> Evaluating by kind rather than by platform means a board gains a stronger source by having the hardware for it, with no rule naming a model, and a device and a generator reach the same answer without either being told which machine it runs on.
 
 ### TPM Endorsement Key
 
@@ -83,7 +83,7 @@ Where a board offers no platform serial, any change in its board ID MUST be repo
 A source that will supersede a platform serial MUST be written before that board's QR code is derived.
 
 > [!NOTE]
-> The platform serial is the last tier of the precedence, so it is present whichever source wins, and it does not itself change when stronger hardware is fitted. That is what makes it able to identify a board across a change of source.
+> The platform serial is the last tier of the precedence, so it is present whichever source wins, and it does not itself change when stronger hardware is fitted. That lets it identify a board across a change of source.
 > A differing serial is the case of a disk moved from one enclosure into another, where the board matches the QR code already fixed to its new enclosure.
 > Recovering from a dead code means printing a new one for that board.
 

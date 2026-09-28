@@ -114,14 +114,14 @@ A serial that collapses to a short value, as on earlier boards, is small enough 
 
 ### Compressed sizes carry a signal about content
 
-The channel compresses what it carries, as [CHN](channel.md) specifies, so what crosses the link varies with a message's content and not with its length alone.
+The channel compresses the messages it carries, as [CHN](channel.md) specifies, so the bytes crossing the link vary with a message's content and not with its length alone.
 
 An observer counts notifications rather than messages, which is coarser than a compressed size for each: one context spans every stream, and its output is chunked for the link rather than at message boundaries.
 
-An observer learns nothing of what is said, and something of how much of a message the compression context had already seen.
+An observer learns nothing of a message's content, and something of how much of it the compression context had already seen.
 
 > [!NOTE]
-> The attacks that recover a secret from compressed sizes need input an attacker chooses to share a context with the secret. Neither direction offers that: the presence token is never sent, and each end compresses only what it chose to say.
+> The attacks that recover a secret from compressed sizes need input an attacker chooses to share a context with the secret. Neither direction offers that: the presence token is never sent, and each end compresses only the messages it chose to send.
 
 ### What a handshake proves
 

@@ -9,7 +9,7 @@ One memory-hard derivation takes the [board ID](overview.md#board-id) of [BID](b
 Every constant and context string below is public, and all are compiled into devices, generators and clients.
 
 > [!NOTE]
-> Publishing them weakens nothing, because no derivation runs backwards. What they provide is domain separation, so that a value from one step is not a valid value at another.
+> Publishing them weakens nothing, because no derivation runs backwards. They provide domain separation, so that a value from one step is not a valid value at another.
 
 ## Borrowed terms
 
@@ -60,7 +60,7 @@ The device static public key MUST be the X25519 public key for that private key,
 
 > [!NOTE]
 > Both values descend from the root, so one argon2id derivation per candidate board ID gates any search for either.
-> Deriving the static key through the root rather than cheaply from the board ID is what keeps that cost on the path. Were it cheap, someone holding a QR code could search the board ID space against the public key in it and bypass the memory-hard step entirely, which is what [SEC](security.md) relies on not being possible.
+> Deriving the static key through the root rather than cheaply from the board ID keeps that cost on the path. Were it cheap, someone holding a QR code could search the board ID space against the public key in it and bypass the memory-hard step entirely, which [SEC](security.md) relies on being impossible.
 > A holder of the QR code has the presence token, but the token does not invert to the root, so it does not yield the static key.
 
 ## Advertised handle
@@ -86,7 +86,7 @@ On start a device MUST read the platform serial and probe which kinds of source 
 - where the serial differs, the device MUST evaluate the precedence, read the winning source, and derive
 
 > [!NOTE]
-> Deriving on the device is what makes the chain reproducible from the board everywhere, rather than only on machines large enough to run the derivation comfortably.
+> Deriving on the device makes the chain reproducible from the board everywhere, rather than only on machines large enough to run the derivation comfortably.
 
 ## Versioning
 

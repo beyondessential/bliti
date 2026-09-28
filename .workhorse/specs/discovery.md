@@ -4,7 +4,7 @@ id: ADV
 
 # Discovery and matching
 
-A device advertises continuously, and a client that holds a QR code computes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against what it hears.
+A device advertises continuously, and a client that holds a QR code computes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against the advertisements it hears.
 
 ## Borrowed terms
 
@@ -30,14 +30,14 @@ A device MUST advertise the same local name for as long as it holds the same pre
 > A scan filter is applied to advertisement data and never to the scan response, so a service UUID a client filters on has to sit in the advertisement.
 > The payload rides in the local name because a host, not a device, decides which element goes in which packet. On a legacy controller the mandatory flags take three bytes and a 128-bit service UUID eighteen, leaving ten of the advertisement's 31, while service data keyed by that same UUID would need 31 of its own before it fit anywhere. A local name costs two bytes of element header rather than eighteen of repeated UUID, and is the one element a host will place in the scan response.
 > Eight bytes of handle makes a collision between two devices at one site implausible. The handle is not secret, so carrying it in the clear costs nothing.
-> The marker comes first so that a client can read it however a later version lays out what follows.
+> The marker comes first so that a client can read it however a later version lays out the bytes that follow.
 > Because the name is fixed and follows from the QR code alone, a client that can only filter by name computes the whole of it before it listens.
 
 ## Matching
 
 A client MUST read the version marker before comparing a handle, as [VER](version.md) requires.
 
-A client MUST compute the handle from the QR code it holds, and compare that against what it read.
+A client MUST compute the handle from the QR code it holds, and compare that against the handle it read.
 
 A client MUST match on the payload rather than on the peer's address.
 
@@ -53,7 +53,7 @@ A device MUST advertise whenever it is running.
 
 A device MUST NOT lock a peer out after failed handshakes.
 
-A device MUST bound what it records about failed attempts.
+A device MUST bound the records it keeps of failed attempts.
 
 > [!NOTE]
 > Anyone in range can open a connection and begin a handshake that will fail. A lockout would let someone in range deny an operator their own device, which is worse than the attempts it would prevent, and unbounded recording would let them exhaust the device's storage instead.
@@ -62,4 +62,4 @@ A device MUST bound what it records about failed attempts.
 
 The privacy of the BLE address is a property of how the adapter is configured, which bliti neither sets nor depends on.
 
-What an observer learns either way is specified in [SEC](security.md).
+[SEC](security.md) specifies the information an observer gains either way.
