@@ -225,11 +225,12 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status`, `limits`, `security` and `channel` traits, and the members named here within the traits
-// that hold them. A battery's serial, model and vendor describe the cell; only its name says which
-// battery it is. A wireless link's channel moves whenever a shared-channel hotspot follows the client
-// onto a new one, and that is the same link, not a second.
-const DESCRIPTIVE = new Set(['status', 'limits', 'security', 'channel'])
+// `status`, `limits`, `security`, `channel` and `passphrase` traits, and the members named here within
+// the traits that hold them. A battery's serial, model and vendor describe the cell; only its name
+// says which battery it is. A wireless link's channel moves whenever a shared-channel hotspot follows
+// the client onto a new one, and that is the same link, not a second; a hotspot given a new passphrase
+// is the same hotspot.
+const DESCRIPTIVE = new Set(['status', 'limits', 'security', 'channel', 'passphrase'])
 const DESCRIPTIVE_MEMBERS = {
 	interface: new Set(['route', 'overlay']),
 	battery: new Set(['serial', 'model', 'vendor']),

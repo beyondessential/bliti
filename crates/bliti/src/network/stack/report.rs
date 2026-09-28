@@ -1,5 +1,6 @@
 //! What the backend knows of the wireless networks joined and the hotspot run, as NFO's
-//! `wireless-network`, `hotspot` and `hotspot-clients`.
+//! `wireless-network`, `hotspot` and `hotspot-clients`. The hotspot carries its passphrase, so a
+//! reader can hand it on (VIEW).
 //!
 //! The backend records what each station joined and which hotspot it brought up; the channels and
 //! the client count are read from nl80211 as the entries are taken, so they say what the radio is
@@ -44,6 +45,8 @@ struct Joins {
 pub(super) struct Hotspot {
 	/// The network it advertises.
 	pub(super) ssid: String,
+	/// What a client joins it with.
+	pub(super) passphrase: String,
 	/// The access point interface it runs on.
 	pub(super) interface: String,
 }
@@ -109,11 +112,17 @@ impl Report {
 				entries.push(entry);
 			}
 		}
-		let Some(Hotspot { ssid, interface }) = hotspot else {
+		let Some(Hotspot {
+			ssid,
+			passphrase,
+			interface,
+		}) = hotspot
+		else {
 			return entries;
 		};
 		if slow {
-			let mut entry = Entry::text(at, "hotspot", ssid);
+			let mut entry =
+				Entry::text(at, "hotspot", ssid).with_trait("passphrase", passphrase.into());
 			match block(&runtime, self.air.operating(&interface)) {
 				Ok(Some(operating)) => {
 					if let Some(channel) = channel_trait(operating) {

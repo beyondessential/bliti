@@ -26,6 +26,7 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 | ISO/IEC 18004 | the QR code symbology of [QR](qr-code.md) |
 | ISO 3166-1 | the country codes of the regulatory domain in [NET](network/overview.md) |
 | IEEE 802.11 | the wireless networks a device joins and the access point it runs, under [WLAN](network/wireless.md) and [HOT](network/hotspot.md) |
+| [ZXing barcode contents](https://github.com/zxing/zxing/wiki/Barcode-Contents#wi-fi-network-config-android-ios-11) | the Wi-Fi network URI of the hotspot's QR code in [VIEW](device-view.md) |
 
 ## Terminology
 

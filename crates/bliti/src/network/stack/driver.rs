@@ -870,6 +870,7 @@ impl Driver {
 				.zip(self.document.enabled_hotspot())
 				.map(|((interface, _), hotspot)| Hotspot {
 					ssid: hotspot.ssid.clone(),
+					passphrase: hotspot.passphrase.clone(),
 					interface,
 				});
 		let state = self.shared.config.state.clone();

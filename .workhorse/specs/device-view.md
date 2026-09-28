@@ -121,6 +121,17 @@ The application MUST draw a `fraction` against its own scale, and MUST NOT draw 
 > [!NOTE]
 > An interface commonly holds an IPv4 address and several IPv6 ones, so headlining them all crowds the tile. One address for the network the device is reached on and one for the overlay are what an operator reads it for, and an overlay's addresses are recognisable without naming it.
 
+## Joining the hotspot
+
+The application MUST show, in the reveal of a `hotspot` carrying a value, its passphrase and a QR code a phone joins the hotspot by.
+
+The QR code MUST encode the hotspot as the Wi-Fi network URI of ZXing's barcode contents, `WIFI:T:WPA;S:<SSID>;P:<passphrase>;;`.
+The application MUST escape each of `\`, `;`, `,`, `"` and `:` in the SSID and passphrase with a backslash, and MUST NOT otherwise quote or encode either.
+
+> [!NOTE]
+> The WPA3 Specification defines the same URI with percent-encoding, but phone cameras parse the form their own Wi-Fi sharing writes, which is this one.
+> ZXing suggests quoting a value that looks like hexadecimal; Android keeps the quotes as part of the value, so a quoted SSID names a different network.
+
 ## Graphs
 
 The application MUST hold a history for each `reading` it receives, and MUST NOT hold one for a `fact`.

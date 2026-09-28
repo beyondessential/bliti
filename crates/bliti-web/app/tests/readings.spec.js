@@ -440,6 +440,46 @@ test.describe('wireless', () => {
 		await expect(page.locator('.tile .label')).toHaveText(['Processor'])
 	})
 
+	// The hotspot's reveal hands it on: its passphrase, and a code a phone joins by (VIEW).
+	const running = (passphrase) =>
+		fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 }, passphrase } })
+
+	test('the hotspot reveals its passphrase and a code to join it by', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, running('harbour-kettle-47'))
+		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
+		await expect(tile.getByRole('img', { name: 'QR code to join iti-setup' })).toHaveCount(0)
+		await tile.click()
+		await expect(tile).toContainText('Passphrase')
+		await expect(tile).toContainText('harbour-kettle-47')
+		const code = tile.getByRole('img', { name: 'QR code to join iti-setup' })
+		await expect(code.locator('svg path')).toHaveAttribute('fill', 'currentColor')
+		await expect(tile).toContainText('Scan to join')
+	})
+
+	test('a changed passphrase redraws the code', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, running('harbour-kettle-47'))
+		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
+		await tile.click()
+		const path = tile.locator('.qr svg path')
+		const before = await path.getAttribute('d')
+		await emit(page, running('lighthouse-oar-12'))
+		await expect(tile).toContainText('lighthouse-oar-12')
+		await expect(path).not.toHaveAttribute('d', before)
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspot'])
+	})
+
+	test('a hotspot with no value offers no code', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, fact('hotspot', { kind: 'text', traits: { status: { is: 'broken', reason: 'hostapd is not answering' }, passphrase: 'harbour-kettle-47' } }))
+		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
+		await tile.click()
+		await expect(tile).toContainText('hostapd is not answering')
+		await expect(tile.locator('.qr')).toHaveCount(0)
+		await expect(tile).not.toContainText('harbour-kettle-47')
+	})
+
 	// A proposal being tried shows as such on the network tiles, and gets no tile of its own (VIEW).
 	test('settings being tried mark the network tiles and say they revert', async ({ page }) => {
 		await openChannel(page)

@@ -169,7 +169,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `network-configuration` | `text` | — | whether the network runs the recorded configuration, `recorded`, or one being tried, `provisional` |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
 | `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
-| `hotspot` | `text` | `channel` | the network the device's hotspot advertises |
+| `hotspot` | `text` | `channel`, `passphrase` | the network the device's hotspot advertises |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
@@ -198,6 +198,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `interface` | `name`, `route`, `overlay` | a network interface; `route` is `default` on the one carrying the default route, and `overlay` names the overlay where it is one |
 | `security` | — | how a wireless link is secured |
 | `channel` | `number`, `band`, `width` | the channel a wireless link is on; `band` is named as [HOT](network/hotspot.md) names bands, and `width` is in megahertz |
+| `passphrase` | — | what a client joins the hotspot with |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
@@ -206,7 +207,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 
-`route`, `overlay`, `security`, `channel`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
+`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -238,6 +239,8 @@ A device MUST report the wireless network each of its wireless interfaces is joi
 A device MUST report its hotspot and the clients joined to it, and MUST omit both entries where it runs no hotspot.
 
 A device MUST report the channel of its hotspot and of its wireless link both.
+
+A device MUST report the passphrase its hotspot runs with.
 
 What a device joins, and the hotspot it runs, are configured under [NET](network/overview.md).
 

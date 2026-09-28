@@ -65,6 +65,12 @@ pub fn device_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
 }
 
+/// The QR code a phone joins a device's hotspot by, as an SVG image for inlining in the page (VIEW).
+#[wasm_bindgen]
+pub fn hotspot_qr(ssid: &str, passphrase: &str) -> Result<String, JsError> {
+	bliti_core::wifi_qr::svg(ssid, passphrase).map_err(|why| JsError::new(&why.to_string()))
+}
+
 /// Whether a document is within a device's capabilities, checked before it is proposed (NSCR) with
 /// the checker the device rejects with (NET), so the two cannot disagree.
 ///
