@@ -12,6 +12,10 @@ This spec says what ours makes of it, and binds nothing else that reads the same
 > [!NOTE]
 > The wire carries data and the client carries the intelligence. Holding the rendering here is what lets our application know the catalogue intimately without that knowledge becoming a rule every reader of a bliti device has to follow.
 
+## Leaving the view
+
+The application MUST offer, beside the device's heading, to open the Control screen of [CSCR](control/screen.md) and to disconnect.
+
 ## Everything is rendered
 
 The application MUST render every fact and reading it receives, whether or not it recognises the catalogue name.

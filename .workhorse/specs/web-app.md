@@ -60,6 +60,24 @@ The application MUST NOT run the memory-hard derivation of [KEY](key-schedule.md
 > [!NOTE]
 > A client reads the token from the payload rather than deriving it, so nothing in a client needs the argon2id parameters or the memory they ask for. The handle a client does compute is a fast hash.
 
+## When the device goes away
+
+The application MUST treat `accepted` for an act it asked for as it treats `going-away` for that act, as [CTL](control/overview.md) specifies both.
+
+On either, the application MUST say which act the device is carrying out, and MUST keep the QR code it read.
+
+After a `restart` or a `reboot`, the application MUST reconnect to the same device on its own once the channel has closed, without offering the chooser, and MUST go on trying until the channel is open again.
+While it tries, the application MUST say that it is waiting for the device to come back, and MUST let the operator stop.
+The application MUST stop trying once a device that has not come back is unlikely to, and MUST then say that the device has not come back and offer to find it again.
+Where the browser cannot reach the device again without the chooser, the application MUST offer to find it again.
+Once the channel is open again, the application MUST show the device view.
+
+After a `power-off`, the application MUST say that the device has been turned off and is turned on at the device, MUST offer to find it again, and MUST NOT reconnect on its own.
+
+> [!NOTE]
+> The browser keeps the device the operator picked, so reaching it again needs no chooser and no tap, provided it comes back under the same Bluetooth address. One that comes back under another is a device the browser has not been given, and only the chooser can give it.
+> A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
+
 ## Installation and offline use
 
 The application MUST be served from the origin the QR code encodes, as [QR](qr-code.md) specifies.
