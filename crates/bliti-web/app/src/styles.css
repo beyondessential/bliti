@@ -115,6 +115,21 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .detail dd { margin: 0; font-size: 0.85rem; }
 .detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
 
+/* The code a phone joins the hotspot by. It draws in the text colour over nothing, so its quiet zone
+   is whatever the surface behind it is, in any theme. */
+.join { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.join .qr {
+	width: 12rem;
+	max-width: 100%;
+	aspect-ratio: 1;
+	background: var(--surface);
+	color: var(--text);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+}
+.join .qr svg { display: block; width: 100%; height: 100%; }
+.join .caption { font-size: 0.85rem; color: var(--muted); }
+
 .bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; overflow: visible; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
 .bar.warn > span { background: var(--warn); }

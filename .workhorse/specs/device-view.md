@@ -116,7 +116,12 @@ The application MUST draw a `fraction` against its own scale, and MUST NOT draw 
 
 The application MUST show, in the reveal of a `hotspot` carrying a value, its passphrase and a QR code a phone joins the hotspot by.
 
-The QR code MUST encode the hotspot's SSID and passphrase as the Wi-Fi URI of the WPA3 Specification.
+The QR code MUST encode the hotspot as the Wi-Fi network URI of ZXing's barcode contents, `WIFI:T:WPA;S:<SSID>;P:<passphrase>;;`.
+The application MUST escape each of `\`, `;`, `,`, `"` and `:` in the SSID and passphrase with a backslash, and MUST NOT otherwise quote or encode either.
+
+> [!NOTE]
+> The WPA3 Specification defines the same URI with percent-encoding, but phone cameras parse the form their own Wi-Fi sharing writes, which is this one.
+> ZXing suggests quoting a value that looks like hexadecimal; Android keeps the quotes as part of the value, so a quoted SSID names a different network.
 
 ## Graphs
 

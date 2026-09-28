@@ -944,6 +944,7 @@ async fn what_is_joined_and_run_is_reported() {
 	assert_eq!(entries_now[1].0, "hotspot");
 	assert_eq!(entries_now[1].1, "bliti");
 	assert_eq!(entries_now[1].2["channel"], channel);
+	assert_eq!(entries_now[1].2["passphrase"], "read me aloud");
 	assert_eq!(entries_now[2].0, "hotspot-clients");
 	assert_eq!(entries_now[2].1, json!(2.0));
 

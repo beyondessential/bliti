@@ -22,6 +22,10 @@ pub mod board_id;
 pub mod channel;
 pub mod key_schedule;
 pub mod qr;
+pub mod wifi_qr;
+
+#[cfg(test)]
+mod testing;
 
 /// The 128-bit service UUID identifying a device as speaking bliti. It is advertised in the clear so
 /// that a client can filter a scan on it (ADV), which on some client platforms is the only
