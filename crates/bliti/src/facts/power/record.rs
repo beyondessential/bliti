@@ -228,7 +228,13 @@ fn percent(share: f64) -> String {
 
 #[cfg(test)]
 mod tests {
+	use std::cell::Cell;
+
 	use super::*;
+	use crate::{
+		facts::curve::store::Store,
+		power::{Act, Cause, Going},
+	};
 
 	fn gauge(volts: f64) -> Gauge {
 		Gauge {
@@ -323,5 +329,94 @@ mod tests {
 				away: None
 			})
 		);
+	}
+
+	/// Our charge and the gauge's are both reported as percentages, to one place (DEV).
+	#[test]
+	fn our_charge_is_reported_as_the_gauges_is() {
+		assert_eq!(percent(0.8734), "87.3");
+		assert_eq!(charge(&gauge(3.9)), "50.0");
+	}
+
+	/// A stand-in for the controller, answering every shutdown asked for with `result`.
+	struct Fake {
+		result: Result<(), NotBegun>,
+		asked: Cell<u32>,
+		recorded: Cell<u32>,
+	}
+
+	impl Fake {
+		fn new(result: Result<(), NotBegun>) -> Self {
+			Self {
+				result,
+				asked: Cell::new(0),
+				recorded: Cell::new(0),
+			}
+		}
+	}
+
+	impl PowerOff for Fake {
+		fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun> {
+			self.asked.set(self.asked.get() + 1);
+			if self.result.is_ok() {
+				before();
+				self.recorded.set(self.recorded.get() + 1);
+			}
+			self.result
+		}
+	}
+
+	/// Run the record thread's loop body for `ticks` looks below the floor with external power absent.
+	fn below_the_floor(controller: &Fake, ticks: u32) {
+		let supply = Supply::new(Store::new(
+			std::env::temp_dir().join("bliti-record-unwritten/battery-curve.json"),
+		));
+		let start = Instant::now();
+		for tick in 0..ticks {
+			let look = Look {
+				gauge: Ok(gauge(2.79)),
+				external: Some(false),
+			};
+			let observed = supply.observe(
+				look,
+				start + EVERY * tick,
+				1,
+				Some(Duration::from_secs(3600)),
+			);
+			if let Some(held) = observed.held {
+				power_off(&supply, controller, held);
+			}
+		}
+	}
+
+	/// Once begun, the run is recorded first and nothing more is asked (LOW).
+	#[test]
+	fn a_begun_shutdown_is_asked_for_once() {
+		let controller = Fake::new(Ok(()));
+		below_the_floor(&controller, 60);
+		assert_eq!(controller.asked.get(), 1);
+		assert_eq!(controller.recorded.get(), 1);
+	}
+
+	/// An act accepted first is carried out, and no shutdown is asked for again (LOW).
+	#[test]
+	fn no_second_shutdown_after_an_accepted_act() {
+		let controller = Fake::new(Err(NotBegun::AlreadyGoing(Going {
+			act: Act::Reboot,
+			cause: Cause::ManualControl,
+		})));
+		below_the_floor(&controller, 60);
+		assert_eq!(controller.asked.get(), 1);
+		assert_eq!(controller.recorded.get(), 0);
+	}
+
+	/// A device that cannot power off is asked again each time the floor is held another sixty
+	/// seconds, which is when it says it cannot (LOW).
+	#[test]
+	fn cannot_power_off_is_reported_each_sixty_seconds() {
+		let controller = Fake::new(Err(NotBegun::CannotPowerOff));
+		below_the_floor(&controller, 20);
+		assert_eq!(controller.asked.get(), 2);
+		assert_eq!(controller.recorded.get(), 0);
 	}
 }
