@@ -138,7 +138,11 @@ fn a_run_from_full_rescales_the_whole_curve_and_sets_the_duration() {
 		"{}",
 		learnt.duration
 	);
-	assert_eq!(learnt.points[0], (2.6, 0.0), "below the floor carries through");
+	assert_eq!(
+		learnt.points[0],
+		(2.6, 0.0),
+		"below the floor carries through"
+	);
 	assert_eq!(learnt.points.last(), Some(&(4.2, 1.0)));
 }
 
@@ -288,13 +292,7 @@ fn the_refined_curve_is_always_valid() {
 /// How the cell charges: the voltage reaches termination at 0.9 and sits there to full.
 fn charging() -> Curve {
 	curve(
-		&[
-			(3.3, 0.05),
-			(3.6, 0.3),
-			(3.9, 0.6),
-			(4.1, 0.8),
-			(4.2, 0.9),
-		],
+		&[(3.3, 0.05), (3.6, 0.3), (3.9, 0.6), (4.1, 0.8), (4.2, 0.9)],
 		0,
 		0.2,
 		1.0,

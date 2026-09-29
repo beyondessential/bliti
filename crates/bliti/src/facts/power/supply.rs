@@ -546,7 +546,9 @@ impl State {
 				duration_secs = %format!("{duration:.0}"),
 				"refined the battery curve"
 			),
-			Err(err) => tracing::warn!(curve = which.name(), %err, "the refined curve could not be put in force"),
+			Err(err) => {
+				tracing::warn!(curve = which.name(), %err, "the refined curve could not be put in force")
+			}
 		}
 	}
 

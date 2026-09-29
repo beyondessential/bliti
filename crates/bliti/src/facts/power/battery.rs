@@ -390,6 +390,62 @@ mod tests {
 		}
 	}
 
+	fn times(direction: Direction, to_empty: Option<f64>, to_full: Option<f64>) -> Vec<Entry> {
+		let mut battery = named("BAT0", Some("DELL T453X"));
+		battery.direction = direction;
+		battery.time_to_empty = to_empty;
+		battery.time_to_full = to_full;
+		entries(1, &[battery])
+			.into_iter()
+			.filter(|entry| entry.name.starts_with("battery-time-to-"))
+			.collect()
+	}
+
+	/// The operating system's time to empty while discharging and to full while charging, as it gives
+	/// them, with no margin (NFO).
+	#[test]
+	fn the_time_is_the_operating_systems_for_the_direction() {
+		let discharging = times(Direction::Discharging, Some(5400.0), Some(3600.0));
+		assert_eq!(discharging.len(), 1);
+		assert_eq!(discharging[0].name, "battery-time-to-empty");
+		assert_eq!(discharging[0].kind, kind::DURATION);
+		assert_eq!(
+			discharging[0].value.as_ref().unwrap().as_f64(),
+			Some(5400.0)
+		);
+		assert!(!discharging[0].traits.contains_key("margin"));
+		assert_eq!(name_of(&discharging[0]), "DELL T453X");
+
+		let charging = times(Direction::Charging, Some(5400.0), Some(3600.0));
+		assert_eq!(charging.len(), 1);
+		assert_eq!(charging[0].name, "battery-time-to-full");
+		assert_eq!(charging[0].value.as_ref().unwrap().as_f64(), Some(3600.0));
+
+		for direction in [Direction::Idle, Direction::Unknown] {
+			assert!(times(direction, Some(5400.0), Some(3600.0)).is_empty());
+		}
+	}
+
+	/// Where the operating system reports the battery but gives no such time, it is skipped (NFO).
+	#[test]
+	fn no_time_from_the_operating_system_is_skipped() {
+		for (direction, name) in [
+			(Direction::Discharging, "battery-time-to-empty"),
+			(Direction::Charging, "battery-time-to-full"),
+		] {
+			let time = times(direction, None, None);
+			assert_eq!(time.len(), 1);
+			assert_eq!(time[0].name, name);
+			assert_eq!(time[0].status(), Some("skipped"));
+			assert!(
+				time[0]
+					.reason()
+					.is_some_and(|why| why.contains("operating system"))
+			);
+			assert!(!time[0].traits.contains_key("margin"));
+		}
+	}
+
 	#[test]
 	fn no_batteries_is_no_entries() {
 		assert!(entries(1, &[]).is_empty());

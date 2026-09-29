@@ -32,3 +32,24 @@
 - [x] A load or reset is saved before it takes effect and is sent to every curve subscriber; one that cannot be saved changes nothing (verifies spec: CRV)
 - [x] A run is recorded from external power going, or from start on battery; a charge from external power returning, anchored where the run ended (verifies spec: CHG)
 - [ ] The daemon's log on a prototype carries `charge` and `gauge_charge` on every backup-supply report (verifies spec: DEV)
+
+## Learning
+
+- [x] A run from full that reached the floor reshapes the whole discharging curve to the cell it ran on, keeps what lies below the floor, and sets the duration from how long it took (verifies spec: CHG)
+- [x] A run from below full leaves the curve above where it began as it was, and refines below from the curve's charge there (verifies spec: CHG)
+- [x] A replaced cell's curve takes over from the old one's within a few runs, however many runs the old one was learnt from (verifies spec: CHG)
+- [x] The error is measured against the curve before the run refines it, and weighed in as the run is; a run the curve already follows lowers it (verifies spec: CHG)
+- [x] A run that never reached the floor, or too short or covering too little of the curve, teaches nothing and writes nothing (verifies spec: CHG)
+- [x] Whatever the run, the refined document is one CRV accepts (verifies spec: CRV)
+- [x] A low-battery run is learnt, saved and sent to every curve subscriber before the shutdown goes on (verifies spec: CHG, CRV)
+- [x] The first charge from a known start to finished creates the charging curve, learnt from 1 with the count-derived error; a later one refines it where they overlap (verifies spec: CHG)
+- [ ] A real run-down on the prototype refines the discharging curve, and the log says so with `learnt_from` and `error` before the device powers off (verifies spec: CHG)
+
+## Time left
+
+- [x] `battery-time-to-empty` is skipped, saying so, until the charge has been watched falling for five minutes, then is the charge over the rate with a `margin` in seconds (verifies spec: CHG, NFO)
+- [x] The margin combines the figure's error at the rate with how much the rate has varied, in quadrature (verifies spec: CHG)
+- [x] On mains the time is to full, so time to empty ends; once the charge has finished, or fed around the backup board, neither is reported (verifies spec: NFO)
+- [x] The rate starts again when external power comes or goes (verifies spec: CHG)
+- [x] An operating system's battery reports its time to empty while discharging and to full while charging, as upower or sysfs gives it, with no margin, and `skipped` where it gives none (verifies spec: NFO)
+- [ ] On the prototype, time left while running on battery falls in step with the clock, and its margin narrows as the run goes on (verifies spec: CHG, NFO)

@@ -218,17 +218,20 @@ fn gauge_entries(reading: &Reading) -> Vec<Entry> {
 /// how far either way it may be off; skipped until the charge has been watched moving that way long
 /// enough to have a rate, and not reported at all otherwise, which ends it (NFO, CHG).
 fn time_left(reading: &Reading, carrying: bool, charging: bool) -> Option<Entry> {
-	let (name, way, estimate): (_, _, fn(f64, rate::Trend, f64) -> Option<Estimate>) =
+	let (name, way) = if carrying {
+		("battery-time-to-empty", "falling")
+	} else if charging {
+		("battery-time-to-full", "rising")
+	} else {
+		return None;
+	};
+	let estimate = reading.trend.and_then(|trend| {
 		if carrying {
-			("battery-time-to-empty", "falling", rate::to_empty)
-		} else if charging {
-			("battery-time-to-full", "rising", rate::to_full)
+			rate::to_empty(reading.charge, trend, reading.error)
 		} else {
-			return None;
-		};
-	let estimate = reading
-		.trend
-		.and_then(|trend| estimate(reading.charge, trend, reading.error));
+			rate::to_full(reading.charge, trend, reading.error)
+		}
+	});
 	Some(match estimate {
 		Some(Estimate { seconds, margin }) => Entry::duration(reading.at, name, seconds)
 			.with_trait("margin", Json::from(round(margin, 4))),

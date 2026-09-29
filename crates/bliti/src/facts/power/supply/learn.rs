@@ -129,9 +129,8 @@ pub fn from_run(
 		return Err(Untaught::TooNarrow);
 	}
 	let shown = |t: f64| floor + (began - floor) * (end - t) / span;
-	let observed = |volts: f64| {
-		crossed(&smoothed, volts, |volts, at| volts <= at).map_or(began, shown)
-	};
+	let observed =
+		|volts: f64| crossed(&smoothed, volts, |volts, at| volts <= at).map_or(began, shown);
 
 	let measured = rms(smoothed
 		.iter()
@@ -183,11 +182,7 @@ pub fn from_charge(
 	samples: &[(Duration, f64)],
 	end: Duration,
 ) -> Result<Curve, Untaught> {
-	let before_end: Vec<_> = samples
-		.iter()
-		.copied()
-		.filter(|&(t, _)| t <= end)
-		.collect();
+	let before_end: Vec<_> = samples.iter().copied().filter(|&(t, _)| t <= end).collect();
 	let smoothed = smoothed(&before_end, f64::max);
 	let (Some(&(start, low)), Some(&(_, high))) = (smoothed.first(), smoothed.last()) else {
 		return Err(Untaught::TooShort);
@@ -225,7 +220,10 @@ pub fn from_charge(
 	let old_high = old.points.last().map_or(high, |&(volts, _)| volts);
 	let mut points: Vec<_> = grid(low.min(old_low), high.max(old_high))
 		.filter_map(|volts| {
-			let new = (low..=high).contains(&volts).then(|| observed(volts)).flatten();
+			let new = (low..=high)
+				.contains(&volts)
+				.then(|| observed(volts))
+				.flatten();
 			let was = old.covers(volts).then(|| old.charge_at(volts));
 			match (was, new) {
 				(Some(was), Some(new)) => Some((volts, blend(was, new, w))),
@@ -254,7 +252,8 @@ fn smoothed(samples: &[(Duration, f64)], hold: fn(f64, f64) -> f64) -> Vec<(f64,
 	let mut held: Option<f64> = None;
 	(0..samples.len())
 		.map(|i| {
-			let window = &samples[i.saturating_sub(MEDIAN_REACH)..(i + MEDIAN_REACH + 1).min(samples.len())];
+			let window =
+				&samples[i.saturating_sub(MEDIAN_REACH)..(i + MEDIAN_REACH + 1).min(samples.len())];
 			let mut volts: Vec<f64> = window.iter().map(|&(_, volts)| volts).collect();
 			volts.sort_by(f64::total_cmp);
 			let median = volts[volts.len() / 2];
@@ -267,11 +266,7 @@ fn smoothed(samples: &[(Duration, f64)], hold: fn(f64, f64) -> f64) -> Vec<(f64,
 
 /// When the smoothed voltage first reached `volts`, interpolated between samples, where `reached`
 /// says whether a voltage has.
-fn crossed(
-	smoothed: &[(f64, f64)],
-	volts: f64,
-	reached: impl Fn(f64, f64) -> bool,
-) -> Option<f64> {
+fn crossed(smoothed: &[(f64, f64)], volts: f64, reached: impl Fn(f64, f64) -> bool) -> Option<f64> {
 	let index = smoothed.iter().position(|&(_, v)| reached(v, volts))?;
 	let (t1, v1) = smoothed[index];
 	let Some(&(t0, v0)) = index.checked_sub(1).map(|before| &smoothed[before]) else {

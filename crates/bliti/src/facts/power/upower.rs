@@ -246,6 +246,21 @@ mod tests {
 		assert_eq!(direction(STATE_EMPTY), Direction::Idle);
 	}
 
+	/// upower's times are seconds, and zero where it has none (NFO).
+	#[test]
+	fn the_times_are_read_and_zero_is_none() {
+		let mut discharging = laptop_cell();
+		discharging.insert("State".to_owned(), Variant(Box::new(STATE_DISCHARGING)));
+		discharging.insert("TimeToEmpty".to_owned(), Variant(Box::new(5400i64)));
+		discharging.insert("TimeToFull".to_owned(), Variant(Box::new(0i64)));
+		let battery = from_properties("BAT0", &discharging).unwrap();
+		assert_eq!(battery.time_to_empty, Some(5400.0));
+		assert_eq!(battery.time_to_full, None);
+
+		let battery = from_properties("hiddev5", &attached_ups()).unwrap();
+		assert_eq!((battery.time_to_empty, battery.time_to_full), (None, None));
+	}
+
 	/// upower saying it does not know is not a direction to report (NFO).
 	#[test]
 	fn an_unknown_state_is_unknown() {

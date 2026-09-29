@@ -17,6 +17,8 @@ Charge from the cell voltage against a learnt curve, time left with a margin, an
 - Curves live in `/var/lib/bliti/battery-curve.json`, beside `network.json`, written atomically (temporary file, then rename). The file holds the curve document plus device-local state that isn't part of the document, such as the gauge's full reading. What a run taught must be written before `going-away` is sent (CHG).
 - Learning without a current sensor: time at the device's own draw stands in for charge. A run from full rescales the whole curve by the run's duration. A partial run is anchored at the curve's charge where it began, and refines only below. Weighting is exponential over runs, so a replaced cell takes over within a few.
 - Charging curve: anchored at the discharging curve's figure when mains returns, and ending at full. Used once `learnt-from` reaches 3, and only within the voltage range it covers.
+- Learning maths (`facts/power/supply/learn.rs`): the voltage is median-smoothed over 70 s, then held to one direction (running minimum on a run, maximum on a charge), and each voltage maps to the charge shown when the smoothed voltage first reached it. A run's charge falls evenly in time from where it began (1 from full, the curve's figure otherwise) to the curve's floor charge where the smoothed voltage first reaches 2.8 V; what lies below the floor carries through. A charge rises evenly from its anchor to 1 at the start of the hold that told it finished (`HOLD` before the detector fires). The result is blended into the curve on a 0.05 V grid with weight `max(1/(n+1), 0.4)` for a curve learnt from `n`; the error is the RMS of the old curve's charge against the run's along the way, blended with the same weight; the duration is the span over the share of the scale covered, blended with the weight times that share's fraction of floor-to-full. Runs or charges under 10 minutes, crossing under 0.05 V or under 0.02 of the scale teach nothing.
+- Time left (`facts/power/supply/rate.rs`): a least-squares slope through the reported charge over the last 10 minutes since external power last came or went, needing 5 minutes of it and a slope at least twice its standard error. The margin is the figure's error (the curve's, renormalised to the reported scale, or the count-derived one for the gauge's figure on mains) over the rate, in quadrature with the time times the slope's standard error over the slope.
 - The reported charge is renormalised between the floor in force and full, so V2's raised floor needs no re-learning.
 - Accuracy and time: each curve carries `error` (a share of a full cell) and `duration` (seconds over its whole scale). The error is measured before each refinement and weighted like the learning; before any measurement it comes from `learnt-from`. `curves` sends `lasts`/`recharge` already scaled to the floor in force, so the client never needs the curve's shape. The live time-left readings use the recent rate, not `duration`. Their margin combines the curve's error at that rate with how much the rate has varied.
 - Interim shipped curve (`facts/power/shipped-curve.json`, 30 points, `error` 0.2, `duration` 26400 s). Built by `shipped-curve.py` beside this plan, from `50e-traces.json` and the run-down log:
@@ -73,19 +75,19 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 ### Learning (CHG)
 
 - [x] Record a run from `Lost` (or from start on battery), as timed voltage samples.
-- [ ] On a LOW shutdown: measure the discharging curve's error against the run, then refine it (a run from full rescales the whole curve; a partial run is anchored where it began), update `duration` and `learnt-from`, and save, all before `going-away`.
-- [ ] Record a charge from `Restored` (a known start) until full. On completion, measure the error, then refine the charging curve (creating it on the first charge), update `duration` and `learnt-from`, and save.
-- [ ] Count-derived error for a curve not yet measured, and for the gauge's figure on mains.
-- [ ] Report each refinement on stderr with `learnt-from` and the error.
-- [ ] Unit tests on synthetic runs: a full run, a partial run, a replaced cell taking over within a few runs, and a run not ending at the floor teaching nothing.
+- [x] On a LOW shutdown: measure the discharging curve's error against the run, then refine it (a run from full rescales the whole curve; a partial run is anchored where it began), update `duration` and `learnt-from`, and save, all before `going-away`.
+- [x] Record a charge from `Restored` (a known start) until full. On completion, measure the error, then refine the charging curve (creating it on the first charge), update `duration` and `learnt-from`, and save.
+- [x] Count-derived error for a curve not yet measured, and for the gauge's figure on mains.
+- [x] Report each refinement on stderr with `learnt-from` and the error.
+- [x] Unit tests on synthetic runs: a full run, a partial run, a replaced cell taking over within a few runs, and a run not ending at the floor teaching nothing.
 
 ### Time left (NFO, CHG)
 
-- [ ] `battery-time-to-empty` while discharging and `battery-time-to-full` while charging, each with a `margin` trait in seconds. `skipped` until a rate is established; `ended` when the direction changes.
-- [ ] Rate from the recent charge history; margin from the figure's error at that rate plus the rate's variation.
+- [x] `battery-time-to-empty` while discharging and `battery-time-to-full` while charging, each with a `margin` trait in seconds. `skipped` until a rate is established; `ended` when the direction changes.
+- [x] Rate from the recent charge history; margin from the figure's error at that rate plus the rate's variation.
 - [ ] `lasts` and `recharge` for `curves`, from each curve's duration and error between the floor and full.
-- [ ] `upower.rs`: `TimeToEmpty`/`TimeToFull`; `sysfs.rs`: `time_to_empty_now`/`time_to_full_now`. `skipped` where the OS gives none, with no margin.
-- [ ] Tests on the rate and margin calculation, and on the entry switching with the direction.
+- [x] `upower.rs`: `TimeToEmpty`/`TimeToFull`; `sysfs.rs`: `time_to_empty_now`/`time_to_full_now`. `skipped` where the OS gives none, with no margin.
+- [x] Tests on the rate and margin calculation, and on the entry switching with the direction.
 
 ### Low-battery shutdown (LOW)
 
