@@ -296,6 +296,37 @@ export function createClient() {
 			}
 		},
 
+		// Open a curve stream (BLI-CRV): the device's battery curve document and what it gives for a
+		// full charge and a full recharge, and its answer to each load and reset asked for. Every
+		// message the device sends on it reaches onEvent as a feed's messages do; onClosed is called
+		// once the stream ends.
+		async curve({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('curve')
+			const handle = await channel.curve(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			const sending = (text, send) => {
+				if (closed) throw new Error('The curve stream has ended.')
+				say(text)
+				send()
+			}
+			return {
+				load: (document) => sending('load  document', () => handle.load(document)),
+				reset: () => sending('reset', () => handle.reset()),
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the curve stream')
+					handle.close()
+					handle.free()
+				},
+			}
+		},
+
 		disconnect() {
 			generation++
 			detach()
