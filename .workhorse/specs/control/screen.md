@@ -4,7 +4,7 @@ id: CSCR
 
 # Control screen
 
-The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), its battery's curves, through [CRV](../battery/curve.md), and its power, through the acts of [CTL](power.md), by our application.
+The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), its power, through the acts of [CTL](power.md), and its battery's curves, through [CRV](../battery/curve.md), by our application.
 
 [CTL](power.md) and [CRV](../battery/curve.md) bind every implementation.
 This spec says how ours applies them, and binds nothing else that controls a bliti device.
@@ -13,7 +13,7 @@ This spec says how ours applies them, and binds nothing else that controls a bli
 
 The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
 
-The application MUST hold the Control screen's sections in the order network, battery, power.
+The application MUST hold the Control screen's sections in the order network, power, battery.
 
 The application MUST offer the network configuration screen of [NSCR](../network/screen.md) from the Control screen, and MUST return the operator to the Control screen when they leave it.
 
@@ -21,22 +21,6 @@ The application MUST open a power stream and a curve stream when the operator op
 
 > [!NOTE]
 > A device older than the application skips `power` and `curve` as it skips anything else it does not recognise, and never answers. Leaving a section out until an answer arrives makes that device look like one with nothing to offer there, rather than one the application is forever waiting on.
-
-## Battery
-
-The application MUST leave out the battery section until the device has answered `curve`, and where it answers with no document.
-
-The application MUST say how many runs the discharging curve has been learnt from, and how many charges the charging curve has, where the device holds one.
-
-The application MUST offer to export the curve document as a file, to import one from a file, and to reset.
-
-The application MUST ask the operator to confirm every import and reset, each time, before asking the device for it.
-
-The confirmation of an import MUST say that what the device has learnt is replaced, and the confirmation of a reset MUST say that it is discarded.
-
-The application MUST show the counts from the latest `curves` the device sent.
-
-The application MUST render a `refused` reason as the device wrote it.
 
 ## Power
 
@@ -60,6 +44,22 @@ The application MUST render a `refused` reason as the device wrote it.
 
 > [!NOTE]
 > Every act ends every session, so a proposal being tried reverts under [CFG](../network/session.md) whoever proposed it. The device reports that a proposal is running to every operator, which lets the one asking for the act be warned about another's.
+
+## Battery
+
+The application MUST leave out the battery section until the device has answered `curve`, and where it answers with no document.
+
+The application MUST say how many runs the discharging curve has been learnt from, and how many charges the charging curve has, where the device holds one.
+
+The application MUST offer to export the curve document as a file, to import one from a file, and to reset.
+
+The application MUST ask the operator to confirm every import and reset, each time, before asking the device for it.
+
+The confirmation of an import MUST say that what the device has learnt is replaced, and the confirmation of a reset MUST say that it is discarded.
+
+The application MUST show the counts from the latest `curves` the device sent.
+
+The application MUST render a `refused` reason as the device wrote it.
 
 ## Wording
 
