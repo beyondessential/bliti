@@ -2,18 +2,22 @@
 // (WEB), driven through a fake device at the message layer. What the page sends on a power stream
 // is recorded, so "nothing is asked for" is asserted on the wire rather than inferred from the screen.
 
+import { readFile } from 'node:fs/promises'
+
 import { expect, test } from '@playwright/test'
 
 import { IN_FORCE, PI } from './network-fixtures.js'
 import {
 	answer,
 	closeChannel,
+	curveSent,
 	emit,
 	message,
 	openChannel,
 	openNetwork,
 	powerSent,
 	returns,
+	sayOnCurve,
 } from './fake-client.js'
 
 const fact = (name, value) =>
@@ -23,13 +27,42 @@ const reading = (measurement, value) =>
 
 const title = (page) => page.getByRole('heading', { level: 1 })
 const power = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Power' }) })
+const battery = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Battery' }) })
+
+// A curve document as a device carries one: a learnt discharging curve and a charging curve (CRV).
+const DOCUMENT = {
+	discharging: { points: [[2.571, 0], [2.8, 0.035], [4.2, 1]], 'learnt-from': 4, error: 0.05, duration: 19800 },
+	charging: { points: [[3.3, 0], [4.2, 1]], 'learnt-from': 3, error: 0.1, duration: 13200 },
+}
+// 5h 10m (±12m) and 3h 40m (±20m).
+const CURVES = message({
+	type: 'curves',
+	document: DOCUMENT,
+	lasts: { duration: 18600, margin: 720 },
+	recharge: { duration: 13200, margin: 1200 },
+})
 
 /// Open the Control screen of a device that lists `acts`.
-async function openControl(page, acts = ['restart', 'reboot', 'power-off']) {
-	await openChannel(page)
+async function openControl(page, acts = ['restart', 'reboot', 'power-off'], { open = true } = {}) {
+	if (open) await openChannel(page)
 	await answer(page, 'power', message({ type: 'acts', acts }))
 	await page.getByRole('button', { name: 'Control' }).click()
 	if (acts.length > 0) await power(page).waitFor()
+}
+
+/// Open the Control screen of a device that lists every act and answers `curve` with `curves`.
+async function openBattery(page, curves = CURVES) {
+	await openChannel(page)
+	await answer(page, 'curve', curves)
+	await openControl(page, undefined, { open: false })
+	await battery(page).waitFor()
+}
+
+/// Pick a file for import, holding `text`.
+async function pickFile(page, name, text) {
+	const choosing = page.waitForEvent('filechooser')
+	await battery(page).getByRole('button', { name: 'Import' }).click()
+	await (await choosing).setFiles({ name, mimeType: 'application/json', buffer: Buffer.from(text) })
 }
 
 /// Ask for an act from the Control screen and confirm it.
@@ -66,11 +99,18 @@ test.describe('the Control screen', () => {
 		await expect(title(page)).toHaveText('Info')
 	})
 
-	test('opens a power stream while it is open, and closes it on leaving', async ({ page }) => {
+	test('opens a power stream and a curve stream while it is open, and closes both on leaving', async ({ page }) => {
 		await openControl(page)
 		expect(await powerSent(page)).toEqual([{ type: 'power' }])
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }])
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		expect(await page.evaluate(() => window.__blitiPowerStreams.map((each) => each.closedByPage))).toEqual([true])
+		expect(await page.evaluate(() => window.__blitiCurveStreams.map((each) => each.closedByPage))).toEqual([true])
+	})
+
+	test('holds its sections in the order network, power, battery', async ({ page }) => {
+		await openBattery(page)
+		await expect(page.locator('section h2').filter({ hasNotText: 'Activity' })).toHaveText(['Network', 'Power', 'Battery'])
 	})
 
 	test('offers the acts the device listed, in its own order, and no others', async ({ page }) => {
@@ -153,6 +193,123 @@ test.describe('the Control screen', () => {
 		await confirmAct(page, 'Power off')
 		await expect(power(page).getByText('the device is already rebooting')).toBeVisible()
 		await expect(title(page)).toHaveText('Control')
+	})
+})
+
+test.describe('the battery section', () => {
+	test('says how long a full charge lasts and a full recharge takes, each with its margin', async ({ page }) => {
+		await openBattery(page)
+		await expect(battery(page).locator('.learnt').first()).toHaveText(
+			'A full charge lasts 5h 10m (±12m).A full recharge takes 3h 40m (±20m).',
+		)
+		await expect(battery(page)).toContainText(
+			'The device learns its battery curve over time, which improves these estimates.',
+		)
+		await expect(battery(page).locator('.acts .name')).toHaveText(['Export curve', 'Import curve', 'Reset curve'])
+	})
+
+	test('says nothing of a recharge where the device gives none', async ({ page }) => {
+		await openBattery(
+			page,
+			message({ type: 'curves', document: { discharging: DOCUMENT.discharging }, lasts: { duration: 18600, margin: 2700 } }),
+		)
+		await expect(battery(page).locator('.learnt').first()).toHaveText('A full charge lasts 5h 10m (±45m).')
+		await expect(battery(page)).not.toContainText('recharge')
+	})
+
+	// A device older than this build never answers `curve`, and one managing no backup supply answers
+	// with no document; both look like a device with nothing to offer here (CSCR).
+	test('is left out until the device answers, and where it answers with no document', async ({ page }) => {
+		await openControl(page)
+		await expect(power(page)).toBeVisible()
+		await expect(battery(page)).toHaveCount(0)
+
+		await sayOnCurve(page, message({ type: 'curves' }))
+		await expect(battery(page)).toHaveCount(0)
+
+		await sayOnCurve(page, CURVES)
+		await expect(battery(page)).toBeVisible()
+	})
+
+	test('shows the figures from the latest curves the device sent', async ({ page }) => {
+		await openBattery(page)
+		await sayOnCurve(
+			page,
+			message({ type: 'curves', document: DOCUMENT, lasts: { duration: 19800, margin: 300 }, recharge: { duration: 12600, margin: 600 } }),
+		)
+		await expect(battery(page).locator('.learnt').first()).toHaveText(
+			'A full charge lasts 5h 30m (±5m).A full recharge takes 3h 30m (±10m).',
+		)
+	})
+
+	test('exports the curve document as a file', async ({ page }) => {
+		await openBattery(page)
+		const downloading = page.waitForEvent('download')
+		await battery(page).getByRole('button', { name: 'Export' }).click()
+		const download = await downloading
+		expect(download.suggestedFilename()).toBe('battery-curve.json')
+		expect(JSON.parse(await readFile(await download.path(), 'utf8'))).toEqual(DOCUMENT)
+	})
+
+	// Every import, every time (CSCR).
+	test('asks for no import until it is confirmed, and says what the device has learnt is replaced', async ({
+		page,
+	}) => {
+		await openBattery(page)
+		const picked = { discharging: { ...DOCUMENT.discharging, 'learnt-from': 9 } }
+		await pickFile(page, 'from-site-4.json', JSON.stringify(picked))
+		const dialog = page.getByRole('alertdialog')
+		await expect(dialog).toContainText('Import from-site-4.json?')
+		await expect(dialog).toContainText('It replaces what the device has learnt.')
+		await dialog.getByRole('button', { name: 'Cancel' }).click()
+		await expect(dialog).toHaveCount(0)
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }])
+
+		await pickFile(page, 'from-site-4.json', JSON.stringify(picked))
+		await answer(page, 'load', message({ type: 'accepted' }))
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Import' }).click()
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }, { type: 'load', document: picked }])
+		await expect(battery(page).getByRole('button', { name: 'Import' })).toBeEnabled()
+	})
+
+	test('asks for no reset until it is confirmed, and says what the device has learnt is discarded', async ({
+		page,
+	}) => {
+		await openBattery(page)
+		await battery(page).getByRole('button', { name: 'Reset' }).click()
+		const dialog = page.getByRole('alertdialog')
+		await expect(dialog).toContainText('Reset the charge curve?')
+		await expect(dialog).toContainText('What the device has learnt is discarded.')
+		await dialog.getByRole('button', { name: 'Cancel' }).click()
+		await expect(dialog).toHaveCount(0)
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }])
+
+		await battery(page).getByRole('button', { name: 'Reset' }).click()
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Reset' }).click()
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }, { type: 'reset' }])
+	})
+
+	test('renders a refused import as the device wrote it', async ({ page }) => {
+		await openBattery(page)
+		await answer(
+			page,
+			'load',
+			message({ type: 'refused', reason: "the discharging curve's first point is at 3.1 V, above the 2.8 V floor" }),
+		)
+		await pickFile(page, 'battery-curve.json', JSON.stringify({ discharging: { points: [[3.1, 0], [4.2, 1]] } }))
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Import' }).click()
+		await expect(
+			battery(page).getByText("the discharging curve's first point is at 3.1 V, above the 2.8 V floor"),
+		).toBeVisible()
+		await expect(battery(page).getByRole('button', { name: 'Import' })).toBeEnabled()
+	})
+
+	test('asks for nothing with a file that is not JSON', async ({ page }) => {
+		await openBattery(page)
+		await pickFile(page, 'notes.txt', 'not a curve')
+		await expect(page.getByRole('alertdialog')).toHaveCount(0)
+		await expect(battery(page).getByText('notes.txt is not JSON.')).toBeVisible()
+		expect(await curveSent(page)).toEqual([{ type: 'curve' }])
 	})
 })
 
