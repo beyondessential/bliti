@@ -28,7 +28,10 @@ use std::time::{Duration, Instant};
 use bliti_core::channel::readings::{Entry, kind};
 use serde_json::{Map, Value as Json};
 
-use self::supply::{Reading, Seen};
+use self::supply::{
+	Reading, Seen,
+	rate::{self, Estimate},
+};
 
 mod battery;
 pub mod curve;
@@ -200,8 +203,42 @@ fn gauge_entries(reading: &Reading) -> Vec<Entry> {
 		)
 		.with_trait("battery", about.clone()),
 	);
-	readings.push(direction.with_trait("battery", about));
+	let charging = direction
+		.value
+		.as_ref()
+		.is_some_and(|value| value == "charging");
+	readings.push(direction.with_trait("battery", about.clone()));
+	if let Some(time) = time_left(reading, carrying, charging) {
+		readings.push(time.with_trait("battery", about));
+	}
 	readings
+}
+
+/// Time to empty while the cell carries the device, and time to full while it takes charge, with
+/// how far either way it may be off; skipped until the charge has been watched moving that way long
+/// enough to have a rate, and not reported at all otherwise, which ends it (NFO, CHG).
+fn time_left(reading: &Reading, carrying: bool, charging: bool) -> Option<Entry> {
+	let (name, way, estimate): (_, _, fn(f64, rate::Trend, f64) -> Option<Estimate>) =
+		if carrying {
+			("battery-time-to-empty", "falling", rate::to_empty)
+		} else if charging {
+			("battery-time-to-full", "rising", rate::to_full)
+		} else {
+			return None;
+		};
+	let estimate = reading
+		.trend
+		.and_then(|trend| estimate(reading.charge, trend, reading.error));
+	Some(match estimate {
+		Some(Estimate { seconds, margin }) => Entry::duration(reading.at, name, seconds)
+			.with_trait("margin", Json::from(round(margin, 4))),
+		None => Entry::skipped(
+			reading.at,
+			name,
+			kind::DURATION,
+			format!("the charge has not been watched {way} long enough to establish a rate"),
+		),
+	})
 }
 
 impl Recent {
@@ -382,6 +419,8 @@ mod tests {
 			charge,
 			full,
 			recent,
+			trend: None,
+			error: 0.1,
 		}
 	}
 
@@ -570,6 +609,72 @@ mod tests {
 		let idle = recent(&[4.199; 12], Duration::from_secs(3));
 		assert_eq!(draining().source(Some(false)), Some(Source::Battery));
 		assert_eq!(idle.source(Some(false)), Some(Source::Bypassed));
+	}
+
+	fn trending(mut reading: Reading, rate: f64, spread: f64) -> Reading {
+		reading.trend = Some(rate::Trend { rate, spread });
+		reading
+	}
+
+	fn has(entries: &[Entry], name: &str) -> bool {
+		entries.iter().any(|entry| entry.name == name)
+	}
+
+	/// Time to empty is skipped while the cell carries the device until the charge has a rate, saying
+	/// so, and time to full is not reported at all (NFO, CHG).
+	#[test]
+	fn time_to_empty_is_skipped_until_there_is_a_rate() {
+		let entries = gauge_entries(&reading(draining(), Some(false), 0.5, false));
+		let time = named(&entries, "battery-time-to-empty");
+		assert_eq!(time.status(), Some("skipped"));
+		assert!(time.reason().is_some_and(|why| why.contains("long enough")));
+		assert!(time.traits.contains_key("battery"));
+		assert!(!time.traits.contains_key("margin"));
+		assert!(!has(&entries, "battery-time-to-full"));
+
+		// A charge that has been rising while carrying the device has no rate to empty either.
+		let rising = trending(reading(draining(), Some(false), 0.5, false), 1e-4, 0.0);
+		let entries = gauge_entries(&rising);
+		assert_eq!(
+			named(&entries, "battery-time-to-empty").status(),
+			Some("skipped")
+		);
+	}
+
+	/// With a rate, the time to empty is the charge over it, with a margin in seconds from the
+	/// figure's error at that rate (CHG, NFO).
+	#[test]
+	fn time_to_empty_carries_its_margin() {
+		let reading = trending(reading(draining(), Some(false), 0.5, false), -1e-4, 0.0);
+		let entries = gauge_entries(&reading);
+		let time = named(&entries, "battery-time-to-empty");
+		assert_eq!(time.kind, kind::DURATION);
+		assert_eq!(time.value.as_ref().unwrap().as_f64(), Some(5000.0));
+		assert_eq!(time.traits.get("margin").unwrap().as_f64(), Some(1000.0));
+		assert_eq!(time.traits.get("battery"), Some(&built_in()));
+		assert!(!has(&entries, "battery-time-to-full"));
+	}
+
+	/// On mains the time is to full instead, so time to empty ends; once the charge has finished,
+	/// neither is reported (NFO, CHG).
+	#[test]
+	fn the_time_follows_the_direction() {
+		let still = recent(&[4.0; 5], Duration::from_secs(10));
+		let charging = trending(reading(still.clone(), Some(true), 0.5, false), 1e-4, 0.0);
+		let entries = gauge_entries(&charging);
+		assert!(!has(&entries, "battery-time-to-empty"));
+		let time = named(&entries, "battery-time-to-full");
+		assert_eq!(time.value.as_ref().unwrap().as_f64(), Some(5000.0));
+		assert!(time.traits.contains_key("margin"));
+
+		let full = trending(reading(still.clone(), Some(true), 1.0, true), 0.0, 0.0);
+		let entries = gauge_entries(&full);
+		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
+
+		// Fed around the backup board, the cell neither carries the device nor takes charge.
+		let bypassed = recent(&[4.156; 12], Duration::from_secs(3));
+		let entries = gauge_entries(&reading(bypassed, Some(false), 0.9, false));
+		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
 	}
 
 	/// Before the record thread's first look, there is nothing to report from.

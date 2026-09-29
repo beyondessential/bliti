@@ -16,19 +16,24 @@ use tokio::sync::watch;
 
 use self::{
 	full::Full,
+	learn::Which,
 	low::{Floor, Low},
+	rate::Trend,
 };
 use super::{
 	Gauge, Recent, WATCH,
 	curve::{
-		Document,
+		Curve, Document, Invalid,
 		store::{DEFAULT_PATH, Store, StoreError, Stored},
+		unmeasured_error,
 	},
 	record::{Event, Record},
 };
 
 mod full;
+mod learn;
 mod low;
+pub mod rate;
 #[cfg(test)]
 mod tests;
 
@@ -106,6 +111,10 @@ pub struct Reading {
 	pub full: bool,
 	/// The cell voltage over the last [`WATCH`].
 	pub recent: Recent,
+	/// How the charge has recently moved, where it has been watched going one way long enough.
+	pub trend: Option<Trend>,
+	/// How far the charge may be off, as a share of what is reported (CHG, "Accuracy").
+	pub error: f64,
 }
 
 /// What a look calls for from the record thread.
@@ -146,6 +155,7 @@ struct Sample {
 	at: Instant,
 	volts: f64,
 	charge: f64,
+	external: Option<bool>,
 }
 
 /// Timed cell voltages, from when the recording began.
@@ -314,7 +324,7 @@ impl State {
 		match external {
 			Some(true) => {
 				if self.full.observe(now, gauge.volts) {
-					self.charge_finished(gauge);
+					self.charge_finished(now, gauge);
 				}
 			}
 			// The cell carries the device again, so it is no longer known full (CHG).
@@ -322,15 +332,18 @@ impl State {
 			None => {}
 		}
 		let full = self.full.finished();
-		let charge = self
-			.stored
-			.as_ref()
-			.map_or(0.0, |stored| estimate(stored, gauge, external, full));
+		let (charge, error) = self.stored.as_ref().map_or((0.0, 1.0), |stored| {
+			(
+				estimate(stored, gauge, external, full),
+				figure_error(stored, gauge, external),
+			)
+		});
 
 		self.history.push_back(Sample {
 			at: now,
 			volts: gauge.volts,
 			charge,
+			external,
 		});
 		while self
 			.history
@@ -350,6 +363,8 @@ impl State {
 			charge,
 			full,
 			recent: self.recent(),
+			trend: self.trend(),
+			error,
 		});
 		let held = self.low.observe(now, uptime, floor).then(|| Held {
 			volts: gauge.volts,
@@ -435,7 +450,7 @@ impl State {
 	}
 
 	/// A finished charge: the gauge's reading now is its reading on a full cell (CHG).
-	fn charge_finished(&mut self, gauge: Gauge) {
+	fn charge_finished(&mut self, now: Instant, gauge: Gauge) {
 		let share = gauge.charge / 100.0;
 		tracing::info!(
 			volts = %format!("{:.4}", gauge.volts),
@@ -452,19 +467,87 @@ impl State {
 			}
 		}
 		if let Some(charge) = self.charge.take() {
-			self.learn_from_charge(charge);
+			self.learn_from_charge(now, charge);
 		}
 	}
 
-	/// Where a charge from a known start has reached full. Learning the charging curve from it comes
-	/// here, saved and sent to every curve stream through [`State::replace`] (CHG, "Learning").
-	fn learn_from_charge(&mut self, _charge: Charge) {}
+	/// A charge from a known start has reached full: refine the charging curve from it, creating it
+	/// where none is held (CHG, "Learning").
+	///
+	/// The charge is taken to have finished where the cell began the hold the finished charge was
+	/// told by, [`full::HOLD`] before now.
+	fn learn_from_charge(&mut self, now: Instant, charge: Charge) {
+		let Some(stored) = &self.stored else {
+			return;
+		};
+		let document = &stored.document;
+		let end = now
+			.duration_since(charge.recording.began)
+			.saturating_sub(full::HOLD);
+		let learnt = learn::from_charge(
+			document.charging(),
+			charge.from,
+			document.floor_charge(),
+			&charge.recording.samples,
+			end,
+		);
+		match learnt {
+			Ok(curve) => {
+				let refined = Document::new(document.discharging().clone(), Some(curve));
+				self.refine(Which::Charging, refined);
+			}
+			Err(why) => tracing::info!(%why, "the charge taught the charging curve nothing"),
+		}
+	}
 
-	/// Where a run on battery has ended in a low-battery shutdown, before it goes away. Refining the
-	/// discharging curve from the run comes here, and must be saved before this returns (CHG,
-	/// "Learning").
+	/// A run on battery has ended in a low-battery shutdown: refine the discharging curve from it,
+	/// saved before this returns, since the device goes away next (CHG, "Learning").
 	fn learn_from_run(&mut self) {
-		self.run = None;
+		let (Some(run), Some(stored)) = (self.run.take(), &self.stored) else {
+			return;
+		};
+		let document = &stored.document;
+		match learn::from_run(
+			document.discharging(),
+			run.from_full,
+			&run.recording.samples,
+		) {
+			Ok(curve) => {
+				let refined = Document::new(curve, document.charging().cloned());
+				self.refine(Which::Discharging, refined);
+			}
+			Err(why) => tracing::info!(%why, "the run taught the discharging curve nothing"),
+		}
+	}
+
+	/// Put a refined document in force, reporting the refinement (CHG).
+	fn refine(&mut self, which: Which, refined: Result<Document, Invalid>) {
+		let document = match refined {
+			Ok(document) => document,
+			Err(err) => {
+				tracing::warn!(curve = which.name(), %err, "a refined curve was not valid, and was not kept");
+				return;
+			}
+		};
+		let Some(&Curve {
+			learnt_from,
+			error,
+			duration,
+			..
+		}) = which.curve(&document)
+		else {
+			return;
+		};
+		match self.replace(document) {
+			Ok(()) => tracing::info!(
+				curve = which.name(),
+				learnt_from,
+				error = %format!("{error:.4}"),
+				duration_secs = %format!("{duration:.0}"),
+				"refined the battery curve"
+			),
+			Err(err) => tracing::warn!(curve = which.name(), %err, "the refined curve could not be put in force"),
+		}
 	}
 
 	/// Put `document` in force: saved first, so what is in force is always what is on disk, then sent
@@ -481,6 +564,28 @@ impl State {
 		self.curves.send_replace(Some(next.document.clone()));
 		self.stored = Some(next);
 		Ok(())
+	}
+
+	/// How the charge has moved over the last [`rate::WINDOW`], since external power last came or
+	/// went.
+	fn trend(&self) -> Option<Trend> {
+		let newest = self.history.back()?;
+		let samples: Vec<_> = self
+			.history
+			.iter()
+			.rev()
+			.take_while(|sample| {
+				sample.external == newest.external
+					&& newest.at.duration_since(sample.at) <= rate::WINDOW
+			})
+			.map(|sample| {
+				(
+					-newest.at.duration_since(sample.at).as_secs_f64(),
+					sample.charge,
+				)
+			})
+			.collect();
+		rate::trend(&samples)
 	}
 
 	/// The cell voltage over the last [`WATCH`], up to the newest sample.
@@ -532,10 +637,7 @@ fn estimate(stored: &Stored, gauge: Gauge, external: Option<bool>, full: bool) -
 	}
 	let document = &stored.document;
 	if external == Some(true) {
-		if let Some(charging) = document
-			.charging()
-			.filter(|curve| curve.learnt_from >= CHARGING_LEARNT && curve.covers(gauge.volts))
-		{
+		if let Some(charging) = charging_curve(document, gauge.volts) {
 			return document.report(charging.charge_at(gauge.volts));
 		}
 		let share = gauge.charge / 100.0;
@@ -546,4 +648,33 @@ fn estimate(stored: &Stored, gauge: Gauge, external: Option<bool>, full: bool) -
 		return scaled.clamp(0.0, 1.0);
 	}
 	document.report(document.discharging().charge_at(gauge.volts))
+}
+
+/// How far the charge [`estimate`] gives may be off, as a share of what is reported: the error of the
+/// curve it was read from, over the share of the scale between the floor and full; or, for the
+/// gauge's figure on mains, that of a charging curve learnt from none (CHG, "Accuracy").
+fn figure_error(stored: &Stored, gauge: Gauge, external: Option<bool>) -> f64 {
+	let document = &stored.document;
+	let curve = if external == Some(true) {
+		match charging_curve(document, gauge.volts) {
+			Some(charging) => charging,
+			None => return unmeasured_error(0),
+		}
+	} else {
+		document.discharging()
+	};
+	let scale = 1.0 - document.floor_charge();
+	if scale > 0.0 {
+		(curve.error / scale).min(1.0)
+	} else {
+		1.0
+	}
+}
+
+/// The charging curve, where it is read at `volts`: learnt from enough charges, and covering them
+/// (CHG).
+fn charging_curve(document: &Document, volts: f64) -> Option<&Curve> {
+	document
+		.charging()
+		.filter(|curve| curve.learnt_from >= CHARGING_LEARNT && curve.covers(volts))
 }

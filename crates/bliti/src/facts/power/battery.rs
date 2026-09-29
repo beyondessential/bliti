@@ -42,6 +42,10 @@ pub struct Battery {
 	/// Cell voltage. Absent where the source reports none, which a UPS commonly does.
 	pub volts: Option<f64>,
 	pub direction: Direction,
+	/// Seconds until empty, where the source gives a time.
+	pub time_to_empty: Option<f64>,
+	/// Seconds until full, where the source gives a time.
+	pub time_to_full: Option<f64>,
 }
 
 impl Battery {
@@ -55,6 +59,8 @@ impl Battery {
 			charge: None,
 			volts: None,
 			direction: Direction::Unknown,
+			time_to_empty: None,
+			time_to_full: None,
 		}
 	}
 }
@@ -132,7 +138,8 @@ fn battery_trait(battery: &Battery, name: &str) -> Json {
 	Json::Object(object)
 }
 
-/// The three readings for every battery given, each carrying its `battery` trait (NFO).
+/// The three readings for every battery given, and its time to empty or to full where it is
+/// carrying the device or taking charge, each carrying its `battery` trait (NFO).
 pub fn entries(at: u64, batteries: &[Battery]) -> Vec<Entry> {
 	let names = names(batteries);
 	let mut entries = Vec::new();
@@ -140,9 +147,31 @@ pub fn entries(at: u64, batteries: &[Battery]) -> Vec<Entry> {
 		let about = battery_trait(battery, name);
 		entries.push(charge(at, battery).with_trait("battery", about.clone()));
 		entries.push(voltage(at, battery).with_trait("battery", about.clone()));
-		entries.push(direction(at, battery).with_trait("battery", about));
+		entries.push(direction(at, battery).with_trait("battery", about.clone()));
+		if let Some(time) = time_left(at, battery) {
+			entries.push(time.with_trait("battery", about));
+		}
 	}
 	entries
+}
+
+/// The time the operating system gives to empty while discharging, or to full while charging, and
+/// skipped where it gives none. It gives no margin, so none is carried (NFO).
+fn time_left(at: u64, battery: &Battery) -> Option<Entry> {
+	let (name, seconds, to) = match battery.direction {
+		Direction::Discharging => ("battery-time-to-empty", battery.time_to_empty, "empty"),
+		Direction::Charging => ("battery-time-to-full", battery.time_to_full, "full"),
+		Direction::Idle | Direction::Unknown => return None,
+	};
+	Some(match seconds {
+		Some(seconds) => Entry::duration(at, name, seconds),
+		None => Entry::skipped(
+			at,
+			name,
+			kind::DURATION,
+			format!("the operating system gives no time to {to}"),
+		),
+	})
 }
 
 fn charge(at: u64, battery: &Battery) -> Entry {

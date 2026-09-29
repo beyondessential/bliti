@@ -104,14 +104,9 @@ impl Curve {
 		c0 + (c1 - c0) * (volts - v0) / (v1 - v0)
 	}
 
-	/// The lowest voltage at which the curve reaches `charge`, clamped to the curve's ends.
-	#[cfg_attr(
-		not(test),
-		expect(
-			dead_code,
-			reason = "read by the learning and time left, still to come (T2)"
-		)
-	)]
+	/// The lowest voltage at which the curve reaches `charge`, clamped to the curve's ends: the
+	/// voltage a cell following the curve shows, for synthetic runs.
+	#[cfg(test)]
 	pub fn volts_at(&self, charge: f64) -> f64 {
 		let (Some(&(low, bottom)), Some(&(high, _))) = (self.points.first(), self.points.last())
 		else {
@@ -234,13 +229,6 @@ impl Document {
 
 /// The error of a curve not yet measured against a run or charge, from how many it was learnt from
 /// (CHG), and of the gauge's figure on mains, as a charging curve learnt from none.
-#[cfg_attr(
-	not(test),
-	expect(
-		dead_code,
-		reason = "read by the learning and time left, still to come (T2)"
-	)
-)]
 pub fn unmeasured_error(learnt_from: u32) -> f64 {
 	// A fifth of a cell for one built from another cell and another board, then falling as the
 	// spread of an average does, with the square root of the runs in it.

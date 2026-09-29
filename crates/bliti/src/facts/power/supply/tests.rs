@@ -4,7 +4,10 @@ use std::{
 	sync::atomic::{AtomicUsize, Ordering},
 };
 
-use super::{super::curve::Curve, *};
+use super::{
+	super::curve::{Curve, FLOOR_VOLTS},
+	*,
+};
 
 const EVERY: Duration = Duration::from_secs(10);
 const UP: Option<Duration> = Some(Duration::from_secs(3600));
@@ -471,4 +474,109 @@ fn a_gauge_that_fails_is_reported_and_restarts_the_count() {
 			reason: "timed out".to_owned()
 		}
 	);
+}
+
+/// A run on battery from start, falling linearly from 3.5 V for `ticks` looks, then held below the
+/// floor for a minute as the low-battery shutdown takes it.
+fn run_down(ticks: u32) -> Vec<Look> {
+	let fall = (3.5 - FLOOR_VOLTS) / f64::from(ticks);
+	(0..ticks)
+		.map(|tick| look(3.5 - fall * f64::from(tick), false))
+		.chain((0..7).map(|_| look(2.79, false)))
+		.collect()
+}
+
+/// A run that reached the floor refines the discharging curve, saved and sent to every curve stream
+/// before the shutdown goes on (CHG, CRV).
+#[test]
+fn a_low_battery_run_is_learnt_saved_and_sent() {
+	let scratch = Scratch::new();
+	scratch.store().save(&stored(None, Some(0.95))).unwrap();
+	let supply = scratch.supply();
+	let observed = feed(&supply, Instant::now(), run_down(180));
+	assert!(observed.last().unwrap().held.is_some());
+	let mut curves = supply.curves();
+	curves.borrow_and_update();
+
+	supply.learn_from_run();
+	let document = supply.document().unwrap();
+	let discharging = document.discharging();
+	assert_eq!(discharging.learnt_from, 1);
+	assert_ne!(discharging, &self::discharging(), "refined");
+	assert!(curves.has_changed().unwrap());
+	assert_eq!(*curves.borrow(), Some(document.clone()));
+	assert_eq!(
+		scratch.store().read().unwrap(),
+		Some(Stored {
+			document,
+			gauge_full: Some(0.95)
+		})
+	);
+	assert!(supply.state().run.is_none());
+}
+
+/// A run too short to say anything changes nothing, and writes nothing (CHG).
+#[test]
+fn a_short_run_teaches_nothing() {
+	let scratch = Scratch::new();
+	let supply = scratch.supply();
+	feed(&supply, Instant::now(), run_down(20));
+	let curves = supply.curves();
+	supply.learn_from_run();
+	assert_eq!(supply.document(), Some(Document::shipped()));
+	assert!(!curves.has_changed().unwrap());
+	assert!(!scratch.0.exists(), "no curve file is written");
+}
+
+/// A charge from external power returning until the charge finishes creates the charging curve,
+/// anchored at the discharging curve's charge where the run ended, and saves it (CHG).
+#[test]
+fn a_finished_charge_from_a_known_start_creates_the_charging_curve() {
+	let scratch = Scratch::new();
+	scratch.store().save(&stored(None, None)).unwrap();
+	let supply = scratch.supply();
+	let rise = (0..360).map(|tick| 3.7 + 0.5 * f64::from(tick) / 360.0);
+	let looks = [look(3.6, false), look(3.6, false)]
+		.into_iter()
+		.chain(rise.map(|volts| look(volts, true)))
+		.chain((0..30).map(|_| look(4.2, true)))
+		.chain((0..31).map(|_| look(4.1875, true)));
+	feed(&supply, Instant::now(), looks);
+
+	assert!(reading(&supply).full);
+	let document = supply.document().unwrap();
+	let charging = document.charging().expect("a charging curve");
+	assert_eq!(charging.learnt_from, 1);
+	let from = self::discharging().charge_at(3.6);
+	assert!(
+		(charging.points[0].1 - from).abs() < 0.01,
+		"{:?}",
+		charging.points
+	);
+	// An hour of rising and five minutes at termination, over what was left to fill.
+	assert!(
+		(charging.duration - 3900.0 / (1.0 - from)).abs() < 60.0,
+		"{}",
+		charging.duration
+	);
+	assert_eq!(scratch.store().read().unwrap().unwrap().document, document);
+}
+
+/// A rate is had once the charge has been watched going one way for five minutes, and is lost when
+/// external power comes or goes (CHG).
+#[test]
+fn the_rate_is_had_after_five_minutes_one_way() {
+	let scratch = Scratch::new();
+	let supply = scratch.supply();
+	let start = Instant::now();
+	let falling = |tick: u32| look(3.9 - 0.001 * f64::from(tick), false);
+	feed(&supply, start, (0..30).map(falling));
+	assert_eq!(reading(&supply).trend, None);
+	supply.observe(falling(30), start + EVERY * 30, 1, UP);
+	let trend = reading(&supply).trend.unwrap();
+	assert!(trend.rate < 0.0, "{trend:?}");
+	assert!(reading(&supply).error > 0.0);
+
+	supply.observe(look(3.9, true), start + EVERY * 31, 1, UP);
+	assert_eq!(reading(&supply).trend, None);
 }

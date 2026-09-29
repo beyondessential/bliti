@@ -119,7 +119,17 @@ fn from_properties(os_name: &str, properties: &PropMap) -> Option<Battery> {
 		.copied()
 		.filter(|volts| *volts > 0.0);
 	battery.direction = direction(prop_cast::<u32>(properties, "State").copied().unwrap_or(0));
+	battery.time_to_empty = seconds(properties, "TimeToEmpty");
+	battery.time_to_full = seconds(properties, "TimeToFull");
 	Some(battery)
+}
+
+/// A time upower gives in seconds, which it writes as zero where it has none.
+fn seconds(properties: &PropMap, key: &str) -> Option<f64> {
+	prop_cast::<i64>(properties, key)
+		.copied()
+		.filter(|seconds| *seconds > 0)
+		.map(|seconds| seconds as f64)
 }
 
 #[cfg(test)]

@@ -69,6 +69,9 @@ fn from_directory(supply: &Path) -> Option<Battery> {
 		.map(|micro| micro / 1_000_000.0)
 		.filter(|volts| *volts > 0.0);
 	battery.direction = direction(read("status").as_deref());
+	// Seconds, where the driver estimates them at all, zero taken as none as upower writes it.
+	battery.time_to_empty = number(supply, "time_to_empty_now").filter(|secs| *secs > 0.0);
+	battery.time_to_full = number(supply, "time_to_full_now").filter(|secs| *secs > 0.0);
 	Some(battery)
 }
 
