@@ -4,27 +4,45 @@ id: CSCR
 
 # Control screen
 
-The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), and its power, through the acts of [CTL](overview.md), by our application.
+The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), its battery's curves, through [CRV](../battery/curve.md), and its power, through the acts of [CTL](power.md), by our application.
 
-[CTL](overview.md) binds every implementation.
-This spec says how ours applies it, and binds nothing else that controls a bliti device.
+[CTL](power.md) and [CRV](../battery/curve.md) bind every implementation.
+This spec says how ours applies them, and binds nothing else that controls a bliti device.
 
 ## What it holds
 
 The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
 
+The application MUST hold the Control screen's sections in the order network, battery, power.
+
 The application MUST offer the network configuration screen of [NSCR](../network/screen.md) from the Control screen, and MUST return the operator to the Control screen when they leave it.
 
-The application MUST open a control stream when the operator opens the Control screen, and MUST close it when they leave.
+The application MUST open a power stream and a curve stream when the operator opens the Control screen, and MUST close both when they leave.
+
+> [!NOTE]
+> A device older than the application skips `power` and `curve` as it skips anything else it does not recognise, and never answers. Leaving a section out until an answer arrives makes that device look like one with nothing to offer there, rather than one the application is forever waiting on.
+
+## Battery
+
+The application MUST leave out the battery section until the device has answered `curve`, and where it answers with no document.
+
+The application MUST say how many runs the discharging curve has been learnt from, and how many charges the charging curve has, where the device holds one.
+
+The application MUST offer to export the curve document as a file, to import one from a file, and to reset.
+
+The application MUST ask the operator to confirm every import and reset, each time, before asking the device for it.
+
+The confirmation of an import MUST say that what the device has learnt is replaced, and the confirmation of a reset MUST say that it is discarded.
+
+The application MUST show the counts from the latest `curves` the device sent.
+
+The application MUST render a `refused` reason as the device wrote it.
+
+## Power
 
 The application MUST offer the acts the device listed, and no others, in the order restart, reboot, power off.
 
 The application MUST leave out the power section until the device has listed its acts, and where it lists none.
-
-> [!NOTE]
-> A device older than the application skips `control` as it skips anything else it does not recognise, and never answers. Leaving the section out until an answer arrives makes that device look like one that offers no acts, rather than one the application is forever waiting on.
-
-## Asking for an act
 
 The application MUST ask the operator to confirm every act, each time, before asking the device for it.
 
@@ -45,6 +63,6 @@ The application MUST render a `refused` reason as the device wrote it.
 
 ## Wording
 
-The application MUST supply its own wording for every act, and MUST NOT put the vocabulary of [CTL](overview.md) in front of an operator.
+The application MUST supply its own wording for every act and every curve, and MUST NOT put the vocabulary of [CTL](power.md) or [CRV](../battery/curve.md) in front of an operator.
 
 The application MUST name `restart` as restarting bliti.

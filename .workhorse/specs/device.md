@@ -12,8 +12,8 @@ A device MUST report failures and identity problems on its standard error.
 > These conditions leave a device unreachable over the channel, so there is no client to tell.
 > They surface where the device is, and an operator reads them by reaching the device directly.
 
-A device with a backup supply's signal, as in [NFO](device-info.md) "Power source and battery", MUST report on its standard error whether external power reaches the backup supply when it starts, and each time that changes, with the cell voltage and state of charge at the time.
-While external power is absent, it MUST also report the cell voltage and state of charge each time the voltage has fallen a further step, with steps fine enough to reconstruct the discharge.
+A device with a backup supply's signal, as in [NFO](device-info.md) "Power source and battery", MUST report on its standard error whether external power reaches the backup supply when it starts, and each time that changes, with the cell voltage, the charge [CHG](battery/charge.md) estimates and the gauge's own state of charge at the time.
+While external power is absent, it MUST also report the same three each time the voltage has fallen a further step, with steps fine enough to reconstruct the discharge.
 Each report while external power is absent MUST carry how long it has been absent, where the device saw it go.
 A device MUST make these reports whether or not it is sampling.
 

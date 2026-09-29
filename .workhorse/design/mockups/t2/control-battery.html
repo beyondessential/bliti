@@ -1,0 +1,214 @@
+<!-- spec: control/screen.md -->
+<!-- spec: web-app.md -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control screen battery section</title>
+<style>
+	/* Carried from crates/bliti-web/app/src/styles.css as shipped. */
+	:root {
+		--page: #fbfbfa;
+		--surface: #ffffff;
+		--line: #e4e2dd;
+		--text: #1c1917;
+		--muted: #57534e;
+		--accent: #1d4ed8;
+		--bad: #b91c1c;
+		--warn: #a16207;
+		--good: #15803d;
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 16px; background: var(--page); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+	main { max-width: 34rem; margin: 0 auto; }
+	h1 { font-size: 1.25rem; margin: 0 0 16px; }
+	section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+	h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+	button { font: inherit; padding: 12px 16px; min-height: 44px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+	button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+	button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }
+	.row { display: flex; gap: 8px; flex-wrap: wrap; }
+	.row > * { flex: 1 1 auto; }
+	.muted { color: var(--muted); font-size: 0.9rem; }
+	.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+	.heading .actions { display: flex; gap: 8px; }
+	.heading.title { margin-bottom: 16px; }
+	.heading.title h1 { margin: 0; }
+	.heading.title button.small { margin-bottom: 0; padding: 6px 10px; }
+	.acts { list-style: none; margin: 0; padding: 0; }
+	.acts li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+	.acts li:first-child { border-top: 0; padding-top: 0; }
+	.acts li > div { flex: 1 1 auto; }
+	.acts .name { display: block; }
+	.acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
+	button.secondary.danger { color: var(--bad); }
+	button.danger-fill { background: var(--bad); }
+	.bar-state { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 12px 16px; }
+	.bar-state.working { border-left-color: var(--accent); }
+	.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+	.bar-state .row > * { flex: 0 1 auto; }
+	.why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
+	.spinner { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 6px; vertical-align: -0.05em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
+
+	/* New for this card: the learnt counts above the battery rows. */
+	.learnt { margin: 0 0 10px; }
+
+	/* Mockup scaffolding only: frame labels between states. */
+	.frame { margin: 0 auto 40px; max-width: 34rem; }
+	.frame > .caption { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); margin: 0 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="frame">
+	<p class="caption">1. Control screen, battery section between network and power</p>
+	<main>
+		<div class="heading title">
+			<h1>Control</h1>
+			<div class="actions"><button class="secondary small">Back</button></div>
+		</div>
+		<section>
+			<h2>Network</h2>
+			<button class="secondary">Network settings</button>
+		</section>
+		<section>
+			<h2>Battery</h2>
+			<p class="muted learnt">Charge curve learnt from 4 runs and 3 charges.</p>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Export curve</span><span class="muted">Save it as a file.</span></div>
+					<button class="secondary">Export</button>
+				</li>
+				<li>
+					<div><span class="name">Import curve</span><span class="muted">Load one from a file.</span></div>
+					<button class="secondary">Import</button>
+				</li>
+				<li>
+					<div><span class="name">Reset curve</span><span class="muted">Back to the shipped curve.</span></div>
+					<button class="secondary danger">Reset</button>
+				</li>
+			</ul>
+		</section>
+		<section>
+			<h2>Power</h2>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Restart bliti</span><span class="muted">Only the provisioning service.</span></div>
+					<button class="secondary">Restart</button>
+				</li>
+				<li>
+					<div><span class="name">Reboot</span><span class="muted">The whole device.</span></div>
+					<button class="secondary">Reboot</button>
+				</li>
+				<li>
+					<div><span class="name">Power off</span><span class="muted">Stays off until turned on at the device.</span></div>
+					<button class="secondary danger">Power off</button>
+				</li>
+			</ul>
+		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">2. A device still on its shipped curve</p>
+	<main>
+		<section>
+			<h2>Battery</h2>
+			<p class="muted learnt">Shipped charge curve, not yet learnt from any runs.</p>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Export curve</span><span class="muted">Save it as a file.</span></div>
+					<button class="secondary">Export</button>
+				</li>
+				<li>
+					<div><span class="name">Import curve</span><span class="muted">Load one from a file.</span></div>
+					<button class="secondary">Import</button>
+				</li>
+				<li>
+					<div><span class="name">Reset curve</span><span class="muted">Back to the shipped curve.</span></div>
+					<button class="secondary danger">Reset</button>
+				</li>
+			</ul>
+		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">3. Confirming an import, after the file is picked</p>
+	<main>
+		<section>
+			<h2>Battery</h2>
+			<div class="bar-state" role="alertdialog" aria-label="Import battery-curve.json?">
+				<p><strong>Import battery-curve.json?</strong></p>
+				<p>It replaces what the device has learnt.</p>
+				<div class="row">
+					<button>Import</button>
+					<button class="secondary">Cancel</button>
+				</div>
+			</div>
+		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">4. Confirming a reset</p>
+	<main>
+		<section>
+			<h2>Battery</h2>
+			<div class="bar-state" role="alertdialog" aria-label="Reset the charge curve?">
+				<p><strong>Reset the charge curve?</strong></p>
+				<p>What the device has learnt is discarded.</p>
+				<div class="row">
+					<button class="danger-fill">Reset</button>
+					<button class="secondary">Cancel</button>
+				</div>
+			</div>
+		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">5. An import the device refused</p>
+	<main>
+		<section>
+			<h2>Battery</h2>
+			<p class="muted learnt">Charge curve learnt from 4 runs and 3 charges.</p>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Export curve</span><span class="muted">Save it as a file.</span></div>
+					<button class="secondary">Export</button>
+				</li>
+				<li>
+					<div><span class="name">Import curve</span><span class="muted">Load one from a file.</span></div>
+					<button class="secondary">Import</button>
+				</li>
+				<li>
+					<div><span class="name">Reset curve</span><span class="muted">Back to the shipped curve.</span></div>
+					<button class="secondary danger">Reset</button>
+				</li>
+			</ul>
+			<p class="why reason">the discharging curve's first point is at 3.1 V, above the 2.8 V floor</p>
+		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">6. Device view while a low-battery shutdown is under way (WEB)</p>
+	<main>
+		<div class="heading title">
+			<h1>Info</h1>
+			<div class="actions"><button class="secondary small">Disconnect</button></div>
+		</div>
+		<h2>Device</h2>
+		<p class="muted">bliti 0.1.0</p>
+		<section class="bar-state working" role="status">
+			<p><span class="spinner" aria-hidden="true"></span>Shutting down…</p>
+			<p>Its battery is low.</p>
+		</section>
+	</main>
+</div>
+
+</body>
+</html>
