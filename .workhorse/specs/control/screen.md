@@ -51,6 +51,8 @@ The application MUST leave out the battery section until the device has answered
 
 The application MUST say how long a full charge lasts, and how long a full recharge takes where the device gives one, each with its margin.
 
+Beneath those, the application MUST say that the device learns its battery over time, and that the figures improve as it does.
+
 The application MUST offer to export the curve document as a file, to import one from a file, and to reset.
 
 The application MUST ask the operator to confirm every import and reset, each time, before asking the device for it.
