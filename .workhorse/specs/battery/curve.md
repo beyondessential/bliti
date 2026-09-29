@@ -21,6 +21,8 @@ Each curve is a JSON object:
 | --- | --- | --- | --- |
 | `points` | array | yes | the curve, each point an array of the cell voltage in volts and the charge at it |
 | `learnt-from` | number | yes | how many runs or charges the device has refined the curve from, 0 for a curve as a build carries it |
+| `error` | number | yes | the curve's error, as [CHG](charge.md) holds it |
+| `duration` | number | yes | the curve's duration in seconds, as [CHG](charge.md) holds it |
 
 `points` MUST hold at least two points, ordered by rising voltage, with no two at one voltage.
 
@@ -28,7 +30,7 @@ A point's charge MUST be from 0 to 1 inclusive, on the scale of [CHG](charge.md)
 
 The discharging curve's first point MUST be at charge 0 and at or below the floor of [LOW](shutdown.md), and its last point MUST be at charge 1.
 
-`learnt-from` MUST be a whole number.
+`learnt-from` MUST be a whole number, `error` MUST be from 0 to 1 inclusive, and `duration` MUST be greater than 0.
 
 A sender MUST round every number in a curve document to at most four decimal places.
 
@@ -50,6 +52,13 @@ The curve stream is a stream role beyond those of [MSG](../messages.md), establi
 A client MUST open a curve stream by opening a stream whose first message is `curve`.
 
 A device MUST answer `curve` with `curves`, carrying as `document` the curve document in force for the backup supply it manages, and carrying no `document` where it manages none.
+
+Alongside `document`, `curves` MUST carry as `lasts` how long a full charge lasts, and as `recharge` how long a full recharge takes where the device holds a charging curve, each as [CHG](charge.md) gives it, and each an object:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `duration` | number | yes | the time, in seconds |
+| `margin` | number | yes | how far either way the time may be off, in seconds |
 
 A client MUST ask to load a document by sending `load` on the curve stream, carrying the document as `document`, and MUST ask to reset by sending `reset`.
 
@@ -81,7 +90,7 @@ A device MUST log every load and reset made from its command line, and MUST repo
 | type | sent by | on | carries |
 | --- | --- | --- | --- |
 | `curve` | client | a curve stream, as the first message | nothing beyond `type` |
-| `curves` | device | the curve stream | `document`, where the device manages a backup supply |
+| `curves` | device | the curve stream | `document` and `lasts`, where the device manages a backup supply; `recharge`, where it also holds a charging curve |
 | `load` | client | the curve stream | `document` |
 | `reset` | client | the curve stream | nothing beyond `type` |
 | `accepted` | device | the curve stream | nothing beyond `type` |

@@ -4,7 +4,7 @@ id: CHG
 
 # Battery charge
 
-How a device estimates the charge left in the cell of a backup supply it manages, which it reports as `battery-charge` under [NFO](../device-info.md).
+How a device estimates the charge left in the cell of a backup supply it manages, and the time until it is empty or full, which it reports as `battery-charge`, `battery-time-to-empty` and `battery-time-to-full` under [NFO](../device-info.md).
 
 The estimate is how much of the cell's usable charge remains: 1 is a full cell, and 0 is the floor at which the device powers itself off under [LOW](shutdown.md).
 
@@ -55,8 +55,37 @@ A device MUST weigh recent runs and charges above older ones, so that the curves
 
 A device MUST keep its curves across restarts, reboots and loss of power, and MUST have recorded what a run taught it before the shutdown ending that run begins.
 
-A device MUST report on its standard error each time it refines a curve, with how many runs or charges the curve has now been learnt from.
+A device MUST report on its standard error each time it refines a curve, with how many runs or charges the curve has now been learnt from and its error.
 
 > [!NOTE]
 > The gauge measures voltage and nothing else, so time at the device's own draw stands in for charge.
 > Only a run that reaches the floor says how far the cell had to go from each voltage it passed, and only a charge that starts from a known figure and finishes says how far it came.
+
+## Accuracy
+
+A device MUST hold, for each curve, its error: how far the charge the curve gives is expected to be off, as a share of a full cell.
+
+Before refining a curve from a run or charge, a device MUST measure how far the curve's charge along the way differed from the charge the run or charge showed, and MUST weigh that into the curve's error as it weighs runs and charges into the curve itself.
+
+Until a curve's error has been measured, a device MUST estimate it from how many runs or charges the curve has been learnt from, larger the fewer.
+
+A device MUST hold, for each curve, its duration: how long the cell took to cover the curve's whole scale at the rate the device has seen it move, discharging under the device's own load or taking charge.
+
+Where the charge on mains comes from the gauge, a device MUST take its error as that of a charging curve learnt from no charges.
+
+A full charge lasts the time the discharging curve's duration gives between full and the floor, give or take the discharging curve's error over that time.
+
+A full recharge takes the time the charging curve's duration gives between the floor and full, give or take the charging curve's error over that time.
+
+## Time left
+
+While the cell carries the device, a device MUST estimate how long until the charge reaches 0, from the charge and the rate it has recently fallen at.
+
+While the cell takes charge, a device MUST estimate how long until it is full, from the charge and the rate it has recently risen at.
+
+A device MUST give each estimate a margin either way, combining the error of the figure it was taken from, at the rate the charge is moving, with how much that rate has varied.
+
+A device MUST report an estimate as skipped until it has watched the charge move long enough to have a rate, with a reason saying so.
+
+> [!NOTE]
+> The rate is the device's own recent one rather than a curve's duration, so a device that has just become busy says so in the time it reports.

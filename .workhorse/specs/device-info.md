@@ -190,6 +190,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `battery-charge` | `fraction` | `battery` | the charge left: as [CHG](battery/charge.md) estimates it for a backup supply the device manages, and the state of charge otherwise |
 | `battery-voltage` | `quantity`, `volts` | `battery` | cell voltage |
 | `battery-direction` | `text` | `battery` | the cell's direction of travel |
+| `battery-time-to-empty` | `duration` | `battery`, `margin` | how long the battery can go on carrying the device |
+| `battery-time-to-full` | `duration` | `battery`, `margin` | how long until the battery is full |
 
 ### Traits
 
@@ -206,8 +208,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `battery` | `name`, `serial`, `model`, `vendor` | which battery, where a device holds more than one; `name` tells them apart and the rest describe the cell |
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
+| `margin` | — | how far either way the reading's value may be off, in its unit |
 
-`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status` and `limits` are descriptive.
+`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits` and `margin` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -298,6 +301,12 @@ Where a battery is fitted but no cell voltage can be read for it, a device MUST 
 Where a device has both a backup supply's signal and the movement of the cell voltage, and they disagree, it MUST report `power-source` as the hardware gives it, and MUST report `battery-charge` as `warning`, with a reason saying the cell's direction of travel disagrees with the power source.
 
 While a battery is carrying the device, as `battery` gives it for `power-source` or `discharging` for `battery-direction`, a device MUST report its `battery-charge` as `warning` below 0.2 and as `failed` below 0.05, with a reason saying the battery is low.
+
+A device MUST report `battery-time-to-empty` while a battery is carrying the device, and `battery-time-to-full` while it is taking charge, and MUST end each, as above, once that no longer holds.
+
+For a backup supply it manages, a device MUST estimate both as [CHG](battery/charge.md) has it, empty being the floor of [LOW](battery/shutdown.md), and MUST carry `margin` on each.
+
+For a battery it reads from its operating system, a device MUST report both as the operating system gives them, and MUST report either as `skipped` where the operating system reports the battery but gives no such time.
 
 > [!NOTE]
 > A device fed directly has a charged battery, a backup supply that answers, and no protection at all: removing its power halts it immediately rather than switching it to the battery. Nothing about this is visible from outside the case, and it is the state an operator reaches by plugging into the more obvious of the two inputs.

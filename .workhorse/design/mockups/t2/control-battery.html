@@ -52,8 +52,29 @@
 	.spinner { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 6px; vertical-align: -0.05em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
 	@keyframes spin { to { transform: rotate(360deg); } }
 
-	/* New for this card: the learnt counts above the battery rows. */
+	/* New for this card: how long a full charge lasts, above the battery rows. */
 	.learnt { margin: 0 0 10px; }
+
+	/* Carried from styles.css: tiles and their reveal. */
+	.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+	.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; text-align: left; font: inherit; color: inherit; width: 100%; display: block; cursor: pointer; }
+	.tile.wide, .tile.expanded { grid-column: 1 / -1; }
+	.tile.expanded { border-color: var(--accent); }
+	.tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+	.tile .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+	.tile .value.warn { color: var(--warn); }
+	.detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+	.revealed + .revealed { margin-top: 12px; }
+	.detail dl { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+	.detail dt { color: var(--muted); font-size: 0.85rem; white-space: pre; }
+	.detail dd { margin: 0; font-size: 0.85rem; }
+	.detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+	.bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; }
+	.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+	.bar.warn > span { background: var(--warn); }
+
+	/* New for this card: a reading's margin beside its value. */
+	.margin { color: var(--muted); margin-left: 6px; }
 
 	/* Mockup scaffolding only: frame labels between states. */
 	.frame { margin: 0 auto 40px; max-width: 34rem; }
@@ -92,7 +113,7 @@
 		</section>
 		<section>
 			<h2>Battery</h2>
-			<p class="muted learnt">Charge curve learnt from 4 runs and 3 charges.</p>
+			<p class="muted learnt">A full charge lasts 5h 10m (±12m).<br>A full recharge takes 3h 40m (±20m).</p>
 			<ul class="acts">
 				<li>
 					<div><span class="name">Export curve</span><span class="muted">To analyse, or copy to another device.</span></div>
@@ -112,11 +133,11 @@
 </div>
 
 <div class="frame">
-	<p class="caption">2. A device still on its shipped curve</p>
+	<p class="caption">2. A device on its shipped curve, with no charging curve yet</p>
 	<main>
 		<section>
 			<h2>Battery</h2>
-			<p class="muted learnt">Shipped charge curve, not yet learnt from any runs.</p>
+			<p class="muted learnt">A full charge lasts 5h 10m (±45m).</p>
 			<ul class="acts">
 				<li>
 					<div><span class="name">Export curve</span><span class="muted">To analyse, or copy to another device.</span></div>
@@ -174,7 +195,7 @@
 	<main>
 		<section>
 			<h2>Battery</h2>
-			<p class="muted learnt">Charge curve learnt from 4 runs and 3 charges.</p>
+			<p class="muted learnt">A full charge lasts 5h 10m (±12m).<br>A full recharge takes 3h 40m (±20m).</p>
 			<ul class="acts">
 				<li>
 					<div><span class="name">Export curve</span><span class="muted">To analyse, or copy to another device.</span></div>
@@ -207,6 +228,49 @@
 			<p><span class="spinner" aria-hidden="true"></span>Shutting down…</p>
 			<p>Its battery is low.</p>
 		</section>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">7. Device view, battery tile opened, on battery</p>
+	<main>
+		<div class="tiles">
+			<button type="button" class="tile flat"><div class="label">Power</div><div class="value">On battery</div></button>
+			<button type="button" class="tile expanded" aria-expanded="true">
+				<div class="label">Battery</div>
+				<div class="value warn">18%</div>
+				<div class="detail">
+					<div class="revealed">
+						<p class="note">the battery is low</p>
+						<div class="bar warn"><span style="width: 18%"></span></div>
+					</div>
+					<div class="revealed"><dl><dt>Battery Voltage</dt><dd>3.41 V</dd></dl></div>
+					<div class="revealed"><dl><dt>Battery Direction</dt><dd>Discharging</dd></dl></div>
+					<div class="revealed"><dl><dt>Time left</dt><dd>54m<span class="margin">±8m</span></dd></dl></div>
+				</div>
+			</button>
+		</div>
+	</main>
+</div>
+
+<div class="frame">
+	<p class="caption">8. Device view, battery tile opened, charging</p>
+	<main>
+		<div class="tiles">
+			<button type="button" class="tile flat"><div class="label">Power</div><div class="value">On backup</div></button>
+			<button type="button" class="tile expanded" aria-expanded="true">
+				<div class="label">Battery</div>
+				<div class="value">62%</div>
+				<div class="detail">
+					<div class="revealed">
+						<div class="bar"><span style="width: 62%"></span></div>
+					</div>
+					<div class="revealed"><dl><dt>Battery Voltage</dt><dd>4.02 V</dd></dl></div>
+					<div class="revealed"><dl><dt>Battery Direction</dt><dd>Charging</dd></dl></div>
+					<div class="revealed"><dl><dt>Time to full</dt><dd>1h 25m<span class="margin">±20m</span></dd></dl></div>
+				</div>
+			</button>
+		</div>
 	</main>
 </div>
 

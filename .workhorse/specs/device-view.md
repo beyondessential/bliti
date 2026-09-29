@@ -41,7 +41,7 @@ The application MUST render in this order:
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
 | a notice beneath the header, only while `provisional` | `network-configuration` |
 | tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
-| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction` |
+| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
@@ -114,7 +114,9 @@ The application MUST show `memory-total` in the reveal of `memory-usage`.
 
 The application MUST headline `battery-charge` with a single battery, choosing the one named `built-in` where a device reports one and the first by `battery` name otherwise, and MUST show every battery in the reveal.
 
-The application MUST pair each battery's `battery-voltage` and `battery-direction` with its `battery-charge` by the `battery` trait, and MUST show them in that battery's reveal.
+The application MUST pair each battery's `battery-voltage`, `battery-direction`, `battery-time-to-empty` and `battery-time-to-full` with its `battery-charge` by the `battery` trait, and MUST show them in that battery's reveal.
+
+The application MUST show a reading's `margin` beside its value, as how far either way it may be off.
 
 The application MUST draw a `fraction` against its own scale, and MUST NOT draw a `quantity` against a scale unless its `limits` trait or its total above gives it one.
 

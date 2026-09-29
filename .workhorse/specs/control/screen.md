@@ -49,7 +49,7 @@ The application MUST render a `refused` reason as the device wrote it.
 
 The application MUST leave out the battery section until the device has answered `curve`, and where it answers with no document.
 
-The application MUST say how many runs the discharging curve has been learnt from, and how many charges the charging curve has, where the device holds one.
+The application MUST say how long a full charge lasts, and how long a full recharge takes where the device gives one, each with its margin.
 
 The application MUST offer to export the curve document as a file, to import one from a file, and to reset.
 
@@ -57,7 +57,7 @@ The application MUST ask the operator to confirm every import and reset, each ti
 
 The confirmation of an import MUST say that what the device has learnt is replaced, and the confirmation of a reset MUST say that it is discarded.
 
-The application MUST show the counts from the latest `curves` the device sent.
+The application MUST show the figures from the latest `curves` the device sent.
 
 The application MUST render a `refused` reason as the device wrote it.
 
