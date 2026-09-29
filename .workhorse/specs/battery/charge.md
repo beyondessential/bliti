@@ -16,7 +16,7 @@ A device MUST hold a discharging curve, for the voltage under the device's own l
 
 A curve's charge is on the scale of the discharging curve: 0 at its lowest point and 1 at full.
 
-Every build MUST carry a discharging curve measured on an X120x backup board from a full cell until the board could no longer carry the device, the same for every such board.
+Every build MUST carry a discharging curve for the cell fitted to production X120x backup boards, running from a full cell down to where the board can no longer carry the device, the same for every such board.
 
 A device MUST start from the curve its build carries, and MUST return to it when reset under [CRV](curve.md).
 
