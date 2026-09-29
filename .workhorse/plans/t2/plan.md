@@ -109,9 +109,9 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 - [x] `services/bliti.service`: `RuntimeDirectory=bliti`, for `/run/bliti/`.
 - [x] `crate::battery`: listen on `/run/bliti/battery.sock` (mode 0600), speaking newline-delimited JSON messages of the curve stream.
-- [ ] `main.rs`: `bliti battery-curve export`, `import <FILE|->` and `reset`. Each goes through the socket where the daemon answers, and works on the curve file directly otherwise. A refusal's reason goes to stderr with a non-zero exit.
-- [ ] Log each load and reset from the command line.
-- [ ] Tests: the command line against a socket served in-process, and against the file with no daemon.
+- [x] `main.rs`: `bliti battery-curve export`, `import <FILE|->` and `reset`. Each goes through the socket where the daemon answers, and works on the curve file directly otherwise. A refusal's reason goes to stderr with a non-zero exit.
+- [x] Log each load and reset from the command line.
+- [x] Tests: the command line against a socket served in-process, and against the file with no daemon.
 
 ### Web client (`bliti-web`)
 

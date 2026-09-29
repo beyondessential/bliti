@@ -29,8 +29,11 @@ use crate::{
 	session::{Peer, SessionError},
 };
 
+pub mod cli;
 #[cfg(unix)]
 pub mod socket;
+#[cfg(test)]
+mod tests;
 
 /// Places `lasts` and `recharge` are rounded to, as every number of a curve document is (CRV).
 const PLACES: i32 = 4;
