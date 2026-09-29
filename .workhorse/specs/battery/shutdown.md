@@ -18,6 +18,11 @@ The floor MUST be 2.8 V.
 
 ## Shutting down
 
+A device MUST watch for a low battery only on a backup supply whose gauge and signal of [NFO](../device-info.md) it reads itself, and MUST leave a battery its operating system reports to the operating system's own power management.
+
+> [!NOTE]
+> A machine whose battery comes from its operating system, such as a laptop running bliti in development, already has power management of its own, which decides when that machine sleeps or shuts down.
+
 A device MUST power off once external power has been absent, as the backup supply's signal of [NFO](../device-info.md) gives it, and the cell has read below the floor at every reading, for sixty seconds.
 
 A device MUST read the cell at least every ten seconds while external power is absent.

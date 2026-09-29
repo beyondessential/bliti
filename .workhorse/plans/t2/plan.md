@@ -10,6 +10,7 @@
 ## Design notes
 
 - The shutdown watcher belongs with the supply record in `facts/power/record.rs`: it already runs on its own 10 s thread whether or not sampling is on (DEV), which is what LOW requires.
+- The shutdown is armed by the hardware, not by the build profile. The watcher only runs where the gauge answers and the `GPIO6` line exists, which is the same guard `record.rs` already applies, so a dev laptop never arms it and a dev build deployed to a prototype Pi does. Test the arming decision on its own, with no gauge and no line, so the guard can't regress into an OS-battery path.
 - Curves live in `/var/lib/bliti/`, beside `network.json`, written atomically. What a run taught must be written before `going-away` is sent (CHG).
 - Learning without a current sensor: time at the device's own draw stands in for charge. A run from full rescales the whole curve by the run's duration. A partial run is anchored at the curve's charge where it began, and refines only below. Weighting is exponential over runs, so a replaced cell takes over within a few.
 - Charging curve: anchored at the discharging curve's figure when mains returns, and ending at full. Used once `learnt-from` reaches 3, and only within the voltage range it covers.
