@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+mod battery;
 mod facts;
 mod gatt;
 mod identity;

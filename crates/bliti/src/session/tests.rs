@@ -10,6 +10,8 @@ use crate::{
 	network::session::{Inert, Store},
 };
 
+mod curve;
+
 fn keys(byte: u8) -> DeviceKeys {
 	Root::from_bytes([byte; 32]).device_keys()
 }
@@ -33,6 +35,11 @@ async fn paired(keys: &DeviceKeys) -> Streams {
 
 /// Open a client against a device session that shares `controller`.
 async fn paired_with(keys: &DeviceKeys, controller: Controller) -> Streams {
+	paired_on(keys, controller, Supply::default()).await
+}
+
+/// Open a client against a device session that shares `controller` and `supply`.
+async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) -> Streams {
 	let (client_side, device_side) = tokio::io::duplex(1 << 16);
 	let device_keys = keys.clone();
 	let configurator = inert().await;
@@ -40,9 +47,10 @@ async fn paired_with(keys: &DeviceKeys, controller: Controller) -> Streams {
 		let _ = run(
 			device_side.compat(),
 			&device_keys,
-			Sampler::start(None, Supply::default()),
+			Sampler::start(None, supply.clone()),
 			configurator,
 			controller,
+			supply,
 		)
 		.await;
 	});
@@ -267,6 +275,7 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 			Sampler::start(None, Supply::default()),
 			configurator,
 			Controller::none(),
+			Supply::default(),
 		)
 		.await
 	});
@@ -301,6 +310,7 @@ async fn the_right_token_with_the_wrong_static_key_cannot_open_a_session() {
 			Sampler::start(None, Supply::default()),
 			configurator,
 			Controller::none(),
+			Supply::default(),
 		)
 		.await
 	});
@@ -384,6 +394,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Sampler::start(None, Supply::default()),
 				configurator,
 				Controller::none(),
+				Supply::default(),
 			)
 			.await;
 		})
@@ -420,6 +431,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Sampler::start(None, Supply::default()),
 				configurator,
 				Controller::none(),
+				Supply::default(),
 			)
 			.await;
 		}

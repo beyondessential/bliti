@@ -109,7 +109,15 @@ pub async fn run(
 	}
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
-	let sampler = crate::sampler::Sampler::start(wireless, supply);
+	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
+	// The command line changes the curves of a running daemon through this, since the daemon holds
+	// them in memory and would otherwise overwrite what it wrote to the curve file (CRV).
+	let socket = Path::new(crate::battery::socket::PATH);
+	let _socket = crate::battery::socket::listen(socket, supply.clone())
+		.inspect_err(|err| {
+			tracing::warn!(%err, path = %socket.display(), "cannot listen for the command line; `bliti battery-curve` will change the curve file behind this daemon's back");
+		})
+		.ok();
 	let (writes, writes_handle) = characteristic_control();
 	let (subscriptions, subscriptions_handle) = characteristic_control();
 	let _application = adapter
@@ -127,6 +135,7 @@ pub async fn run(
 				sampler,
 				configurator,
 				controller,
+				supply,
 				// One allowance for the whole device, since every session shares the one radio.
 				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
 			},
@@ -386,6 +395,7 @@ struct Shared {
 	sampler: crate::sampler::Sampler,
 	configurator: Configurator<Chosen>,
 	controller: Controller,
+	supply: Supply,
 	pacer: Arc<Mutex<Pacer>>,
 }
 
@@ -411,6 +421,7 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 		sampler,
 		configurator,
 		controller,
+		supply,
 		pacer,
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
@@ -456,7 +467,7 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
 	// stays reachable afterwards.
 	tokio::select! {
-		result = session::run(transport, &keys, sampler, configurator, controller) => {
+		result = session::run(transport, &keys, sampler, configurator, controller, supply) => {
 			match result {
 				Ok(()) => tracing::info!("session ended"),
 				Err(err) => tracing::info!(%err, "session ended"),

@@ -208,6 +208,14 @@ impl Supply {
 		}
 	}
 
+	/// A supply managing a backup supply from the start, as one whose gauge has answered.
+	#[cfg(test)]
+	pub fn managed_for_test(store: Store) -> Self {
+		let supply = Self::new(store);
+		supply.state().manage();
+		supply
+	}
+
 	fn state(&self) -> MutexGuard<'_, State> {
 		self.state.lock().unwrap_or_else(PoisonError::into_inner)
 	}
@@ -240,30 +248,18 @@ impl Supply {
 
 	/// The curve document in force, as it changes: by a load, a reset or a refinement, and from
 	/// nothing once a gauge first answers (CRV).
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "read by the curve stream, still to come (T2)")
-	)]
 	pub fn curves(&self) -> watch::Receiver<Option<Document>> {
 		self.state().curves.subscribe()
 	}
 
 	/// Replace both curves with `document`'s, saved before they take effect (CRV, "Loading and
 	/// resetting"). Blocking, since it writes the curve file.
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "called by the curve stream, still to come (T2)")
-	)]
 	pub fn load(&self, document: Document) -> Result<(), Unchanged> {
 		self.state().replace(document)
 	}
 
 	/// Return to the curve the build carries, holding no charging curve (CRV). Blocking, as
 	/// [`Supply::load`].
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "called by the curve stream, still to come (T2)")
-	)]
 	pub fn reset(&self) -> Result<(), Unchanged> {
 		self.state().replace(Document::shipped())
 	}

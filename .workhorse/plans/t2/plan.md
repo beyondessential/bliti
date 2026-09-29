@@ -85,7 +85,7 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 - [x] `battery-time-to-empty` while discharging and `battery-time-to-full` while charging, each with a `margin` trait in seconds. `skipped` until a rate is established; `ended` when the direction changes.
 - [x] Rate from the recent charge history; margin from the figure's error at that rate plus the rate's variation.
-- [ ] `lasts` and `recharge` for `curves`, from each curve's duration and error between the floor and full.
+- [x] `lasts` and `recharge` for `curves`, from each curve's duration and error between the floor and full.
 - [x] `upower.rs`: `TimeToEmpty`/`TimeToFull`; `sysfs.rs`: `time_to_empty_now`/`time_to_full_now`. `skipped` where the OS gives none, with no margin.
 - [x] Tests on the rate and margin calculation, and on the entry switching with the direction.
 
@@ -99,16 +99,16 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Curve stream (CRV)
 
-- [ ] `crate::battery` (new): `serve` for a curve stream. It answers `curve` with `curves`, and answers `load` and `reset` exactly once with `accepted`/`refused`. It refuses both where no backup supply is managed.
-- [ ] Broadcast `curves` to every open curve stream on each change (load, reset, refinement) through a `tokio::sync::watch`.
-- [ ] Log each `load` and `reset` with the peer's `hello` name and version.
-- [ ] `session.rs`: dispatch `Message::Curve` to `battery::serve`.
-- [ ] `session/tests.rs`: the exchange, a refused invalid document, `curves` reaching a second stream after a load, and refusal with no backup supply.
+- [x] `crate::battery` (new): `serve` for a curve stream. It answers `curve` with `curves`, and answers `load` and `reset` exactly once with `accepted`/`refused`. It refuses both where no backup supply is managed.
+- [x] Broadcast `curves` to every open curve stream on each change (load, reset, refinement) through a `tokio::sync::watch`.
+- [x] Log each `load` and `reset` with the peer's `hello` name and version.
+- [x] `session.rs`: dispatch `Message::Curve` to `battery::serve`.
+- [x] `session/tests.rs`: the exchange, a refused invalid document, `curves` reaching a second stream after a load, and refusal with no backup supply.
 
 ### Command line and socket (CRV)
 
-- [ ] `services/bliti.service`: `RuntimeDirectory=bliti`, for `/run/bliti/`.
-- [ ] `crate::battery`: listen on `/run/bliti/battery.sock` (mode 0600), speaking newline-delimited JSON messages of the curve stream.
+- [x] `services/bliti.service`: `RuntimeDirectory=bliti`, for `/run/bliti/`.
+- [x] `crate::battery`: listen on `/run/bliti/battery.sock` (mode 0600), speaking newline-delimited JSON messages of the curve stream.
 - [ ] `main.rs`: `bliti battery-curve export`, `import <FILE|->` and `reset`. Each goes through the socket where the daemon answers, and works on the curve file directly otherwise. A refusal's reason goes to stderr with a non-zero exit.
 - [ ] Log each load and reset from the command line.
 - [ ] Tests: the command line against a socket served in-process, and against the file with no daemon.

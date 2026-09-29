@@ -59,10 +59,6 @@ pub struct Document {
 
 /// A time with how far either way it may be off, both in seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-	not(test),
-	expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
-)]
 pub struct Span {
 	pub duration: f64,
 	pub margin: f64,
@@ -134,10 +130,6 @@ impl Curve {
 	/// How long the cell takes between charges `from` and `to` on this curve, with a margin of the
 	/// curve's error over that time: the charge axis is time at the device's draw, so both scale
 	/// with the share of the curve crossed (CHG).
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
-	)]
 	pub fn span_between(&self, from: f64, to: f64) -> Span {
 		let duration = self.duration * (to - from).abs();
 		Span {
@@ -205,20 +197,12 @@ impl Document {
 	}
 
 	/// How long a full charge lasts, from full down to the floor (CHG `lasts`).
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
-	)]
 	pub fn lasts(&self) -> Span {
 		self.discharging.span_between(self.floor_charge(), 1.0)
 	}
 
 	/// How long a full recharge takes, from the floor up to full, where a charging curve is held
 	/// (CHG `recharge`).
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
-	)]
 	pub fn recharge(&self) -> Option<Span> {
 		let floor = self.floor_charge();
 		self.charging
