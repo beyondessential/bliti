@@ -1,13 +1,13 @@
 //! The sampling task: the readings the device is taking now, and a feed of them as they are taken.
 //!
 //! Behaviour is specified in NFO, "Sampling". Sampling runs whether or not anyone is connected, so a
-//! feed that opens is served what is current at once rather than waiting a tick for it, and so the
-//! cell voltage has the history its direction of travel is derived from. It stops after a spell with
-//! no session, and starts again when one opens.
+//! feed that opens is served what is current at once rather than waiting a tick for it. It stops
+//! after a spell with no session, and starts again when one opens. The cell voltage's history is kept
+//! by the backup supply's own record thread, which never stops.
 //!
 //! Nothing is held for replay. A reader that comes back is sent what is current, not what accumulated
 //! while it was away; history is the reader's to accumulate forward from when it connects (NFO). The
-//! only state kept is what a derivation needs, which lives on [`Facts`].
+//! only state kept is what a derivation needs, which lives on [`Facts`] and the supply it reads.
 
 use std::{
 	collections::HashMap,

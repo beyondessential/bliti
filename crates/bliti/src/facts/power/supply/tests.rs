@@ -79,11 +79,7 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 /// Feed `looks` ten seconds apart from `start`, returning what each called for.
-fn feed(
-	supply: &Supply,
-	start: Instant,
-	looks: impl IntoIterator<Item = Look>,
-) -> Vec<Observed> {
+fn feed(supply: &Supply, start: Instant, looks: impl IntoIterator<Item = Look>) -> Vec<Observed> {
 	looks
 		.into_iter()
 		.enumerate()
@@ -101,9 +97,15 @@ fn reading(supply: &Supply) -> Reading {
 #[test]
 fn off_mains_the_charge_is_the_discharging_curves() {
 	let stored = stored(Some(5), Some(0.9));
-	assert!(close(estimate(&stored, gauge(3.5, 70.0), Some(false), false), 0.5));
+	assert!(close(
+		estimate(&stored, gauge(3.5, 70.0), Some(false), false),
+		0.5
+	));
 	assert_eq!(estimate(&stored, gauge(2.7, 70.0), Some(false), false), 0.0);
-	assert_eq!(estimate(&stored, gauge(4.25, 70.0), Some(false), false), 1.0);
+	assert_eq!(
+		estimate(&stored, gauge(4.25, 70.0), Some(false), false),
+		1.0
+	);
 }
 
 /// On mains with no charging curve learnt, the gauge's figure scaled to its full reading, unscaled
@@ -111,10 +113,19 @@ fn off_mains_the_charge_is_the_discharging_curves() {
 #[test]
 fn on_mains_the_charge_is_the_gauge_scaled_to_full() {
 	let unscaled = stored(None, None);
-	assert!(close(estimate(&unscaled, gauge(4.0, 70.0), Some(true), false), 0.7));
-	assert_eq!(estimate(&unscaled, gauge(4.1, 100.4), Some(true), false), 1.0);
+	assert!(close(
+		estimate(&unscaled, gauge(4.0, 70.0), Some(true), false),
+		0.7
+	));
+	assert_eq!(
+		estimate(&unscaled, gauge(4.1, 100.4), Some(true), false),
+		1.0
+	);
 	let scaled = stored(None, Some(0.9));
-	assert!(close(estimate(&scaled, gauge(4.0, 81.0), Some(true), false), 0.9));
+	assert!(close(
+		estimate(&scaled, gauge(4.0, 81.0), Some(true), false),
+		0.9
+	));
 	assert_eq!(estimate(&scaled, gauge(4.1, 95.0), Some(true), false), 1.0);
 }
 
@@ -123,13 +134,19 @@ fn on_mains_the_charge_is_the_gauge_scaled_to_full() {
 #[test]
 fn the_charging_curve_is_read_once_learnt_and_covering() {
 	let learnt = stored(Some(3), None);
-	assert!(close(estimate(&learnt, gauge(3.9, 70.0), Some(true), false), 0.5));
+	assert!(close(
+		estimate(&learnt, gauge(3.9, 70.0), Some(true), false),
+		0.5
+	));
 	assert!(
 		close(estimate(&learnt, gauge(3.5, 70.0), Some(true), false), 0.7),
 		"below what the charging curve covers"
 	);
 	let young = stored(Some(2), None);
-	assert!(close(estimate(&young, gauge(3.9, 70.0), Some(true), false), 0.7));
+	assert!(close(
+		estimate(&young, gauge(3.9, 70.0), Some(true), false),
+		0.7
+	));
 }
 
 #[test]
@@ -175,7 +192,11 @@ fn a_gauge_with_no_power_line_never_powers_off() {
 		gauge: Ok(gauge(2.7, 0.0)),
 		external: None,
 	});
-	assert!(feed(&supply, Instant::now(), looks).iter().all(|o| o.held.is_none()));
+	assert!(
+		feed(&supply, Instant::now(), looks)
+			.iter()
+			.all(|o| o.held.is_none())
+	);
 }
 
 /// With no gauge there is no backup supply: nothing to hold, nothing loaded, and no curve to load
@@ -218,7 +239,10 @@ fn the_curves_are_loaded_when_the_gauge_first_answers() {
 	assert!(supply.managed());
 	assert_eq!(supply.document(), Some(document(Some(3))));
 	assert_eq!(*curves.borrow(), Some(document(Some(3))));
-	assert!(close(reading(&supply).charge, 0.5), "the loaded charging curve is read");
+	assert!(
+		close(reading(&supply).charge, 0.5),
+		"the loaded charging curve is read"
+	);
 }
 
 /// A load is saved, put in force and sent; a reset returns to the shipped curve, keeping the gauge's
@@ -236,7 +260,10 @@ fn a_load_and_a_reset_are_saved_and_sent() {
 	assert!(curves.has_changed().unwrap());
 	assert_eq!(*curves.borrow_and_update(), Some(document(Some(4))));
 	assert_eq!(supply.document(), Some(document(Some(4))));
-	assert_eq!(scratch.store().read().unwrap(), Some(stored(Some(4), Some(0.95))));
+	assert_eq!(
+		scratch.store().read().unwrap(),
+		Some(stored(Some(4), Some(0.95)))
+	);
 
 	supply.reset().unwrap();
 	assert_eq!(*curves.borrow_and_update(), Some(Document::shipped()));
@@ -364,7 +391,10 @@ fn runs_and_charges_are_recorded_as_power_comes_and_goes() {
 	supply.observe(look(3.8, true), start + EVERY * 3, 1, UP);
 	{
 		let state = supply.state();
-		assert!(state.run.is_none(), "a run not ending in a shutdown is dropped");
+		assert!(
+			state.run.is_none(),
+			"a run not ending in a shutdown is dropped"
+		);
 		let charge = state.charge.as_ref().unwrap();
 		assert!(close(charge.from, discharging().charge_at(3.68)));
 		assert_eq!(charge.recording.samples, [(Duration::ZERO, 3.8)]);

@@ -14,6 +14,10 @@
 //! carrying the device drifts down a few millivolts every ten seconds. State of charge is no use
 //! here, taking about eighty seconds to move where the voltage is unambiguous within twenty or thirty.
 //!
+//! The board is looked at every ten seconds by the record thread, whether or not the device is
+//! sampling, into the one [`Supply`]; the readings here report what it last saw. The charge reported
+//! is CHG's estimate from the cell voltage rather than the gauge's own figure.
+//!
 //! Where no gauge answers there is no backup board, and the battery comes from the operating system
 //! instead: upower where it can be reached, and `/sys/class/power_supply` where it cannot. That path
 //! reports no `power-source`, because an operating system cannot tell a device fed through an
@@ -178,14 +182,23 @@ fn gauge_entries(reading: &Reading) -> Vec<Entry> {
 	if let Some(source) = source {
 		readings.push(power_source(at, source));
 	}
-	let carrying = source == Some(Source::Battery) || direction.value.as_ref().is_some_and(|value| value == "discharging");
+	let carrying = source == Some(Source::Battery)
+		|| direction
+			.value
+			.as_ref()
+			.is_some_and(|value| value == "discharging");
 	readings.push(
 		battery_charge(at, reading.charge, recent, source, carrying)
 			.with_trait("battery", about.clone()),
 	);
 	readings.push(
-		Entry::quantity(at, "battery-voltage", "volts", round(reading.gauge.volts, 3))
-			.with_trait("battery", about.clone()),
+		Entry::quantity(
+			at,
+			"battery-voltage",
+			"volts",
+			round(reading.gauge.volts, 3),
+		)
+		.with_trait("battery", about.clone()),
 	);
 	readings.push(direction.with_trait("battery", about));
 	readings
@@ -457,7 +470,10 @@ mod tests {
 		let still = recent(&[4.1875; 5], Duration::from_secs(10));
 		let charging = gauge_entries(&reading(still.clone(), Some(true), 1.0, false));
 		assert_eq!(
-			named(&charging, "battery-direction").value.as_ref().unwrap(),
+			named(&charging, "battery-direction")
+				.value
+				.as_ref()
+				.unwrap(),
 			"charging"
 		);
 		let full = gauge_entries(&reading(still, Some(true), 0.93, true));

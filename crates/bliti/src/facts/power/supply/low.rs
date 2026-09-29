@@ -33,7 +33,12 @@ impl Low {
 	/// Count one look, where `floor` is `None` for a look that could not be taken or a supply that
 	/// is not ours to watch, and `uptime` is how long the system has been up, where known. True where
 	/// the floor has now been held long enough to power off.
-	pub fn observe(&mut self, now: Instant, uptime: Option<Duration>, floor: Option<Floor>) -> bool {
+	pub fn observe(
+		&mut self,
+		now: Instant,
+		uptime: Option<Duration>,
+		floor: Option<Floor>,
+	) -> bool {
 		if self.done {
 			return false;
 		}
@@ -173,7 +178,10 @@ mod tests {
 	fn once_begun_nothing_more_is_tried() {
 		let mut low = Low::default();
 		let start = Instant::now();
-		assert_eq!(held_after(&mut low, start, 20, |_| UP, |_| below()), Some(6));
+		assert_eq!(
+			held_after(&mut low, start, 20, |_| UP, |_| below()),
+			Some(6)
+		);
 		low.settle(&Ok(()));
 		assert_eq!(
 			held_after(&mut low, start + EVERY * 7, 100, |_| UP, |_| below()),
@@ -186,7 +194,10 @@ mod tests {
 	fn an_act_accepted_first_stops_the_watch() {
 		let mut low = Low::default();
 		let start = Instant::now();
-		assert_eq!(held_after(&mut low, start, 20, |_| UP, |_| below()), Some(6));
+		assert_eq!(
+			held_after(&mut low, start, 20, |_| UP, |_| below()),
+			Some(6)
+		);
 		low.settle(&Err(NotBegun::AlreadyGoing(Going {
 			act: Act::Reboot,
 			cause: Cause::ManualControl,

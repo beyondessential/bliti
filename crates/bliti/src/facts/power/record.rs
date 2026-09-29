@@ -47,8 +47,9 @@ pub fn record_supply(supply: Supply, controller: Controller) -> io::Result<()> {
 				if let Some(held) = observed.held {
 					power_off(&supply, &controller, held);
 				}
-				// Timed from the last look's start, so the reads themselves do not stretch the interval.
-				next += EVERY;
+				// Timed from the last look's start, so the reads themselves do not stretch the interval,
+				// and from now where a stalled read has put it behind.
+				next = (next + EVERY).max(Instant::now());
 				thread::sleep(next.saturating_duration_since(Instant::now()));
 			}
 		})
@@ -162,9 +163,7 @@ impl Record {
 			}),
 		}
 	}
-}
 
-impl Record {
 	/// How long external power has been absent, where the device saw it go.
 	pub fn away(&self, now: Instant) -> Option<Duration> {
 		match self.external {

@@ -50,8 +50,8 @@ pub fn facts(at: u64) -> Vec<Entry> {
 	entries
 }
 
-/// The readings-derivation state: the counters and voltage history that only mean something across
-/// samples. The sampler holds one of these and ticks it (NFO).
+/// The readings-derivation state: the counters that only mean something across samples, and the
+/// backup supply the battery readings come from. The sampler holds one of these and ticks it (NFO).
 #[derive(Debug, Default)]
 pub struct Facts {
 	cpu: Option<compute::CpuCounters>,

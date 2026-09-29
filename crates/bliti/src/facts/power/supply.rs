@@ -260,13 +260,7 @@ impl Supply {
 
 	/// Take in one look at the supply. `at` is milliseconds since boot, and `uptime` how long the
 	/// system has been up, where it can be read.
-	pub fn observe(
-		&self,
-		look: Look,
-		now: Instant,
-		at: u64,
-		uptime: Option<Duration>,
-	) -> Observed {
+	pub fn observe(&self, look: Look, now: Instant, at: u64, uptime: Option<Duration>) -> Observed {
 		self.state().observe(look, now, at, uptime)
 	}
 
@@ -297,13 +291,7 @@ impl Look {
 }
 
 impl State {
-	fn observe(
-		&mut self,
-		look: Look,
-		now: Instant,
-		at: u64,
-		uptime: Option<Duration>,
-	) -> Observed {
+	fn observe(&mut self, look: Look, now: Instant, at: u64, uptime: Option<Duration>) -> Observed {
 		let floor = look.floor();
 		let gauge = match look.gauge {
 			Ok(gauge) => gauge,

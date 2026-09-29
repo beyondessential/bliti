@@ -107,7 +107,10 @@ impl Curve {
 	/// The lowest voltage at which the curve reaches `charge`, clamped to the curve's ends.
 	#[cfg_attr(
 		not(test),
-		expect(dead_code, reason = "read by the learning and time left, still to come (T2)")
+		expect(
+			dead_code,
+			reason = "read by the learning and time left, still to come (T2)"
+		)
 	)]
 	pub fn volts_at(&self, charge: f64) -> f64 {
 		let (Some(&(low, bottom)), Some(&(high, _))) = (self.points.first(), self.points.last())
@@ -233,7 +236,10 @@ impl Document {
 /// (CHG), and of the gauge's figure on mains, as a charging curve learnt from none.
 #[cfg_attr(
 	not(test),
-	expect(dead_code, reason = "read by the learning and time left, still to come (T2)")
+	expect(
+		dead_code,
+		reason = "read by the learning and time left, still to come (T2)"
+	)
 )]
 pub fn unmeasured_error(learnt_from: u32) -> f64 {
 	// A fifth of a cell for one built from another cell and another board, then falling as the

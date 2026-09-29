@@ -137,7 +137,10 @@ mod tests {
 
 	#[test]
 	fn a_rising_cell_is_not_full() {
-		assert_eq!(finishes((0..500).map(|tick| 3.7 + 0.001 * tick as f64)), None);
+		assert_eq!(
+			finishes((0..500).map(|tick| 3.7 + 0.001 * tick as f64)),
+			None
+		);
 	}
 
 	/// Termination, then the voltage relaxing back and holding, is a finished charge.
