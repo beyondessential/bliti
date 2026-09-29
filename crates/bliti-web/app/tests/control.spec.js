@@ -395,6 +395,19 @@ test.describe('when the device goes away', () => {
 		await expect(page.getByRole('status')).toHaveCount(0)
 	})
 
+	test('a low-battery shutdown says the battery is low', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, message({ type: 'going-away', act: 'power-off', cause: 'low-battery' }))
+		await expect(page.getByRole('status')).toHaveText('Shutting down…Its battery is low.')
+	})
+
+	// A cause this build does not know is read by its act alone.
+	test('an act with a cause this build does not know is said to be under way as any other', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, message({ type: 'going-away', act: 'power-off', cause: 'overheating' }))
+		await expect(page.getByRole('status')).toHaveText('Shutting down…')
+	})
+
 	test('a power off is said to be under way for a moment, and nothing reconnects', async ({ page }) => {
 		await openChannel(page)
 		await emit(page, message({ type: 'going-away', act: 'power-off', cause: 'manual-control' }))

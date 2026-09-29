@@ -55,6 +55,9 @@ export default function App() {
 	// or the operator lets it go (WEB). Mirrored in a ref for the channel's callbacks, which outlive
 	// any one render.
 	const [going, setGoing] = useState(null)
+	// Why the device is carrying the act out, as `going-away` gave it. Set with every act, so it never
+	// outlives the one it came with.
+	const [cause, setCause] = useState(null)
 	const going_ = useRef(null)
 	// The attempt to reach a device coming back, and the hold on "Shutting down…", either of which
 	// disconnecting cancels.
@@ -102,10 +105,11 @@ export default function App() {
 	// The device is about to carry out an act: say so until it is over (WEB). An act this build does
 	// not know is left to end the channel as anything else does.
 	const startGoing = useCallback(
-		(act) => {
+		(act, cause = null) => {
 			if (!UNDER_WAY[act] || going_.current) return
 			going_.current = act
 			setGoing(act)
+			setCause(cause)
 			setScreen('device')
 			note('note', `the device is carrying out ${act}`)
 		},
@@ -123,7 +127,7 @@ export default function App() {
 					if (message.type === 'hello') {
 						setDevice({ name: message.name, version: message.version })
 					} else if (message.type === 'going-away') {
-						startGoing(message.act)
+						startGoing(message.act, message.cause)
 					} else if (message.type === 'fact' || message.type === 'reading') {
 						const entry = entryOf(message)
 						if (isEnded(entry)) {
@@ -499,6 +503,7 @@ export default function App() {
 						<span className="spinner" aria-hidden="true" />
 						{UNDER_WAY[going]}
 					</p>
+					{cause === 'low-battery' && <p>Its battery is low.</p>}
 				</section>
 			</>,
 		)
