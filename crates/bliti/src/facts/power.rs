@@ -43,7 +43,7 @@ mod sysfs;
 mod upower;
 
 pub use record::record_supply;
-pub use supply::Supply;
+pub use supply::{Supply, Unchanged};
 
 /// Where the gauge sits: bus 1, address 0x36, across the whole X120x family.
 const I2C_BUS: &str = "/dev/i2c-1";

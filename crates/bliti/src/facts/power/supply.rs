@@ -226,19 +226,12 @@ impl Supply {
 	}
 
 	/// Whether this device manages a backup supply: whether a gauge has answered.
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "read by the curve stream, still to come (T2)")
-	)]
 	pub fn managed(&self) -> bool {
 		self.state().stored.is_some()
 	}
 
 	/// The curve document in force, where a backup supply is managed.
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "read by the curve stream, still to come (T2)")
-	)]
+	#[cfg(test)]
 	pub fn document(&self) -> Option<Document> {
 		self.state()
 			.stored

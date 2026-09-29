@@ -162,6 +162,15 @@ async fn with_no_backup_supply_every_change_is_refused() {
 	};
 	ask(&mut stream, Message::Load { document: learnt() }).await;
 	assert_eq!(next(&mut stream).await, refused);
+	// Nothing to load into comes before anything wrong with what was sent.
+	ask(
+		&mut stream,
+		Message::Load {
+			document: serde_json::json!({"points": []}),
+		},
+	)
+	.await;
+	assert_eq!(next(&mut stream).await, refused);
 	ask(&mut stream, Message::Reset).await;
 	assert_eq!(next(&mut stream).await, refused);
 }

@@ -27,7 +27,7 @@ use bliti_core::channel::readings::Entry;
 
 use crate::network::stack::Report;
 
-pub use power::{Supply, curve, record_supply};
+pub use power::{Supply, Unchanged, curve, record_supply};
 
 mod board;
 mod compute;

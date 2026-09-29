@@ -23,7 +23,7 @@ use serde_json::Value as Json;
 
 use crate::{
 	facts::{
-		Supply,
+		Supply, Unchanged,
 		curve::{self, Document},
 	},
 	session::{Peer, SessionError},
@@ -236,6 +236,10 @@ fn round(value: f64) -> f64 {
 /// Load `document`, or why not: a document breaking CRV, no backup supply managed, or the curve file
 /// not written.
 async fn load(supply: &Supply, document: Json) -> Result<(), String> {
+	// A device with nothing to load into says so, rather than finding fault with the document.
+	if !supply.managed() {
+		return Err(Unchanged::NotManaged.to_string());
+	}
 	let document = Document::from_json(&document).map_err(|invalid| invalid.to_string())?;
 	let supply = supply.clone();
 	blocking(move || supply.load(document)).await
