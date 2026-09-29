@@ -14,7 +14,7 @@ The floor MUST be 2.8 V.
 
 > [!NOTE]
 > The X120x boards carry the device until the cell is within tens of millivolts of its rated minimum, and their cells carry no protection of their own, so stopping short of that is the device's to do.
-> The board goes on drawing from the cell once the device is off, and the margin left above the rated minimum is what that drain eats into while external power stays away.
+> The board goes on drawing from the cell once the device is off, and that drain eats into the margin left above the rated minimum while external power stays away.
 
 ## Shutting down
 
@@ -34,7 +34,7 @@ A device MUST watch for this whether or not it is sampling under [NFO](../device
 A device MUST NOT begin a shutdown within two minutes of its system starting.
 
 > [!NOTE]
-> A device near the floor sags below it for a moment whenever it is busy, which is what the sixty seconds rides out.
+> A device near the floor sags below it for a moment whenever it is busy, and the sixty seconds ride that out.
 > The two minutes are for someone at a device just turned on with a low cell, to plug it in before it turns itself off again.
 
 A device MUST power off as [CTL](../control/power.md) carries out an accepted `power-off`, sending `going-away` with `low-battery` as its cause.

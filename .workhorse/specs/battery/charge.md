@@ -25,7 +25,7 @@ A device MUST report a charge taken from a curve as the share of the charge the 
 > [!NOTE]
 > The backup board's gauge estimates charge against a generic model whose empty point sits well above where these boards stop, so it reads 0 for the last stretch of every run on battery while the device goes on running.
 > The gauge cannot be tuned out of this, and no rescaling of its figure recovers a stretch it reads flat across, so the device works from the cell voltage itself.
-> Scaling to the floor is what keeps 0 meaning the device is about to power itself off, whatever the floor is.
+> Scaling to the floor keeps 0 meaning the device is about to power itself off, whatever the floor is.
 
 ## What is reported
 
@@ -38,7 +38,7 @@ Otherwise, while external power reaches the backup supply, a device MUST report 
 Once the backup supply has finished charging the cell, as the cell voltage shows, a device MUST report the cell as full, whatever a curve or the gauge gives, until the cell next carries the device.
 
 > [!NOTE]
-> The charge current holds the voltage above where it would rest, so a discharging curve reads high while the cell charges, and the gauge's figure is what the device has until it has seen enough charges of its own.
+> The charge current holds the voltage above where it would rest, so a discharging curve reads high while the cell charges, and until it has seen enough charges of its own, the device has only the gauge's figure.
 > The gauge seldom reaches its own full reading on a full cell, which is why its figure is scaled to its top and a finished charge is taken from the voltage.
 
 ## Learning
@@ -58,5 +58,5 @@ A device MUST keep its curves across restarts, reboots and loss of power, and MU
 A device MUST report on its standard error each time it refines a curve, with how many runs or charges the curve has now been learnt from.
 
 > [!NOTE]
-> The gauge measures voltage and nothing else, so time at the device's own draw is what stands in for charge.
+> The gauge measures voltage and nothing else, so time at the device's own draw stands in for charge.
 > Only a run that reaches the floor says how far the cell had to go from each voltage it passed, and only a charge that starts from a known figure and finishes says how far it came.
