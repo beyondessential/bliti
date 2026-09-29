@@ -1,9 +1,11 @@
-//! Restarting, rebooting and powering off at a client's request, and telling every client first.
+//! Restarting, rebooting and powering off at a client's request or for a low battery, and telling
+//! every client first.
 //!
-//! Behaviour is specified in `.workhorse/specs/control/power.md` (CTL). One [`Controller`] serves
-//! every session, so the first act accepted anywhere is the one carried out. Accepting one runs the
-//! whole of going away: every open `default` feed is told, every session is ended, the connections
-//! under them are dropped, and only then is the act carried out.
+//! Behaviour is specified in `.workhorse/specs/control/power.md` (CTL), and the low-battery
+//! shutdown's way in by `.workhorse/specs/battery/shutdown.md` (LOW). One [`Controller`] serves
+//! every session and the supply watcher, so the first act accepted anywhere is the one carried out.
+//! Accepting one runs the whole of going away: every open `default` feed is told, every session is
+//! ended, the connections under them are dropped, and only then is the act carried out.
 
 use std::{
 	fmt,
@@ -17,7 +19,7 @@ use bliti_core::channel::{
 	stream::{read_message, write_message},
 };
 use futures::{AsyncRead, AsyncWrite, future::BoxFuture};
-use tokio::sync::watch;
+use tokio::{runtime::Handle, sync::watch};
 use tracing::Instrument;
 
 use crate::session::{Peer, SessionError};
@@ -81,6 +83,8 @@ impl fmt::Display for Act {
 pub enum Cause {
 	/// A client asked for the act on a power stream.
 	ManualControl,
+	/// The device is powering off before its battery runs out (LOW).
+	LowBattery,
 }
 
 impl Cause {
@@ -88,6 +92,7 @@ impl Cause {
 	pub fn name(self) -> &'static str {
 		match self {
 			Self::ManualControl => "manual-control",
+			Self::LowBattery => "low-battery",
 		}
 	}
 }
@@ -112,6 +117,25 @@ impl Going {
 	fn doing(self) -> String {
 		match self.cause {
 			Cause::ManualControl => self.act.doing().to_owned(),
+			Cause::LowBattery => format!("{} for a low battery", self.act.doing()),
+		}
+	}
+}
+
+/// Why a low-battery shutdown was not begun.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotBegun {
+	/// Powering off is not among the acts this device can carry out.
+	CannotPowerOff,
+	/// An act was accepted first, and is the one carried out (LOW).
+	AlreadyGoing(Going),
+}
+
+impl fmt::Display for NotBegun {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::CannotPowerOff => f.write_str("this device cannot power off"),
+			Self::AlreadyGoing(going) => write!(f, "the device is already {}", going.doing()),
 		}
 	}
 }
@@ -135,6 +159,8 @@ struct Inner {
 	acts: Vec<Act>,
 	system: Arc<dyn System>,
 	ender: Ender,
+	/// Where going away runs, so it can begin from a thread off the runtime.
+	runtime: Handle,
 	/// The act accepted and not yet failed, which every other asked for is refused against.
 	accepted: Mutex<Option<Going>>,
 	/// The act every open feed is to announce.
@@ -149,12 +175,17 @@ struct Inner {
 
 impl Controller {
 	/// A controller offering `acts`, carried out by `system`, dropping connections with `ender`.
+	///
+	/// # Panics
+	///
+	/// Outside a Tokio runtime, whose handle going away runs on.
 	pub fn new(acts: Vec<Act>, system: Arc<dyn System>, ender: Ender) -> Self {
 		Self {
 			inner: Arc::new(Inner {
 				acts,
 				system,
 				ender,
+				runtime: Handle::current(),
 				accepted: Mutex::new(None),
 				going: watch::Sender::new(None),
 				untold: watch::Sender::new(0),
@@ -165,6 +196,10 @@ impl Controller {
 	}
 
 	/// A controller offering nothing.
+	///
+	/// # Panics
+	///
+	/// Outside a Tokio runtime, as [`Controller::new`].
 	pub fn none() -> Self {
 		struct Nothing;
 		impl System for Nothing {
@@ -240,10 +275,38 @@ impl Controller {
 		Ok(())
 	}
 
+	/// Begin powering off for a low battery, as an accepted `power-off` is carried out, telling every
+	/// open feed `low-battery` as the cause (LOW, "Shutting down").
+	///
+	/// Every act asked for from here on is refused, and nothing cancels the shutdown once begun (CTL,
+	/// LOW). Returns once going away has begun, without waiting for it, and may be called from a thread
+	/// off the runtime. Not begun where the device cannot power off, or where an act was accepted first,
+	/// which is then the one carried out.
+	#[cfg_attr(
+		not(test),
+		expect(
+			dead_code,
+			reason = "the supply watcher begins it, once it watches for a low battery"
+		)
+	)]
+	pub fn low_battery(&self) -> Result<(), NotBegun> {
+		if !self.inner.acts.contains(&Act::PowerOff) {
+			return Err(NotBegun::CannotPowerOff);
+		}
+		let going = Going {
+			act: Act::PowerOff,
+			cause: Cause::LowBattery,
+		};
+		self.take(going).map_err(NotBegun::AlreadyGoing)?;
+		tracing::info!(act = %going.act, cause = %going.cause, "act accepted");
+		self.go(going);
+		Ok(())
+	}
+
 	/// Go away and carry out the act of `going`, which has been accepted and answered.
 	fn go(&self, going: Going) {
 		let controller = self.clone();
-		tokio::spawn(
+		self.inner.runtime.spawn(
 			async move {
 				controller.going_away(going).await;
 			}

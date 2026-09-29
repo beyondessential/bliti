@@ -582,3 +582,68 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	.expect("the act is carried out");
 	assert_eq!(carried, Act::Reboot);
 }
+
+/// A low-battery shutdown begun off the runtime is announced on the feed with its cause, an act a
+/// client asks for once it has begun is refused, and the device powers off (CTL, LOW).
+#[tokio::test]
+async fn a_low_battery_shutdown_is_announced_and_refuses_every_act() {
+	use crate::power::Act;
+
+	let system = Arc::new(Recorded::default());
+	let controller = Controller::new(
+		vec![Act::Reboot, Act::PowerOff],
+		system.clone(),
+		Box::new(|| Box::pin(async {})),
+	);
+	let keys = keys(0x42);
+	let mut streams = paired_with(&keys, controller.clone()).await;
+	let mut feed = feed_of(&mut streams).await;
+	let mut power = streams.open().await.unwrap();
+	write_message(&mut power, &Message::Power.to_json())
+		.await
+		.unwrap();
+	assert!(matches!(next(&mut power).await, Message::Acts { .. }));
+
+	// A feed never told holds the sessions open, so the act below is answered before they end.
+	let untold = controller.feed();
+	let begun = {
+		let controller = controller.clone();
+		std::thread::spawn(move || controller.low_battery())
+			.join()
+			.unwrap()
+	};
+	assert_eq!(begun, Ok(()));
+	assert_eq!(
+		going_away_on(&mut feed).await,
+		("power-off".to_owned(), "low-battery".to_owned())
+	);
+
+	write_message(
+		&mut power,
+		&Message::Act {
+			act: "reboot".to_owned(),
+		}
+		.to_json(),
+	)
+	.await
+	.unwrap();
+	assert_eq!(
+		next(&mut power).await,
+		Message::Refused {
+			reason: "the device is already powering off for a low battery".to_owned()
+		}
+	);
+
+	drop(untold);
+	let carried = tokio::time::timeout(Duration::from_secs(5), async {
+		loop {
+			if let Some(act) = system.0.lock().unwrap().first().copied() {
+				return act;
+			}
+			tokio::time::sleep(Duration::from_millis(10)).await;
+		}
+	})
+	.await
+	.expect("the device powers off");
+	assert_eq!(carried, Act::PowerOff);
+}

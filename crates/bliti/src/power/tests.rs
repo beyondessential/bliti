@@ -68,11 +68,17 @@ fn every_act_has_one_wire_name() {
 #[test]
 fn every_cause_has_its_wire_name() {
 	assert_eq!(Cause::ManualControl.name(), "manual-control");
+	assert_eq!(Cause::LowBattery.name(), "low-battery");
 }
 
 const MANUAL: fn(Act) -> Going = |act| Going {
 	act,
 	cause: Cause::ManualControl,
+};
+
+const LOW_BATTERY: Going = Going {
+	act: Act::PowerOff,
+	cause: Cause::LowBattery,
 };
 
 /// An act the device did not list is refused, and so is every act once one has been accepted (CTL).
@@ -174,9 +180,83 @@ async fn a_failed_act_leaves_the_device_taking_acts_again() {
 }
 
 /// A device offering nothing lists nothing, and refuses whatever it is asked.
-#[test]
-fn a_controller_offering_nothing_refuses_everything() {
+#[tokio::test]
+async fn a_controller_offering_nothing_refuses_everything() {
 	let controller = Controller::none();
 	assert!(controller.inner.acts.is_empty());
 	assert!(controller.ask("reboot", &Peer::default()).is_err());
+}
+
+/// A low-battery shutdown is announced with its cause, runs the whole of going away, and powers off
+/// (LOW, "Shutting down").
+#[tokio::test]
+async fn a_low_battery_shutdown_goes_away_and_powers_off() {
+	let (controller, steps) = controller(vec![Act::Reboot, Act::PowerOff], false);
+	let mut feed = controller.feed();
+	assert_eq!(controller.low_battery(), Ok(()));
+	assert_eq!(feed.going().await, LOW_BATTERY);
+	feed.told();
+	assert_eq!(
+		until(&steps, 2).await,
+		vec![Step::Ended, Step::Carried(Act::PowerOff)]
+	);
+}
+
+/// Once a low-battery shutdown has begun, every act asked for is refused, saying so (CTL).
+#[tokio::test]
+async fn an_act_after_a_low_battery_shutdown_is_refused() {
+	let (controller, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
+	let _session = controller.session();
+	assert_eq!(controller.low_battery(), Ok(()));
+	for act in ["reboot", "power-off"] {
+		assert_eq!(
+			controller.ask(act, &Peer::default()),
+			Err("the device is already powering off for a low battery".to_owned())
+		);
+	}
+	assert_eq!(
+		controller.low_battery(),
+		Err(NotBegun::AlreadyGoing(LOW_BATTERY)),
+		"a second shutdown is not begun"
+	);
+}
+
+/// An act accepted first is the one carried out, and no low-battery shutdown is begun as well (LOW).
+#[tokio::test]
+async fn no_low_battery_shutdown_after_an_accepted_act() {
+	let (controller, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
+	let _session = controller.session();
+	assert_eq!(controller.ask("reboot", &Peer::default()), Ok(Act::Reboot));
+	let not_begun = controller.low_battery().unwrap_err();
+	assert_eq!(not_begun, NotBegun::AlreadyGoing(MANUAL(Act::Reboot)));
+	assert_eq!(not_begun.to_string(), "the device is already rebooting");
+}
+
+/// A device that cannot power off says so rather than begin a shutdown, and takes acts as before.
+#[tokio::test]
+async fn a_device_that_cannot_power_off_begins_no_shutdown() {
+	let (controller, steps) = controller(vec![Act::Reboot], false);
+	let _session = controller.session();
+	let not_begun = controller.low_battery().unwrap_err();
+	assert_eq!(not_begun, NotBegun::CannotPowerOff);
+	assert_eq!(not_begun.to_string(), "this device cannot power off");
+	assert_eq!(controller.ask("reboot", &Peer::default()), Ok(Act::Reboot));
+	assert!(steps.lock().unwrap().is_empty());
+}
+
+/// The shutdown can begin from a thread off the runtime, as the supply watcher's is.
+#[tokio::test]
+async fn a_low_battery_shutdown_begins_from_a_plain_thread() {
+	let (controller, steps) = controller(vec![Act::PowerOff], false);
+	let begun = {
+		let controller = controller.clone();
+		std::thread::spawn(move || controller.low_battery())
+			.join()
+			.unwrap()
+	};
+	assert_eq!(begun, Ok(()));
+	assert_eq!(
+		until(&steps, 2).await,
+		vec![Step::Ended, Step::Carried(Act::PowerOff)]
+	);
 }

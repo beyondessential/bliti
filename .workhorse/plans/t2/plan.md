@@ -44,9 +44,9 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 - [x] Rename `crate::control` to `crate::power` (`control.rs` → `power.rs`, `control/systemd.rs`, `control/tests.rs`). "Control stream" becomes "power stream" in every doc comment and log line; `Controller` keeps its name.
 - [x] `session.rs`: dispatch `Message::Power` to `power::serve`; update the module doc listing the stream roles.
 - [x] `power.rs`: going-away carries `manual-control` for an accepted act.
-- [ ] `power.rs`: a low-battery entry point on `Controller` that takes the same accepted slot an act does (so later acts are refused, CTL), sends `going-away` with `power-off` and `low-battery`, then powers off. It is callable from the record thread through a handle.
+- [x] `power.rs`: a low-battery entry point on `Controller` that takes the same accepted slot an act does (so later acts are refused, CTL), sends `going-away` with `power-off` and `low-battery`, then powers off. It is callable from the record thread through a handle.
 - [x] `client.rs`: follow the rename.
-- [ ] `power/tests.rs`, `session/tests.rs`: rename; `going-away` carries its cause; an act asked for after a low-battery shutdown has begun is refused.
+- [x] `power/tests.rs`, `session/tests.rs`: rename; `going-away` carries its cause; an act asked for after a low-battery shutdown has begun is refused.
 
 ### Supply state and curves (`bliti`, `facts/power/`)
 
