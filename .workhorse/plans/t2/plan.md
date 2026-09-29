@@ -19,7 +19,12 @@ Charge from the cell voltage against a learnt curve, time left with a margin, an
 - Charging curve: anchored at the discharging curve's figure when mains returns, and ending at full. Used once `learnt-from` reaches 3, and only within the voltage range it covers.
 - The reported charge is renormalised between the floor in force and full, so V2's raised floor needs no re-learning.
 - Accuracy and time: each curve carries `error` (a share of a full cell) and `duration` (seconds over its whole scale). The error is measured before each refinement and weighted like the learning; before any measurement it comes from `learnt-from`. `curves` sends `lasts`/`recharge` already scaled to the floor in force, so the client never needs the curve's shape. The live time-left readings use the recent rate, not `duration`. Their margin combines the curve's error at that rate with how much the rate has varied.
-- Interim shipped curve: built from the 58E datasheet's low-rate discharge curve. The tail below 3.2 V comes from the 2026-09-25 v4 log (`~/bliti-v4-rundown/rundown.csv`, 3.21 V down to 2.571 V at the cut), whose shape near the cutoff is the board's, not the cell's. Duration: the 58E's rated capacity at the roughly 0.75 A measured draw.
+- Interim shipped curve (`facts/power/shipped-curve.json`, 30 points, `error` 0.2, `duration` 26400 s). Built by `shipped-curve.py` beside this plan, from `50e-traces.json` and the run-down log:
+  - The 58E's specification (Samsung SDI CC5563F101 V1.0, 2025-06-30) rates it at 5500 mAh minimum at 0.2C to 2.5 V but publishes no discharge curve, nor does any other 58E sheet found. The shape above 3.2 V is the Samsung INR21700-50E's instead, digitised from HKJ's measured 0.5 A and 1.0 A curves (lygte-info.dk) and blended to the 58E's rate at 0.75 A (0.136C).
+  - The tail below 3.2 V comes from the 2026-09-25 v4 log (`~/bliti-v4-rundown/rundown.csv`), median-smoothed and made monotone, as the share of the 5 h 22 min run left at each voltage: 0.206 at 3.2 V, 0.035 at the 2.8 V floor, 0 at 2.571 V. Its shape near the cutoff is the board's, not the cell's.
+  - Duration: 5.5 Ah at 0.75 A. The same run's 3.47 V reading had 39.6 % of the run left where the curve gives 0.35, so the 50E shape falls a little steeply between 3.2 and 3.5 V for this board and cell, within the 0.2 error.
+- Count-derived error: `0.2 / sqrt(learnt-from + 1)`.
+- The curve file is `{"document": {...}, "gauge-full": 0.97}`, `gauge-full` absent until a charge has finished.
 - Command line and daemon: the daemon listens on a root-only Unix socket at `/run/bliti/battery.sock`, and the command line sends `curve`, `load` and `reset` through it as a client would, getting `curves`/`accepted`/`refused` back. Where no daemon answers, the command line works on the curve file directly. The daemon holds the curve in memory, so it must be the one to change it while running.
 - `battery_direction` in `facts/power.rs` gives `charging` on mains whenever the gauge reads 99 % or less. Full cells seldom reach that, so a full device on mains reports `charging` forever. CHG's definition of full replaces the test.
 - The `bliti-wire-compat` baseline (`c4d4ed6`) predates the control stream, so renaming `control` to `power` and adding `cause` breaks nothing it can see. No critical members are added, so `wire-breaks.toml` is unchanged.
@@ -51,11 +56,11 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 ### Supply state and curves (`bliti`, `facts/power/`)
 
 - [ ] `facts/power/supply.rs`: shared supply state (`Arc<Mutex<…>>`), updated by the record thread every 10 s. It holds the voltage and charge history, the curves, the run or charge being recorded, and the confirmation clock. `Watch` in `power.rs` reads its history from here.
-- [ ] `facts/power/curve.rs`: `Curve { points, learnt_from, error, duration }` and `Document { discharging, charging }`, serde to CRV's shape with rounding to four places.
-- [ ] `facts/power/curve.rs`: validation with CRV's rules, each failure a reason naming what is wrong (e.g. the first point above the floor).
-- [ ] `facts/power/curve.rs`: lookup (voltage to charge by interpolation) and renormalisation between the floor and full.
-- [ ] `facts/power/shipped-curve.json`: the interim curve, loaded with `include_str!`, with `learnt-from` 0 and the count-derived error.
-- [ ] `facts/power/curve.rs`: load `/var/lib/bliti/battery-curve.json` at start, falling back to the shipped curve when missing, and logging and falling back when unreadable. Save atomically.
+- [x] `facts/power/curve.rs`: `Curve { points, learnt_from, error, duration }` and `Document { discharging, charging }`, serde to CRV's shape with rounding to four places.
+- [x] `facts/power/curve.rs`: validation with CRV's rules, each failure a reason naming what is wrong (e.g. the first point above the floor).
+- [x] `facts/power/curve.rs`: lookup (voltage to charge by interpolation) and renormalisation between the floor and full.
+- [x] `facts/power/shipped-curve.json`: the interim curve, loaded with `include_str!`, with `learnt-from` 0 and the count-derived error.
+- [x] `facts/power/curve.rs`: load `/var/lib/bliti/battery-curve.json` at start, falling back to the shipped curve when missing, and logging and falling back when unreadable. Save atomically.
 - [ ] `power.rs` `battery_charge`: discharging curve while external power is absent. On mains, the charging curve where it is learnt from three or more charges and the voltage lies within it, otherwise the gauge scaled by its full reading. 1 once the charge has finished.
 - [ ] `facts/power/supply.rs`: detect a finished charge as the voltage reaching termination, then falling back and holding still; tune against the hardware data. Record the gauge's reading at that moment as its full reading.
 - [ ] `power.rs` `battery_direction`: on mains, `charging` until full and `idle` once full, replacing the `charge <= 0.99` test.
