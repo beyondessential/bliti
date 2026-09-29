@@ -278,18 +278,13 @@ impl Controller {
 	/// Begin powering off for a low battery, as an accepted `power-off` is carried out, telling every
 	/// open feed `low-battery` as the cause (LOW, "Shutting down").
 	///
-	/// Every act asked for from here on is refused, and nothing cancels the shutdown once begun (CTL,
-	/// LOW). Returns once going away has begun, without waiting for it, and may be called from a thread
-	/// off the runtime. Not begun where the device cannot power off, or where an act was accepted first,
-	/// which is then the one carried out.
-	#[cfg_attr(
-		not(test),
-		expect(
-			dead_code,
-			reason = "the supply watcher begins it, once it watches for a low battery"
-		)
-	)]
-	pub fn low_battery(&self) -> Result<(), NotBegun> {
+	/// `before` runs once the shutdown is certain and before any feed is told, which is where what the
+	/// run on battery taught is recorded (CHG). Every act asked for from here on is refused, and nothing
+	/// cancels the shutdown once begun (CTL, LOW). Returns once going away has begun, without waiting
+	/// for it, and may be called from a thread off the runtime. Not begun, and `before` not run, where
+	/// the device cannot power off, or where an act was accepted first, which is then the one carried
+	/// out.
+	pub fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun> {
 		if !self.inner.acts.contains(&Act::PowerOff) {
 			return Err(NotBegun::CannotPowerOff);
 		}
@@ -299,6 +294,7 @@ impl Controller {
 		};
 		self.take(going).map_err(NotBegun::AlreadyGoing)?;
 		tracing::info!(act = %going.act, cause = %going.cause, "act accepted");
+		before();
 		self.go(going);
 		Ok(())
 	}

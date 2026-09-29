@@ -5,7 +5,10 @@ use bliti_core::{
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use super::*;
-use crate::network::session::{Inert, Store};
+use crate::{
+	facts::Supply,
+	network::session::{Inert, Store},
+};
 
 fn keys(byte: u8) -> DeviceKeys {
 	Root::from_bytes([byte; 32]).device_keys()
@@ -37,7 +40,7 @@ async fn paired_with(keys: &DeviceKeys, controller: Controller) -> Streams {
 		let _ = run(
 			device_side.compat(),
 			&device_keys,
-			Sampler::start(None),
+			Sampler::start(None, Supply::default()),
 			configurator,
 			controller,
 		)
@@ -261,7 +264,7 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 		run(
 			device_side.compat(),
 			&keys(0x01),
-			Sampler::start(None),
+			Sampler::start(None, Supply::default()),
 			configurator,
 			Controller::none(),
 		)
@@ -295,7 +298,7 @@ async fn the_right_token_with_the_wrong_static_key_cannot_open_a_session() {
 		run(
 			device_side.compat(),
 			&keys(0x01),
-			Sampler::start(None),
+			Sampler::start(None, Supply::default()),
 			configurator,
 			Controller::none(),
 		)
@@ -378,7 +381,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 			let _ = run(
 				device_side.compat(),
 				&keys,
-				Sampler::start(None),
+				Sampler::start(None, Supply::default()),
 				configurator,
 				Controller::none(),
 			)
@@ -414,7 +417,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 			let _ = run(
 				device_side.compat(),
 				&keys,
-				Sampler::start(None),
+				Sampler::start(None, Supply::default()),
 				configurator,
 				Controller::none(),
 			)
@@ -608,7 +611,7 @@ async fn a_low_battery_shutdown_is_announced_and_refuses_every_act() {
 	let untold = controller.feed();
 	let begun = {
 		let controller = controller.clone();
-		std::thread::spawn(move || controller.low_battery())
+		std::thread::spawn(move || controller.low_battery(|| {}))
 			.join()
 			.unwrap()
 	};

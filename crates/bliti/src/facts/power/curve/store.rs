@@ -56,6 +56,10 @@ impl Store {
 		Self { path: path.into() }
 	}
 
+	#[expect(
+		dead_code,
+		reason = "named by the command line's messages, still to come (T2)"
+	)]
 	pub fn path(&self) -> &Path {
 		&self.path
 	}

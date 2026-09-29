@@ -18,7 +18,7 @@ use std::{
 use bliti_core::channel::readings::{Entry, LIMITS, STATUS};
 use tokio::sync::broadcast;
 
-use crate::facts::Facts;
+use crate::facts::{Facts, Supply};
 
 /// How long the fast readings go between samples. Often enough to read as live.
 const FAST: Duration = Duration::from_secs(1);
@@ -58,9 +58,10 @@ impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
 	///
-	/// `wireless` is what the network backend joined and runs, where it configures the network.
-	pub fn start(wireless: Option<crate::network::stack::Report>) -> Self {
-		Self::start_with(Box::new(Facts::new(wireless)))
+	/// `wireless` is what the network backend joined and runs, where it configures the network, and
+	/// `supply` the backup supply the battery readings are reported from.
+	pub fn start(wireless: Option<crate::network::stack::Report>, supply: Supply) -> Self {
+		Self::start_with(Box::new(Facts::new(wireless, supply)))
 	}
 
 	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
@@ -392,7 +393,7 @@ mod tests {
 
 	#[tokio::test(start_paused = true)]
 	async fn a_subscriber_receives_readings_as_they_are_taken() {
-		let sampler = Sampler::start(None);
+		let sampler = Sampler::start(None, Supply::default());
 		let _session = sampler.session();
 		let mut live = sampler.live();
 
@@ -405,7 +406,7 @@ mod tests {
 	/// set at once.
 	#[tokio::test(start_paused = true)]
 	async fn the_snapshot_merges_across_fast_and_slow_ticks() {
-		let sampler = Sampler::start(None);
+		let sampler = Sampler::start(None, Supply::default());
 		let _session = sampler.session();
 		tokio::time::sleep(FAST * 7).await;
 

@@ -13,11 +13,6 @@
 //! 2026-09-25 v4 run-down still to go at each voltage, down to where that board gave out at 2.571 V.
 //! Its duration is the 58E's 5500 mAh at the 0.75 A that run-down measured.
 
-#![expect(
-	dead_code,
-	reason = "read by the supply state and the curve stream, still to come (T2)"
-)]
-
 use std::sync::LazyLock;
 
 use super::round;
@@ -64,6 +59,10 @@ pub struct Document {
 
 /// A time with how far either way it may be off, both in seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+	not(test),
+	expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
+)]
 pub struct Span {
 	pub duration: f64,
 	pub margin: f64,
@@ -106,6 +105,10 @@ impl Curve {
 	}
 
 	/// The lowest voltage at which the curve reaches `charge`, clamped to the curve's ends.
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "read by the learning and time left, still to come (T2)")
+	)]
 	pub fn volts_at(&self, charge: f64) -> f64 {
 		let (Some(&(low, bottom)), Some(&(high, _))) = (self.points.first(), self.points.last())
 		else {
@@ -133,6 +136,10 @@ impl Curve {
 	/// How long the cell takes between charges `from` and `to` on this curve, with a margin of the
 	/// curve's error over that time: the charge axis is time at the device's draw, so both scale
 	/// with the share of the curve crossed (CHG).
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
+	)]
 	pub fn span_between(&self, from: f64, to: f64) -> Span {
 		let duration = self.duration * (to - from).abs();
 		Span {
@@ -200,12 +207,20 @@ impl Document {
 	}
 
 	/// How long a full charge lasts, from full down to the floor (CHG `lasts`).
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
+	)]
 	pub fn lasts(&self) -> Span {
 		self.discharging.span_between(self.floor_charge(), 1.0)
 	}
 
 	/// How long a full recharge takes, from the floor up to full, where a charging curve is held
 	/// (CHG `recharge`).
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "sent on the curve stream, still to come (T2)")
+	)]
 	pub fn recharge(&self) -> Option<Span> {
 		let floor = self.floor_charge();
 		self.charging
@@ -216,6 +231,10 @@ impl Document {
 
 /// The error of a curve not yet measured against a run or charge, from how many it was learnt from
 /// (CHG), and of the gauge's figure on mains, as a charging curve learnt from none.
+#[cfg_attr(
+	not(test),
+	expect(dead_code, reason = "read by the learning and time left, still to come (T2)")
+)]
 pub fn unmeasured_error(learnt_from: u32) -> f64 {
 	// A fifth of a cell for one built from another cell and another board, then falling as the
 	// spread of an average does, with the square root of the runs in it.

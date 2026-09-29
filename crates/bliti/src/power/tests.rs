@@ -193,7 +193,7 @@ async fn a_controller_offering_nothing_refuses_everything() {
 async fn a_low_battery_shutdown_goes_away_and_powers_off() {
 	let (controller, steps) = controller(vec![Act::Reboot, Act::PowerOff], false);
 	let mut feed = controller.feed();
-	assert_eq!(controller.low_battery(), Ok(()));
+	assert_eq!(controller.low_battery(|| {}), Ok(()));
 	assert_eq!(feed.going().await, LOW_BATTERY);
 	feed.told();
 	assert_eq!(
@@ -207,7 +207,7 @@ async fn a_low_battery_shutdown_goes_away_and_powers_off() {
 async fn an_act_after_a_low_battery_shutdown_is_refused() {
 	let (controller, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
 	let _session = controller.session();
-	assert_eq!(controller.low_battery(), Ok(()));
+	assert_eq!(controller.low_battery(|| {}), Ok(()));
 	for act in ["reboot", "power-off"] {
 		assert_eq!(
 			controller.ask(act, &Peer::default()),
@@ -215,7 +215,7 @@ async fn an_act_after_a_low_battery_shutdown_is_refused() {
 		);
 	}
 	assert_eq!(
-		controller.low_battery(),
+		controller.low_battery(|| {}),
 		Err(NotBegun::AlreadyGoing(LOW_BATTERY)),
 		"a second shutdown is not begun"
 	);
@@ -227,7 +227,7 @@ async fn no_low_battery_shutdown_after_an_accepted_act() {
 	let (controller, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
 	let _session = controller.session();
 	assert_eq!(controller.ask("reboot", &Peer::default()), Ok(Act::Reboot));
-	let not_begun = controller.low_battery().unwrap_err();
+	let not_begun = controller.low_battery(|| {}).unwrap_err();
 	assert_eq!(not_begun, NotBegun::AlreadyGoing(MANUAL(Act::Reboot)));
 	assert_eq!(not_begun.to_string(), "the device is already rebooting");
 }
@@ -237,7 +237,7 @@ async fn no_low_battery_shutdown_after_an_accepted_act() {
 async fn a_device_that_cannot_power_off_begins_no_shutdown() {
 	let (controller, steps) = controller(vec![Act::Reboot], false);
 	let _session = controller.session();
-	let not_begun = controller.low_battery().unwrap_err();
+	let not_begun = controller.low_battery(|| {}).unwrap_err();
 	assert_eq!(not_begun, NotBegun::CannotPowerOff);
 	assert_eq!(not_begun.to_string(), "this device cannot power off");
 	assert_eq!(controller.ask("reboot", &Peer::default()), Ok(Act::Reboot));
@@ -250,7 +250,7 @@ async fn a_low_battery_shutdown_begins_from_a_plain_thread() {
 	let (controller, steps) = controller(vec![Act::PowerOff], false);
 	let begun = {
 		let controller = controller.clone();
-		std::thread::spawn(move || controller.low_battery())
+		std::thread::spawn(move || controller.low_battery(|| {}))
 			.join()
 			.unwrap()
 	};
@@ -259,4 +259,30 @@ async fn a_low_battery_shutdown_begins_from_a_plain_thread() {
 		until(&steps, 2).await,
 		vec![Step::Ended, Step::Carried(Act::PowerOff)]
 	);
+}
+
+/// What the run taught is recorded once the shutdown is certain and before any feed is told of it,
+/// and not at all for a shutdown not begun (CHG, LOW).
+#[tokio::test]
+async fn the_run_is_recorded_before_going_away_and_only_when_begun() {
+	let (begins, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
+	let _session = begins.session();
+	let mut told_first = None;
+	let begun = begins.low_battery(|| told_first = Some(begins.inner.going.borrow().is_some()));
+	assert_eq!(begun, Ok(()));
+	assert_eq!(told_first, Some(false));
+
+	let (cannot, _) = controller(vec![Act::Reboot], false);
+	let mut ran = false;
+	assert_eq!(
+		cannot.low_battery(|| ran = true),
+		Err(NotBegun::CannotPowerOff)
+	);
+	assert!(!ran);
+
+	let (already, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
+	let _session = already.session();
+	assert_eq!(already.ask("reboot", &Peer::default()), Ok(Act::Reboot));
+	assert!(already.low_battery(|| ran = true).is_err());
+	assert!(!ran);
 }

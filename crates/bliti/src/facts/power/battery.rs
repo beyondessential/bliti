@@ -147,7 +147,17 @@ pub fn entries(at: u64, batteries: &[Battery]) -> Vec<Entry> {
 
 fn charge(at: u64, battery: &Battery) -> Entry {
 	match battery.charge {
-		Some(charge) => Entry::fraction(at, "battery-charge", charge.clamp(0.0, 1.0)),
+		Some(charge) => {
+			let charge = charge.clamp(0.0, 1.0);
+			// The operating system reports no power source, so its direction says whether the
+			// battery is carrying the device (NFO).
+			let carrying = battery.direction == Direction::Discharging;
+			super::when_low(
+				Entry::fraction(at, "battery-charge", charge),
+				charge,
+				carrying,
+			)
+		}
 		// The battery is there and the source could not say how full it is, which is a fault rather
 		// than a measurement this platform cannot make (NFO).
 		None => Entry::broken(
@@ -320,6 +330,35 @@ mod tests {
 		let charge = entries.iter().find(|e| e.name == "battery-charge").unwrap();
 		assert_eq!(charge.status(), Some("broken"));
 		assert!(charge.value.is_none());
+	}
+
+	/// An operating system's battery carrying the device is low as the backup board's is: `warning`
+	/// below 0.2 and `failed` below 0.05, and nothing of the sort while charging or idle (NFO).
+	#[test]
+	fn a_low_battery_carrying_the_device_warns_then_fails() {
+		let status = |charge, direction| {
+			let mut battery = named("BAT0", Some("DELL T453X"));
+			battery.charge = Some(charge);
+			battery.direction = direction;
+			let entries = entries(1, &[battery]);
+			let entry = entries
+				.iter()
+				.find(|e| e.name == "battery-charge")
+				.unwrap()
+				.clone();
+			(
+				entry.status().unwrap().to_owned(),
+				entry.reason().map(ToOwned::to_owned),
+			)
+		};
+		assert_eq!(status(0.2, Direction::Discharging).0, "passed");
+		let (warning, why) = status(0.19, Direction::Discharging);
+		assert_eq!(warning, "warning");
+		assert!(why.unwrap().contains("battery is low"));
+		assert_eq!(status(0.04, Direction::Discharging).0, "failed");
+		for direction in [Direction::Charging, Direction::Idle, Direction::Unknown] {
+			assert_eq!(status(0.04, direction).0, "passed", "{direction:?}");
+		}
 	}
 
 	#[test]

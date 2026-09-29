@@ -9,9 +9,14 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use super::{Gauge, POWER_LINE, gpio, read_gauge};
+use super::{
+	Gauge, POWER_LINE, gpio, i2c, read_gauge,
+	supply::{Held, Look, Supply, Unanswered},
+};
+use crate::power::{Controller, NotBegun};
 
-/// How often the supply is looked at.
+/// How often the supply is looked at: at least every ten seconds, which LOW asks for while external
+/// power is absent.
 const EVERY: Duration = Duration::from_secs(10);
 
 /// How far the cell falls between the voltages reported while external power is absent, in
@@ -19,31 +24,85 @@ const EVERY: Duration = Duration::from_secs(10);
 /// steep fall just before the device dies.
 const FALL_MV: f64 = 10.0;
 
-/// Watch the backup supply for as long as the daemon runs, reporting what DEV asks for. Silent where
-/// no gauge answers, as on a machine with no backup board, and from the moment one does.
-pub fn record_supply() -> io::Result<()> {
+/// Watch the backup supply for as long as the daemon runs: updating `supply`, reporting what DEV
+/// asks for, and powering off through `controller` once the cell has held below the floor (LOW).
+/// Silent where no gauge answers, as on a machine with no backup board, and from the moment one does.
+pub fn record_supply(supply: Supply, controller: Controller) -> io::Result<()> {
 	thread::Builder::new()
 		.name("power-record".to_owned())
-		.spawn(|| {
-			let mut record = Record::default();
+		.spawn(move || {
+			let mut next = Instant::now();
 			loop {
-				// The line only means anything once the gauge has answered: it has a pull-up, so an
-				// unconnected pin reads as external power present.
-				if let Ok(gauge) = read_gauge()
-					&& let Ok(external) = gpio::read_by_name(POWER_LINE)
-					&& let Some(event) = record.observe(Instant::now(), external, gauge)
-				{
-					event.report();
+				let look = look();
+				let now = Instant::now();
+				let observed = supply.observe(
+					look,
+					now,
+					crate::facts::Facts::since_boot(),
+					crate::facts::uptime(),
+				);
+				if let Some((event, charge)) = observed.report {
+					event.report(charge);
 				}
-				thread::sleep(EVERY);
+				if let Some(held) = observed.held {
+					power_off(&supply, &controller, held);
+				}
+				// Timed from the last look's start, so the reads themselves do not stretch the interval.
+				next += EVERY;
+				thread::sleep(next.saturating_duration_since(Instant::now()));
 			}
 		})
 		.map(drop)
 }
 
+/// Read the gauge, and the power line once it has answered: the line has a pull-up, so an
+/// unconnected pin reads as external power present.
+fn look() -> Look {
+	let gauge = read_gauge().map_err(|err| match err {
+		i2c::Error::NoDevice => Unanswered::NoGauge,
+		err => Unanswered::Failed(err.to_string()),
+	});
+	let external = match gauge {
+		Ok(_) => gpio::read_by_name(POWER_LINE).ok(),
+		Err(_) => None,
+	};
+	Look { gauge, external }
+}
+
+/// What can power the device off for a low battery: the [`Controller`], or a test's stand-in.
+pub trait PowerOff {
+	/// As [`Controller::low_battery`].
+	fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun>;
+}
+
+impl PowerOff for Controller {
+	fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun> {
+		Controller::low_battery(self, before)
+	}
+}
+
+/// The floor has been held: record what the run taught, then power off, saying so (LOW).
+fn power_off(supply: &Supply, controller: &impl PowerOff, held: Held) {
+	let Held { volts, away } = held;
+	let volts = format!("{volts:.4}");
+	let away_secs = away.map(|away| away.as_secs());
+	let result = controller.low_battery(|| {
+		supply.learn_from_run();
+		tracing::warn!(%volts, ?away_secs, "powering off for low battery");
+	});
+	if let Err(NotBegun::CannotPowerOff) = result {
+		tracing::warn!(
+			%volts,
+			?away_secs,
+			"the battery is below the floor and this device cannot power off"
+		);
+	}
+	supply.settle(&result);
+}
+
 /// What has been seen of the supply so far.
 #[derive(Debug, Default)]
-struct Record {
+pub struct Record {
 	/// Whether external power reached the board at the last look, and nothing before the first.
 	external: Option<bool>,
 	/// When external power was seen to go, where it went while the device watched.
@@ -54,7 +113,7 @@ struct Record {
 
 /// Something to report.
 #[derive(Debug, PartialEq)]
-enum Event {
+pub enum Event {
 	/// The first look since the daemon started.
 	Found {
 		external: bool,
@@ -75,7 +134,8 @@ enum Event {
 }
 
 impl Record {
-	fn observe(&mut self, now: Instant, external: bool, gauge: Gauge) -> Option<Event> {
+	/// Take in a look where the gauge and the power line both answered.
+	pub fn observe(&mut self, now: Instant, external: bool, gauge: Gauge) -> Option<Event> {
 		let away = |lost: Option<Instant>| lost.map(|at| now.duration_since(at));
 		match self.external.replace(external) {
 			None => {
@@ -104,8 +164,19 @@ impl Record {
 	}
 }
 
+impl Record {
+	/// How long external power has been absent, where the device saw it go.
+	pub fn away(&self, now: Instant) -> Option<Duration> {
+		match self.external {
+			Some(false) => self.lost.map(|at| now.duration_since(at)),
+			_ => None,
+		}
+	}
+}
+
 impl Event {
-	fn report(&self) {
+	/// Report on standard error, with `estimate` the charge CHG gives at the time (DEV).
+	pub fn report(&self, estimate: f64) {
 		// How long external power has been absent, where the device saw it go; unknown where it was
 		// already absent when the daemon started.
 		let secs = |away: &Option<Duration>| away.map(|away| away.as_secs());
@@ -113,23 +184,27 @@ impl Event {
 			Self::Found { external, gauge } => tracing::info!(
 				external_power = external,
 				volts = %volts(gauge),
-				charge = %charge(gauge),
+				charge = %percent(estimate),
+				gauge_charge = %charge(gauge),
 				"backup supply found"
 			),
 			Self::Lost { gauge } => tracing::warn!(
 				volts = %volts(gauge),
-				charge = %charge(gauge),
+				charge = %percent(estimate),
+				gauge_charge = %charge(gauge),
 				"external power no longer reaches the backup supply"
 			),
 			Self::Restored { gauge, away } => tracing::info!(
 				volts = %volts(gauge),
-				charge = %charge(gauge),
+				charge = %percent(estimate),
+				gauge_charge = %charge(gauge),
 				away_secs = ?secs(away),
 				"external power reaches the backup supply again"
 			),
 			Self::Falling { gauge, away } => tracing::info!(
 				volts = %volts(gauge),
-				charge = %charge(gauge),
+				charge = %percent(estimate),
+				gauge_charge = %charge(gauge),
 				away_secs = ?secs(away),
 				"cell falling without external power"
 			),
@@ -144,6 +219,11 @@ fn volts(gauge: &Gauge) -> String {
 /// The gauge's own state of charge, as a percentage.
 fn charge(gauge: &Gauge) -> String {
 	format!("{:.1}", gauge.charge)
+}
+
+/// A share as a percentage, as the gauge's is given.
+fn percent(share: f64) -> String {
+	format!("{:.1}", share * 100.0)
 }
 
 #[cfg(test)]
