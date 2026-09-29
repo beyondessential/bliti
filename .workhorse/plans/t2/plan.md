@@ -113,16 +113,16 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Web client (`bliti-web`)
 
-- [ ] `src/lib.rs`: `control()` becomes `power()` and `ControlHandle` becomes `PowerHandle`. Add `curve()`, whose handle has `load(document)`, `reset()` and `close()`, and describe `curves` to JS.
-- [ ] `app/src/client.js`: `power()` and `curve()` wrappers.
-- [ ] `app/src/Control.jsx`: Battery section after Power, as in the Control screen battery section mockup: the full-charge and recharge lines, the learning sentence, then Export (downloads the document as JSON), Import (file picker, then confirmation) and Reset (confirmation), each with its subtitle, and a refused reason.
-- [ ] `app/src/App.jsx`: a `going-away` with cause `low-battery` adds "Its battery is low." under "Shutting down…".
-- [ ] `app/src/Readings.jsx`, `app/src/readings.js`: fold `battery-time-to-empty` and `battery-time-to-full` into the battery reveal, labelled "Time left" and "Time to full". Render `margin` as "±" beside a value, for any reading carrying it.
-- [ ] `app/src/styles.css`: `.learnt`, `.margin`.
-- [ ] `app/tests/fake-client.js`: the curve stream and `going-away` cause.
-- [ ] `app/tests/control.spec.js`: the Battery section, its absence until `curves` arrives, the import and reset confirmations, and a refused import.
-- [ ] `app/tests/readings.spec.js`: time left and time to full with margins.
-- [ ] A test for the low-battery going-away wording.
+- [x] `src/lib.rs`: `control()` becomes `power()` and `ControlHandle` becomes `PowerHandle`. Add `curve()`, whose handle has `load(document)`, `reset()` and `close()`, and describe `curves` to JS.
+- [x] `app/src/client.js`: `power()` and `curve()` wrappers.
+- [x] `app/src/Control.jsx`: Battery section after Power, as in the Control screen battery section mockup: the full-charge and recharge lines, the learning sentence, then Export (downloads the document as JSON), Import (file picker, then confirmation) and Reset (confirmation), each with its subtitle, and a refused reason.
+- [x] `app/src/App.jsx`: a `going-away` with cause `low-battery` adds "Its battery is low." under "Shutting down…".
+- [x] `app/src/Readings.jsx`, `app/src/readings.js`: fold `battery-time-to-empty` and `battery-time-to-full` into the battery reveal, labelled "Time left" and "Time to full". Render `margin` as "±" beside a value, for any reading carrying it.
+- [x] `app/src/styles.css`: `.learnt`, `.margin`.
+- [x] `app/tests/fake-client.js`: the curve stream and `going-away` cause.
+- [x] `app/tests/control.spec.js`: the Battery section, its absence until `curves` arrives, the import and reset confirmations, and a refused import.
+- [x] `app/tests/readings.spec.js`: time left and time to full with margins.
+- [x] A test for the low-battery going-away wording.
 
 ### Wrap-up
 
