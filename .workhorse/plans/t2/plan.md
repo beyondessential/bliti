@@ -128,7 +128,7 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Wrap-up
 
-- [ ] `just fmt`, `just clippy`, `just test`, `just test-web`.
+- [x] `just fmt`, `just clippy`, `just test`, `just test-web`.
 - [ ] Deploy a dev build to the v4 prototype (bliti-prototype skill) and check that the shutdown arms there (test cases).
 - [ ] Create the follow-up card for the measured 58E curve.
-- [ ] Tick covered test cases in `.workhorse/test-cases/t2/overview.md`.
+- [x] Tick covered test cases in `.workhorse/test-cases/t2/overview.md`.
