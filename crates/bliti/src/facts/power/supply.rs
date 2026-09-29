@@ -268,9 +268,9 @@ impl Supply {
 		self.state().learn_from_run();
 	}
 
-	/// What came of powering off for a low battery (LOW).
-	pub fn settle(&self, result: &Result<(), crate::power::NotBegun>) {
-		self.state().low.settle(result);
+	/// Powering off for a low battery has been asked for, whatever came of it (LOW).
+	pub fn settle(&self) {
+		self.state().low.settle();
 	}
 }
 

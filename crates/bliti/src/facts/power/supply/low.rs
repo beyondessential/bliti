@@ -3,7 +3,6 @@
 use std::time::{Duration, Instant};
 
 use super::super::curve::FLOOR_VOLTS;
-use crate::power::NotBegun;
 
 /// How long every reading must have been below the floor, with external power absent (LOW).
 pub const CONFIRM: Duration = Duration::from_secs(60);
@@ -25,8 +24,6 @@ pub struct Floor {
 pub struct Low {
 	/// Since when every reading has been below the floor with external power absent.
 	since: Option<Instant>,
-	/// A shutdown was begun, or an act accepted first: nothing more is tried.
-	done: bool,
 }
 
 impl Low {
@@ -39,9 +36,6 @@ impl Low {
 		uptime: Option<Duration>,
 		floor: Option<Floor>,
 	) -> bool {
-		if self.done {
-			return false;
-		}
 		match floor {
 			Some(Floor {
 				volts,
@@ -58,20 +52,18 @@ impl Low {
 		}
 	}
 
-	/// What came of powering off once the floor was held. Where the device cannot power off, the count
-	/// starts again, so it says so each time the floor is held for another sixty seconds (LOW).
-	pub fn settle(&mut self, result: &Result<(), NotBegun>) {
-		match result {
-			Ok(()) | Err(NotBegun::AlreadyGoing(_)) => self.done = true,
-			Err(NotBegun::CannotPowerOff) => self.since = None,
-		}
+	/// Powering off has been asked for, whatever came of it: the count starts again. The controller
+	/// refuses a second shutdown while one is under way, so asking again after another sixty seconds
+	/// begins one only where the last could not be carried out, and a device that cannot power off
+	/// says so each sixty seconds rather than at every reading (LOW).
+	pub fn settle(&mut self) {
+		self.since = None;
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::power::{Act, Cause, Going};
 
 	const EVERY: Duration = Duration::from_secs(10);
 	const UP: Option<Duration> = Some(Duration::from_secs(3600));
@@ -174,51 +166,17 @@ mod tests {
 		assert_eq!(held, Some(11));
 	}
 
+	/// Once powering off has been asked for, the floor must be held another sixty seconds before it
+	/// is asked for again, not at every reading (LOW).
 	#[test]
-	fn once_begun_nothing_more_is_tried() {
-		let mut low = Low::default();
-		let start = Instant::now();
-		assert_eq!(
-			held_after(&mut low, start, 20, |_| UP, |_| below()),
-			Some(6)
-		);
-		low.settle(&Ok(()));
-		assert_eq!(
-			held_after(&mut low, start + EVERY * 7, 100, |_| UP, |_| below()),
-			None
-		);
-	}
-
-	/// An act accepted first is carried out, and no shutdown is tried again (LOW).
-	#[test]
-	fn an_act_accepted_first_stops_the_watch() {
-		let mut low = Low::default();
-		let start = Instant::now();
-		assert_eq!(
-			held_after(&mut low, start, 20, |_| UP, |_| below()),
-			Some(6)
-		);
-		low.settle(&Err(NotBegun::AlreadyGoing(Going {
-			act: Act::Reboot,
-			cause: Cause::ManualControl,
-		})));
-		assert_eq!(
-			held_after(&mut low, start + EVERY * 7, 100, |_| UP, |_| below()),
-			None
-		);
-	}
-
-	/// A device that cannot power off is told again each time the floor is held another sixty
-	/// seconds, not at every reading (LOW).
-	#[test]
-	fn cannot_power_off_counts_sixty_seconds_again() {
+	fn an_attempt_counts_sixty_seconds_again() {
 		let mut low = Low::default();
 		let start = Instant::now();
 		let mut held = Vec::new();
 		for tick in 0..20 {
 			if low.observe(start + EVERY * tick, UP, below()) {
 				held.push(tick);
-				low.settle(&Err(NotBegun::CannotPowerOff));
+				low.settle();
 			}
 		}
 		assert_eq!(held, vec![6, 13]);

@@ -82,7 +82,9 @@ impl PowerOff for Controller {
 	}
 }
 
-/// The floor has been held: record what the run taught, then power off, saying so (LOW).
+/// The floor has been held: record what the run taught, then power off, saying so (LOW). Asked
+/// again each time the floor is held another sixty seconds, so a shutdown whose power-off failed is
+/// begun again; one still under way refuses the ask, and records nothing.
 fn power_off(supply: &Supply, controller: &impl PowerOff, held: Held) {
 	let Held { volts, away } = held;
 	let volts = format!("{volts:.4}");
@@ -98,7 +100,7 @@ fn power_off(supply: &Supply, controller: &impl PowerOff, held: Held) {
 			"the battery is below the floor and this device cannot power off"
 		);
 	}
-	supply.settle(&result);
+	supply.settle();
 }
 
 /// What has been seen of the supply so far.
@@ -337,41 +339,69 @@ mod tests {
 		assert_eq!(charge(&gauge(3.9)), "50.0");
 	}
 
-	/// A stand-in for the controller, answering every shutdown asked for with `result`.
+	/// A stand-in for the controller, holding the one slot a shutdown or an act takes, as it does.
 	struct Fake {
-		result: Result<(), NotBegun>,
+		can_power_off: bool,
+		taken: Cell<bool>,
 		asked: Cell<u32>,
 		recorded: Cell<u32>,
 	}
 
 	impl Fake {
-		fn new(result: Result<(), NotBegun>) -> Self {
+		fn new(can_power_off: bool) -> Self {
 			Self {
-				result,
+				can_power_off,
+				taken: Cell::new(false),
 				asked: Cell::new(0),
 				recorded: Cell::new(0),
 			}
+		}
+
+		/// An act accepted first, still under way.
+		fn going() -> Self {
+			let fake = Self::new(true);
+			fake.taken.set(true);
+			fake
 		}
 	}
 
 	impl PowerOff for Fake {
 		fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun> {
 			self.asked.set(self.asked.get() + 1);
-			if self.result.is_ok() {
-				before();
-				self.recorded.set(self.recorded.get() + 1);
+			if !self.can_power_off {
+				return Err(NotBegun::CannotPowerOff);
 			}
-			self.result
+			if self.taken.replace(true) {
+				return Err(NotBegun::AlreadyGoing(Going {
+					act: Act::PowerOff,
+					cause: Cause::LowBattery,
+				}));
+			}
+			before();
+			self.recorded.set(self.recorded.get() + 1);
+			Ok(())
 		}
+	}
+
+	fn supply() -> Supply {
+		Supply::new(Store::new(
+			std::env::temp_dir().join("bliti-record-unwritten/battery-curve.json"),
+		))
 	}
 
 	/// Run the record thread's loop body for `ticks` looks below the floor with external power absent.
 	fn below_the_floor(controller: &Fake, ticks: u32) {
-		let supply = Supply::new(Store::new(
-			std::env::temp_dir().join("bliti-record-unwritten/battery-curve.json"),
-		));
-		let start = Instant::now();
-		for tick in 0..ticks {
+		below_the_floor_on(&supply(), controller, Instant::now(), 0..ticks);
+	}
+
+	/// As [`below_the_floor`], on `supply`, for the looks `ticks` ten seconds apart from `start`.
+	fn below_the_floor_on(
+		supply: &Supply,
+		controller: &Fake,
+		start: Instant,
+		ticks: std::ops::Range<u32>,
+	) {
+		for tick in ticks {
 			let look = Look {
 				gauge: Ok(gauge(2.79)),
 				external: Some(false),
@@ -383,29 +413,41 @@ mod tests {
 				Some(Duration::from_secs(3600)),
 			);
 			if let Some(held) = observed.held {
-				power_off(&supply, controller, held);
+				power_off(supply, controller, held);
 			}
 		}
 	}
 
-	/// Once begun, the run is recorded first and nothing more is asked (LOW).
+	/// Once begun, the run is recorded first, and a shutdown still under way is not begun again
+	/// (LOW).
 	#[test]
-	fn a_begun_shutdown_is_asked_for_once() {
-		let controller = Fake::new(Ok(()));
+	fn a_shutdown_under_way_is_begun_once() {
+		let controller = Fake::new(true);
 		below_the_floor(&controller, 60);
-		assert_eq!(controller.asked.get(), 1);
+		assert!(controller.asked.get() > 1, "asked again each sixty seconds");
 		assert_eq!(controller.recorded.get(), 1);
 	}
 
-	/// An act accepted first is carried out, and no shutdown is asked for again (LOW).
+	/// A shutdown whose power-off failed leaves the controller taking acts again, and the next sixty
+	/// seconds below the floor begins another (LOW).
 	#[test]
-	fn no_second_shutdown_after_an_accepted_act() {
-		let controller = Fake::new(Err(NotBegun::AlreadyGoing(Going {
-			act: Act::Reboot,
-			cause: Cause::ManualControl,
-		})));
+	fn a_failed_shutdown_is_begun_again() {
+		let controller = Fake::new(true);
+		let supply = supply();
+		let start = Instant::now();
+		below_the_floor_on(&supply, &controller, start, 0..10);
+		assert_eq!(controller.recorded.get(), 1);
+		controller.taken.set(false);
+		below_the_floor_on(&supply, &controller, start, 10..20);
+		assert_eq!(controller.recorded.get(), 2);
+	}
+
+	/// An act accepted first is carried out, and no shutdown begins as well (LOW).
+	#[test]
+	fn no_shutdown_after_an_accepted_act() {
+		let controller = Fake::going();
 		below_the_floor(&controller, 60);
-		assert_eq!(controller.asked.get(), 1);
+		assert!(controller.asked.get() >= 1);
 		assert_eq!(controller.recorded.get(), 0);
 	}
 
@@ -413,7 +455,7 @@ mod tests {
 	/// seconds, which is when it says it cannot (LOW).
 	#[test]
 	fn cannot_power_off_is_reported_each_sixty_seconds() {
-		let controller = Fake::new(Err(NotBegun::CannotPowerOff));
+		let controller = Fake::new(false);
 		below_the_floor(&controller, 20);
 		assert_eq!(controller.asked.get(), 2);
 		assert_eq!(controller.recorded.get(), 0);
