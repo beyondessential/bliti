@@ -28,6 +28,7 @@ use bliti_core::channel::readings::{Entry, kind};
 use serde_json::{Map, Value as Json};
 
 mod battery;
+mod curve;
 mod gpio;
 mod i2c;
 mod record;
