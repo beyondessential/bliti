@@ -27,6 +27,9 @@ Charge from the cell voltage against a learnt curve, time left with a margin, an
 - The curve file is `{"document": {...}, "gauge-full": 0.97}`, `gauge-full` absent until a charge has finished.
 - Command line and daemon: the daemon listens on a root-only Unix socket at `/run/bliti/battery.sock`, and the command line sends `curve`, `load` and `reset` through it as a client would, getting `curves`/`accepted`/`refused` back. Where no daemon answers, the command line works on the curve file directly. The daemon holds the curve in memory, so it must be the one to change it while running.
 - `battery_direction` in `facts/power.rs` gives `charging` on mains whenever the gauge reads 99 % or less. Full cells seldom reach that, so a full device on mains reports `charging` forever. CHG's definition of full replaces the test.
+- `facts/power/supply.rs` holds the one `Supply` (`Arc<Mutex<State>>`), written only by the record thread. A backup supply is managed from the first look at which the gauge answers, which is when the curve file is read; the shutdown additionally needs the power line on every look it counts. The sampler's battery readings are what the last look saw, stamped with its time, so they refresh every 10 s. Every change of the curve document goes out on the `Supply`'s `tokio::sync::watch`, `None` where no backup supply is managed.
+- `Controller::low_battery` takes a `before` closure, run once the shutdown is certain and before any feed is told. That is where a run's learning goes (`State::learn_from_run`), so a run is learnt only when its shutdown actually begins, not where the device cannot power off or an act was accepted first.
+- A finished charge (`supply/full.rs`) is the voltage reaching termination, falling back and holding still; or, for a daemon started on mains with the cell already full, the voltage holding still high below termination, which a cell at constant current cannot. The constants all need tuning against the finished-charge data above: termination at 4.19 V (above the 4.1875 V a full cell has been seen resting at), a fall of 5 mV from the highest reading at termination, still as within 2.5 mV, held for 5 minutes, and resting at or above 4.15 V.
 - The `bliti-wire-compat` baseline (`c4d4ed6`) predates the control stream, so renaming `control` to `power` and adding `cause` breaks nothing it can see. No critical members are added, so `wire-breaks.toml` is unchanged.
 
 ## Rename: control stream to power stream
@@ -55,21 +58,21 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Supply state and curves (`bliti`, `facts/power/`)
 
-- [ ] `facts/power/supply.rs`: shared supply state (`Arc<Mutex<…>>`), updated by the record thread every 10 s. It holds the voltage and charge history, the curves, the run or charge being recorded, and the confirmation clock. `Watch` in `power.rs` reads its history from here.
+- [x] `facts/power/supply.rs`: shared supply state (`Arc<Mutex<…>>`), updated by the record thread every 10 s. It holds the voltage and charge history, the curves, the run or charge being recorded, and the confirmation clock. `Watch` in `power.rs` reads its history from here.
 - [x] `facts/power/curve.rs`: `Curve { points, learnt_from, error, duration }` and `Document { discharging, charging }`, serde to CRV's shape with rounding to four places.
 - [x] `facts/power/curve.rs`: validation with CRV's rules, each failure a reason naming what is wrong (e.g. the first point above the floor).
 - [x] `facts/power/curve.rs`: lookup (voltage to charge by interpolation) and renormalisation between the floor and full.
 - [x] `facts/power/shipped-curve.json`: the interim curve, loaded with `include_str!`, with `learnt-from` 0 and the count-derived error.
 - [x] `facts/power/curve.rs`: load `/var/lib/bliti/battery-curve.json` at start, falling back to the shipped curve when missing, and logging and falling back when unreadable. Save atomically.
-- [ ] `power.rs` `battery_charge`: discharging curve while external power is absent. On mains, the charging curve where it is learnt from three or more charges and the voltage lies within it, otherwise the gauge scaled by its full reading. 1 once the charge has finished.
-- [ ] `facts/power/supply.rs`: detect a finished charge as the voltage reaching termination, then falling back and holding still; tune against the hardware data. Record the gauge's reading at that moment as its full reading.
-- [ ] `power.rs` `battery_direction`: on mains, `charging` until full and `idle` once full, replacing the `charge <= 0.99` test.
-- [ ] `power.rs`, `battery.rs`: `battery-charge` is `warning` below 0.2 and `failed` below 0.05 while the battery is carrying the device, for backup-supply and OS batteries alike.
-- [ ] `facts/power/record.rs`: DEV reports carry our charge beside the gauge's (`charge`, `gauge_charge`).
+- [x] `power.rs` `battery_charge`: discharging curve while external power is absent. On mains, the charging curve where it is learnt from three or more charges and the voltage lies within it, otherwise the gauge scaled by its full reading. 1 once the charge has finished.
+- [x] `facts/power/supply.rs`: detect a finished charge as the voltage reaching termination, then falling back and holding still; tune against the hardware data. Record the gauge's reading at that moment as its full reading.
+- [x] `power.rs` `battery_direction`: on mains, `charging` until full and `idle` once full, replacing the `charge <= 0.99` test.
+- [x] `power.rs`, `battery.rs`: `battery-charge` is `warning` below 0.2 and `failed` below 0.05 while the battery is carrying the device, for backup-supply and OS batteries alike.
+- [x] `facts/power/record.rs`: DEV reports carry our charge beside the gauge's (`charge`, `gauge_charge`).
 
 ### Learning (CHG)
 
-- [ ] Record a run from `Lost` (or from start on battery), as timed voltage samples.
+- [x] Record a run from `Lost` (or from start on battery), as timed voltage samples.
 - [ ] On a LOW shutdown: measure the discharging curve's error against the run, then refine it (a run from full rescales the whole curve; a partial run is anchored where it began), update `duration` and `learnt-from`, and save, all before `going-away`.
 - [ ] Record a charge from `Restored` (a known start) until full. On completion, measure the error, then refine the charging curve (creating it on the first charge), update `duration` and `learnt-from`, and save.
 - [ ] Count-derived error for a curve not yet measured, and for the gauge's figure on mains.
@@ -86,11 +89,11 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Low-battery shutdown (LOW)
 
-- [ ] `facts/power/supply.rs`: a confirmation state machine. It arms only where the gauge and `GPIO6` both answer. It powers off after 60 s of readings below 2.8 V with external power absent. A reading at or above the floor, a failed read, or external power returning restarts the count. Nothing begins within 2 minutes of system boot, read from boot time, not from bliti's start.
-- [ ] `device.rs`: pass the `Controller` handle into `record_supply`.
-- [ ] On confirmation: save the learning, then the low-battery shutdown; report "powering off for low battery" with volts and time away.
-- [ ] Where power-off is not available, report so on stderr each time the 60 s is held.
-- [ ] Tests: confirmation window, each reset condition, the boot grace, no arming without gauge and line, and no second shutdown after an accepted act.
+- [x] `facts/power/supply.rs`: a confirmation state machine. It arms only where the gauge and `GPIO6` both answer. It powers off after 60 s of readings below 2.8 V with external power absent. A reading at or above the floor, a failed read, or external power returning restarts the count. Nothing begins within 2 minutes of system boot, read from boot time, not from bliti's start.
+- [x] `device.rs`: pass the `Controller` handle into `record_supply`.
+- [x] On confirmation: save the learning, then the low-battery shutdown; report "powering off for low battery" with volts and time away. The learning itself is under Learning; its place is `State::learn_from_run`.
+- [x] Where power-off is not available, report so on stderr each time the 60 s is held.
+- [x] Tests: confirmation window, each reset condition, the boot grace, no arming without gauge and line, and no second shutdown after an accepted act.
 
 ### Curve stream (CRV)
 
