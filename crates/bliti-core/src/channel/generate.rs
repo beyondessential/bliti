@@ -23,7 +23,10 @@ use std::collections::BTreeSet;
 use proptest::prelude::*;
 use serde_json::{Map, Value as Json};
 
-use super::{messages::Message, readings::Entry};
+use super::{
+	messages::{Message, Span},
+	readings::Entry,
+};
 
 /// A well-formed member name: letters, digits and hyphens, wholly one case.
 ///
@@ -82,6 +85,16 @@ fn json() -> impl Strategy<Value = Json> {
 			object_of(inner).prop_map(Json::Object),
 		]
 	})
+}
+
+/// A number of seconds, finite and rounded as a sender rounds one.
+fn seconds() -> impl Strategy<Value = f64> {
+	(0f64..1e6).prop_map(|seconds| (seconds * 10_000.0).round() / 10_000.0)
+}
+
+/// A time and its margin, as `curves` carries one (CRV).
+fn span() -> impl Strategy<Value = Span> {
+	(seconds(), seconds()).prop_map(|(duration, margin)| Span { duration, margin })
 }
 
 /// One fact or reading, over the whole representable set.
@@ -177,13 +190,31 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => prop::collection::vec(json(), 0..3)
 			.prop_map(|access_points| Message::Networks { access_points }),
 		1 => object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
-		// The control stream of CTL. Acts are open strings on the wire, so any are generated.
-		1 => Just(Message::Control),
+		// The power stream of CTL. Acts and causes are open strings on the wire, so any are generated.
+		1 => Just(Message::Power),
 		1 => prop::collection::vec("[a-z-]{1,10}", 0..4).prop_map(|acts| Message::Acts { acts }),
 		1 => "[a-z-]{1,10}".prop_map(|act| Message::Act { act }),
 		1 => Just(Message::Accepted),
 		1 => "[a-z ]{1,20}".prop_map(|reason| Message::Refused { reason }),
-		1 => "[a-z-]{1,10}".prop_map(|act| Message::GoingAway { act }),
+		1 => ("[a-z-]{1,10}", "[a-z-]{1,14}")
+			.prop_map(|(act, cause)| Message::GoingAway { act, cause }),
+		// The curve stream of CRV. The document rides raw, so any conforming JSON is generated for it:
+		// whether it is a curve document is the device's to judge, not the envelope's.
+		1 => Just(Message::Curve),
+		1 => (
+			prop::option::of(object_of(json()).prop_map(Json::Object)),
+			prop::option::of(span()),
+			prop::option::of(span()),
+		)
+			.prop_map(|(document, lasts, recharge)| Message::Curves {
+				document,
+				lasts,
+				recharge,
+			}),
+		1 => object_of(json()).prop_map(|document| Message::Load {
+			document: Json::Object(document)
+		}),
+		1 => Just(Message::Reset),
 	]
 }
 
@@ -302,6 +333,30 @@ mod tests {
 		assert!(unaddressed > 20, "acts naming none: {unaddressed}");
 		assert!(named > 20, "joins by WPS naming a network: {named}");
 		assert!(unnamed > 20, "joins by WPS naming none: {unnamed}");
+	}
+
+	/// The optional members of `curves` are reached too, each both present and absent.
+	#[test]
+	fn the_curve_optional_members_are_reached() {
+		let (mut document, mut lasts, mut recharge, mut bare) = (0, 0, 0, 0);
+		for message in sample(4000) {
+			let Message::Curves {
+				document: d,
+				lasts: l,
+				recharge: r,
+			} = &message
+			else {
+				continue;
+			};
+			document += usize::from(d.is_some());
+			lasts += usize::from(l.is_some());
+			recharge += usize::from(r.is_some());
+			bare += usize::from(d.is_none() && l.is_none() && r.is_none());
+		}
+		assert!(document > 20, "curves carrying a document: {document}");
+		assert!(lasts > 20, "curves carrying lasts: {lasts}");
+		assert!(recharge > 20, "curves carrying recharge: {recharge}");
+		assert!(bare > 5, "curves carrying nothing: {bare}");
 	}
 
 	/// Every type this build knows is generated. A type in the set but not in the strategy is a type

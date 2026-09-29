@@ -1,5 +1,5 @@
 // The Control screen of CSCR and what the application does while a device carries an act out
-// (WEB), driven through a fake device at the message layer. What the page sends on a control stream
+// (WEB), driven through a fake device at the message layer. What the page sends on a power stream
 // is recorded, so "nothing is asked for" is asserted on the wire rather than inferred from the screen.
 
 import { expect, test } from '@playwright/test'
@@ -8,11 +8,11 @@ import { IN_FORCE, PI } from './network-fixtures.js'
 import {
 	answer,
 	closeChannel,
-	controlSent,
 	emit,
 	message,
 	openChannel,
 	openNetwork,
+	powerSent,
 	returns,
 } from './fake-client.js'
 
@@ -27,7 +27,7 @@ const power = (page) => page.locator('section').filter({ has: page.getByRole('he
 /// Open the Control screen of a device that lists `acts`.
 async function openControl(page, acts = ['restart', 'reboot', 'power-off']) {
 	await openChannel(page)
-	await answer(page, 'control', message({ type: 'acts', acts }))
+	await answer(page, 'power', message({ type: 'acts', acts }))
 	await page.getByRole('button', { name: 'Control' }).click()
 	if (acts.length > 0) await power(page).waitFor()
 }
@@ -66,11 +66,11 @@ test.describe('the Control screen', () => {
 		await expect(title(page)).toHaveText('Info')
 	})
 
-	test('opens a control stream while it is open, and closes it on leaving', async ({ page }) => {
+	test('opens a power stream while it is open, and closes it on leaving', async ({ page }) => {
 		await openControl(page)
-		expect(await controlSent(page)).toEqual([{ type: 'control' }])
+		expect(await powerSent(page)).toEqual([{ type: 'power' }])
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-		expect(await page.evaluate(() => window.__blitiControls.map((each) => each.closedByPage))).toEqual([true])
+		expect(await page.evaluate(() => window.__blitiPowerStreams.map((each) => each.closedByPage))).toEqual([true])
 	})
 
 	test('offers the acts the device listed, in its own order, and no others', async ({ page }) => {
@@ -78,7 +78,7 @@ test.describe('the Control screen', () => {
 		await expect(power(page).locator('.acts .name')).toHaveText(['Restart bliti', 'Power off'])
 	})
 
-	// A device older than this build never answers `control`, and looks like one offering nothing.
+	// A device older than this build never answers `power`, and looks like one offering nothing.
 	test('leaves out the power section until the device lists its acts, and where it lists none', async ({
 		page,
 	}) => {
@@ -87,7 +87,7 @@ test.describe('the Control screen', () => {
 		await expect(page.getByRole('button', { name: 'Network settings' })).toBeVisible()
 		await expect(power(page)).toHaveCount(0)
 
-		await page.evaluate(() => window.__blitiControl.emit({ kind: 'message', message: { type: 'acts', acts: [] } }))
+		await page.evaluate(() => window.__blitiPowerStream.emit({ kind: 'message', message: { type: 'acts', acts: [] } }))
 		await expect(power(page)).toHaveCount(0)
 	})
 
@@ -100,10 +100,10 @@ test.describe('the Control screen', () => {
 			await page.getByRole('button', { name: 'Cancel' }).click()
 			await expect(page.getByRole('alertdialog')).toHaveCount(0)
 		}
-		expect(await controlSent(page)).toEqual([{ type: 'control' }])
+		expect(await powerSent(page)).toEqual([{ type: 'power' }])
 
 		await confirmAct(page, 'Reboot')
-		expect(await controlSent(page)).toEqual([{ type: 'control' }, { type: 'act', act: 'reboot' }])
+		expect(await powerSent(page)).toEqual([{ type: 'power' }, { type: 'act', act: 'reboot' }])
 	})
 
 	test('names the act in its confirmation, and says a power off stays off', async ({ page }) => {
@@ -137,7 +137,7 @@ test.describe('the Control screen', () => {
 
 	test('says network edits not applied will be lost, and shows them kept', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'control', message({ type: 'acts', acts: ['reboot'] }))
+		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 
@@ -161,7 +161,7 @@ test.describe('when the device goes away', () => {
 		await openChannel(page)
 		await emit(page, fact('hostname', 'tamanu-iti-04'))
 		await emit(page, reading('cpu-usage', 0.12))
-		await answer(page, 'control', message({ type: 'acts', acts: ['reboot'] }))
+		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
 		await page.getByRole('button', { name: 'Control' }).click()
 		await answer(page, 'act', message({ type: 'accepted' }))
 		await confirmAct(page, 'Reboot')
@@ -177,20 +177,20 @@ test.describe('when the device goes away', () => {
 	// Another operator's act reaches this one on the feed (CTL).
 	test('an act announced on the feed is said to be under way, whoever asked for it', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'restart' }))
+		await emit(page, message({ type: 'going-away', act: 'restart', cause: 'manual-control' }))
 		await expect(page.getByRole('status')).toHaveText('Restarting bliti…')
 	})
 
 	test('an act this build does not know is left to end the channel as anything else does', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'hibernate' }))
+		await emit(page, message({ type: 'going-away', act: 'hibernate', cause: 'manual-control' }))
 		await expect(page.getByRole('status')).toHaveCount(0)
 		await expect(page.getByRole('button', { name: 'Control' })).toBeVisible()
 	})
 
 	test('after a reboot, the device is reached again on its own once it is back', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'reboot' }))
+		await emit(page, message({ type: 'going-away', act: 'reboot', cause: 'manual-control' }))
 		await returns(page, 'fail', 'fail', 'ok')
 		await closeChannel(page)
 
@@ -205,7 +205,7 @@ test.describe('when the device goes away', () => {
 
 	test('a device that does not come back is offered to be found again', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'restart' }))
+		await emit(page, message({ type: 'going-away', act: 'restart', cause: 'manual-control' }))
 		await closeChannel(page)
 
 		await expect(page.getByText('The device has not come back. Check it is on and nearby.')).toBeVisible()
@@ -217,7 +217,7 @@ test.describe('when the device goes away', () => {
 		page,
 	}) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'reboot' }))
+		await emit(page, message({ type: 'going-away', act: 'reboot', cause: 'manual-control' }))
 		await returns(page, 'chooser')
 		await closeChannel(page)
 
@@ -227,7 +227,7 @@ test.describe('when the device goes away', () => {
 
 	test('disconnecting stops the attempts to reach it', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'reboot' }))
+		await emit(page, message({ type: 'going-away', act: 'reboot', cause: 'manual-control' }))
 		await closeChannel(page)
 		await page.getByRole('button', { name: 'Disconnect' }).click()
 
@@ -240,7 +240,7 @@ test.describe('when the device goes away', () => {
 
 	test('a power off is said to be under way for a moment, and nothing reconnects', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, message({ type: 'going-away', act: 'power-off' }))
+		await emit(page, message({ type: 'going-away', act: 'power-off', cause: 'manual-control' }))
 		await expect(page.getByRole('status')).toHaveText('Shutting down…')
 		await closeChannel(page)
 

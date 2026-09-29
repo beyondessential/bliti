@@ -11,11 +11,11 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-mod control;
 mod facts;
 mod gatt;
 mod identity;
 mod network;
+mod power;
 mod qr;
 mod sampler;
 mod session;

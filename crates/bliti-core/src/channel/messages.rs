@@ -142,10 +142,10 @@ pub enum Message {
 		spectrum: Map<String, Json>,
 	},
 
-	/// A client opening a control stream, first on the stream it opens for it (CTL).
-	Control,
+	/// A client opening a power stream, first on the stream it opens for it (CTL).
+	Power,
 
-	/// A device's answer to `control`: the acts it can carry out (CTL). Named as strings rather than
+	/// A device's answer to `power`: the acts it can carry out (CTL). Named as strings rather than
 	/// as a closed set, so a client passes over an act a newer device lists rather than failing to
 	/// read the message.
 	Acts {
@@ -160,10 +160,12 @@ pub enum Message {
 		act: String,
 	},
 
-	/// A device's answer that it will carry out the act asked for (CTL).
+	/// A device's answer that it will carry out the act asked for (CTL), or has done the `load` or
+	/// `reset` asked for (CRV).
 	Accepted,
 
-	/// A device's answer that it will not carry out the act asked for (CTL).
+	/// A device's answer that it will not carry out the act asked for (CTL), or has not done the
+	/// `load` or `reset` asked for (CRV).
 	Refused {
 		/// Why, in the device's own words.
 		reason: String,
@@ -173,7 +175,58 @@ pub enum Message {
 	GoingAway {
 		/// The act accepted, by wire name.
 		act: String,
+		/// Why the device is going away, by wire name. Open, as `act` is: a client reads a cause it
+		/// does not know by the act alone.
+		cause: String,
 	},
+
+	/// A client opening a curve stream, first on the stream it opens for it (CRV).
+	Curve,
+
+	/// A device's answer to `curve`, and what it sends on every curve stream when its curve document
+	/// changes (CRV).
+	Curves {
+		/// The curve document in force, kept raw: the device validates a document, not the envelope.
+		/// Absent where the device manages no backup supply.
+		document: Option<Json>,
+		/// How long a full charge lasts, where the device manages a backup supply.
+		lasts: Option<Span>,
+		/// How long a full recharge takes, where the device also holds a charging curve.
+		recharge: Option<Span>,
+	},
+
+	/// A client asking a device to load a curve document (CRV). Kept raw, so a document the device
+	/// finds wrong is refused with a reason rather than faulting the stream.
+	Load {
+		/// The curve document.
+		document: Json,
+	},
+
+	/// A client asking a device to return to the curve its build carries (CRV).
+	Reset,
+}
+
+/// A time, and how far either way it may be off, both in seconds (CRV, "The curve stream").
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Span {
+	/// The time.
+	pub duration: f64,
+	/// How far either way the time may be off.
+	pub margin: f64,
+}
+
+impl Span {
+	fn to_json(self) -> Json {
+		let mut map = Map::new();
+		map.insert("duration".to_owned(), number(self.duration));
+		map.insert("margin".to_owned(), number(self.margin));
+		Json::Object(map)
+	}
+}
+
+/// A JSON number, falling back to null for a value JSON cannot carry.
+fn number(value: f64) -> Json {
+	serde_json::Number::from_f64(value).map_or(Json::Null, Json::Number)
 }
 
 impl Message {
@@ -298,8 +351,8 @@ impl Message {
 				map.insert("type".to_owned(), "spectrum".into());
 				map.insert("spectrum".to_owned(), Json::Object(spectrum.clone()));
 			}
-			Self::Control => {
-				map.insert("type".to_owned(), "control".into());
+			Self::Power => {
+				map.insert("type".to_owned(), "power".into());
 			}
 			Self::Acts { acts } => {
 				map.insert("type".to_owned(), "acts".into());
@@ -319,9 +372,36 @@ impl Message {
 				map.insert("type".to_owned(), "refused".into());
 				map.insert("reason".to_owned(), reason.clone().into());
 			}
-			Self::GoingAway { act } => {
+			Self::GoingAway { act, cause } => {
 				map.insert("type".to_owned(), "going-away".into());
 				map.insert("act".to_owned(), act.clone().into());
+				map.insert("cause".to_owned(), cause.clone().into());
+			}
+			Self::Curve => {
+				map.insert("type".to_owned(), "curve".into());
+			}
+			Self::Curves {
+				document,
+				lasts,
+				recharge,
+			} => {
+				map.insert("type".to_owned(), "curves".into());
+				if let Some(document) = document {
+					map.insert("document".to_owned(), document.clone());
+				}
+				if let Some(lasts) = lasts {
+					map.insert("lasts".to_owned(), lasts.to_json());
+				}
+				if let Some(recharge) = recharge {
+					map.insert("recharge".to_owned(), recharge.to_json());
+				}
+			}
+			Self::Load { document } => {
+				map.insert("type".to_owned(), "load".into());
+				map.insert("document".to_owned(), document.clone());
+			}
+			Self::Reset => {
+				map.insert("type".to_owned(), "reset".into());
 			}
 		}
 		map
@@ -420,7 +500,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"spectrum" => Ok(Message::Spectrum {
 				spectrum: object(&map, "spectrum")?,
 			}),
-			"control" => Ok(Message::Control),
+			"power" => Ok(Message::Power),
 			"acts" => Ok(Message::Acts {
 				acts: strings(&map, "acts")?,
 			}),
@@ -433,7 +513,24 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			}),
 			"going-away" => Ok(Message::GoingAway {
 				act: string(&map, "act")?,
+				cause: string(&map, "cause")?,
 			}),
+			"curve" => Ok(Message::Curve),
+			"curves" => Ok(Message::Curves {
+				document: match map.get("document") {
+					None | Some(Json::Null) => None,
+					Some(document) => Some(document.clone()),
+				},
+				lasts: optional_span(&map, "lasts")?,
+				recharge: optional_span(&map, "recharge")?,
+			}),
+			"load" => Ok(Message::Load {
+				document: map
+					.get("document")
+					.cloned()
+					.ok_or_else(|| de::Error::custom("this message carries a `document`"))?,
+			}),
+			"reset" => Ok(Message::Reset),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -477,6 +574,21 @@ fn optional_object<E: de::Error>(
 	}
 }
 
+fn optional_span<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Option<Span>, E> {
+	let Some(span) = optional_object::<E>(map, member)? else {
+		return Ok(None);
+	};
+	let seconds = |name: &str| {
+		span.get(name)
+			.and_then(Json::as_f64)
+			.ok_or_else(|| de::Error::custom(format!("`{member}` carries a number `{name}`")))
+	};
+	Ok(Some(Span {
+		duration: seconds("duration")?,
+		margin: seconds("margin")?,
+	}))
+}
+
 fn strings<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<Vec<String>, E> {
 	array(map, member)?
 		.into_iter()
@@ -517,12 +629,16 @@ impl MessageSet for Message {
 			"wps",
 			"networks",
 			"spectrum",
-			"control",
+			"power",
 			"acts",
 			"act",
 			"accepted",
 			"refused",
 			"going-away",
+			"curve",
+			"curves",
+			"load",
+			"reset",
 		]
 	}
 
@@ -552,320 +668,4 @@ impl MessageSet for Message {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::{
-		super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
-		*,
-	};
-
-	fn parse(json: &str) -> Result<Reading<Message>, Fault> {
-		read(json.as_bytes())
-	}
-
-	/// A reading standing in for whatever a device reports, for exercising the envelope around it.
-	fn cpu() -> Entry {
-		Entry::fraction(20_308_140, "cpu-usage", 0.12)
-	}
-
-	/// One `hello`, and each end reads its peer's without the type being distinguished by name (MSG).
-	#[test]
-	fn one_hello_round_trips() {
-		let message = Message::Hello {
-			name: "bliti-web".to_owned(),
-			version: "0.1.0".to_owned(),
-		};
-		let json = message.to_json();
-		assert_eq!(read(&json).unwrap(), Reading::Message(message));
-	}
-
-	#[test]
-	fn the_hello_json_shape_is_stable() {
-		let json = Message::Hello {
-			name: "bliti".to_owned(),
-			version: "0.1.0".to_owned(),
-		}
-		.to_json();
-		assert_eq!(
-			String::from_utf8(json).unwrap(),
-			r#"{"name":"bliti","type":"hello","version":"0.1.0"}"#
-		);
-	}
-
-	#[test]
-	fn subscribe_marks_its_selector_critical_on_the_wire() {
-		let json = Message::Subscribe {
-			topic: "default".to_owned(),
-		}
-		.to_json();
-		assert_eq!(
-			String::from_utf8(json).unwrap(),
-			r#"{"TOPIC":"default","type":"subscribe"}"#
-		);
-	}
-
-	#[test]
-	fn a_fact_and_a_reading_round_trip() {
-		for message in [
-			Message::Fact(Entry::text(20_308_140, "hostname", "tamanu-iti")),
-			Message::Reading(cpu()),
-		] {
-			let json = message.to_json();
-			assert_eq!(read(&json).unwrap(), Reading::Message(message));
-		}
-	}
-
-	/// A `fact` and a `reading` of the same catalogue name are different entries: the message type
-	/// keeps them apart (NFO).
-	#[test]
-	fn a_fact_and_a_reading_of_one_name_do_not_collide() {
-		let fact = Message::Fact(Entry::quantity(1, "memory-bytes", "bytes", 8_000_000.0));
-		let reading = Message::Reading(Entry::quantity(1, "memory-bytes", "bytes", 5_000_000.0));
-		assert_ne!(fact, reading);
-		assert_eq!(read(&fact.to_json()).unwrap(), Reading::Message(fact));
-		assert_eq!(read(&reading.to_json()).unwrap(), Reading::Message(reading));
-	}
-
-	#[test]
-	fn a_mixed_case_name_is_a_fault() {
-		assert_eq!(
-			parse(r#"{"type":"subscribe","Topic":"default"}"#).unwrap_err(),
-			Fault::MalformedName("Topic".to_owned())
-		);
-	}
-
-	#[test]
-	fn the_same_name_twice_is_a_fault() {
-		assert_eq!(
-			parse(r#"{"type":"subscribe","topic":"a","TOPIC":"b"}"#).unwrap_err(),
-			Fault::DuplicateName("topic".to_owned())
-		);
-	}
-
-	/// An ignorable member this build does not know is passed over, and the rest is read.
-	#[test]
-	fn an_unknown_ignorable_member_is_skipped() {
-		assert_eq!(
-			parse(r#"{"type":"subscribe","TOPIC":"default","cadence":"fast"}"#).unwrap(),
-			Reading::Message(Message::Subscribe {
-				topic: "default".to_owned()
-			})
-		);
-	}
-
-	/// A type this build does not know is passed over whole (MSG).
-	#[test]
-	fn an_unknown_type_is_skipped() {
-		assert_eq!(
-			parse(r#"{"type":"reboot","when":"now"}"#).unwrap(),
-			Reading::Skipped(Skip::UnknownType("reboot".to_owned()))
-		);
-	}
-
-	/// Unknown members are found by round-tripping through these types, so a member that serialises
-	/// away would be read as one this build has never heard of. Checked rather than remembered.
-	#[test]
-	fn every_message_type_survives_the_round_trip() {
-		let entry = Entry::quantity(20_308_140, "temperature", "celsius", 48.5)
-			.with_trait("sensor", Json::String("cpu".to_owned()))
-			.with_limit(75.0, "Cooling")
-			.warning("a sensor is warm");
-		let messages = [
-			Message::Hello {
-				name: "a".to_owned(),
-				version: "1".to_owned(),
-			},
-			Message::Subscribe {
-				topic: "default".to_owned(),
-			},
-			Message::Fact(Entry::text(1, "hostname", "iti")),
-			Message::Reading(entry),
-			Message::Reading(Entry::broken(
-				1,
-				"battery-charge",
-				"fraction",
-				"no answer from the gauge",
-			)),
-			Message::Wps {
-				method: "push-button".to_owned(),
-				interface: Some("wlan0".to_owned()),
-				ssid: Some("clinic".to_owned()),
-			},
-		];
-		for message in &messages {
-			assert_eq!(
-				round_trip_omissions(message),
-				Vec::<String>::new(),
-				"{message:?}"
-			);
-		}
-	}
-
-	/// The control stream's messages round trip, and `act` carries its selector critical (CTL).
-	#[test]
-	fn the_control_messages_round_trip() {
-		for message in [
-			Message::Control,
-			Message::Acts {
-				acts: vec!["restart".to_owned(), "reboot".to_owned()],
-			},
-			Message::Act {
-				act: "reboot".to_owned(),
-			},
-			Message::Accepted,
-			Message::Refused {
-				reason: "already going".to_owned(),
-			},
-			Message::GoingAway {
-				act: "power-off".to_owned(),
-			},
-		] {
-			let json = message.to_json();
-			assert_eq!(read(&json).unwrap(), Reading::Message(message.clone()));
-			assert_eq!(round_trip_omissions(&message), Vec::<String>::new());
-		}
-		assert_eq!(
-			String::from_utf8(
-				Message::Act {
-					act: "reboot".to_owned()
-				}
-				.to_json()
-			)
-			.unwrap(),
-			r#"{"ACT":"reboot","type":"act"}"#
-		);
-		assert_eq!(
-			String::from_utf8(
-				Message::GoingAway {
-					act: "reboot".to_owned()
-				}
-				.to_json()
-			)
-			.unwrap(),
-			r#"{"act":"reboot","type":"going-away"}"#
-		);
-	}
-
-	/// An act a newer device lists is still read, as a string this build does not know (CTL).
-	#[test]
-	fn acts_are_read_whatever_they_name() {
-		assert_eq!(
-			parse(r#"{"type":"acts","acts":["reboot","hibernate"]}"#).unwrap(),
-			Reading::Message(Message::Acts {
-				acts: vec!["reboot".to_owned(), "hibernate".to_owned()]
-			})
-		);
-		assert!(parse(r#"{"type":"acts","acts":["reboot",7]}"#).is_err());
-	}
-
-	/// `wps` names the network it is for by `ssid`, and leaves it out where it is for any (CFG).
-	#[test]
-	fn wps_carries_its_ssid_where_it_names_one() {
-		let named = Message::Wps {
-			method: "pin".to_owned(),
-			interface: None,
-			ssid: Some("clinic".to_owned()),
-		};
-		assert_eq!(
-			serde_json::from_slice::<Json>(&named.to_json()).unwrap(),
-			serde_json::json!({"type": "wps", "method": "pin", "ssid": "clinic"})
-		);
-		assert!(matches!(
-			parse(r#"{"type":"wps","method":"pin","ssid":"clinic"}"#).unwrap(),
-			Reading::Message(message) if message == named
-		));
-		assert!(matches!(
-			parse(r#"{"type":"wps","method":"pin"}"#).unwrap(),
-			Reading::Message(Message::Wps { ssid: None, .. })
-		));
-		assert!(parse(r#"{"type":"wps","method":"pin","ssid":7}"#).is_err());
-	}
-
-	/// `subscribe` pins its selector critical: arriving plain is a fault, as is any other critical
-	/// member alongside it (MSG).
-	#[test]
-	fn subscribe_pins_its_selector_critical() {
-		assert!(matches!(
-			parse(r#"{"type":"subscribe","topic":"default"}"#).unwrap_err(),
-			Fault::CriticalRequired { .. }
-		));
-		assert!(matches!(
-			parse(r#"{"type":"subscribe","TOPIC":"default","REDACT":["cpu"]}"#).unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-		assert_eq!(
-			parse(r#"{"type":"subscribe","TOPIC":"default"}"#).unwrap(),
-			Reading::Message(Message::Subscribe {
-				topic: "default".to_owned()
-			})
-		);
-	}
-
-	/// The hellos carry no critical member, so one arriving is a peer breaking the protocol (MSG).
-	#[test]
-	fn a_critical_member_on_a_hello_is_a_fault() {
-		assert!(matches!(
-			parse(r#"{"type":"hello","name":"a","version":"1","MODE":"strict"}"#).unwrap_err(),
-			Fault::CriticalNotAllowed { .. }
-		));
-	}
-
-	/// A feature type still refuses rather than faults on an unknown critical member, and a nested one
-	/// costs only the object that carried it, not the rest of the message (MSG).
-	#[test]
-	fn an_unknown_critical_member_nested_in_a_reading_is_refused() {
-		let json = r#"{"type":"reading","at":1,"measurement":"cpu-usage","traits":{"status":{"is":"passed"}},"kind":"fraction","value":0.1,"SCOPE":"site"}"#;
-		assert_eq!(
-			parse(json).unwrap(),
-			Reading::Refused(Refusal::CriticalMembers(vec!["scope".to_owned()]))
-		);
-	}
-
-	/// An unknown type named by a critical `TYPE` is reported rather than passed over in silence.
-	#[test]
-	fn an_unknown_critical_type_is_refused() {
-		assert_eq!(
-			parse(r#"{"TYPE":"wipe","confirm":true}"#).unwrap(),
-			Reading::Refused(Refusal::CriticalType("wipe".to_owned()))
-		);
-	}
-
-	/// A nested ignorable member is passed over, and the message is read.
-	#[test]
-	fn a_nested_ignorable_member_is_skipped() {
-		let json = r#"{"type":"reading","at":1,"measurement":"cpu-usage","traits":{"status":{"is":"passed"}},"kind":"fraction","value":0.1,"cores":4}"#;
-		let Reading::Message(Message::Reading(entry)) = parse(json).unwrap() else {
-			panic!("expected a reading")
-		};
-		assert_eq!(entry.name, "cpu-usage");
-	}
-
-	#[test]
-	fn a_known_type_missing_what_it_requires_is_a_fault() {
-		assert!(matches!(
-			parse(r#"{"type":"subscribe"}"#).unwrap_err(),
-			Fault::Malformed { .. }
-		));
-		assert!(matches!(
-			parse(r#"{"type":"reading","measurement":"cpu-usage"}"#).unwrap_err(),
-			Fault::Malformed { .. }
-		));
-	}
-
-	#[test]
-	fn malformed_json_is_a_fault() {
-		assert!(matches!(
-			parse("this is not json").unwrap_err(),
-			Fault::NotJson(_)
-		));
-		assert_eq!(parse("[]").unwrap_err(), Fault::NotObject);
-	}
-
-	#[test]
-	fn a_message_without_a_string_type_is_a_fault() {
-		assert_eq!(parse(r#"{"topic":"default"}"#).unwrap_err(), Fault::NoType);
-		assert_eq!(
-			parse(r#"{"type":42,"topic":"default"}"#).unwrap_err(),
-			Fault::TypeNotString
-		);
-	}
-}
+mod tests;

@@ -32,20 +32,20 @@ The CTL rename touches `bliti-core` (`channel/messages.rs`, `channel/generate.rs
 
 ### Wire messages (`bliti-core`)
 
-- [ ] `channel/messages.rs`: `Message::Control` becomes `Message::Power`, on the wire as `power`; update the known-types list and the doc comments.
-- [ ] `channel/messages.rs`: `GoingAway` gains `cause: String`, always written and required when parsed.
-- [ ] `channel/messages.rs`: add `Curve`, `Curves { document: Option<Json>, lasts: Option<Span>, recharge: Option<Span> }`, `Load { document: Json }` and `Reset`, where `Span` is `{ duration, margin }` in seconds. `accepted` and `refused` are reused. The document stays raw JSON here; the device validates it.
-- [ ] `channel/generate.rs`: generators for `power`, the four curve-stream types, and `going-away` with a cause.
-- [ ] `channel/messages.rs` tests: round-trip and parse for each new or changed type; `going-away` without `cause` fails to parse.
-- [ ] `cargo test -p bliti-wire-compat` passes unchanged.
+- [x] `channel/messages.rs`: `Message::Control` becomes `Message::Power`, on the wire as `power`; update the known-types list and the doc comments.
+- [x] `channel/messages.rs`: `GoingAway` gains `cause: String`, always written and required when parsed.
+- [x] `channel/messages.rs`: add `Curve`, `Curves { document: Option<Json>, lasts: Option<Span>, recharge: Option<Span> }`, `Load { document: Json }` and `Reset`, where `Span` is `{ duration, margin }` in seconds. `accepted` and `refused` are reused. The document stays raw JSON here; the device validates it.
+- [x] `channel/generate.rs`: generators for `power`, the four curve-stream types, and `going-away` with a cause.
+- [x] `channel/messages.rs` tests: round-trip and parse for each new or changed type; `going-away` without `cause` fails to parse.
+- [x] `cargo test -p bliti-wire-compat` passes unchanged.
 
 ### Power stream and going-away cause (`bliti`)
 
-- [ ] Rename `crate::control` to `crate::power` (`control.rs` → `power.rs`, `control/systemd.rs`, `control/tests.rs`). "Control stream" becomes "power stream" in every doc comment and log line; `Controller` keeps its name.
-- [ ] `session.rs`: dispatch `Message::Power` to `power::serve`; update the module doc listing the stream roles.
-- [ ] `power.rs`: going-away carries `manual-control` for an accepted act.
+- [x] Rename `crate::control` to `crate::power` (`control.rs` → `power.rs`, `control/systemd.rs`, `control/tests.rs`). "Control stream" becomes "power stream" in every doc comment and log line; `Controller` keeps its name.
+- [x] `session.rs`: dispatch `Message::Power` to `power::serve`; update the module doc listing the stream roles.
+- [x] `power.rs`: going-away carries `manual-control` for an accepted act.
 - [ ] `power.rs`: a low-battery entry point on `Controller` that takes the same accepted slot an act does (so later acts are refused, CTL), sends `going-away` with `power-off` and `low-battery`, then powers off. It is callable from the record thread through a handle.
-- [ ] `client.rs`: follow the rename.
+- [x] `client.rs`: follow the rename.
 - [ ] `power/tests.rs`, `session/tests.rs`: rename; `going-away` carries its cause; an act asked for after a low-battery shutdown has begun is refused.
 
 ### Supply state and curves (`bliti`, `facts/power/`)

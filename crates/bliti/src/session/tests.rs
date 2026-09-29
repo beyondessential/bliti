@@ -452,10 +452,10 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 
 /// Records the acts it is asked to carry out.
 #[derive(Default)]
-struct Recorded(Mutex<Vec<crate::control::Act>>);
+struct Recorded(Mutex<Vec<crate::power::Act>>);
 
-impl crate::control::Power for Recorded {
-	fn carry_out(&self, act: crate::control::Act) -> anyhow::Result<()> {
+impl crate::power::System for Recorded {
+	fn carry_out(&self, act: crate::power::Act) -> anyhow::Result<()> {
 		self.0.lock().unwrap().push(act);
 		Ok(())
 	}
@@ -474,52 +474,64 @@ async fn next(stream: &mut Stream) -> Message {
 	}
 }
 
-/// A control stream lists the acts, answers each asked for, and an act accepted is announced on the
-/// feed of every session, the asking one included, before the sessions end and the act is carried out
-/// (CTL).
+/// Tell a session's hello stream from its feed: the feed is the one that carries facts.
+async fn feed_of(streams: &mut Streams) -> Stream {
+	let one = streams.accept().await.unwrap();
+	let two = streams.accept().await.unwrap();
+	let (mut one, mut two) = (one, two);
+	let first = drain(&mut one).await;
+	let _ = drain(&mut two).await;
+	if first.iter().any(|m| matches!(m, Message::Hello { .. })) {
+		two
+	} else {
+		one
+	}
+}
+
+/// The next `going-away` on a feed, as its act and cause, passing over the facts and readings.
+async fn going_away_on(feed: &mut Stream) -> (String, String) {
+	loop {
+		match next(feed).await {
+			Message::GoingAway { act, cause } => return (act, cause),
+			Message::Fact(_) | Message::Reading(_) => continue,
+			other => panic!("unexpected {other:?} on the feed"),
+		}
+	}
+}
+
+/// A power stream lists the acts, answers each asked for, and an act accepted is announced on the
+/// feed of every session, the asking one included, as asked for by a client, before the sessions end
+/// and the act is carried out (CTL).
 #[tokio::test]
 async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
-	use crate::control::Act;
+	use crate::power::Act;
 
-	let power = Arc::new(Recorded::default());
+	let system = Arc::new(Recorded::default());
 	let controller = Controller::new(
 		vec![Act::Restart, Act::Reboot],
-		power.clone(),
+		system.clone(),
 		Box::new(|| Box::pin(async {})),
 	);
 	let keys = keys(0x42);
 	let mut asking = paired_with(&keys, controller.clone()).await;
 	let mut watching = paired_with(&keys, controller).await;
 
-	// Tell each session's hello stream from its feed: the feed is the one that carries facts.
-	async fn feed_of(streams: &mut Streams) -> Stream {
-		let one = streams.accept().await.unwrap();
-		let two = streams.accept().await.unwrap();
-		let (mut one, mut two) = (one, two);
-		let first = drain(&mut one).await;
-		let _ = drain(&mut two).await;
-		if first.iter().any(|m| matches!(m, Message::Hello { .. })) {
-			two
-		} else {
-			one
-		}
-	}
 	let mut asking_feed = feed_of(&mut asking).await;
 	let mut watching_feed = feed_of(&mut watching).await;
 
-	let mut control = asking.open().await.unwrap();
-	write_message(&mut control, &Message::Control.to_json())
+	let mut power = asking.open().await.unwrap();
+	write_message(&mut power, &Message::Power.to_json())
 		.await
 		.unwrap();
 	assert_eq!(
-		next(&mut control).await,
+		next(&mut power).await,
 		Message::Acts {
 			acts: vec!["restart".to_owned(), "reboot".to_owned()]
 		}
 	);
 
 	write_message(
-		&mut control,
+		&mut power,
 		&Message::Act {
 			act: "power-off".to_owned(),
 		}
@@ -528,12 +540,12 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	.await
 	.unwrap();
 	assert!(
-		matches!(next(&mut control).await, Message::Refused { reason } if reason.contains("power-off")),
+		matches!(next(&mut power).await, Message::Refused { reason } if reason.contains("power-off")),
 		"an act not listed is refused"
 	);
 
 	write_message(
-		&mut control,
+		&mut power,
 		&Message::Act {
 			act: "reboot".to_owned(),
 		}
@@ -541,17 +553,13 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	)
 	.await
 	.unwrap();
-	assert_eq!(next(&mut control).await, Message::Accepted);
+	assert_eq!(next(&mut power).await, Message::Accepted);
 
 	for feed in [&mut asking_feed, &mut watching_feed] {
-		let going = loop {
-			match next(feed).await {
-				Message::GoingAway { act } => break act,
-				Message::Fact(_) | Message::Reading(_) => continue,
-				other => panic!("unexpected {other:?} on the feed"),
-			}
-		};
-		assert_eq!(going, "reboot");
+		assert_eq!(
+			going_away_on(feed).await,
+			("reboot".to_owned(), "manual-control".to_owned())
+		);
 	}
 
 	// Then each session ends, and the act is carried out.
@@ -564,7 +572,7 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	}
 	let carried = tokio::time::timeout(Duration::from_secs(5), async {
 		loop {
-			if let Some(act) = power.0.lock().unwrap().first().copied() {
+			if let Some(act) = system.0.lock().unwrap().first().copied() {
 				return act;
 			}
 			tokio::time::sleep(Duration::from_millis(10)).await;

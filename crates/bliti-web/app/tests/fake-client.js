@@ -12,8 +12,8 @@
 // answers: for each message type, a queue whose next entry is sent back when the page sends one. An
 // entry is one outcome or a list of them. Anything else a test wants the device to say it emits.
 //
-// A control stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
-// in window.__blitiControlSent, apart from the configuration session's.
+// A power stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
+// in window.__blitiPowerSent, apart from the configuration session's.
 //
 // window.__blitiReturns scripts reconnecting to a device coming back: one entry per attempt, 'ok' to
 // reach it, 'chooser' where it can only be picked again, anything else to fail. An attempt with no
@@ -27,10 +27,10 @@
 export const installFakeClient = `
 window.__blitiFeeds = []
 window.__blitiSent = []
-window.__blitiControlSent = []
+window.__blitiPowerSent = []
 window.__blitiAnswers = {}
 window.__blitiSessions = []
-window.__blitiControls = []
+window.__blitiPowerStreams = []
 window.__blitiReturns = []
 window.__blitiReconnects = 0
 // Short enough that coming back, giving up and the power-off hold all happen within a test.
@@ -135,12 +135,12 @@ window.__blitiClient = {
 			},
 		}
 	},
-	async control({ onEvent, onClosed }) {
+	async power({ onEvent, onClosed }) {
 		const stream = { open: true, closedByPage: false }
-		window.__blitiControls.push(stream)
+		window.__blitiPowerStreams.push(stream)
 		const send = (message) => {
-			if (!stream.open) throw new Error('The control stream has ended.')
-			window.__blitiControlSent.push(message)
+			if (!stream.open) throw new Error('The power stream has ended.')
+			window.__blitiPowerSent.push(message)
 			const queue = window.__blitiAnswers[message.type]
 			const next = Array.isArray(queue) ? queue.shift() : undefined
 			if (next === undefined) return
@@ -148,14 +148,14 @@ window.__blitiClient = {
 				for (const event of Array.isArray(next) ? next : [next]) if (stream.open) onEvent(event)
 			}, 0)
 		}
-		window.__blitiControl = {
+		window.__blitiPowerStream = {
 			emit: (event) => stream.open && onEvent(event),
 			close: (why) => {
 				stream.open = false
 				onClosed?.(why ?? null)
 			},
 		}
-		send({ type: 'control' })
+		send({ type: 'power' })
 		return {
 			act: (act) => send({ type: 'act', act }),
 			close: () => {
@@ -234,9 +234,9 @@ export async function openNetworkScreen(page) {
 	await page.getByRole('button', { name: 'Network settings' }).click()
 }
 
-/// Every message the page has sent on control streams, in order.
-export async function controlSent(page) {
-	return page.evaluate(() => window.__blitiControlSent)
+/// Every message the page has sent on power streams, in order.
+export async function powerSent(page) {
+	return page.evaluate(() => window.__blitiPowerSent)
 }
 
 /// Script the outcome of each attempt to reach a device coming back: 'ok', 'chooser', or a failure.

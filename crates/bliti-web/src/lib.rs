@@ -464,23 +464,23 @@ impl Channel {
 		})
 	}
 
-	/// Open a control stream: a stream whose first message is `control` (CTL).
+	/// Open a power stream: a stream whose first message is `power` (CTL).
 	///
 	/// Everything the device sends on it is passed to `on_message` as a subscription's messages are,
 	/// and `on_closed` is called once the stream ends. The handle this resolves to asks for acts on
 	/// the same stream.
-	pub fn control(&self, on_message: Function, on_closed: Function) -> Promise {
+	pub fn power(&self, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let exchange = Exchange::open(
 				&inner,
-				Message::Control,
-				"a control stream",
+				Message::Power,
+				"a power stream",
 				on_message,
 				on_closed,
 			)
 			.await?;
-			Ok(JsValue::from(ControlHandle { exchange }))
+			Ok(JsValue::from(PowerHandle { exchange }))
 		})
 	}
 }
@@ -629,20 +629,20 @@ impl ConfigurationHandle {
 	}
 }
 
-/// One open control stream, which lasts exactly as long as its stream (CTL).
+/// One open power stream, which lasts exactly as long as its stream (CTL).
 #[wasm_bindgen]
-pub struct ControlHandle {
+pub struct PowerHandle {
 	exchange: Exchange,
 }
 
 #[wasm_bindgen]
-impl ControlHandle {
+impl PowerHandle {
 	/// Ask the device to carry out an act, by its wire name.
 	pub fn act(&self, act: String) -> Result<(), JsError> {
 		self.exchange.send(Message::Act { act }.to_json())
 	}
 
-	/// End the control stream.
+	/// End the power stream.
 	pub fn close(&self) {
 		self.exchange.close();
 	}
@@ -797,10 +797,10 @@ mod tests {
 		assert_eq!(document["later"]["kept"], 1);
 	}
 
-	/// The control stream's answers and the feed's `going-away` reach the application with their
-	/// members as the wire names them, which is what it reads the act from (CTL).
+	/// The power stream's answers and the feed's `going-away` reach the application with their
+	/// members as the wire names them, which is what it reads the act and its cause from (CTL).
 	#[test]
-	fn the_control_messages_are_described_as_the_wire_names_them() {
+	fn the_power_messages_are_described_as_the_wire_names_them() {
 		for (message, expected) in [
 			(
 				Message::Acts {
@@ -818,8 +818,9 @@ mod tests {
 			(
 				Message::GoingAway {
 					act: "power-off".to_owned(),
+					cause: "low-battery".to_owned(),
 				},
-				serde_json::json!({"type": "going-away", "act": "power-off"}),
+				serde_json::json!({"type": "going-away", "act": "power-off", "cause": "low-battery"}),
 			),
 		] {
 			let (described, fault) = describe(&message.to_json());

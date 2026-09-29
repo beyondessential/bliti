@@ -30,7 +30,6 @@ use tracing::Instrument;
 
 use crate::{
 	NetworkBackend,
-	control::{Controller, systemd::Systemd},
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
@@ -38,6 +37,7 @@ use crate::{
 		stack::{Chosen, Stack},
 		wired,
 	},
+	power::{Controller, systemd::Systemd},
 	session::{self, AbortOnDrop},
 };
 
@@ -88,7 +88,7 @@ pub async fn run(
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
 	end_connections(&adapter, "ending a connection made before this start").await?;
 
-	let controller = control(&adapter).await;
+	let controller = controller(&adapter).await;
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume by
@@ -560,7 +560,7 @@ const DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 /// The acts this device offers, and what drops its connections before it carries one out (CTL).
 ///
 /// A device whose systemd cannot be reached offers none, and says why.
-async fn control(adapter: &bluer::Adapter) -> Controller {
+async fn controller(adapter: &bluer::Adapter) -> Controller {
 	let probed = tokio::task::spawn_blocking(Systemd::probe)
 		.await
 		.unwrap_or_else(|err| Err(anyhow::anyhow!("probing systemd panicked: {err}")));

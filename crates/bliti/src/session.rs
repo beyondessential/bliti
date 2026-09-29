@@ -9,7 +9,7 @@
 //! and resumes with a `subscribe` for `default`. A topic is served on at most one stream, so a
 //! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
 //! handed to the configuration session of [`crate::network::session`], and one whose client sends
-//! `control` to the control stream of [`crate::control`]. Beyond that it never answers a
+//! `power` to the power stream of [`crate::power`]. Beyond that it never answers a
 //! message on the wire: one it does not recognise is passed over, one carrying something critical it
 //! does not know is refused, one it knows but has nothing to do about is a no-op, and one that breaks
 //! the protocol closes the stream it arrived on.
@@ -36,12 +36,12 @@ use tokio::task::{AbortHandle, JoinSet};
 use tracing::Instrument;
 
 use crate::{
-	control::{self, Controller, SessionGuard},
 	facts,
 	network::{
 		self,
 		session::{Backend, Configurator},
 	},
+	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
 };
 
@@ -302,13 +302,17 @@ where
 			Ok(Reading::Message(Message::Configure)) => {
 				return network::session::serve(stream, configurator).await;
 			}
-			Ok(Reading::Message(Message::Control)) => {
-				return control::serve(stream, controller, peer).await;
+			Ok(Reading::Message(Message::Power)) => {
+				return power::serve(stream, controller, peer).await;
 			}
 			Ok(Reading::Message(Message::Act { .. })) => {
-				// An act on a stream that opened no control stream. Nothing to act on, which MSG makes a
+				// An act on a stream that opened no power stream. Nothing to act on, which MSG makes a
 				// no-op rather than a fault.
-				tracing::debug!("an act outside a control stream; nothing to do");
+				tracing::debug!("an act outside a power stream; nothing to do");
+			}
+			Ok(Reading::Message(Message::Curve | Message::Load { .. } | Message::Reset)) => {
+				// The curve stream of CRV, which this device does not serve yet. A no-op (MSG).
+				tracing::debug!("a curve-stream message; nothing to do");
 			}
 			Ok(Reading::Message(
 				Message::Configuration { .. }
@@ -333,7 +337,8 @@ where
 				| Message::Acts { .. }
 				| Message::Accepted
 				| Message::Refused { .. }
-				| Message::GoingAway { .. },
+				| Message::GoingAway { .. }
+				| Message::Curves { .. },
 			)) => {
 				// Answers only a device sends. A client sending one has nothing for this device to do
 				// about it, a no-op rather than a fault (MSG).
@@ -408,8 +413,11 @@ where
 				return Ok(());
 			}
 
-			act = going.going(), if !told => {
-				let message = Message::GoingAway { act: act.name().to_owned() };
+			going_away = going.going(), if !told => {
+				let message = Message::GoingAway {
+					act: going_away.act.name().to_owned(),
+					cause: going_away.cause.name().to_owned(),
+				};
 				if write_message(&mut writer, &message.to_json()).await.is_err() {
 					return Ok(());
 				}

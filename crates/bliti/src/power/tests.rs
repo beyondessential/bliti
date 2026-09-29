@@ -9,14 +9,14 @@ enum Step {
 	Carried(Act),
 }
 
-/// Power that records what it was asked to carry out, and fails where told to.
+/// A system that records what it was asked to carry out, and fails where told to.
 #[derive(Default)]
 struct Recording {
 	steps: Arc<Mutex<Vec<Step>>>,
 	fail: AtomicBool,
 }
 
-impl Power for Recording {
+impl System for Recording {
 	fn carry_out(&self, act: Act) -> anyhow::Result<()> {
 		self.steps.lock().unwrap().push(Step::Carried(act));
 		if self.fail.load(Ordering::SeqCst) {
@@ -27,13 +27,13 @@ impl Power for Recording {
 }
 
 fn controller(acts: Vec<Act>, fail: bool) -> (Controller, Arc<Mutex<Vec<Step>>>) {
-	let power = Recording::default();
-	power.fail.store(fail, Ordering::SeqCst);
-	let steps = power.steps.clone();
+	let system = Recording::default();
+	system.fail.store(fail, Ordering::SeqCst);
+	let steps = system.steps.clone();
 	let ended = steps.clone();
 	let controller = Controller::new(
 		acts,
-		Arc::new(power),
+		Arc::new(system),
 		Box::new(move || {
 			let ended = ended.clone();
 			Box::pin(async move { ended.lock().unwrap().push(Step::Ended) })
@@ -64,6 +64,16 @@ fn every_act_has_one_wire_name() {
 	}
 	assert_eq!(Act::from_name("hibernate"), None);
 }
+
+#[test]
+fn every_cause_has_its_wire_name() {
+	assert_eq!(Cause::ManualControl.name(), "manual-control");
+}
+
+const MANUAL: fn(Act) -> Going = |act| Going {
+	act,
+	cause: Cause::ManualControl,
+};
 
 /// An act the device did not list is refused, and so is every act once one has been accepted (CTL).
 #[tokio::test]
@@ -98,10 +108,10 @@ async fn going_away_tells_every_feed_then_ends_every_session_then_acts() {
 	let mut session = controller.session();
 
 	let act = controller.ask("reboot", &Peer::default()).unwrap();
-	controller.go(act);
+	controller.go(MANUAL(act));
 
-	assert_eq!(first.going().await, Act::Reboot);
-	assert_eq!(second.going().await, Act::Reboot);
+	assert_eq!(first.going().await, MANUAL(Act::Reboot));
+	assert_eq!(second.going().await, MANUAL(Act::Reboot));
 	let ending = tokio::time::timeout(Duration::from_millis(200), session.ending()).await;
 	assert!(ending.is_err(), "no session ends until every feed is told");
 
@@ -128,7 +138,7 @@ async fn going_away_tells_every_feed_then_ends_every_session_then_acts() {
 async fn a_feed_opened_while_going_is_told_at_once() {
 	let (controller, _) = controller(vec![Act::Restart], false);
 	let _session = controller.session();
-	controller.go(controller.ask("restart", &Peer::default()).unwrap());
+	controller.go(MANUAL(controller.ask("restart", &Peer::default()).unwrap()));
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
 	let mut late = controller.feed();
@@ -136,7 +146,7 @@ async fn a_feed_opened_while_going_is_told_at_once() {
 		tokio::time::timeout(Duration::from_secs(1), late.going())
 			.await
 			.unwrap(),
-		Act::Restart
+		MANUAL(Act::Restart)
 	);
 }
 
@@ -145,7 +155,9 @@ async fn a_feed_opened_while_going_is_told_at_once() {
 #[tokio::test]
 async fn a_failed_act_leaves_the_device_taking_acts_again() {
 	let (controller, steps) = controller(vec![Act::PowerOff], true);
-	controller.go(controller.ask("power-off", &Peer::default()).unwrap());
+	controller.go(MANUAL(
+		controller.ask("power-off", &Peer::default()).unwrap(),
+	));
 	until(&steps, 2).await;
 	tokio::time::sleep(Duration::from_millis(50)).await;
 

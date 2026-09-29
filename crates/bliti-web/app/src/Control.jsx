@@ -45,7 +45,7 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 		let live = true
 		let opened = null
 		client
-			.control({
+			.power({
 				onEvent: (event) => {
 					if (!live) return
 					onEvent?.(event)
@@ -72,7 +72,7 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 				if (live) stream.current = opened = handle
 				else handle.close()
 			})
-			.catch((error) => live && onActivity?.('note', `could not open a control stream: ${error.message ?? error}`))
+			.catch((error) => live && onActivity?.('note', `could not open a power stream: ${error.message ?? error}`))
 		return () => {
 			live = false
 			opened?.close()

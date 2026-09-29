@@ -144,7 +144,7 @@ test.describe('a reload', () => {
 
 	test('while the device restarts comes back holding that device', async ({ page }) => {
 		await open(page, A, 'clinic-store-2')
-		await emit(page, message({ type: 'going-away', act: 'restart' }))
+		await emit(page, message({ type: 'going-away', act: 'restart', cause: 'manual-control' }))
 		await expect(page.getByText('Restarting bliti…')).toBeVisible()
 		await page.reload()
 		await expect(held(page).locator('p.code')).toHaveText(A)
