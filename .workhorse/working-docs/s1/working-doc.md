@@ -157,12 +157,13 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 ## Testing notes
 
-- First print-and-scan run, at 0.70 mm modules:
-  - today's code, v10 H (40 mm), as the baseline that is known to read
-  - `BLITI:` + 33-byte payload at H, v5 (26.0 mm)
-  - the same at Q, v4 (23.2 mm)
-  - the same at M, v3 (20.3 mm)
-  - Level L gains no version over M at 33 bytes, so it is left out.
+- First print-and-scan run: a three-page A4 sheet, each code with its own random payload and an ID.
+  - Candidates: A is today's code (URL + 65 bytes, H, v10, automatic segmentation). B, C and D are `BLITI:` + 33 bytes at H v5, Q v4 and M v3, segmented by hand.
+  - Sheet 1, clean, at 0.5, 0.6 and 0.7 mm modules: IDs A5 to D7, where the digit is the module size in tenths of a millimetre. This tests whether 0.70 mm really is the floor.
+  - Sheet 2, at 0.7 mm with a light square blot over 5, 10, 15 and 20% of the code, clear of the finders: IDs B-5 to D-20. A is left out because it outlasts all of them.
+  - Sheet 3 is a results table with a tick column per phone.
+- Digital thresholds before printing (largest blot still read by quirc and zbar across eight random payloads each): M v3 ≈ 5%, Q v4 ≈ 11%, H v5 ≈ 17%, today's H v10 ≈ 24%. Every clean code reads at every module size.
+- The smaller symbols tolerate less than their level promises (M is nominally 15% of codewords, H 30%). A contiguous blot touches more codewords than the share of area it covers, and at v3 to v5 it also covers the alignment pattern.
 - Trial codes are printed from random bytes of the right length. A print test needs no working handshake.
 - For the sticker design rather than bliti: whether a light, plain case surface can serve as the quiet zone on a side face, which decides whether v5 (31.6 mm with a printed quiet zone) fits the 35 mm face comfortably.
 - Each candidate on paper, and in the protective pouch once one is chosen, since glare costs error correction.
