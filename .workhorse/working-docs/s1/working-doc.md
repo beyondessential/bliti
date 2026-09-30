@@ -147,11 +147,14 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 - [ ] Which handshake pattern replaces `NKpsk0`, for Tech design: `NXpsk0` is the closest, with alternatives (a later psk position, for one) compared and the SEC argument written out. The key it sends is the device static key of KEY, the same X25519 key the code carries today; the advertisement carries only the handle and never the key.
 
+- [ ] Does the iOS Camera app offer to open a registered custom scheme from a QR code, and does Google Lens or the Android camera app hand one to an application? Only matters once a native application exists.
+
 ## Trade-offs
 
 - No link. A generic phone camera opening the web app was nice to have, and a native application claiming links only a possibility. Against that, a code that opens nothing for a stranger is worth more, and it costs a version at every level.
 - On the way there: an upper-case URL never won a version over the lower-case URL without its trailing slash, so the App Links and Universal Links case question never mattered for sizing.
 - The `BLITI:` prefix over the bare payload. It costs no version at 33 bytes, and it gives the reader an early rejection of foreign codes, at the price of naming the code's purpose to anyone who scans it.
+- A native iOS application is more likely than it was: iOS has no Web Bluetooth, so an iPhone or iPad operator otherwise needs a browser like Bluefy. `BLITI:` + payload is already a URI under RFC 3986 (`bliti` is a valid scheme, and schemes are case-insensitive), so such an application could register the `bliti` scheme and the system camera would hand the code to it. A phone without the application still gets only a string, so the obscurity holds. The bare payload would not have allowed this.
 - Shrinking the payload is priced here, with the encoding, not treated as fixed. Both cuts are taken: 33 bytes buys back the error correction that encoding alone would have to spend, and it gets the bare prefix to 26 mm at level H.
 - The key fingerprint gives up `NKpsk0`'s encryption of the client's first message to the device's key. That message carries an empty payload, so nothing is lost.
 - Error correction level is open down to M, to be settled by the print trial rather than fixed at H up front.
