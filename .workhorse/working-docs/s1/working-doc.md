@@ -23,6 +23,7 @@ Settled so far:
 - What a sticker looks like is a product decision outside bliti. Bliti provides the QR code, as SVG with its quiet zone, and the human-readable rendering alongside it for whoever lays the sticker out to use or not. QR's rule that the rendering is printed alongside the code goes.
 - The rendering is the payload's 53 characters grouped for legibility, without the prefix.
 - The reader takes the code text and anything a person would type for it: the prefix in any case or absent, the payload in any case, dashes and spaces ignored. One reading covers the code and the rendering.
+- With no link, the application's camera is the only way a code is read, so it has to read a code at least as well as the phone's own camera app does: from the same distance, at the same size.
 - The key schedule expands the 16-byte token twice: the pre-shared key is a BLAKE3 derivation of it under `bliti pre-shared key`, and the advertised handle is keyed on a derivation under `bliti advertised handle`. The handle key and the Noise key are never the same bytes.
 
 With no link, only someone who knows what the code is for, and has the application, gets anything from it; a generic camera shows a string and opens nothing.
@@ -171,3 +172,12 @@ The payload cut buys back the error correction that the encoding alone would hav
 - For the sticker design rather than bliti: whether a light, plain case surface can serve as the quiet zone on a side face, which decides whether v5 (31.6 mm with a printed quiet zone) fits the 35 mm face comfortably.
 - Each candidate on paper, and in the protective pouch once one is chosen, since glare costs error correction.
 - Print each candidate at the real sticker size and scan with a spread of phone cameras (the web app's own reader, on a spread of phones), including a scuffed or partly covered code.
+
+### Round 1 (Android, 20 cm rig)
+
+A rig holds the phone flat and parallel to the sheet, 20 cm above it.
+
+- Android camera app: read everything except C-20, D-5, D-10, D-15 and D-20.
+- bliti in Chrome on the same phone: read nothing. The largest code read only with the sheet at 5 cm.
+- The cause was capture, not decoding. Both go through ML Kit, but the scanner asked the camera for nothing beyond `facingMode`, so Chrome opened it at its default of about 640 × 480. At 20 cm that puts a 0.7 mm module at one or two pixels.
+- Fixed in `scanner.js`: the scanner asks for up to 3840 × 2160 and continuous focus where the camera offers it. The trial resumes on that build.

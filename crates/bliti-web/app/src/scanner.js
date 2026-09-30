@@ -33,6 +33,14 @@ async function detector() {
 	}
 }
 
+// Keep the camera focusing as the code moves, where the camera lets the page ask. A camera that
+// settles focus once, on whatever was in view when it opened, blurs a code brought in close.
+async function focusContinuously(stream) {
+	const [track] = stream.getVideoTracks()
+	if (!track?.getCapabilities?.().focusMode?.includes('continuous')) return
+	await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {})
+}
+
 // Read codes from the camera until one is a QR code, until `signal` aborts, or until the camera
 // fails. Resolves to the code, or to null where the scan was cancelled.
 //
@@ -46,8 +54,11 @@ async function detector() {
 // code up to a camera that looks broken. Reported once per code rather than on every frame it
 // stays in view.
 export async function scan(video, { read, onRejected, signal }) {
+	// Left to itself a phone browser opens the camera at 640 by 480, which leaves a module of a code
+	// on an enclosure a pixel or two across at arm's length: too few for any decoder. The camera app
+	// reads the same code from a stream several times larger, so ask for one.
 	const stream = await navigator.mediaDevices.getUserMedia({
-		video: { facingMode: 'environment' },
+		video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } },
 	})
 
 	const stop = () => {
@@ -57,6 +68,7 @@ export async function scan(video, { read, onRejected, signal }) {
 
 	try {
 		if (signal?.aborted) return null
+		await focusContinuously(stream)
 
 		const detect = await detector()
 		if (signal?.aborted) return null

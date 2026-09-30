@@ -71,3 +71,23 @@ test('a code held up to the camera is read without a QR detector in the browser'
 	await expect(page.locator('p.code')).toHaveText(human)
 	await page.close()
 })
+
+test('the camera is asked for a stream larger than a phone browser opens by default', async ({ page }) => {
+	// A phone browser left to itself opens the camera at 640 by 480, too coarse to read a code on an
+	// enclosure from where an operator holds the phone.
+	await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { value: {} }))
+	await page.addInitScript(noDetector)
+	await page.addInitScript(() => {
+		navigator.mediaDevices.getUserMedia = async (constraints) => {
+			window.cameraConstraints = constraints
+			return document.createElement('canvas').captureStream()
+		}
+	})
+	await page.goto('/')
+	await page.getByRole('button', { name: 'Scan with camera' }).click()
+	await expect.poll(() => page.evaluate(() => window.cameraConstraints)).toBeTruthy()
+	const { video } = await page.evaluate(() => window.cameraConstraints)
+	expect(video.facingMode).toBe('environment')
+	expect(video.width.ideal).toBeGreaterThanOrEqual(1920)
+	expect(video.height.ideal).toBeGreaterThanOrEqual(1080)
+})
