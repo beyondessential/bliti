@@ -72,6 +72,9 @@ self.addEventListener('install', (event) => {
 	event.waitUntil(
 		(async () => {
 			const name = await precacheName
+			// A version that changes the worker and not its list shares the precache in use, filled
+			// already: the list is written last, so a precache holding it is complete.
+			if (await (await caches.open(name)).match(LIST_KEY)) return
 			const old = await carried(name)
 			const cache = await caches.open(name)
 			try {

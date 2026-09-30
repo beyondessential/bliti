@@ -1,33 +1,34 @@
 # Offline-capable service worker in dev and production
 
 Scenarios for the one worker served both by a build and by the dev server.
-The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `offline.spec.js` and `installable.spec.js` against the test build, dev scenarios in `offline-dev.spec.js` (and `installable.spec.js` again) against `vite --mode test`.
+The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `offline.spec.js`, `service-worker.spec.js` and `installable.spec.js` against the test build, dev scenarios in `offline-dev.spec.js` (and `installable.spec.js` again) against `vite --mode test`.
 
 ## Build
 
-- [ ] Load the built bundle online, wait for control, go offline and reload: the app renders and the wasm module fetches (verifies spec: WEB)
-- [ ] With service workers blocked, the wasm module is fetched at startup, before any code is read (verifies spec: WEB)
-- [ ] A first visit is controlled once the worker activates, without a reload
-- [ ] Register a next version whose list renames the wasm module behind an open page: it stays `installed` rather than taking over, and the open page's wasm module still fetches offline (verifies spec: WEB)
-- [ ] `dist/sw.js` lists every JS, CSS, HTML and wasm file in `dist/` and every file in `public/`, each with a revision, and `networkFirst` is `false`
-- [ ] Removing the placeholder token from `src/sw.js` fails `vite build`
-- [ ] An update whose list changes only `index.html`'s revision fetches only `index.html` at install; every other entry is copied from the old precache
-- [ ] An update whose install hits a missing entry never activates, and the old version keeps answering offline
-- [ ] Once a next version activates, only its own `bliti-precache-*` cache remains, and `bliti-runtime` is kept
-- [ ] A POST from the page reaches the server and nothing is stored for it in either cache
-- [ ] `just build` writes gzip, brotli and zstd encodings beside `dist/sw.js` (verifies spec: WEB)
+- [x] Load the built bundle online, wait for control, go offline and reload: the app renders and the wasm module fetches (verifies spec: WEB)
+- [x] With service workers blocked, the wasm module is fetched at startup, before any code is read (verifies spec: WEB)
+- [x] A first visit is controlled once the worker activates, without a reload
+- [x] Register a next version whose list renames the wasm module behind an open page: it stays `installed` rather than taking over, and the open page's wasm module still fetches offline (verifies spec: WEB)
+- [x] `dist/sw.js` lists every JS, CSS, HTML and wasm file in `dist/` and every file in `public/`, each with a revision, and `networkFirst` is `false`
+- [x] A worker source without the placeholder token is refused when the list is injected, which fails `vite build`
+- [x] An update whose list changes only the document's revision fetches only `/` at install; every other entry is copied from the old precache
+- [x] An update that changes the worker and not its list fetches nothing at install, and the precache in use is left as it is
+- [x] An update whose install hits a missing entry never activates, and the old version keeps answering offline
+- [x] Once a next version activates, only its own `bliti-precache-*` cache remains, and `bliti-runtime` is kept
+- [x] A POST from the page reaches the server and nothing is stored for it in either cache
+- [x] `just build` writes gzip, brotli and zstd encodings beside `dist/sw.js` (verifies spec: WEB)
 
 ## Dev client
 
-- [ ] The dev server's `/sw.js` is the worker source with `networkFirst: true`, a `null` revision on every entry, and a list holding `/index.html`, `/@vite/client`, `/src/main.jsx`, `/src/wasm/bliti_web_bg.wasm` and every file in `public/`
-- [ ] Every URL a browser requests from the dev server on loading `/` is in the dev list, the document itself as `/index.html`
-- [ ] Fetching the dev `/sw.js` twice, and again after editing a module's contents without changing its imports, returns identical bytes
-- [ ] Load the dev client online once, wait for control, go offline and reload: the app renders and the wasm module fetches (verifies spec: WEB)
-- [ ] Append a marker to a precached module and reload online: the page receives the module with the marker
-- [ ] Fetch a probe module nothing imports, rewrite it, and fetch again online: the second fetch has the new content; offline, a request with a different `?t=` returns that latest content
-- [ ] While controlled, change the start screen's title in `src/App.jsx`: the page shows the new title with no navigation
-- [ ] After an HMR edit, go offline and reload: the page runs the edited module
-- [ ] The dev origin links `/manifest.webmanifest`, the manifest declares the icons an install needs, and a service worker registers (verifies spec: WEB)
+- [x] The dev server's `/sw.js` is the worker source with `networkFirst: true`, a `null` revision on every entry, and a list holding `/`, `/@vite/client`, `/src/main.jsx`, `/src/wasm/bliti_web_bg.wasm` and every file in `public/`
+- [x] Every URL a browser requests from the dev server on loading `/` is in the dev list, the document itself as `/`
+- [x] Fetching the dev `/sw.js` twice, and again after editing a module's contents without changing its imports, returns identical bytes
+- [x] Load the dev client online once, wait for control, go offline and reload: the app renders and the wasm module fetches (verifies spec: WEB)
+- [x] Append a marker to a precached module and reload online: the page receives the module with the marker
+- [x] Fetch a probe module nothing imports, rewrite it, and fetch again online: the second fetch has the new content; offline, a request with a different `?t=` returns that latest content
+- [x] While controlled, change the start screen's title in `src/App.jsx`: the page shows the new title with no navigation
+- [x] After an HMR edit, go offline and reload: the page runs the edited module
+- [x] The dev origin links `/manifest.webmanifest`, the manifest declares the icons an install needs, and a service worker registers (verifies spec: WEB)
 
 ## On a phone
 
@@ -43,4 +44,4 @@ Run through `bliti-web-serve` on this worktree, in Chrome on Android on the tail
 ## Laptop setup
 
 - [ ] After `bliti-web-serve`, `tailscale serve status` has no `/sw.js` path, and `/sw.js` on the dev origin returns the dev server's worker
-- [ ] `~/.local/share/bliti-web/sw.js` is gone, and the bliti-prototype skill's known-noise entry names clearing site data for a production worker left on the dev origin
+- [x] `~/.local/share/bliti-web/sw.js` is gone, and the bliti-prototype skill's known-noise entry names clearing site data for a production worker left on the dev origin

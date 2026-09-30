@@ -100,6 +100,31 @@ test('an update fetches only what changed, and copies the rest from the precache
 	})
 })
 
+test('an update that changes the worker and not its list leaves the precache in use as it is', async ({
+	page,
+	context,
+}) => {
+	const { list } = await built()
+	const listed = new Set(list.entries.map((entry) => entry.url))
+	await page.goto('/')
+	await controlled(page)
+	const before = await precaches(page)
+
+	const fetched = []
+	context.on('request', (req) => {
+		const url = new URL(req.url())
+		if (req.serviceWorker() && listed.has(url.pathname)) fetched.push(url.pathname)
+	})
+	await withNext(
+		(sw) => `${sw}\n// the next version\n`,
+		async (next) => {
+			expect(await install(page, next)).toBe('installed')
+			expect(fetched).toEqual([])
+			expect(await precaches(page)).toEqual(before)
+		},
+	)
+})
+
 test('an update that cannot fill its precache never activates, and leaves nothing behind', async ({
 	page,
 	context,
