@@ -16,6 +16,8 @@
 
 ## Charge and direction
 
+- [x] A cell on battery near 4 V, falling about a millivolt a minute and holding one gauge step for minutes, is reported on battery at every look, never bypassed (verifies spec: NFO)
+- [x] When mains returns, the fall on battery just before it is not read as a cell draining on mains (verifies spec: NFO)
 - [x] Off mains, the charge is the discharging curve's at the cell voltage, 0 at or below the floor and 1 at full (verifies spec: CHG)
 - [x] On mains, the charge is the gauge's figure scaled to its reading on a full cell, and unscaled until one is known (verifies spec: CHG)
 - [x] On mains, a charging curve is read only once learnt from three charges and only within the voltages it covers (verifies spec: CHG)

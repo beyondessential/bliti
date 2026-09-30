@@ -429,7 +429,10 @@ fn the_history_is_bounded_and_the_recent_window_short() {
 	let state = supply.state();
 	assert_eq!(state.history.len(), 181);
 	assert!(state.history.iter().all(|sample| close(sample.charge, 0.7)));
-	assert_eq!(reading_of(&state).recent.watched(), EVERY * 4);
+	assert_eq!(
+		reading_of(&state).recent.watched(),
+		EVERY * (WATCH.as_secs() / EVERY.as_secs()) as u32
+	);
 }
 
 fn reading_of(state: &State) -> Reading {
@@ -579,4 +582,19 @@ fn the_rate_is_had_after_five_minutes_one_way() {
 
 	supply.observe(look(3.9, true), start + EVERY * 31, 1, UP);
 	assert_eq!(reading(&supply).trend, None);
+}
+
+/// The sampler's window reaches back no further than the power line's last change, so a cell that
+/// fell on battery until mains returned is not read as a cell draining on mains.
+#[test]
+fn the_recent_window_starts_where_the_power_line_changed() {
+	let scratch = Scratch::new();
+	let supply = scratch.supply();
+	let falling = (0..60).map(|look_| look(3.9 - 0.001 * f64::from(look_), false));
+	let back = (0..3).map(|_| look(3.85, true));
+	feed(&supply, Instant::now(), falling.chain(back));
+	let state = supply.state();
+	let recent = reading_of(&state).recent;
+	assert_eq!(recent.watched(), EVERY * 2);
+	assert!(!recent.draining());
 }

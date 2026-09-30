@@ -11,8 +11,10 @@
 //! the board answers, and a power cut stops the device dead rather than switching it over.
 //!
 //! The distinction is in the movement and not the level. An idle cell does not move at all; a cell
-//! carrying the device drifts down a few millivolts every ten seconds. State of charge is no use
-//! here, taking about eighty seconds to move where the voltage is unambiguous within twenty or thirty.
+//! carrying the device drifts down, but near 4 V by only about a millivolt a minute, under one gauge
+//! step, and a cell recovering from a burst of load can hold still for minutes. So a cell is watched
+//! for ten minutes before its stillness is believed. State of charge is no use here: it moves later
+//! still.
 //!
 //! The board is looked at every ten seconds by the record thread, whether or not the device is
 //! sampling, into the one [`Supply`]; the readings here report what it last saw. The charge reported
@@ -67,12 +69,17 @@ const POWER_LINE: &str = "GPIO6";
 const BUILT_IN: &str = "built-in";
 const BOARD_VENDOR: &str = "SupTronics";
 
-/// How far back the cell voltage is watched to tell a drifting cell from a still one.
-const WATCH: Duration = Duration::from_secs(45);
+/// How far back the cell voltage is watched to tell a drifting cell from a still one, never further
+/// than the power line's last change. Longer than [`SETTLED`], so a window reaches it whatever the
+/// looks' timing.
+const WATCH: Duration = Duration::from_secs(11 * 60);
 
 /// How long the cell must have been watched before a still one is believed. Under this, the device
 /// reports running on battery rather than asserting a bypass, and reports the direction as skipped.
-const SETTLED: Duration = Duration::from_secs(25);
+///
+/// A v4 on battery near 4 V fell 22 mV in 21 minutes, and looked still over a 45 s window in one
+/// window in five; over five minutes, never. Ten leaves room for a cell recovering from load.
+const SETTLED: Duration = Duration::from_secs(10 * 60);
 
 /// Below these, a battery carrying the device is low: `warning`, then `failed` (NFO).
 const LOW_WARNING: f64 = 0.2;
@@ -407,7 +414,7 @@ mod tests {
 	fn draining() -> Recent {
 		recent(
 			&[4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139],
-			Duration::from_secs(4),
+			Duration::from_secs(120),
 		)
 	}
 
@@ -435,7 +442,7 @@ mod tests {
 	/// enough, is a bypass (NFO).
 	#[test]
 	fn a_still_cell_with_no_external_power_is_a_bypass() {
-		let recent = recent(&[4.156; 12], Duration::from_secs(3));
+		let recent = recent(&[4.156; 12], Duration::from_secs(60));
 		assert_eq!(recent.source(Some(false)), Some(Source::Bypassed));
 	}
 
@@ -445,7 +452,7 @@ mod tests {
 			&[
 				4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139, 4.136, 4.134,
 			],
-			Duration::from_secs(4),
+			Duration::from_secs(90),
 		);
 		assert_eq!(recent.source(Some(false)), Some(Source::Battery));
 	}
@@ -464,13 +471,37 @@ mod tests {
 	fn the_record_threads_cadence_tells_the_states_apart() {
 		let every = Duration::from_secs(10);
 		assert_eq!(
-			recent(&[4.156; 5], every).source(Some(false)),
+			recent(&[4.156; 61], every).source(Some(false)),
 			Some(Source::Bypassed)
 		);
+		let falling: Vec<f64> = (0..61)
+			.map(|look| 4.156 - 0.0002 * f64::from(look))
+			.collect();
 		assert_eq!(
-			recent(&[4.159, 4.152, 4.146, 4.139, 4.133], every).source(Some(false)),
+			recent(&falling, every).source(Some(false)),
 			Some(Source::Battery)
 		);
+	}
+
+	/// A v4 on battery near 4 V, looked at every ten seconds for 21 minutes, where the cell fell about
+	/// a millivolt a minute and held a single gauge step for minutes at a time. Over every window the
+	/// record thread could have watched, it is on battery, never bypassed (NFO).
+	#[test]
+	fn a_slow_fall_on_battery_is_never_a_bypass() {
+		let volts: Vec<f64> = include_str!("power/fixtures/v4-on-battery-near-4v.txt")
+			.lines()
+			.map(|line| line.parse().unwrap())
+			.collect();
+		let every = Duration::from_secs(10);
+		let window = (WATCH.as_secs() / every.as_secs()) as usize;
+		for end in 1..=volts.len() {
+			let seen = &volts[end.saturating_sub(window + 1)..end];
+			assert_eq!(
+				recent(seen, every).source(Some(false)),
+				Some(Source::Battery),
+				"the look {end} in"
+			);
+		}
 	}
 
 	/// The three power-source wire values, and a bypass as a warning (NFO).
@@ -493,7 +524,7 @@ mod tests {
 	/// has finished and idle after, whatever the gauge's figure (CHG).
 	#[test]
 	fn direction_follows_the_power_source() {
-		let still = recent(&[4.156; 12], Duration::from_secs(3));
+		let still = recent(&[4.156; 12], Duration::from_secs(60));
 		let direction = |source, full| {
 			battery_direction(1, &still, Some(source), full)
 				.value
@@ -534,7 +565,7 @@ mod tests {
 		assert_eq!(skipped.status(), Some("skipped"));
 		assert!(skipped.reason().is_some());
 
-		let idle = recent(&[4.156; 12], Duration::from_secs(3));
+		let idle = recent(&[4.156; 12], Duration::from_secs(60));
 		let direction = battery_direction(1, &idle, None, false);
 		assert_eq!(
 			direction.status(),
@@ -590,7 +621,7 @@ mod tests {
 	/// around the backup board (NFO).
 	#[test]
 	fn a_low_charge_off_battery_is_passed() {
-		let still = recent(&[3.6; 5], Duration::from_secs(10));
+		let still = recent(&[3.6; 61], Duration::from_secs(10));
 		for external in [true, false] {
 			let entries = gauge_entries(&reading(still.clone(), Some(external), 0.03, false));
 			assert_eq!(named(&entries, "battery-charge").status(), Some("passed"));
@@ -609,7 +640,7 @@ mod tests {
 	/// cell here sits below the idle one, because their charges differ.
 	#[test]
 	fn the_movement_distinguishes_the_states_not_the_level() {
-		let idle = recent(&[4.199; 12], Duration::from_secs(3));
+		let idle = recent(&[4.199; 12], Duration::from_secs(60));
 		assert_eq!(draining().source(Some(false)), Some(Source::Battery));
 		assert_eq!(idle.source(Some(false)), Some(Source::Bypassed));
 	}
@@ -662,7 +693,7 @@ mod tests {
 	/// neither is reported (NFO, CHG).
 	#[test]
 	fn the_time_follows_the_direction() {
-		let still = recent(&[4.0; 5], Duration::from_secs(10));
+		let still = recent(&[4.0; 61], Duration::from_secs(10));
 		let charging = trending(reading(still.clone(), Some(true), 0.5, false), 1e-4, 0.0);
 		let entries = gauge_entries(&charging);
 		assert!(!has(&entries, "battery-time-to-empty"));
@@ -675,7 +706,7 @@ mod tests {
 		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
 
 		// Fed around the backup board, the cell neither carries the device nor takes charge.
-		let bypassed = recent(&[4.156; 12], Duration::from_secs(3));
+		let bypassed = recent(&[4.156; 12], Duration::from_secs(60));
 		let entries = gauge_entries(&reading(bypassed, Some(false), 0.9, false));
 		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
 	}

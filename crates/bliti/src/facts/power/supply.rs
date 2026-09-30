@@ -579,18 +579,24 @@ impl State {
 		rate::trend(&samples)
 	}
 
-	/// The cell voltage over the last [`WATCH`], up to the newest sample.
+	/// The cell voltage over the last [`WATCH`], up to the newest sample and back no further than the
+	/// power line's last change: a cell falling on battery just before mains returned is not a cell
+	/// draining on mains.
 	fn recent(&self) -> Recent {
 		let Some(newest) = self.history.back() else {
 			return Recent::default();
 		};
-		Recent::new(
-			self.history
-				.iter()
-				.filter(|sample| newest.at.duration_since(sample.at) <= WATCH)
-				.map(|sample| (sample.at, sample.volts))
-				.collect(),
-		)
+		let mut seen: Vec<_> = self
+			.history
+			.iter()
+			.rev()
+			.take_while(|sample| {
+				newest.at.duration_since(sample.at) <= WATCH && sample.external == newest.external
+			})
+			.map(|sample| (sample.at, sample.volts))
+			.collect();
+		seen.reverse();
+		Recent::new(seen)
 	}
 }
 
