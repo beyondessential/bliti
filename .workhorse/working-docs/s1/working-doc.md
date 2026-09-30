@@ -15,6 +15,7 @@ Settled so far:
 
 - The payload is 33 bytes: the version marker, a 16-byte presence token, and a 16-byte fingerprint of the device static public key.
 - The client authenticates the device by checking the static key it receives in the handshake against the fingerprint, rather than by knowing the key beforehand.
+- A device whose static key does not match the fingerprint fails the handshake, and the operator sees it as any failed handshake.
 - The payload stays base32. Base45 buys no version at any size priced, cannot ride in a URL fragment, and makes a poor human-readable rendering.
 - The generator segments the code explicitly, so every board's code is the same version and that version is the smallest the text allows.
 - The code carries no link. Its text is `BLITI:` followed by the 53 base32 characters of the payload, all in QR's alphanumeric set.
@@ -144,7 +145,6 @@ The payload cut buys back the error correction that the encoding alone would hav
 ## Open questions
 
 - [ ] Which handshake pattern replaces `NKpsk0`, for Tech design: `NXpsk0` is the closest, with alternatives (a later psk position, for one) compared and the SEC argument written out. The key it sends is the device static key of KEY, the same X25519 key the code carries today; the advertisement carries only the handle and never the key.
-- [ ] When the key the device sends does not match the fingerprint, does the operator see it as any failed handshake, or distinctly as a device that is not the one the code belongs to?
 
 ## Trade-offs
 
