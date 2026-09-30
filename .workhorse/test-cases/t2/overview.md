@@ -3,7 +3,7 @@
 ## Low-battery shutdown
 
 - [ ] A daemon on a machine with no backup board (a dev laptop running on its own battery, below 5 %) never begins a low-battery shutdown and logs nothing about being unable to power off (verifies spec: LOW)
-- [ ] A dev build deployed to a prototype Pi on an X120x board arms the shutdown as a release build does (verifies spec: LOW)
+- [x] A dev build deployed to a prototype Pi on an X120x board arms the shutdown as a release build does (verifies spec: LOW)
 - [x] Sixty seconds of readings all below 2.8 V with external power absent powers the device off, and not a reading sooner (verifies spec: LOW)
 - [x] A reading at or above 2.8 V, a reading that could not be taken, or external power returning starts the sixty seconds again (verifies spec: LOW)
 - [x] Within two minutes of the system starting no shutdown begins, however long the floor has been held, and one begins once the two minutes are up (verifies spec: LOW)
