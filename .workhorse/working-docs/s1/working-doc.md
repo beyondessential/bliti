@@ -161,7 +161,10 @@ The payload cut buys back the error correction that the encoding alone would hav
   - Candidates: A is today's code (URL + 65 bytes, H, v10, automatic segmentation). B, C and D are `BLITI:` + 33 bytes at H v5, Q v4 and M v3, segmented by hand.
   - Sheet 1, clean, at 0.5, 0.6 and 0.7 mm modules: IDs A5 to D7, where the digit is the module size in tenths of a millimetre. This tests whether 0.70 mm really is the floor.
   - Sheet 2, at 0.7 mm with a light square blot over 5, 10, 15 and 20% of the code, clear of the finders: IDs B-5 to D-20. A is left out because it outlasts all of them.
-  - Sheet 3 is a results table with a tick column per phone.
+  - Sheet 3 is a results table with columns for the first round's readers: an Android phone, an iPad, and a webcam through bliti in desktop Chrome.
+  - Sheet 4 is an office round: blank columns for five more phones, read with their camera apps.
+- The readers exercise different decoders. Desktop Chrome has no `BarcodeDetector`, so the webcam goes through bliti's `quircs` fallback (`scan.rs`). A phone camera app uses the platform's own decoder.
+- The Android phone and the iPad are each read two ways: with the camera app, and with bliti in the browser. Android Chrome has `BarcodeDetector`. Safari has none, so bliti on the iPad falls back to `quircs`, the same decoder as the webcam. That gives five readers across three decoders.
 - Digital thresholds before printing (largest blot still read by quirc and zbar across eight random payloads each): M v3 ≈ 5%, Q v4 ≈ 11%, H v5 ≈ 17%, today's H v10 ≈ 24%. Every clean code reads at every module size.
 - The smaller symbols tolerate less than their level promises (M is nominally 15% of codewords, H 30%). A contiguous blot touches more codewords than the share of area it covers, and at v3 to v5 it also covers the alignment pattern.
 - Trial codes are printed from random bytes of the right length. A print test needs no working handshake.
