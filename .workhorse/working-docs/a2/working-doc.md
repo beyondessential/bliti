@@ -71,6 +71,24 @@ Two consequences of the lower bound:
 - **A shelved device is exposed until it hears the time.** A spare that last ran at time S accepts every ticket expiring after S when first switched on. The exposure ends at the first ticket used on it (its issue time raises the bound) or the first authenticated time it receives.
 - **Only authenticated time may raise the bound.** The bound never moves back, so an unauthenticated source (plain NTP on a hostile network) that pushed it far forward would expire every ticket and lock control out for good. Authenticated sources are tickets, a signed timestamp from a client, and time over an authenticated connection such as NTS.
 
+### Radio range
+
+Two ways the radio could narrow who can reach control: transmitting more quietly, or refusing control to a client whose signal is weak.
+
+What the hardware offers, checked on the v4 prototype (Pi 5, Cypress controller) through BlueZ:
+
+- The advertising manager reports no `CanSetTxPower` and no minimum or maximum TX power, and only legacy 31-byte advertising. So advertising power cannot be set through BlueZ on this board. bluer exposes the setting, but it is honoured only where the controller supports it.
+- Connection TX power has no standard control on a controller of this generation (LE Power Control arrived in Bluetooth 5.2). A vendor command might exist; unverified.
+- The RSSI of a connected client can be read with a standard HCI command, so gating control on it is possible in software. Not yet tried on the prototype.
+
+What either would buy:
+
+- **Only a speed bump.** Range depends on both ends. A quieter device is still heard from the corridor by a receiver with a directional antenna, and an RSSI threshold is beaten by a client transmitting louder. It stops a phone used casually from the next room, not someone who brings hardware.
+- **Nothing against overreaching staff**, who are standing at the device.
+- **Costs legitimate operators.** Phones vary widely in TX power and in how a case or a hand attenuates them, and devices sit in cabinets and ceilings. A threshold tight enough to matter refuses real operators at arm's length.
+
+If it earns a place, it is as an extra layer on control only (never discovery or status), and as a device-side setting rather than part of the protocol.
+
 ### Issuance
 
 Who at BES signs, with what tooling, and where the signing key lives are all undecided.
@@ -97,6 +115,7 @@ Compromising the signing key grants control of every device only to someone who 
 - [x] What an operator without a ticket sees? The Control screen, shown with its controls locked.
 - [ ] How the ticket link is shaped, and whether the app accepts one pasted or scanned as well as followed.
 - [ ] Does a ticket carried on a C1 volume also authorise ordinary channels while the volume is inserted, or only channels opened through it?
+- [ ] Is a signal-strength floor on control worth having at all, given it is a speed bump and costs legitimate operators?
 - [ ] Does sharing device time machinery with V1 change what V1 decides about letting a client correct the clock?
 - [ ] Does a device ship with the BES public key in its image, and how is that key rotated?
 
