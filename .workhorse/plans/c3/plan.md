@@ -106,6 +106,7 @@ Paths are under `crates/bliti-web/app/` unless stated.
 - [ ] Network-first, runtime: a probe module under `src/` that nothing imports, fetched, rewritten, fetched again with the new content; offline, a different `?t=` returns the latest; removed in `finally`
 - [ ] HMR: while controlled, change the start screen's `<h1>` text in `src/App.jsx`, the page shows it without a navigation; restored in `finally`
 - [ ] `offline.spec.js` and `installable.spec.js` pass against the build with no changes to either
+- [ ] The rest of the automatable scenarios in the test cases: first-visit claim, carry-forward fetching only what changed, a failed install never activating, activate cleanup, POST pass-through, a missing token failing the build, stable dev worker bytes, no offline reload loop, offline after an HMR edit
 
 ### Laptop (outside this repo)
 
