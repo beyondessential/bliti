@@ -10,6 +10,12 @@ import './styles.css'
 // here is left for that first read to retry and report.
 loadProtocol().catch(() => {})
 
+// The same worker in a build and on the dev server (WEB). A browser without one still runs the page,
+// only not offline.
+navigator.serviceWorker?.register('/sw.js', { scope: '/' }).catch((error) => {
+	console.warn('service worker not registered', error)
+})
+
 createRoot(document.getElementById('root')).render(
 	<StrictMode>
 		<App />
