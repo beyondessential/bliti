@@ -120,7 +120,9 @@ export function createClient() {
 			if (!window.isSecureContext) {
 				return 'This page needs a secure context. Open it over https, or over localhost while developing.'
 			}
-			if (!navigator.bluetooth) {
+			// Temporary, for the S1 print trial: reading a code needs no Bluetooth, so `?scan-only` lets
+			// a browser without it (any on an iPad) open the scanner. Remove before merge.
+			if (!navigator.bluetooth && !new URLSearchParams(location.search).has('scan-only')) {
 				return 'This browser does not offer Web Bluetooth. Chrome on Android is the tested one.'
 			}
 			return null

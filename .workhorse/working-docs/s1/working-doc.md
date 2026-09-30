@@ -198,3 +198,7 @@ Camera app and bliti in Chrome on the same Android phone:
 - Level H at v5 survives a 20% blot, where the digital check put its edge at about 17%. The platform decoder is more forgiving than `quircs` and `zbar`.
 - Level M is out: the camera app fails it at the smallest blot.
 - Not yet tested together: damage at 0.5 and 0.6 mm modules. The damage sheet is all at 0.7 mm.
+
+### Trial scaffolding to remove
+
+- [ ] `?scan-only` in `client.js`, which skips the Web Bluetooth check so an iPad can open the scanner. The page reads codes and connects to nothing.
