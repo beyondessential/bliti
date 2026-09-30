@@ -68,6 +68,54 @@ The precache list stays a literal list of paths in the emitted `sw.js`: `offline
 - Vite 7.3's client reconnects over a `vite-ping` WebSocket, not a fetch, so the worker cannot answer it from cache and cause an offline reload loop.
 - HMR runs over a WebSocket, which service workers do not see.
 
-## Outside this repo
+## Checklist
 
-- Retire the `/sw.js` override in `bliti-web-serve` and the reset worker in `~/.local/share/bliti-web/`, from their source in `~/code/this-laptop/bliti-prototype.md`, and update the skill's known-noise entry about stale clients to the clear-site-data escape.
+Paths are under `crates/bliti-web/app/` unless stated.
+
+### Worker
+
+- [ ] `src/sw.js`: a classic script that parses `{ networkFirst, entries }` from the placeholder token, and names its precache `bliti-precache-` plus a SHA-256 of the list's JSON, and its runtime cache `bliti-runtime`
+- [ ] Cache key function: same-origin URL with the fragment and the `t` query parameter removed, used for every read and write in both caches
+- [ ] Install: store the list itself in the precache under a reserved key; for each entry, copy it from an older `bliti-precache-*` whose stored list has the same URL and revision, otherwise fetch with `cache: 'no-cache'`; fail the install if any entry fails, so a half-filled precache never activates
+- [ ] Activate: delete every `bliti-precache-*` but its own, keep `bliti-runtime`, `clients.claim()`
+- [ ] Fetch: pass non-GET, cross-origin and `/sw.js` through; map navigations to `/index.html`; answer precached keys cache-first, or network-first with write-back under `networkFirst`; everything else network-first into `bliti-runtime`, storing only `ok` responses
+- [ ] Carry over the note from `vite.config.js` on why a new version waits (the lazily loaded wasm module a page left running still needs), next to the absence of `skipWaiting`
+
+### Plugin and config
+
+- [ ] `sw-plugin.js`: read `src/sw.js`, and throw where the placeholder token is missing
+- [ ] Build: in `generateBundle`, list every emitted chunk and asset with the extensions `js`, `css`, `html`, `wasm`, plus every file in `public/`, each with a truncated SHA-256 of its bytes as revision, and emit `sw.js` with `networkFirst: false`
+- [ ] Dev: a `configureServer` middleware for `/sw.js` answering `application/javascript` with `networkFirst: true`, `revision: null` on every entry, and the walked list
+- [ ] Dev walk: transform `index.html` through `server.transformIndexHtml`, take the entry URLs from its script `src` attributes and inline module imports, then transform each module through the client environment and follow `importedModules`; add the file behind each `?url` import, `/index.html`, and `public/`; sort
+- [ ] Check the walked list against a recorded load: every URL a browser requests from the dev server on `/` is in it, excepting the document itself (listed as `/index.html`)
+- [ ] `vite.config.js`: drop `VitePWA`, add the plugin, and move the installable-and-offline note (WEB) to `sw-plugin.js`
+- [ ] `npm uninstall vite-plugin-pwa`, so `package.json` and `package-lock.json` both lose it
+
+### Manifest and registration
+
+- [ ] `public/manifest.webmanifest` with the fields and icons `vite.config.js` declares today
+- [ ] `index.html`: `<link rel="manifest" href="/manifest.webmanifest">` beside the icon links
+- [ ] `src/main.jsx`: register `/sw.js` with scope `/` where `navigator.serviceWorker` exists, a failure logged and otherwise ignored
+
+### Tests
+
+- [ ] `playwright.config.js`: a second web server, `vite --mode test --port 5174 --strictPort`, and a `chromium-dev` project with that base URL matching `offline-dev.spec.js` and `installable.spec.js`; the `chromium` project ignores `offline-dev.spec.js`
+- [ ] `tests/offline-dev.spec.js`, serial: the dev `/sw.js` lists `/index.html` and `/src/wasm/bliti_web_bg.wasm` with `networkFirst: true`
+- [ ] Offline after one online load: load, wait for control, go offline, reload; `#root` renders and the wasm module fetches
+- [ ] Network-first, precached: append a marker comment to a listed module, reload online, the response for it carries the marker; restored in `finally`
+- [ ] Network-first, runtime: a probe module under `src/` that nothing imports, fetched, rewritten, fetched again with the new content; offline, a different `?t=` returns the latest; removed in `finally`
+- [ ] HMR: while controlled, change the start screen's `<h1>` text in `src/App.jsx`, the page shows it without a navigation; restored in `finally`
+- [ ] `offline.spec.js` and `installable.spec.js` pass against the build with no changes to either
+
+### Laptop (outside this repo)
+
+Before the phone check: `tailscale serve` answers `/sw.js` on the dev origin with the reset worker, so the phone would never see the dev worker.
+
+- [ ] In `~/code/this-laptop/bliti-prototype.md`: drop the `--set-path /sw.js` step from `bliti-web-serve` and the `bliti-web-sw-reset.js` source, and reword the skill's known-noise entry on older clients to a production worker waiting until its tabs close, with clearing site data as the escape
+- [ ] Reinstall per that file's install table, remove `~/.local/share/bliti-web/sw.js`, clear the `/sw.js` path from `tailscale serve`, and commit in `this-laptop`
+
+### Verify
+
+- [ ] `just build`: `dist/sw.js` lists the bundle and `public/`, and `precompress.js` writes its encodings
+- [ ] `npx playwright test` passes both projects
+- [ ] `bliti-web-serve` on this worktree, then on a phone: load once online, airplane mode, reload, and the client runs; back online, an edit to a component shows live
