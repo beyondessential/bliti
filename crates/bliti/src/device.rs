@@ -15,7 +15,7 @@ use bliti_core::{
 	qr::QrPayload,
 };
 use bluer::{
-	adv::Advertisement,
+	adv::{Advertisement, AdvertisementHandle},
 	gatt::{
 		CharacteristicWriter,
 		local::{
@@ -87,7 +87,14 @@ pub async fn run(
 	};
 	adapter.set_powered(true).await?;
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
-	end_connections(&adapter, "ending a connection made before this start").await?;
+	// The same name every time: a client computes it from the QR code before it listens (ADV).
+	let advertised = Advertised::new(&keys.presence_token);
+	// BlueZ serves the adapter's alias as the GAP Device Name, which a connecting host keeps as the
+	// device's name in place of the advertised one (ADV).
+	adapter
+		.set_alias(advertised.to_local_name())
+		.await
+		.context("naming the adapter after the local name")?;
 
 	let controller = controller(&adapter).await;
 
@@ -124,6 +131,9 @@ pub async fn run(
 		.serve_gatt_application(application(writes_handle, subscriptions_handle))
 		.await
 		.context("registering the GATT application")?;
+	// Only once the service is back: a client still connected from before was told it had gone, and
+	// registering it tells that client it has returned before the connection ends (CHN).
+	end_connections(&adapter, "ending a connection made before this start").await?;
 	let _writes = AbortOnDrop(tokio::spawn(serve_writes(writes, sink.clone())).abort_handle());
 	let _sessions = AbortOnDrop(
 		tokio::spawn(serve_sessions(
@@ -149,8 +159,6 @@ pub async fn run(
 	// device.
 	let mut shutdown = std::pin::pin!(shutdown());
 	let mut backoff = ADVERTISE_RETRY;
-	// The same name every time: a client computes it from the QR code before it listens (ADV).
-	let advertised = Advertised::new(&keys.presence_token);
 	loop {
 		let registered = match adapter.advertise(advertisement(advertised)).await {
 			Ok(registered) => {
@@ -168,7 +176,7 @@ pub async fn run(
 					_ = tokio::time::sleep(backoff) => {}
 					result = &mut shutdown => {
 						result?;
-						tracing::info!("stopping");
+						stop(&adapter, None).await;
 						return Ok(());
 					}
 				}
@@ -186,10 +194,10 @@ pub async fn run(
 			}
 			result = &mut shutdown => {
 				result?;
-				// Returning drops the advertisement and the GATT application, which unregisters both
-				// from BlueZ. Leaving by any other route leaves them registered against a process that
-				// is gone, and BlueZ only forgets them when it restarts.
-				tracing::info!("stopping");
+				// Returning drops the GATT application, which unregisters it from BlueZ. Leaving by any
+				// other route leaves it and the advertisement registered against a process that is
+				// gone, and BlueZ only forgets them when it restarts.
+				stop(&adapter, Some(registered)).await;
 				return Ok(());
 			}
 		}
@@ -200,6 +208,22 @@ pub async fn run(
 		drop(registered);
 		tokio::time::sleep(ADVERTISE_SETTLE).await;
 	}
+}
+
+/// Go off the air and end every connection, ahead of the caller dropping the GATT application.
+///
+/// A client still connected as the service is withdrawn is told it has gone, and keeps a record of the
+/// device without it, which some hosts then match in place of what the device advertises (CHN).
+async fn stop(adapter: &bluer::Adapter, advertisement: Option<AdvertisementHandle>) {
+	if let Some(advertisement) = advertisement {
+		drop(advertisement);
+		// Unregistering is asynchronous, and a client could connect again until it lands.
+		tokio::time::sleep(ADVERTISE_SETTLE).await;
+	}
+	if let Err(err) = end_connections(adapter, "ending a connection before stopping").await {
+		tracing::warn!(%err, "could not list the connections to end");
+	}
+	tracing::info!("stopping");
 }
 
 /// Resolve when the daemon is asked to stop, by either of the signals that mean it.
