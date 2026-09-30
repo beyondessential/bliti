@@ -8,13 +8,31 @@ export default defineConfig({
 	fullyParallel: true,
 	reporter: process.env.CI ? 'github' : 'list',
 	use: { baseURL: 'http://localhost:4173', trace: 'on-first-retry' },
-	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-	webServer: {
-		// Built in test mode, which is the only mode that compiles in the seam this harness supplies
-		// its client through. CI builds the shipped bundle separately and uploads that one.
-		command: 'npm run build -- --mode test && npm run preview -- --mode test --port 4173 --strictPort',
-		url: 'http://localhost:4173',
-		reuseExistingServer: !process.env.CI,
-		timeout: 120_000,
-	},
+	projects: [
+		{ name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: 'offline-dev.spec.js' },
+		// The same worker served by the dev server, which answers from the network while it can and
+		// precaches the module graph rather than a bundle.
+		{
+			name: 'chromium-dev',
+			use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5174' },
+			testMatch: ['offline-dev.spec.js', 'installable.spec.js'],
+		},
+	],
+	webServer: [
+		{
+			// Built in test mode, which is the only mode that compiles in the seam this harness supplies
+			// its client through. CI builds the shipped bundle separately and uploads that one.
+			command:
+				'npm run build -- --mode test && npm run preview -- --mode test --port 4173 --strictPort',
+			url: 'http://localhost:4173',
+			reuseExistingServer: !process.env.CI,
+			timeout: 120_000,
+		},
+		{
+			command: 'npx vite --mode test --port 5174 --strictPort',
+			url: 'http://localhost:5174',
+			reuseExistingServer: !process.env.CI,
+			timeout: 120_000,
+		},
+	],
 })

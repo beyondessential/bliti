@@ -51,12 +51,21 @@ async function publicEntries(publicDir, withRevision) {
 	return entries
 }
 
+// The modules a piece of code imports or re-exports from, by the specifier written in it.
+function specifiers(code) {
+	const [imports, exports] = parse(code)
+	return [
+		...imports.map((imp) => imp.specifier),
+		...exports.map((exp) => exp.from),
+	].filter((spec) => typeof spec === 'string')
+}
+
 // Every URL a browser asks the dev server for on loading the application, found by transforming
 // each module as the browser would get it and following the imports in what comes back. The
 // transformed code, not the module graph, because the graph records a module without the query the
 // browser asks for it by.
 async function devList(server) {
-	await init
+	await init()
 	const env = server.environments.client
 	const raw = await readFile(join(server.config.root, 'index.html'), 'utf8')
 	const html = await server.transformIndexHtml('/', raw)
@@ -64,7 +73,7 @@ async function devList(server) {
 	const pending = []
 	for (const [, src] of html.matchAll(/<script\b[^>]*\ssrc="([^"]+)"/g)) pending.push(src)
 	for (const [, body] of html.matchAll(/<script\b(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)) {
-		for (const imp of parse(body)[0]) if (imp.n) pending.push(imp.n)
+		pending.push(...specifiers(body))
 	}
 
 	const listed = new Set(['/'])
@@ -83,8 +92,8 @@ async function devList(server) {
 			listed.add(file)
 			continue
 		}
-		for (const imp of parse(result.code)[0]) {
-			if (imp.n) pending.push(new URL(imp.n, `http://dev${url}`).href.slice('http://dev'.length))
+		for (const spec of specifiers(result.code)) {
+			pending.push(new URL(spec, `http://dev${url}`).href.slice('http://dev'.length))
 		}
 	}
 	return [...listed]

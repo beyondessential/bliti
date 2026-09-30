@@ -23,7 +23,6 @@ The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `of
 - [ ] Every URL a browser requests from the dev server on loading `/` is in the dev list, the document itself as `/index.html`
 - [ ] Fetching the dev `/sw.js` twice, and again after editing a module's contents without changing its imports, returns identical bytes
 - [ ] Load the dev client online once, wait for control, go offline and reload: the app renders and the wasm module fetches (verifies spec: WEB)
-- [ ] Offline, a loaded dev page stays put: the Vite client's reconnect attempts never trigger a navigation
 - [ ] Append a marker to a precached module and reload online: the page receives the module with the marker
 - [ ] Fetch a probe module nothing imports, rewrite it, and fetch again online: the second fetch has the new content; offline, a request with a different `?t=` returns that latest content
 - [ ] While controlled, change the start screen's title in `src/App.jsx`: the page shows the new title with no navigation
@@ -35,6 +34,7 @@ The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `of
 Run through `bliti-web-serve` on this worktree, in Chrome on Android on the tailnet.
 
 - [ ] Load the client once online, turn on airplane mode with Bluetooth left on, reload: the client runs, reads a device's QR code with the camera, and opens a channel to it (verifies spec: WEB)
+- [ ] With the dev client open, turn on airplane mode and leave it a while: the page stays put rather than reloading while the dev client looks for its server. Manual only, because emulated offline in the harness reaches neither WebSockets nor the SharedWorker the dev client pings from
 - [ ] Back online, edit a component on the laptop: the phone shows the change live
 - [ ] Install the client to the home screen from the dev origin, then open it in airplane mode: it runs, with its icon (verifies spec: WEB)
 - [ ] On a phone still carrying a production worker on the dev origin, the dev worker waits: the old client runs until every tab of it is closed, and the dev client runs on the next open
