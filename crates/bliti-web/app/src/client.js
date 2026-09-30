@@ -136,16 +136,20 @@ export function createClient() {
 		// Finding the device the QR code belongs to (ADV, "Matching").
 		//
 		// The browser gives a chooser rather than the advertisements themselves. The name a device
-		// advertises follows from its QR code alone, so the chooser is filtered on that exact name and
-		// the bliti service, which leaves the one device the code belongs to. The pick is still checked
-		// against the QR code before anything is sent to it.
+		// advertises follows from its QR code alone, so the chooser is filtered on that exact name,
+		// which leaves the one device the code belongs to. Not on the bliti service as well: the
+		// chooser matches the host's record of a device, and a host that once resolved the device's
+		// services without bliti's among them goes on reporting those in place of what it hears
+		// advertised (WEB). The pick is still checked against the QR code before anything is sent
+		// to it.
 		async connect(qr, handlers) {
 			const say = (direction, text) => handlers.onActivity?.(direction, text)
 			await protocol()
 			say('note', `asking the browser to choose ${qr.local_name}`)
 			try {
 				device = await navigator.bluetooth.requestDevice({
-					filters: [{ services: [service_uuid()], name: qr.local_name }],
+					filters: [{ name: qr.local_name }],
+					optionalServices: [service_uuid()],
 				})
 			} catch (error) {
 				// Told apart here because a GATT lookup below rejects with the same name.
