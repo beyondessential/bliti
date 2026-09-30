@@ -181,3 +181,20 @@ A rig holds the phone flat and parallel to the sheet, 20 cm above it.
 - bliti in Chrome on the same phone: read nothing. The largest code read only with the sheet at 5 cm.
 - The cause was capture, not decoding. Both go through ML Kit, but the scanner asked the camera for nothing beyond `facingMode`, so Chrome opened it at its default of about 640 × 480. At 20 cm that puts a 0.7 mm module at one or two pixels.
 - Fixed in `scanner.js`: the scanner asks for up to 3840 × 2160 and continuous focus where the camera offers it. The trial resumes on that build.
+
+### Round 2 (Android, 20 cm rig, scanner fix in)
+
+Camera app and bliti in Chrome on the same Android phone:
+
+| | clean, 0.5 to 0.7 mm | 5% | 10% | 15% | 20% |
+| --- | --- | --- | --- | --- | --- |
+| A, H v10 | both | | | | |
+| B, H v5 | both | both | both | both | both |
+| C, Q v4 | both | both | both | both | neither |
+| D, M v3 | both | bliti only | bliti only | neither | neither |
+
+- The scanner fix closes the gap: bliti now reads everything the camera app reads, and D-5 and D-10 besides.
+- Every clean code reads at 0.5 mm modules. The 0.70 mm floor was pessimistic for this phone at this distance: B at 0.5 mm is 18.5 mm, under the 25 mm target at level H.
+- Level H at v5 survives a 20% blot, where the digital check put its edge at about 17%. The platform decoder is more forgiving than `quircs` and `zbar`.
+- Level M is out: the camera app fails it at the smallest blot.
+- Not yet tested together: damage at 0.5 and 0.6 mm modules. The damage sheet is all at 0.7 mm.
