@@ -8,9 +8,18 @@ Work out whether the sticker QR code can use QR alphanumeric mode (upper-case UR
 
 ## Behaviour
 
-The 65-byte payload (version marker, presence token, device static public key) has already landed in QR.
-The fragment is 104 base32 characters and the code is generated at level H.
-What this card decides is the text wrapped around that payload, and possibly its encoding.
+QR currently carries a 65-byte payload (version marker, 32-byte presence token, 32-byte device static public key) as 104 base32 characters at level H, which comes out at v10, 40 mm.
+The aim is a code of 30 mm or less, ideally 25 mm, that fits a 35 mm side face of the 90 × 90 × 35 mm case.
+
+Settled so far:
+
+- The payload is 33 bytes: the version marker, a 16-byte presence token, and a 16-byte fingerprint of the device static public key.
+- The client authenticates the device by checking the static key it receives in the handshake against the fingerprint, rather than by knowing the key beforehand.
+- The payload stays base32. Base45 buys no version at any size priced, cannot ride in a URL fragment, and makes a poor human-readable rendering.
+- The generator segments the code explicitly, so every board's code is the same version and that version is the smallest the text allows.
+- The lower-case rule for the URL stays. Upper-casing never beats dropping the trailing slash.
+
+Still to be settled by the print trial: URL or bare `BLITI:` prefix, and the error correction level.
 
 ## Implementation options
 
@@ -93,7 +102,7 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 #### Short token: cost
 
-- KEY: the presence token becomes 16 bytes of the root's derivation. The advertised handle's keyed hash takes a 16-byte key without change.
+- KEY: the presence token becomes 16 bytes of the root's derivation. KEY's keyed hash is BLAKE3 keyed mode, which takes a 32-byte key, so the handle has to be keyed on a 32-byte expansion of the token (the PSK, or a derivation of its own) rather than on the token directly.
 - CHN: the PSK becomes a derivation of the token rather than the token itself, overturning "used exactly as KEY produces it with no further derivation".
 - SEC: 128 bits against guessing. The token is never sent, the handle is a keyed hash of it, and the handshake cannot be tested offline without a DH secret, so no path offers an offline search at that size.
 
@@ -102,21 +111,23 @@ The payload cut buys back the error correction that the encoding alone would hav
 - CHN: `NKpsk0` needs the responder static before the handshake. `NXpsk0` sends it encrypted in the second message, and the client checks it against the fingerprint before accepting the session. The second message grows by 48 bytes.
 - The `NKpsk0` note that the client's first message is encrypted to the device static key goes away. The handshake payloads are empty (`noise.rs` writes `&[]`), so that confidentiality protects nothing today.
 - SEC: impersonating a device takes a keypair whose fingerprint matches, a 128-bit second preimage. Searching board IDs against the fingerprint still costs one argon2id derivation per guess, as searching against the key does.
-- KEY: the fingerprint is a hash of the device static public key, under a context string of its own.
+- KEY: the fingerprint is the first 16 bytes of a BLAKE3 derivation of the device static public key, under a context string of its own.
 
 ## Open questions
 
 - [ ] Does dropping the trailing slash survive every path a scan takes: generic camera apps on Android and iOS, the web app's own reader, and a future App Link or Universal Link (whose path matching may treat an empty path differently from `/`)?
 - [ ] What result from the print trial would push the design from the URL to the bare prefix?
 - [ ] Is the case surface light and plain enough to serve as the quiet zone on a side face?
-- [ ] Which payload cuts to take: short token, key fingerprint, both, or neither?
+- [ ] Is the PSK the 32-byte expansion of the token under its own context string, and is the handle keyed on the PSK or on a separate expansion?
+- [ ] Does the handshake become `NXpsk0`, and is the fingerprint check a failed handshake as far as the client's error reporting (WEB) is concerned?
 
 ## Trade-offs
 
 - A native application claiming links is possible in future but not planned, so link claiming is kept possible where it is free and not treated as a hard constraint.
 - An upper-case URL never wins a version over the lower-case URL without its trailing slash, at any of H, Q or M. Dropping the slash gets the same code with the URL still lower case, which makes the App Links and Universal Links case question moot for sizing. The lower-case rule in QR can stay.
 - A generic phone camera opening the web app is nice to have. The URL stays unless the print trial shows its version reads badly off an enclosure, in which case the bare prefix wins.
-- Shrinking the payload is priced here, with the encoding, not treated as fixed.
+- Shrinking the payload is priced here, with the encoding, not treated as fixed. Both cuts are taken: 33 bytes buys back the error correction that encoding alone would have to spend, and it gets the bare prefix to 26 mm at level H.
+- The key fingerprint gives up `NKpsk0`'s encryption of the client's first message to the device's key. That message carries an empty payload, so nothing is lost.
 - Error correction level is open down to M, to be settled by the print trial rather than fixed at H up front.
 
 ## Testing notes
@@ -126,5 +137,8 @@ The payload cut buys back the error correction that the encoding alone would hav
   - no-slash URL at M, v6 (28.8 mm)
   - bare prefix at M, v5 (26.0 mm)
   - bare prefix at L, v4 (23.2 mm)
+  - 33-byte bare prefix at H, v5 (26.0 mm)
+  - 33-byte URL at Q, v6 (28.8 mm)
+- Trial codes are printed from random bytes of the right length. A print test needs no working handshake.
 - Each candidate on paper, and in the protective pouch once one is chosen, since glare costs error correction.
 - Print each candidate at the real sticker size and scan with a spread of phone cameras (generic camera app and the web app's own reader), including a scuffed or partly covered code.
