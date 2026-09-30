@@ -193,7 +193,14 @@ impl Sampler {
 }
 
 /// The traits NFO makes wholly descriptive, and the members of others that describe.
-const DESCRIPTIVE: [&str; 4] = [STATUS, LIMITS, "security", "channel"];
+const DESCRIPTIVE: [&str; 6] = [
+	STATUS,
+	LIMITS,
+	"security",
+	"channel",
+	"passphrase",
+	"margin",
+];
 const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
 	("interface", &["route", "overlay"]),
 	("battery", &["serial", "model", "vendor"]),
@@ -388,6 +395,28 @@ mod tests {
 		assert_eq!(
 			identity_key(&joined(1, false)),
 			identity_key(&joined(11, true))
+		);
+
+		// A hotspot given a new passphrase is the same hotspot.
+		let hotspot = |passphrase: &str| {
+			Entry::text(1, "hotspot", "bliti-setup").with_trait("passphrase", json!(passphrase))
+		};
+		assert_eq!(identity_key(&hotspot("one")), identity_key(&hotspot("two")));
+	}
+
+	/// A time left whose margin narrows between looks is the same time left, so a slow tick does not
+	/// send the previous one as ended, which a reader would take for this one ending (NFO).
+	#[test]
+	fn a_changing_margin_keeps_the_key() {
+		use serde_json::json;
+		let left = |seconds: f64, margin: f64| {
+			Entry::duration(1, "battery-time-to-empty", seconds)
+				.with_trait("battery", json!({ "name": "built-in" }))
+				.with_trait("margin", json!(margin))
+		};
+		assert_eq!(
+			identity_key(&left(9000.0, 1200.0)),
+			identity_key(&left(8990.0, 1100.0))
 		);
 	}
 

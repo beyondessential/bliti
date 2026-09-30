@@ -50,6 +50,7 @@
 
 ## Time left
 
+- [x] A time left whose margin changes between looks stays one reading, and is not sent as ended in between (verifies spec: NFO)
 - [x] `battery-time-to-empty` is skipped, saying so, until the charge has been watched falling for five minutes, then is the charge over the rate with a `margin` in seconds (verifies spec: CHG, NFO)
 - [x] The margin combines the figure's error at the rate with how much the rate has varied, in quadrature (verifies spec: CHG)
 - [x] On mains the time is to full, so time to empty ends; once the charge has finished, or fed around the backup board, neither is reported (verifies spec: NFO)
