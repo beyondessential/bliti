@@ -42,6 +42,10 @@ pub struct Battery {
 	/// Cell voltage. Absent where the source reports none, which a UPS commonly does.
 	pub volts: Option<f64>,
 	pub direction: Direction,
+	/// Seconds until empty, where the source gives a time.
+	pub time_to_empty: Option<f64>,
+	/// Seconds until full, where the source gives a time.
+	pub time_to_full: Option<f64>,
 }
 
 impl Battery {
@@ -55,6 +59,8 @@ impl Battery {
 			charge: None,
 			volts: None,
 			direction: Direction::Unknown,
+			time_to_empty: None,
+			time_to_full: None,
 		}
 	}
 }
@@ -132,7 +138,8 @@ fn battery_trait(battery: &Battery, name: &str) -> Json {
 	Json::Object(object)
 }
 
-/// The three readings for every battery given, each carrying its `battery` trait (NFO).
+/// The three readings for every battery given, and its time to empty or to full where it is
+/// carrying the device or taking charge, each carrying its `battery` trait (NFO).
 pub fn entries(at: u64, batteries: &[Battery]) -> Vec<Entry> {
 	let names = names(batteries);
 	let mut entries = Vec::new();
@@ -140,14 +147,46 @@ pub fn entries(at: u64, batteries: &[Battery]) -> Vec<Entry> {
 		let about = battery_trait(battery, name);
 		entries.push(charge(at, battery).with_trait("battery", about.clone()));
 		entries.push(voltage(at, battery).with_trait("battery", about.clone()));
-		entries.push(direction(at, battery).with_trait("battery", about));
+		entries.push(direction(at, battery).with_trait("battery", about.clone()));
+		if let Some(time) = time_left(at, battery) {
+			entries.push(time.with_trait("battery", about));
+		}
 	}
 	entries
 }
 
+/// The time the operating system gives to empty while discharging, or to full while charging, and
+/// skipped where it gives none. It gives no margin, so none is carried (NFO).
+fn time_left(at: u64, battery: &Battery) -> Option<Entry> {
+	let (name, seconds, to) = match battery.direction {
+		Direction::Discharging => ("battery-time-to-empty", battery.time_to_empty, "empty"),
+		Direction::Charging => ("battery-time-to-full", battery.time_to_full, "full"),
+		Direction::Idle | Direction::Unknown => return None,
+	};
+	Some(match seconds {
+		Some(seconds) => Entry::duration(at, name, seconds),
+		None => Entry::skipped(
+			at,
+			name,
+			kind::DURATION,
+			format!("the operating system gives no time to {to}"),
+		),
+	})
+}
+
 fn charge(at: u64, battery: &Battery) -> Entry {
 	match battery.charge {
-		Some(charge) => Entry::fraction(at, "battery-charge", charge.clamp(0.0, 1.0)),
+		Some(charge) => {
+			let charge = charge.clamp(0.0, 1.0);
+			// The operating system reports no power source, so its direction says whether the
+			// battery is carrying the device (NFO).
+			let carrying = battery.direction == Direction::Discharging;
+			super::when_low(
+				Entry::fraction(at, "battery-charge", charge),
+				charge,
+				carrying,
+			)
+		}
 		// The battery is there and the source could not say how full it is, which is a fault rather
 		// than a measurement this platform cannot make (NFO).
 		None => Entry::broken(
@@ -320,6 +359,91 @@ mod tests {
 		let charge = entries.iter().find(|e| e.name == "battery-charge").unwrap();
 		assert_eq!(charge.status(), Some("broken"));
 		assert!(charge.value.is_none());
+	}
+
+	/// An operating system's battery carrying the device is low as the backup board's is: `warning`
+	/// below 0.2 and `failed` below 0.05, and nothing of the sort while charging or idle (NFO).
+	#[test]
+	fn a_low_battery_carrying_the_device_warns_then_fails() {
+		let status = |charge, direction| {
+			let mut battery = named("BAT0", Some("DELL T453X"));
+			battery.charge = Some(charge);
+			battery.direction = direction;
+			let entries = entries(1, &[battery]);
+			let entry = entries
+				.iter()
+				.find(|e| e.name == "battery-charge")
+				.unwrap()
+				.clone();
+			(
+				entry.status().unwrap().to_owned(),
+				entry.reason().map(ToOwned::to_owned),
+			)
+		};
+		assert_eq!(status(0.2, Direction::Discharging).0, "passed");
+		let (warning, why) = status(0.19, Direction::Discharging);
+		assert_eq!(warning, "warning");
+		assert!(why.unwrap().contains("battery is low"));
+		assert_eq!(status(0.04, Direction::Discharging).0, "failed");
+		for direction in [Direction::Charging, Direction::Idle, Direction::Unknown] {
+			assert_eq!(status(0.04, direction).0, "passed", "{direction:?}");
+		}
+	}
+
+	fn times(direction: Direction, to_empty: Option<f64>, to_full: Option<f64>) -> Vec<Entry> {
+		let mut battery = named("BAT0", Some("DELL T453X"));
+		battery.direction = direction;
+		battery.time_to_empty = to_empty;
+		battery.time_to_full = to_full;
+		entries(1, &[battery])
+			.into_iter()
+			.filter(|entry| entry.name.starts_with("battery-time-to-"))
+			.collect()
+	}
+
+	/// The operating system's time to empty while discharging and to full while charging, as it gives
+	/// them, with no margin (NFO).
+	#[test]
+	fn the_time_is_the_operating_systems_for_the_direction() {
+		let discharging = times(Direction::Discharging, Some(5400.0), Some(3600.0));
+		assert_eq!(discharging.len(), 1);
+		assert_eq!(discharging[0].name, "battery-time-to-empty");
+		assert_eq!(discharging[0].kind, kind::DURATION);
+		assert_eq!(
+			discharging[0].value.as_ref().unwrap().as_f64(),
+			Some(5400.0)
+		);
+		assert!(!discharging[0].traits.contains_key("margin"));
+		assert_eq!(name_of(&discharging[0]), "DELL T453X");
+
+		let charging = times(Direction::Charging, Some(5400.0), Some(3600.0));
+		assert_eq!(charging.len(), 1);
+		assert_eq!(charging[0].name, "battery-time-to-full");
+		assert_eq!(charging[0].value.as_ref().unwrap().as_f64(), Some(3600.0));
+
+		for direction in [Direction::Idle, Direction::Unknown] {
+			assert!(times(direction, Some(5400.0), Some(3600.0)).is_empty());
+		}
+	}
+
+	/// Where the operating system reports the battery but gives no such time, it is skipped (NFO).
+	#[test]
+	fn no_time_from_the_operating_system_is_skipped() {
+		for (direction, name) in [
+			(Direction::Discharging, "battery-time-to-empty"),
+			(Direction::Charging, "battery-time-to-full"),
+		] {
+			let time = times(direction, None, None);
+			assert_eq!(time.len(), 1);
+			assert_eq!(time[0].name, name);
+			assert_eq!(time[0].status(), Some("skipped"));
+			assert!(
+				time[0]
+					.reason()
+					.is_some_and(|why| why.contains("operating system"))
+			);
+			assert!(!time[0].traits.contains_key("margin"));
+		}
 	}
 
 	#[test]

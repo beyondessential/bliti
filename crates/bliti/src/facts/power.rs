@@ -11,30 +11,41 @@
 //! the board answers, and a power cut stops the device dead rather than switching it over.
 //!
 //! The distinction is in the movement and not the level. An idle cell does not move at all; a cell
-//! carrying the device drifts down a few millivolts every ten seconds. State of charge is no use
-//! here, taking about eighty seconds to move where the voltage is unambiguous within twenty or thirty.
+//! carrying the device drifts down, but near 4 V by only about a millivolt a minute, under one gauge
+//! step, and a cell recovering from a burst of load can hold still for minutes. So a cell is watched
+//! for ten minutes before its stillness is believed. State of charge is no use here: it moves later
+//! still.
+//!
+//! The board is looked at every ten seconds by the record thread, whether or not the device is
+//! sampling, into the one [`Supply`]; the readings here report what it last saw. The charge reported
+//! is CHG's estimate from the cell voltage rather than the gauge's own figure.
 //!
 //! Where no gauge answers there is no backup board, and the battery comes from the operating system
 //! instead: upower where it can be reached, and `/sys/class/power_supply` where it cannot. That path
 //! reports no `power-source`, because an operating system cannot tell a device fed through an
 //! external supply from one fed around it (NFO).
 
-use std::{
-	collections::VecDeque,
-	time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use bliti_core::channel::readings::{Entry, kind};
 use serde_json::{Map, Value as Json};
 
+use self::supply::{
+	Reading, Seen,
+	rate::{self, Estimate},
+};
+
 mod battery;
+pub mod curve;
 mod gpio;
 mod i2c;
 mod record;
+mod supply;
 mod sysfs;
 mod upower;
 
 pub use record::record_supply;
+pub use supply::{Supply, Unchanged};
 
 /// Where the gauge sits: bus 1, address 0x36, across the whole X120x family.
 const I2C_BUS: &str = "/dev/i2c-1";
@@ -58,24 +69,42 @@ const POWER_LINE: &str = "GPIO6";
 const BUILT_IN: &str = "built-in";
 const BOARD_VENDOR: &str = "SupTronics";
 
-/// How far back the cell voltage is watched to tell a drifting cell from a still one.
-const WATCH: Duration = Duration::from_secs(45);
+/// How far back the cell voltage is watched to tell a drifting cell from a still one, never further
+/// than the power line's last change. Longer than [`SETTLED`], so a window reaches it whatever the
+/// looks' timing.
+const WATCH: Duration = Duration::from_secs(11 * 60);
 
 /// How long the cell must have been watched before a still one is believed. Under this, the device
 /// reports running on battery rather than asserting a bypass, and reports the direction as skipped.
-const SETTLED: Duration = Duration::from_secs(25);
+///
+/// A v4 on battery near 4 V fell 22 mV in 21 minutes, and looked still over a 45 s window in one
+/// window in five; over five minutes, never. Ten leaves room for a cell recovering from load.
+const SETTLED: Duration = Duration::from_secs(10 * 60);
 
-/// Recent cell voltages, which is what tells a cell carrying the device from one doing nothing.
+/// Below these, a battery carrying the device is low: `warning`, then `failed` (NFO).
+const LOW_WARNING: f64 = 0.2;
+const LOW_FAILED: f64 = 0.05;
+
+/// The battery readings, from what the supply's record thread last saw of the backup board, or from
+/// the operating system where there is none.
 #[derive(Debug, Default)]
 pub struct Watch {
-	seen: VecDeque<(Instant, f64)>,
+	supply: Supply,
+}
+
+/// The cell voltage over the last [`WATCH`], which is what tells a cell carrying the device from one
+/// doing nothing.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Recent {
+	seen: Vec<(Instant, f64)>,
 }
 
 /// What the gauge answered.
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Gauge {
-	volts: f64,
-	charge: f64,
+pub struct Gauge {
+	pub volts: f64,
+	/// State of charge, in percent.
+	pub charge: f64,
 }
 
 /// Where the power is coming from.
@@ -111,76 +140,125 @@ fn read_gauge() -> Result<Gauge, i2c::Error> {
 }
 
 impl Watch {
+	/// Battery readings from what `supply` last saw.
+	pub fn new(supply: Supply) -> Self {
+		Self { supply }
+	}
+
+	/// The supply this reports from.
+	pub fn supply(&self) -> &Supply {
+		&self.supply
+	}
+
 	/// The power-source and battery readings.
 	///
 	/// The gauge is the device we ship and comes first. Where it does not answer there is no backup
 	/// board, and the battery is whatever the operating system reports instead; where neither has one,
 	/// nothing is reported, because an operator standing at the device can see no battery is fitted
-	/// (NFO).
-	///
-	/// The power line is read only once the gauge has answered. It has a pull-up on a Pi, so an
-	/// unconnected pin reads as external power present, and a machine with no backup board would
-	/// otherwise report itself confidently running on mains.
-	pub fn readings(&mut self, at: u64) -> Vec<Entry> {
-		let gauge = match read_gauge() {
-			Ok(gauge) => gauge,
-			Err(i2c::Error::NoDevice) => {
-				self.seen.clear();
-				return battery::entries(at, &os_batteries());
-			}
+	/// (NFO). The backup board's readings carry the time the record thread took them, rather than
+	/// `at`.
+	pub fn readings(&self, at: u64) -> Vec<Entry> {
+		match self.supply.seen() {
+			Seen::Nothing => Vec::new(),
+			Seen::NoGauge => battery::entries(at, &os_batteries()),
 			// The bus is there and the gauge did not answer: a fault nobody can see from outside.
-			Err(err) => {
-				return vec![
-					Entry::broken(
-						at,
-						"battery-charge",
-						kind::FRACTION,
-						format!("the gauge at {GAUGE:#04x} did not answer: {err}"),
-					)
-					.with_trait("battery", built_in()),
-				];
-			}
-		};
-
-		self.remember(gauge.volts);
-		let external = gpio::read_by_name(POWER_LINE).ok();
-		let source = self.source(external);
-		let about = built_in();
-
-		let mut readings = Vec::new();
-		if let Some(source) = source {
-			readings.push(self.power_source(at, source));
+			Seen::Unanswered { at, reason } => vec![
+				Entry::broken(
+					at,
+					"battery-charge",
+					kind::FRACTION,
+					format!("the gauge at {GAUGE:#04x} did not answer: {reason}"),
+				)
+				.with_trait("battery", built_in()),
+			],
+			Seen::Gauge(reading) => gauge_entries(&reading),
 		}
-		readings.push(
-			self.battery_charge(at, gauge, source)
-				.with_trait("battery", about.clone()),
-		);
-		readings.push(
-			Entry::quantity(at, "battery-voltage", "volts", round(gauge.volts, 3))
-				.with_trait("battery", about.clone()),
-		);
-		readings.push(
-			self.battery_direction(at, gauge, source)
-				.with_trait("battery", about),
-		);
-		readings
 	}
+}
 
-	fn remember(&mut self, volts: f64) {
-		let now = Instant::now();
-		self.seen.push_back((now, volts));
-		while self
-			.seen
-			.front()
-			.is_some_and(|(at, _)| now.duration_since(*at) > WATCH)
-		{
-			self.seen.pop_front();
+/// The backup board's readings.
+///
+/// The power line is read only once the gauge has answered. It has a pull-up on a Pi, so an
+/// unconnected pin reads as external power present, and a machine with no backup board would
+/// otherwise report itself confidently running on mains.
+fn gauge_entries(reading: &Reading) -> Vec<Entry> {
+	let at = reading.at;
+	let recent = &reading.recent;
+	let source = recent.source(reading.external);
+	let about = built_in();
+	let direction = battery_direction(at, recent, source, reading.full);
+
+	let mut readings = Vec::new();
+	if let Some(source) = source {
+		readings.push(power_source(at, source));
+	}
+	let carrying = source == Some(Source::Battery)
+		|| direction
+			.value
+			.as_ref()
+			.is_some_and(|value| value == "discharging");
+	readings.push(
+		battery_charge(at, reading.charge, recent, source, carrying)
+			.with_trait("battery", about.clone()),
+	);
+	readings.push(
+		Entry::quantity(
+			at,
+			"battery-voltage",
+			"volts",
+			round(reading.gauge.volts, 3),
+		)
+		.with_trait("battery", about.clone()),
+	);
+	let charging = direction
+		.value
+		.as_ref()
+		.is_some_and(|value| value == "charging");
+	readings.push(direction.with_trait("battery", about.clone()));
+	if let Some(time) = time_left(reading, carrying, charging) {
+		readings.push(time.with_trait("battery", about));
+	}
+	readings
+}
+
+/// Time to empty while the cell carries the device, and time to full while it takes charge, with
+/// how far either way it may be off; skipped until the charge has been watched moving that way long
+/// enough to have a rate, and not reported at all otherwise, which ends it (NFO, CHG).
+fn time_left(reading: &Reading, carrying: bool, charging: bool) -> Option<Entry> {
+	let (name, way) = if carrying {
+		("battery-time-to-empty", "falling")
+	} else if charging {
+		("battery-time-to-full", "rising")
+	} else {
+		return None;
+	};
+	let estimate = reading.trend.and_then(|trend| {
+		if carrying {
+			rate::to_empty(reading.charge, trend, reading.error)
+		} else {
+			rate::to_full(reading.charge, trend, reading.error)
 		}
+	});
+	Some(match estimate {
+		Some(Estimate { seconds, margin }) => Entry::duration(reading.at, name, seconds)
+			.with_trait("margin", Json::from(round(margin, 4))),
+		None => Entry::skipped(
+			reading.at,
+			name,
+			kind::DURATION,
+			format!("the charge has not been watched {way} long enough to establish a rate"),
+		),
+	})
+}
+
+impl Recent {
+	pub fn new(seen: Vec<(Instant, f64)>) -> Self {
+		Self { seen }
 	}
 
 	/// How long the cell has been watched without a gap.
 	fn watched(&self) -> Duration {
-		match (self.seen.front(), self.seen.back()) {
+		match (self.seen.first(), self.seen.last()) {
 			(Some((first, _)), Some((last, _))) => last.duration_since(*first),
 			_ => Duration::ZERO,
 		}
@@ -199,7 +277,7 @@ impl Watch {
 
 	/// Whether the cell has fallen across the window, rather than merely wobbled.
 	fn draining(&self) -> bool {
-		let (Some((_, first)), Some((_, last))) = (self.seen.front(), self.seen.back()) else {
+		let (Some((_, first)), Some((_, last))) = (self.seen.first(), self.seen.last()) else {
 			return false;
 		};
 		first - last >= VCELL_STEP_MV * 2.0 / 1000.0
@@ -215,55 +293,78 @@ impl Watch {
 			false => Some(Source::Battery),
 		}
 	}
+}
 
-	/// The `power-source` reading. A bypass is a `warning`, because the device is unprotected (NFO).
-	fn power_source(&self, at: u64, source: Source) -> Entry {
-		let entry = Entry::text(at, "power-source", source.as_str());
-		match source {
-			Source::Bypassed => entry.warning(
-				"the backup supply is being bypassed; a power cut will stop the device, so move the \
-				 supply to the backup board's own input",
-			),
-			_ => entry,
-		}
+/// The `power-source` reading. A bypass is a `warning`, because the device is unprotected (NFO).
+fn power_source(at: u64, source: Source) -> Entry {
+	let entry = Entry::text(at, "power-source", source.as_str());
+	match source {
+		Source::Bypassed => entry.warning(
+			"the backup supply is being bypassed; a power cut will stop the device, so move the \
+			 supply to the backup board's own input",
+		),
+		_ => entry,
 	}
+}
 
-	/// State of charge. Where the hardware's power source and the cell's direction of travel disagree,
-	/// this is a `warning` and the direction is reported as the source gives it (NFO).
-	fn battery_charge(&self, at: u64, gauge: Gauge, source: Option<Source>) -> Entry {
-		let entry = Entry::fraction(at, "battery-charge", (gauge.charge / 100.0).clamp(0.0, 1.0));
-		if source == Some(Source::External) && self.watched() >= SETTLED && self.draining() {
-			return entry.warning(
-				"the cell's direction of travel disagrees with the power source: external power is \
-				 reported but the cell is draining",
-			);
-		}
+/// The charge as CHG estimates it.
+///
+/// Where the hardware's power source and the cell's direction of travel disagree, this is a
+/// `warning` and the direction is reported as the source gives it. That is only ever on mains, where
+/// the battery is not carrying the device, so it never meets the low-battery statuses (NFO).
+fn battery_charge(
+	at: u64,
+	charge: f64,
+	recent: &Recent,
+	source: Option<Source>,
+	carrying: bool,
+) -> Entry {
+	let entry = Entry::fraction(at, "battery-charge", charge.clamp(0.0, 1.0));
+	if source == Some(Source::External) && recent.watched() >= SETTLED && recent.draining() {
+		return entry.warning(
+			"the cell's direction of travel disagrees with the power source: external power is \
+			 reported but the cell is draining",
+		);
+	}
+	when_low(entry, charge, carrying)
+}
+
+/// A battery carrying the device is `warning` below a fifth and `failed` below a twentieth, for the
+/// backup board's cell and the operating system's batteries alike (NFO).
+fn when_low(entry: Entry, charge: f64, carrying: bool) -> Entry {
+	if !carrying {
+		entry
+	} else if charge < LOW_FAILED {
+		entry.failed("the battery is low, and nearly empty")
+	} else if charge < LOW_WARNING {
+		entry.warning("the battery is low")
+	} else {
 		entry
 	}
+}
 
-	/// The cell's direction of travel: charging, discharging or idle. Kept consistent with the power
-	/// source where one exists; where none does, worked out from the voltage and skipped until the
-	/// voltage has been watched long enough (NFO).
-	fn battery_direction(&self, at: u64, gauge: Gauge, source: Option<Source>) -> Entry {
-		let charge = (gauge.charge / 100.0).clamp(0.0, 1.0);
-		let value = match source {
-			Some(Source::External) if charge <= 0.99 => "charging",
-			Some(Source::External) => "idle",
-			Some(Source::Battery) => "discharging",
-			Some(Source::Bypassed) => "idle",
-			None if self.watched() < SETTLED => {
-				return Entry::skipped(
-					at,
-					"battery-direction",
-					kind::TEXT,
-					"the cell voltage has not been watched long enough to establish its direction",
-				);
-			}
-			None if self.still() => "idle",
-			None => "discharging",
-		};
-		Entry::text(at, "battery-direction", value)
-	}
+/// The cell's direction of travel: charging, discharging or idle. Kept consistent with the power
+/// source where one exists, charging on mains until the charge has finished and idle after (CHG);
+/// where none does, worked out from the voltage and skipped until the voltage has been watched long
+/// enough (NFO).
+fn battery_direction(at: u64, recent: &Recent, source: Option<Source>, full: bool) -> Entry {
+	let value = match source {
+		Some(Source::External) if full => "idle",
+		Some(Source::External) => "charging",
+		Some(Source::Battery) => "discharging",
+		Some(Source::Bypassed) => "idle",
+		None if recent.watched() < SETTLED => {
+			return Entry::skipped(
+				at,
+				"battery-direction",
+				kind::TEXT,
+				"the cell voltage has not been watched long enough to establish its direction",
+			);
+		}
+		None if recent.still() => "idle",
+		None => "discharging",
+	};
+	Entry::text(at, "battery-direction", value)
 }
 
 /// The batteries the operating system reports.
@@ -298,96 +399,174 @@ fn round(value: f64, places: i32) -> f64 {
 mod tests {
 	use super::*;
 
-	fn watch(volts: &[f64], apart: Duration) -> Watch {
-		let mut seen = VecDeque::new();
+	/// The cell as the record thread saw it, readings `apart`, the newest now.
+	fn recent(volts: &[f64], apart: Duration) -> Recent {
 		let start = Instant::now() - apart * volts.len() as u32;
-		for (index, value) in volts.iter().enumerate() {
-			seen.push_back((start + apart * index as u32, *value));
-		}
-		Watch { seen }
+		Recent::new(
+			volts
+				.iter()
+				.enumerate()
+				.map(|(index, value)| (start + apart * index as u32, *value))
+				.collect(),
+		)
 	}
 
-	fn gauge(volts: f64, charge: f64) -> Gauge {
-		Gauge { volts, charge }
+	fn draining() -> Recent {
+		recent(
+			&[4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139],
+			Duration::from_secs(120),
+		)
+	}
+
+	fn reading(recent: Recent, external: Option<bool>, charge: f64, full: bool) -> Reading {
+		Reading {
+			at: 1,
+			gauge: Gauge {
+				volts: 3.6,
+				charge: 50.0,
+			},
+			external,
+			charge,
+			full,
+			recent,
+			trend: None,
+			error: 0.1,
+		}
+	}
+
+	fn named<'a>(entries: &'a [Entry], name: &str) -> &'a Entry {
+		entries.iter().find(|entry| entry.name == name).unwrap()
 	}
 
 	/// The case the whole three-state distinction exists for: still, no external power, watched long
 	/// enough, is a bypass (NFO).
 	#[test]
 	fn a_still_cell_with_no_external_power_is_a_bypass() {
-		let watch = watch(&[4.156; 12], Duration::from_secs(3));
-		assert_eq!(watch.source(Some(false)), Some(Source::Bypassed));
+		let recent = recent(&[4.156; 12], Duration::from_secs(60));
+		assert_eq!(recent.source(Some(false)), Some(Source::Bypassed));
 	}
 
 	#[test]
 	fn a_draining_cell_with_no_external_power_is_running_on_battery() {
-		let watch = watch(
+		let recent = recent(
 			&[
 				4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139, 4.136, 4.134,
 			],
-			Duration::from_secs(4),
+			Duration::from_secs(90),
 		);
-		assert_eq!(watch.source(Some(false)), Some(Source::Battery));
+		assert_eq!(recent.source(Some(false)), Some(Source::Battery));
 	}
 
 	/// Asserting a bypass early would send someone to move a plug that is already correct.
 	#[test]
 	fn a_still_cell_is_not_a_bypass_until_watched_long_enough() {
-		let watch = watch(&[4.156; 3], Duration::from_secs(2));
-		assert!(watch.watched() < SETTLED);
-		assert_eq!(watch.source(Some(false)), Some(Source::Battery));
+		let recent = recent(&[4.156; 3], Duration::from_secs(2));
+		assert!(recent.watched() < SETTLED);
+		assert_eq!(recent.source(Some(false)), Some(Source::Battery));
+	}
+
+	/// Ten seconds apart, as the record thread looks, a still cell over the watch window is a bypass
+	/// and a draining one is not.
+	#[test]
+	fn the_record_threads_cadence_tells_the_states_apart() {
+		let every = Duration::from_secs(10);
+		assert_eq!(
+			recent(&[4.156; 61], every).source(Some(false)),
+			Some(Source::Bypassed)
+		);
+		let falling: Vec<f64> = (0..61)
+			.map(|look| 4.156 - 0.0002 * f64::from(look))
+			.collect();
+		assert_eq!(
+			recent(&falling, every).source(Some(false)),
+			Some(Source::Battery)
+		);
+	}
+
+	/// A v4 on battery near 4 V, looked at every ten seconds for 21 minutes, where the cell fell about
+	/// a millivolt a minute and held a single gauge step for minutes at a time. Over every window the
+	/// record thread could have watched, it is on battery, never bypassed (NFO).
+	#[test]
+	fn a_slow_fall_on_battery_is_never_a_bypass() {
+		let volts: Vec<f64> = include_str!("power/fixtures/v4-on-battery-near-4v.txt")
+			.lines()
+			.map(|line| line.parse().unwrap())
+			.collect();
+		let every = Duration::from_secs(10);
+		let window = (WATCH.as_secs() / every.as_secs()) as usize;
+		for end in 1..=volts.len() {
+			let seen = &volts[end.saturating_sub(window + 1)..end];
+			assert_eq!(
+				recent(seen, every).source(Some(false)),
+				Some(Source::Battery),
+				"the look {end} in"
+			);
+		}
 	}
 
 	/// The three power-source wire values, and a bypass as a warning (NFO).
 	#[test]
 	fn power_source_reports_the_three_values_and_warns_on_a_bypass() {
-		let watch = watch(&[4.156; 12], Duration::from_secs(3));
 		assert_eq!(
-			watch
-				.power_source(1, Source::External)
-				.value
-				.as_ref()
-				.unwrap(),
+			power_source(1, Source::External).value.as_ref().unwrap(),
 			"via-backup"
 		);
 		assert_eq!(
-			watch
-				.power_source(1, Source::Battery)
-				.value
-				.as_ref()
-				.unwrap(),
+			power_source(1, Source::Battery).value.as_ref().unwrap(),
 			"battery"
 		);
-		let bypass = watch.power_source(1, Source::Bypassed);
+		let bypass = power_source(1, Source::Bypassed);
 		assert_eq!(bypass.value.as_ref().unwrap(), "bypassing-backup");
 		assert_eq!(bypass.status(), Some("warning"));
 	}
 
-	/// Direction follows the power source where one exists (NFO).
+	/// Direction follows the power source where one exists (NFO): on mains, charging until the charge
+	/// has finished and idle after, whatever the gauge's figure (CHG).
 	#[test]
 	fn direction_follows_the_power_source() {
-		let watch = watch(&[4.156; 12], Duration::from_secs(3));
-		let charging = watch.battery_direction(1, gauge(4.1, 60.0), Some(Source::External));
-		assert_eq!(charging.value.as_ref().unwrap(), "charging");
-		let full = watch.battery_direction(1, gauge(4.2, 100.0), Some(Source::External));
-		assert_eq!(full.value.as_ref().unwrap(), "idle");
-		let discharging = watch.battery_direction(1, gauge(4.1, 60.0), Some(Source::Battery));
-		assert_eq!(discharging.value.as_ref().unwrap(), "discharging");
-		let bypass = watch.battery_direction(1, gauge(4.15, 96.0), Some(Source::Bypassed));
-		assert_eq!(bypass.value.as_ref().unwrap(), "idle");
+		let still = recent(&[4.156; 12], Duration::from_secs(60));
+		let direction = |source, full| {
+			battery_direction(1, &still, Some(source), full)
+				.value
+				.unwrap()
+		};
+		assert_eq!(direction(Source::External, false), "charging");
+		assert_eq!(direction(Source::External, true), "idle");
+		assert_eq!(direction(Source::Battery, false), "discharging");
+		assert_eq!(direction(Source::Bypassed, false), "idle");
+	}
+
+	/// A full cell on mains is idle once its charge has finished, and charging until then, whatever
+	/// the charge estimated (CHG, NFO).
+	#[test]
+	fn on_mains_the_direction_follows_the_finished_charge() {
+		let still = recent(&[4.1875; 5], Duration::from_secs(10));
+		let charging = gauge_entries(&reading(still.clone(), Some(true), 1.0, false));
+		assert_eq!(
+			named(&charging, "battery-direction")
+				.value
+				.as_ref()
+				.unwrap(),
+			"charging"
+		);
+		let full = gauge_entries(&reading(still, Some(true), 0.93, true));
+		assert_eq!(
+			named(&full, "battery-direction").value.as_ref().unwrap(),
+			"idle"
+		);
 	}
 
 	/// With no power line, direction is skipped until the voltage settles, then reported plainly with
 	/// no standing warning (NFO).
 	#[test]
 	fn direction_is_skipped_until_settled_then_reported_plainly() {
-		let early = watch(&[4.156; 3], Duration::from_secs(2));
-		let skipped = early.battery_direction(1, gauge(4.156, 96.0), None);
+		let early = recent(&[4.156; 3], Duration::from_secs(2));
+		let skipped = battery_direction(1, &early, None, false);
 		assert_eq!(skipped.status(), Some("skipped"));
 		assert!(skipped.reason().is_some());
 
-		let idle = watch(&[4.156; 12], Duration::from_secs(3));
-		let direction = idle.battery_direction(1, gauge(4.156, 96.0), None);
+		let idle = recent(&[4.156; 12], Duration::from_secs(60));
+		let direction = battery_direction(1, &idle, None, false);
 		assert_eq!(
 			direction.status(),
 			Some("passed"),
@@ -400,26 +579,142 @@ mod tests {
 	/// hardware gives it, battery-charge a warning (NFO).
 	#[test]
 	fn a_disagreement_warns_on_the_charge() {
-		let draining = watch(
-			&[4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139],
-			Duration::from_secs(4),
-		);
-		let charge = draining.battery_charge(1, gauge(4.139, 96.0), Some(Source::External));
+		let charge = battery_charge(1, 0.96, &draining(), Some(Source::External), false);
 		assert_eq!(charge.status(), Some("warning"));
 		assert!(charge.reason().is_some_and(|why| why.contains("disagree")));
+	}
+
+	/// A disagreement is on mains, where the battery is not carrying the device, so even a charge
+	/// that would be low off mains reports the disagreement (NFO).
+	#[test]
+	fn a_disagreement_is_reported_over_a_low_charge_on_mains() {
+		let entries = gauge_entries(&reading(draining(), Some(true), 0.03, false));
+		let charge = named(&entries, "battery-charge");
+		assert_eq!(charge.status(), Some("warning"));
+		assert!(charge.reason().is_some_and(|why| why.contains("disagree")));
+	}
+
+	/// While the cell carries the device, the charge is a warning below 0.2 and failed below 0.05,
+	/// saying the battery is low (NFO).
+	#[test]
+	fn a_low_charge_on_battery_warns_then_fails() {
+		let status = |charge| {
+			let entries = gauge_entries(&reading(draining(), Some(false), charge, false));
+			let entry = named(&entries, "battery-charge").clone();
+			assert_eq!(entry.value.as_ref().unwrap().as_f64(), Some(charge));
+			(
+				entry.status().unwrap().to_owned(),
+				entry.reason().map(ToOwned::to_owned),
+			)
+		};
+		assert_eq!(status(0.2), ("passed".to_owned(), None));
+		let (warning, why) = status(0.19);
+		assert_eq!(warning, "warning");
+		assert!(why.unwrap().contains("battery is low"));
+		assert_eq!(status(0.05).0, "warning");
+		let (failed, why) = status(0.04);
+		assert_eq!(failed, "failed");
+		assert!(why.unwrap().contains("battery is low"));
+	}
+
+	/// A low charge says nothing where the battery is not carrying the device: on mains, and fed
+	/// around the backup board (NFO).
+	#[test]
+	fn a_low_charge_off_battery_is_passed() {
+		let still = recent(&[3.6; 61], Duration::from_secs(10));
+		for external in [true, false] {
+			let entries = gauge_entries(&reading(still.clone(), Some(external), 0.03, false));
+			assert_eq!(named(&entries, "battery-charge").status(), Some("passed"));
+		}
+	}
+
+	/// With no power line, a cell whose voltage shows it carrying the device is low as well (NFO).
+	#[test]
+	fn a_low_charge_discharging_with_no_power_line_fails() {
+		let entries = gauge_entries(&reading(draining(), None, 0.03, false));
+		assert!(!entries.iter().any(|entry| entry.name == "power-source"));
+		assert_eq!(named(&entries, "battery-charge").status(), Some("failed"));
 	}
 
 	/// Distinguishing on the level rather than the movement would get both of these wrong: the loaded
 	/// cell here sits below the idle one, because their charges differ.
 	#[test]
 	fn the_movement_distinguishes_the_states_not_the_level() {
-		let loaded = watch(
-			&[4.159, 4.155, 4.151, 4.149, 4.146, 4.144, 4.141, 4.139],
-			Duration::from_secs(4),
-		);
-		let idle = watch(&[4.199; 12], Duration::from_secs(3));
-		assert_eq!(loaded.source(Some(false)), Some(Source::Battery));
+		let idle = recent(&[4.199; 12], Duration::from_secs(60));
+		assert_eq!(draining().source(Some(false)), Some(Source::Battery));
 		assert_eq!(idle.source(Some(false)), Some(Source::Bypassed));
+	}
+
+	fn trending(mut reading: Reading, rate: f64, spread: f64) -> Reading {
+		reading.trend = Some(rate::Trend { rate, spread });
+		reading
+	}
+
+	fn has(entries: &[Entry], name: &str) -> bool {
+		entries.iter().any(|entry| entry.name == name)
+	}
+
+	/// Time to empty is skipped while the cell carries the device until the charge has a rate, saying
+	/// so, and time to full is not reported at all (NFO, CHG).
+	#[test]
+	fn time_to_empty_is_skipped_until_there_is_a_rate() {
+		let entries = gauge_entries(&reading(draining(), Some(false), 0.5, false));
+		let time = named(&entries, "battery-time-to-empty");
+		assert_eq!(time.status(), Some("skipped"));
+		assert!(time.reason().is_some_and(|why| why.contains("long enough")));
+		assert!(time.traits.contains_key("battery"));
+		assert!(!time.traits.contains_key("margin"));
+		assert!(!has(&entries, "battery-time-to-full"));
+
+		// A charge that has been rising while carrying the device has no rate to empty either.
+		let rising = trending(reading(draining(), Some(false), 0.5, false), 1e-4, 0.0);
+		let entries = gauge_entries(&rising);
+		assert_eq!(
+			named(&entries, "battery-time-to-empty").status(),
+			Some("skipped")
+		);
+	}
+
+	/// With a rate, the time to empty is the charge over it, with a margin in seconds from the
+	/// figure's error at that rate (CHG, NFO).
+	#[test]
+	fn time_to_empty_carries_its_margin() {
+		let reading = trending(reading(draining(), Some(false), 0.5, false), -1e-4, 0.0);
+		let entries = gauge_entries(&reading);
+		let time = named(&entries, "battery-time-to-empty");
+		assert_eq!(time.kind, kind::DURATION);
+		assert_eq!(time.value.as_ref().unwrap().as_f64(), Some(5000.0));
+		assert_eq!(time.traits.get("margin").unwrap().as_f64(), Some(1000.0));
+		assert_eq!(time.traits.get("battery"), Some(&built_in()));
+		assert!(!has(&entries, "battery-time-to-full"));
+	}
+
+	/// On mains the time is to full instead, so time to empty ends; once the charge has finished,
+	/// neither is reported (NFO, CHG).
+	#[test]
+	fn the_time_follows_the_direction() {
+		let still = recent(&[4.0; 61], Duration::from_secs(10));
+		let charging = trending(reading(still.clone(), Some(true), 0.5, false), 1e-4, 0.0);
+		let entries = gauge_entries(&charging);
+		assert!(!has(&entries, "battery-time-to-empty"));
+		let time = named(&entries, "battery-time-to-full");
+		assert_eq!(time.value.as_ref().unwrap().as_f64(), Some(5000.0));
+		assert!(time.traits.contains_key("margin"));
+
+		let full = trending(reading(still.clone(), Some(true), 1.0, true), 0.0, 0.0);
+		let entries = gauge_entries(&full);
+		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
+
+		// Fed around the backup board, the cell neither carries the device nor takes charge.
+		let bypassed = recent(&[4.156; 12], Duration::from_secs(60));
+		let entries = gauge_entries(&reading(bypassed, Some(false), 0.9, false));
+		assert!(!has(&entries, "battery-time-to-empty") && !has(&entries, "battery-time-to-full"));
+	}
+
+	/// Before the record thread's first look, there is nothing to report from.
+	#[test]
+	fn nothing_is_reported_before_the_first_look() {
+		assert!(Watch::default().readings(1).is_empty());
 	}
 
 	/// The backup board's cell is named by the device, since nothing reports a name for it, and is the

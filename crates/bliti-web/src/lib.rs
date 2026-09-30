@@ -464,23 +464,43 @@ impl Channel {
 		})
 	}
 
-	/// Open a control stream: a stream whose first message is `control` (CTL).
+	/// Open a power stream: a stream whose first message is `power` (CTL).
 	///
 	/// Everything the device sends on it is passed to `on_message` as a subscription's messages are,
 	/// and `on_closed` is called once the stream ends. The handle this resolves to asks for acts on
 	/// the same stream.
-	pub fn control(&self, on_message: Function, on_closed: Function) -> Promise {
+	pub fn power(&self, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
 			let exchange = Exchange::open(
 				&inner,
-				Message::Control,
-				"a control stream",
+				Message::Power,
+				"a power stream",
 				on_message,
 				on_closed,
 			)
 			.await?;
-			Ok(JsValue::from(ControlHandle { exchange }))
+			Ok(JsValue::from(PowerHandle { exchange }))
+		})
+	}
+
+	/// Open a curve stream: a stream whose first message is `curve` (CRV).
+	///
+	/// Everything the device sends on it is passed to `on_message` as a subscription's messages are,
+	/// and `on_closed` is called once the stream ends. The handle this resolves to asks for a load or
+	/// a reset on the same stream.
+	pub fn curve(&self, on_message: Function, on_closed: Function) -> Promise {
+		let inner = self.inner.clone();
+		future_to_promise(async move {
+			let exchange = Exchange::open(
+				&inner,
+				Message::Curve,
+				"a curve stream",
+				on_message,
+				on_closed,
+			)
+			.await?;
+			Ok(JsValue::from(CurveHandle { exchange }))
 		})
 	}
 }
@@ -629,23 +649,58 @@ impl ConfigurationHandle {
 	}
 }
 
-/// One open control stream, which lasts exactly as long as its stream (CTL).
+/// One open power stream, which lasts exactly as long as its stream (CTL).
 #[wasm_bindgen]
-pub struct ControlHandle {
+pub struct PowerHandle {
 	exchange: Exchange,
 }
 
 #[wasm_bindgen]
-impl ControlHandle {
+impl PowerHandle {
 	/// Ask the device to carry out an act, by its wire name.
 	pub fn act(&self, act: String) -> Result<(), JsError> {
 		self.exchange.send(Message::Act { act }.to_json())
 	}
 
-	/// End the control stream.
+	/// End the power stream.
 	pub fn close(&self) {
 		self.exchange.close();
 	}
+}
+
+/// One open curve stream, which lasts exactly as long as its stream (CRV).
+#[wasm_bindgen]
+pub struct CurveHandle {
+	exchange: Exchange,
+}
+
+#[wasm_bindgen]
+impl CurveHandle {
+	/// Ask the device to load a curve document, given as it was read from a file.
+	pub fn load(&self, document: JsValue) -> Result<(), JsError> {
+		let json = JSON::stringify(&document)
+			.map_err(|_| JsError::new("the document cannot be written as JSON"))?;
+		let message = loading(&String::from(json)).map_err(|why| JsError::new(&why))?;
+		self.exchange.send(message)
+	}
+
+	/// Ask the device to return to the curve its build carries.
+	pub fn reset(&self) -> Result<(), JsError> {
+		self.exchange.send(Message::Reset.to_json())
+	}
+
+	/// End the curve stream.
+	pub fn close(&self) {
+		self.exchange.close();
+	}
+}
+
+/// The `load` message carrying a curve document, from the document as JSON text. The document is
+/// sent as it stands: the device is the one to validate it, and refuses with a reason (CRV).
+fn loading(json: &str) -> Result<Vec<u8>, String> {
+	serde_json::from_str(json)
+		.map(|document| Message::Load { document }.to_json())
+		.map_err(|err| format!("the document is not JSON: {err}"))
 }
 
 /// The `configuration` message proposing a document, from the document as JSON text.
@@ -770,7 +825,10 @@ fn describe(raw: &[u8]) -> (String, Option<String>) {
 
 #[cfg(test)]
 mod tests {
-	use bliti_core::channel::envelope::{Reading, read};
+	use bliti_core::channel::{
+		envelope::{Reading, read},
+		messages::Span,
+	};
 
 	use super::*;
 
@@ -797,10 +855,10 @@ mod tests {
 		assert_eq!(document["later"]["kept"], 1);
 	}
 
-	/// The control stream's answers and the feed's `going-away` reach the application with their
-	/// members as the wire names them, which is what it reads the act from (CTL).
+	/// The power stream's answers and the feed's `going-away` reach the application with their
+	/// members as the wire names them, which is what it reads the act and its cause from (CTL).
 	#[test]
-	fn the_control_messages_are_described_as_the_wire_names_them() {
+	fn the_power_messages_are_described_as_the_wire_names_them() {
 		for (message, expected) in [
 			(
 				Message::Acts {
@@ -818,8 +876,84 @@ mod tests {
 			(
 				Message::GoingAway {
 					act: "power-off".to_owned(),
+					cause: "low-battery".to_owned(),
 				},
-				serde_json::json!({"type": "going-away", "act": "power-off"}),
+				serde_json::json!({"type": "going-away", "act": "power-off", "cause": "low-battery"}),
+			),
+		] {
+			let (described, fault) = describe(&message.to_json());
+			assert_eq!(fault, None);
+			let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+			assert_eq!(
+				described,
+				serde_json::json!({"kind": "message", "message": expected})
+			);
+		}
+	}
+
+	/// A load carries the document as the file held it, whatever the device will make of it: the
+	/// device validates it and refuses with a reason (CRV).
+	#[test]
+	fn a_load_carries_the_document_as_it_stands() {
+		let bytes =
+			loading(r#"{"discharging":{"points":[[2.5,0],[4.2,1]],"learnt-from":3},"later":1}"#)
+				.unwrap();
+		let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+		assert_eq!(wire["type"], "load");
+		assert_eq!(wire["document"]["discharging"]["learnt-from"], 3);
+		assert_eq!(wire["document"]["later"], 1);
+
+		let Ok(Reading::Message(Message::Load { document })) = read(&bytes) else {
+			panic!("a load reads back as a load");
+		};
+		assert_eq!(document["discharging"]["points"][1][0], 4.2);
+
+		// Not an object is still sent, for the device to refuse.
+		assert!(loading("[]").is_ok());
+		assert!(loading("not json").is_err());
+	}
+
+	/// The curve stream's messages reach the application with their members as the wire names them,
+	/// the figures in seconds and the document whole (CRV).
+	#[test]
+	fn the_curve_messages_are_described_as_the_wire_names_them() {
+		let document = serde_json::json!({
+			"discharging": {"points": [[2.5, 0], [4.2, 1]], "learnt-from": 2, "error": 0.1, "duration": 26400},
+		});
+		for (message, expected) in [
+			(
+				Message::Curves {
+					document: Some(document.clone()),
+					lasts: Some(Span {
+						duration: 18600.0,
+						margin: 720.0,
+					}),
+					recharge: Some(Span {
+						duration: 13200.0,
+						margin: 1200.0,
+					}),
+				},
+				serde_json::json!({
+					"type": "curves",
+					"document": document,
+					"lasts": {"duration": 18600.0, "margin": 720.0},
+					"recharge": {"duration": 13200.0, "margin": 1200.0},
+				}),
+			),
+			(
+				Message::Curves {
+					document: None,
+					lasts: None,
+					recharge: None,
+				},
+				serde_json::json!({"type": "curves"}),
+			),
+			(Message::Accepted, serde_json::json!({"type": "accepted"})),
+			(
+				Message::Refused {
+					reason: "the first point is above the floor".to_owned(),
+				},
+				serde_json::json!({"type": "refused", "reason": "the first point is above the floor"}),
 			),
 		] {
 			let (described, fault) = describe(&message.to_json());

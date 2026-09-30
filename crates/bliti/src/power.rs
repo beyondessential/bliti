@@ -1,9 +1,11 @@
-//! Restarting, rebooting and powering off at a client's request, and telling every client first.
+//! Restarting, rebooting and powering off at a client's request or for a low battery, and telling
+//! every client first.
 //!
-//! Behaviour is specified in `.workhorse/specs/control/overview.md` (CTL). One [`Controller`] serves
-//! every session, so the first act accepted anywhere is the one carried out. Accepting one runs the
-//! whole of going away: every open `default` feed is told, every session is ended, the connections
-//! under them are dropped, and only then is the act carried out.
+//! Behaviour is specified in `.workhorse/specs/control/power.md` (CTL), and the low-battery
+//! shutdown's way in by `.workhorse/specs/battery/shutdown.md` (LOW). One [`Controller`] serves
+//! every session and the supply watcher, so the first act accepted anywhere is the one carried out.
+//! Accepting one runs the whole of going away: every open `default` feed is told, every session is
+//! ended, the connections under them are dropped, and only then is the act carried out.
 
 use std::{
 	fmt,
@@ -17,7 +19,7 @@ use bliti_core::channel::{
 	stream::{read_message, write_message},
 };
 use futures::{AsyncRead, AsyncWrite, future::BoxFuture};
-use tokio::sync::watch;
+use tokio::{runtime::Handle, sync::watch};
 use tracing::Instrument;
 
 use crate::session::{Peer, SessionError};
@@ -76,8 +78,70 @@ impl fmt::Display for Act {
 	}
 }
 
+/// Why a device is going away (CTL, "Going away").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cause {
+	/// A client asked for the act on a power stream.
+	ManualControl,
+	/// The device is powering off before its battery runs out (LOW).
+	LowBattery,
+}
+
+impl Cause {
+	/// The cause's wire name.
+	pub fn name(self) -> &'static str {
+		match self {
+			Self::ManualControl => "manual-control",
+			Self::LowBattery => "low-battery",
+		}
+	}
+}
+
+impl fmt::Display for Cause {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str(self.name())
+	}
+}
+
+/// An act accepted, and why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Going {
+	/// The act being carried out.
+	pub act: Act,
+	/// Why.
+	pub cause: Cause,
+}
+
+impl Going {
+	/// What the device is doing, for a refusal to say.
+	fn doing(self) -> String {
+		match self.cause {
+			Cause::ManualControl => self.act.doing().to_owned(),
+			Cause::LowBattery => format!("{} for a low battery", self.act.doing()),
+		}
+	}
+}
+
+/// Why a low-battery shutdown was not begun.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotBegun {
+	/// Powering off is not among the acts this device can carry out.
+	CannotPowerOff,
+	/// An act was accepted first, and is the one carried out (LOW).
+	AlreadyGoing(Going),
+}
+
+impl fmt::Display for NotBegun {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::CannotPowerOff => f.write_str("this device cannot power off"),
+			Self::AlreadyGoing(going) => write!(f, "the device is already {}", going.doing()),
+		}
+	}
+}
+
 /// What carries an act out once every client has been told and let go.
-pub trait Power: Send + Sync + 'static {
+pub trait System: Send + Sync + 'static {
 	/// Carry `act` out. Blocking, and run off the runtime's worker threads.
 	fn carry_out(&self, act: Act) -> anyhow::Result<()>;
 }
@@ -93,12 +157,14 @@ pub struct Controller {
 
 struct Inner {
 	acts: Vec<Act>,
-	power: Arc<dyn Power>,
+	system: Arc<dyn System>,
 	ender: Ender,
+	/// Where going away runs, so it can begin from a thread off the runtime.
+	runtime: Handle,
 	/// The act accepted and not yet failed, which every other asked for is refused against.
-	accepted: Mutex<Option<Act>>,
+	accepted: Mutex<Option<Going>>,
 	/// The act every open feed is to announce.
-	going: watch::Sender<Option<Act>>,
+	going: watch::Sender<Option<Going>>,
 	/// How many open feeds have not yet handed `going-away` to their link.
 	untold: watch::Sender<usize>,
 	/// Whether every session is to end.
@@ -108,13 +174,18 @@ struct Inner {
 }
 
 impl Controller {
-	/// A controller offering `acts`, carried out by `power`, dropping connections with `ender`.
-	pub fn new(acts: Vec<Act>, power: Arc<dyn Power>, ender: Ender) -> Self {
+	/// A controller offering `acts`, carried out by `system`, dropping connections with `ender`.
+	///
+	/// # Panics
+	///
+	/// Outside a Tokio runtime, whose handle going away runs on.
+	pub fn new(acts: Vec<Act>, system: Arc<dyn System>, ender: Ender) -> Self {
 		Self {
 			inner: Arc::new(Inner {
 				acts,
-				power,
+				system,
 				ender,
+				runtime: Handle::current(),
 				accepted: Mutex::new(None),
 				going: watch::Sender::new(None),
 				untold: watch::Sender::new(0),
@@ -125,9 +196,13 @@ impl Controller {
 	}
 
 	/// A controller offering nothing.
+	///
+	/// # Panics
+	///
+	/// Outside a Tokio runtime, as [`Controller::new`].
 	pub fn none() -> Self {
 		struct Nothing;
-		impl Power for Nothing {
+		impl System for Nothing {
 			fn carry_out(&self, act: Act) -> anyhow::Result<()> {
 				anyhow::bail!("this device offers no act, and was asked to {act}")
 			}
@@ -164,7 +239,8 @@ impl Controller {
 		let answer = self.decide(name);
 		match &answer {
 			Ok(act) => {
-				tracing::info!(%act, %client, %client_version, "act asked for and accepted");
+				let cause = Cause::ManualControl;
+				tracing::info!(%act, %cause, %client, %client_version, "act asked for and accepted");
 			}
 			Err(reason) => {
 				tracing::info!(act = %name, %client, %client_version, %reason, "act asked for and refused");
@@ -177,38 +253,73 @@ impl Controller {
 		let Some(act) = Act::from_name(name).filter(|act| self.inner.acts.contains(act)) else {
 			return Err(format!("this device cannot {name}"));
 		};
+		self.take(Going {
+			act,
+			cause: Cause::ManualControl,
+		})
+		.map_err(|already| format!("the device is already {}", already.doing()))?;
+		Ok(act)
+	}
+
+	/// Take the one accepted slot for `going`, or return what holds it.
+	fn take(&self, going: Going) -> Result<(), Going> {
 		let mut accepted = self
 			.inner
 			.accepted
 			.lock()
 			.unwrap_or_else(PoisonError::into_inner);
 		if let Some(already) = *accepted {
-			return Err(format!("the device is already {}", already.doing()));
+			return Err(already);
 		}
-		*accepted = Some(act);
-		Ok(act)
+		*accepted = Some(going);
+		Ok(())
 	}
 
-	/// Go away and carry out `act`, which has been accepted and answered.
-	fn go(&self, act: Act) {
+	/// Begin powering off for a low battery, as an accepted `power-off` is carried out, telling every
+	/// open feed `low-battery` as the cause (LOW, "Shutting down").
+	///
+	/// `before` runs once the shutdown is certain and before any feed is told, which is where what the
+	/// run on battery taught is recorded (CHG). Every act asked for from here on is refused, and nothing
+	/// cancels the shutdown once begun (CTL, LOW). Returns once going away has begun, without waiting
+	/// for it, and may be called from a thread off the runtime. Not begun, and `before` not run, where
+	/// the device cannot power off, or where an act was accepted first, which is then the one carried
+	/// out.
+	pub fn low_battery(&self, before: impl FnOnce()) -> Result<(), NotBegun> {
+		if !self.inner.acts.contains(&Act::PowerOff) {
+			return Err(NotBegun::CannotPowerOff);
+		}
+		let going = Going {
+			act: Act::PowerOff,
+			cause: Cause::LowBattery,
+		};
+		self.take(going).map_err(NotBegun::AlreadyGoing)?;
+		tracing::info!(act = %going.act, cause = %going.cause, "act accepted");
+		before();
+		self.go(going);
+		Ok(())
+	}
+
+	/// Go away and carry out the act of `going`, which has been accepted and answered.
+	fn go(&self, going: Going) {
 		let controller = self.clone();
-		tokio::spawn(
+		self.inner.runtime.spawn(
 			async move {
-				controller.going_away(act).await;
+				controller.going_away(going).await;
 			}
 			.in_current_span(),
 		);
 	}
 
-	async fn going_away(&self, act: Act) {
+	async fn going_away(&self, going: Going) {
+		let Going { act, cause } = going;
 		let inner = &self.inner;
-		inner.going.send_replace(Some(act));
+		inner.going.send_replace(Some(going));
 		let mut untold = inner.untold.subscribe();
 		if tokio::time::timeout(TELL_TIMEOUT, untold.wait_for(|untold| *untold == 0))
 			.await
 			.is_err()
 		{
-			tracing::warn!(%act, "not every feed announced the act in time; going regardless");
+			tracing::warn!(%act, %cause, "not every feed announced the act in time; going regardless");
 		}
 
 		inner.ending.send_replace(true);
@@ -217,17 +328,17 @@ impl Controller {
 			.await
 			.is_err()
 		{
-			tracing::warn!(%act, "not every session closed in time; dropping the connections");
+			tracing::warn!(%act, %cause, "not every session closed in time; dropping the connections");
 		}
 		(inner.ender)().await;
 
-		tracing::info!(%act, "carrying out the act");
-		let power = inner.power.clone();
-		let carried = tokio::task::spawn_blocking(move || power.carry_out(act))
+		tracing::info!(%act, %cause, "carrying out the act");
+		let system = inner.system.clone();
+		let carried = tokio::task::spawn_blocking(move || system.carry_out(act))
 			.await
 			.unwrap_or_else(|err| Err(anyhow::anyhow!("the act panicked: {err}")));
 		if let Err(err) = carried {
-			tracing::error!(%act, err = format!("{err:#}"), "could not carry out the act");
+			tracing::error!(%act, %cause, err = format!("{err:#}"), "could not carry out the act");
 			// Nothing is left connected to be told, and the next client may ask again.
 			inner.going.send_replace(None);
 			inner.ending.send_replace(false);
@@ -263,16 +374,16 @@ impl Drop for SessionGuard {
 /// An open `default` feed, counted until it has announced the act accepted or has closed.
 pub struct Feed {
 	inner: Arc<Inner>,
-	going: watch::Receiver<Option<Act>>,
+	going: watch::Receiver<Option<Going>>,
 	counted: bool,
 }
 
 impl Feed {
-	/// Resolve with the act to announce, once one has been accepted. Cancel-safe.
-	pub async fn going(&mut self) -> Act {
+	/// Resolve with the act to announce and its cause, once one has been accepted. Cancel-safe.
+	pub async fn going(&mut self) -> Going {
 		loop {
-			if let Some(act) = *self.going.borrow_and_update() {
-				return act;
+			if let Some(going) = *self.going.borrow_and_update() {
+				return going;
 			}
 			if self.going.changed().await.is_err() {
 				std::future::pending::<()>().await;
@@ -294,7 +405,7 @@ impl Drop for Feed {
 	}
 }
 
-/// Serve a control stream a client opened with `control`, until it ends (CTL, "The exchange").
+/// Serve a power stream a client opened with `power`, until it ends (CTL, "The exchange").
 pub async fn serve<S>(
 	stream: &mut S,
 	controller: &Controller,
@@ -321,7 +432,10 @@ where
 			Ok(Reading::Message(Message::Act { act })) => match controller.ask(&act, peer) {
 				Ok(act) => {
 					send(stream, &Message::Accepted).await?;
-					controller.go(act);
+					controller.go(Going {
+						act,
+						cause: Cause::ManualControl,
+					});
 				}
 				Err(reason) => send(stream, &Message::Refused { reason }).await?,
 			},
@@ -329,8 +443,8 @@ where
 				tracing::info!(client = %name, client_version = %version, "client named itself");
 			}
 			Ok(Reading::Message(_)) => {
-				// Nothing a control stream does anything about, which MSG makes a no-op.
-				tracing::debug!("a message the control stream has nothing to do about");
+				// Nothing a power stream does anything about, which MSG makes a no-op.
+				tracing::debug!("a message the power stream has nothing to do about");
 			}
 			Ok(Reading::Skipped(skip)) => tracing::debug!(%skip, "message passed over"),
 			Ok(Reading::Refused(refusal)) => tracing::warn!(%refusal, "message refused"),

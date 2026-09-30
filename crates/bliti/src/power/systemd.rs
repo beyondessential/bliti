@@ -8,7 +8,7 @@ use dbus::{
 	blocking::{Connection, stdintf::org_freedesktop_dbus::Properties},
 };
 
-use super::{Act, Power};
+use super::{Act, System};
 
 const SYSTEMD: &str = "org.freedesktop.systemd1";
 const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";
@@ -53,7 +53,7 @@ impl Systemd {
 	}
 }
 
-impl Power for Systemd {
+impl System for Systemd {
 	fn carry_out(&self, act: Act) -> anyhow::Result<()> {
 		let bus = Connection::new_system().context("cannot connect to the system bus")?;
 		let manager = bus.with_proxy(SYSTEMD, SYSTEMD_PATH, CALL);

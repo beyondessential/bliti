@@ -75,6 +75,8 @@ export const IN_REVEAL = new Set([
 	'cpu-frequency-max',
 	'battery-voltage',
 	'battery-direction',
+	'battery-time-to-empty',
+	'battery-time-to-full',
 ])
 
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
@@ -92,6 +94,8 @@ const LABELS = {
 	'fan-speed': 'Fan',
 	'power-source': 'Power',
 	'battery-charge': 'Battery',
+	'battery-time-to-empty': 'Time left',
+	'battery-time-to-full': 'Time to full',
 	'last-boot': 'Uptime',
 }
 
@@ -137,6 +141,14 @@ export function formatValue(entry) {
 	}
 }
 
+/// How far either way a value may be off, from its `margin` trait and in its own unit, or null where
+/// it carries none or has no number for one to qualify (NFO, VIEW).
+export function formatMargin(entry) {
+	const margin = entry?.traits?.margin
+	if (typeof margin !== 'number' || numberOf(entry) === null) return null
+	return `±${formatValue({ ...entry, value: margin })}`
+}
+
 function stringify(value) {
 	return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
@@ -178,7 +190,8 @@ function trim(number) {
 	return Number.isInteger(number) ? String(number) : String(Math.round(number * 100) / 100)
 }
 
-function formatDuration(seconds) {
+/// A time in seconds as an operator reads it: days and hours, hours and minutes, or minutes.
+export function formatDuration(seconds) {
 	const whole = Math.floor(seconds)
 	const days = Math.floor(whole / 86400)
 	const hours = Math.floor((whole % 86400) / 3600)
@@ -225,12 +238,12 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status`, `limits`, `security`, `channel` and `passphrase` traits, and the members named here within
-// the traits that hold them. A battery's serial, model and vendor describe the cell; only its name
-// says which battery it is. A wireless link's channel moves whenever a shared-channel hotspot follows
-// the client onto a new one, and that is the same link, not a second; a hotspot given a new passphrase
-// is the same hotspot.
-const DESCRIPTIVE = new Set(['status', 'limits', 'security', 'channel', 'passphrase'])
+// `status`, `limits`, `margin`, `security`, `channel` and `passphrase` traits, and the members named
+// here within the traits that hold them. A battery's serial, model and vendor describe the cell; only
+// its name says which battery it is. A wireless link's channel moves whenever a shared-channel hotspot
+// follows the client onto a new one, and that is the same link, not a second; a hotspot given a new
+// passphrase is the same hotspot. A time left whose margin narrows is the same time left.
+const DESCRIPTIVE = new Set(['status', 'limits', 'margin', 'security', 'channel', 'passphrase'])
 const DESCRIPTIVE_MEMBERS = {
 	interface: new Set(['route', 'overlay']),
 	battery: new Set(['serial', 'model', 'vendor']),

@@ -12,8 +12,13 @@
 // answers: for each message type, a queue whose next entry is sent back when the page sends one. An
 // entry is one outcome or a list of them. Anything else a test wants the device to say it emits.
 //
-// A control stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
-// in window.__blitiControlSent, apart from the configuration session's.
+// A power stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
+// in window.__blitiPowerSent, apart from the configuration session's. A curve stream (CRV) is scripted
+// the same way, with what the page sends on it in window.__blitiCurveSent: script `curve` for the
+// device's first `curves`, and `load` and `reset` for its answers. window.__blitiCurveStream lets a
+// test have the device say anything else on it, such as a later `curves`.
+//
+// The feed's going-away carries its cause as a test emits it.
 //
 // window.__blitiReturns scripts reconnecting to a device coming back: one entry per attempt, 'ok' to
 // reach it, 'chooser' where it can only be picked again, anything else to fail. An attempt with no
@@ -27,10 +32,12 @@
 export const installFakeClient = `
 window.__blitiFeeds = []
 window.__blitiSent = []
-window.__blitiControlSent = []
+window.__blitiPowerSent = []
+window.__blitiCurveSent = []
 window.__blitiAnswers = {}
 window.__blitiSessions = []
-window.__blitiControls = []
+window.__blitiPowerStreams = []
+window.__blitiCurveStreams = []
 window.__blitiReturns = []
 window.__blitiReconnects = 0
 // Short enough that coming back, giving up and the power-off hold all happen within a test.
@@ -135,12 +142,15 @@ window.__blitiClient = {
 			},
 		}
 	},
-	async control({ onEvent, onClosed }) {
+	// A stream the page opens with its first message and both ends then speak on: what the page sends
+	// is recorded under the sent name, the stream under the streams name, and a test reaches it under
+	// the handle name.
+	_exchange({ onEvent, onClosed }, { first, what, sent, streams, handle }) {
 		const stream = { open: true, closedByPage: false }
-		window.__blitiControls.push(stream)
+		window[streams].push(stream)
 		const send = (message) => {
-			if (!stream.open) throw new Error('The control stream has ended.')
-			window.__blitiControlSent.push(message)
+			if (!stream.open) throw new Error(\`The \${what} has ended.\`)
+			window[sent].push(message)
 			const queue = window.__blitiAnswers[message.type]
 			const next = Array.isArray(queue) ? queue.shift() : undefined
 			if (next === undefined) return
@@ -148,20 +158,45 @@ window.__blitiClient = {
 				for (const event of Array.isArray(next) ? next : [next]) if (stream.open) onEvent(event)
 			}, 0)
 		}
-		window.__blitiControl = {
+		window[handle] = {
 			emit: (event) => stream.open && onEvent(event),
 			close: (why) => {
 				stream.open = false
 				onClosed?.(why ?? null)
 			},
 		}
-		send({ type: 'control' })
+		send({ type: first })
 		return {
-			act: (act) => send({ type: 'act', act }),
+			send,
 			close: () => {
 				stream.open = false
 				stream.closedByPage = true
 			},
+		}
+	},
+	async power(handlers) {
+		const stream = this._exchange(handlers, {
+			first: 'power',
+			what: 'power stream',
+			sent: '__blitiPowerSent',
+			streams: '__blitiPowerStreams',
+			handle: '__blitiPowerStream',
+		})
+		return { act: (act) => stream.send({ type: 'act', act }), close: stream.close }
+	},
+	async curve(handlers) {
+		const stream = this._exchange(handlers, {
+			first: 'curve',
+			what: 'curve stream',
+			sent: '__blitiCurveSent',
+			streams: '__blitiCurveStreams',
+			handle: '__blitiCurveStream',
+		})
+		return {
+			// Copied as the wasm half copies it, by writing it out as JSON.
+			load: (document) => stream.send({ type: 'load', document: JSON.parse(JSON.stringify(document)) }),
+			reset: () => stream.send({ type: 'reset' }),
+			close: stream.close,
 		}
 	},
 	disconnect() {
@@ -234,9 +269,20 @@ export async function openNetworkScreen(page) {
 	await page.getByRole('button', { name: 'Network settings' }).click()
 }
 
-/// Every message the page has sent on control streams, in order.
-export async function controlSent(page) {
-	return page.evaluate(() => window.__blitiControlSent)
+/// Every message the page has sent on power streams, in order.
+export async function powerSent(page) {
+	return page.evaluate(() => window.__blitiPowerSent)
+}
+
+/// Every message the page has sent on curve streams, in order.
+export async function curveSent(page) {
+	return page.evaluate(() => window.__blitiCurveSent)
+}
+
+/// Have the device say something on the open curve stream.
+export async function sayOnCurve(page, event) {
+	await page.waitForFunction(() => window.__blitiCurveStream !== undefined)
+	await page.evaluate((event) => window.__blitiCurveStream.emit(event), event)
 }
 
 /// Script the outcome of each attempt to reach a device coming back: 'ok', 'chooser', or a failure.

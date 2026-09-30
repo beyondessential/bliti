@@ -8,9 +8,9 @@
 //! naming itself, and a feed serving the `default` topic. A client declines the feed by closing it,
 //! and resumes with a `subscribe` for `default`. A topic is served on at most one stream, so a
 //! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
-//! handed to the configuration session of [`crate::network::session`], and one whose client sends
-//! `control` to the control stream of [`crate::control`]. Beyond that it never answers a
-//! message on the wire: one it does not recognise is passed over, one carrying something critical it
+//! handed to the configuration session of [`crate::network::session`], one whose client sends
+//! `power` to the power stream of [`crate::power`], and one whose client sends `curve` to the curve
+//! stream of [`crate::battery`]. Beyond that it never answers a message on the wire: one it does not recognise is passed over, one carrying something critical it
 //! does not know is refused, one it knows but has nothing to do about is a no-op, and one that breaks
 //! the protocol closes the stream it arrived on.
 
@@ -36,12 +36,13 @@ use tokio::task::{AbortHandle, JoinSet};
 use tracing::Instrument;
 
 use crate::{
-	control::{self, Controller, SessionGuard},
-	facts,
+	battery,
+	facts::{self, Supply},
 	network::{
 		self,
 		session::{Backend, Configurator},
 	},
+	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
 };
 
@@ -67,7 +68,8 @@ const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
 pub struct Peer(Arc<Mutex<Option<(String, String)>>>);
 
 impl Peer {
-	fn name(&self, name: String, version: String) {
+	/// Record what the client named itself as.
+	pub fn name(&self, name: String, version: String) {
 		*self
 			.0
 			.lock()
@@ -95,6 +97,7 @@ pub async fn run<S, B>(
 	sampler: Sampler,
 	configurator: Configurator<B>,
 	controller: Controller,
+	supply: Supply,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -133,6 +136,7 @@ where
 		&sampler,
 		&configurator,
 		&controller,
+		&supply,
 		&mut held,
 	)
 	.await;
@@ -157,6 +161,7 @@ async fn converse<B: Backend>(
 	sampler: &Sampler,
 	configurator: &Configurator<B>,
 	controller: &Controller,
+	supply: &Supply,
 	held: &mut SessionGuard,
 ) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
@@ -222,6 +227,7 @@ async fn converse<B: Backend>(
 			served: served.clone(),
 			configurator: configurator.clone(),
 			controller: controller.clone(),
+			supply: supply.clone(),
 			peer: peer.clone(),
 		};
 		tasks.spawn(
@@ -250,6 +256,7 @@ struct Context<B> {
 	served: Served,
 	configurator: Configurator<B>,
 	controller: Controller,
+	supply: Supply,
 	peer: Peer,
 }
 
@@ -265,6 +272,7 @@ where
 		served,
 		configurator,
 		controller,
+		supply,
 		peer,
 	} = context;
 	loop {
@@ -302,13 +310,21 @@ where
 			Ok(Reading::Message(Message::Configure)) => {
 				return network::session::serve(stream, configurator).await;
 			}
-			Ok(Reading::Message(Message::Control)) => {
-				return control::serve(stream, controller, peer).await;
+			Ok(Reading::Message(Message::Power)) => {
+				return power::serve(stream, controller, peer).await;
 			}
 			Ok(Reading::Message(Message::Act { .. })) => {
-				// An act on a stream that opened no control stream. Nothing to act on, which MSG makes a
+				// An act on a stream that opened no power stream. Nothing to act on, which MSG makes a
 				// no-op rather than a fault.
-				tracing::debug!("an act outside a control stream; nothing to do");
+				tracing::debug!("an act outside a power stream; nothing to do");
+			}
+			Ok(Reading::Message(Message::Curve)) => {
+				return battery::serve_stream(stream, supply, peer).await;
+			}
+			Ok(Reading::Message(Message::Load { .. } | Message::Reset)) => {
+				// A curve change on a stream that opened no curve stream. Nothing to act on, which MSG
+				// makes a no-op rather than a fault.
+				tracing::debug!("a curve change outside a curve stream; nothing to do");
 			}
 			Ok(Reading::Message(
 				Message::Configuration { .. }
@@ -333,7 +349,8 @@ where
 				| Message::Acts { .. }
 				| Message::Accepted
 				| Message::Refused { .. }
-				| Message::GoingAway { .. },
+				| Message::GoingAway { .. }
+				| Message::Curves { .. },
 			)) => {
 				// Answers only a device sends. A client sending one has nothing for this device to do
 				// about it, a no-op rather than a fault (MSG).
@@ -408,8 +425,11 @@ where
 				return Ok(());
 			}
 
-			act = going.going(), if !told => {
-				let message = Message::GoingAway { act: act.name().to_owned() };
+			going_away = going.going(), if !told => {
+				let message = Message::GoingAway {
+					act: going_away.act.name().to_owned(),
+					cause: going_away.cause.name().to_owned(),
+				};
 				if write_message(&mut writer, &message.to_json()).await.is_err() {
 					return Ok(());
 				}

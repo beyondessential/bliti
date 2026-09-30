@@ -119,7 +119,17 @@ fn from_properties(os_name: &str, properties: &PropMap) -> Option<Battery> {
 		.copied()
 		.filter(|volts| *volts > 0.0);
 	battery.direction = direction(prop_cast::<u32>(properties, "State").copied().unwrap_or(0));
+	battery.time_to_empty = seconds(properties, "TimeToEmpty");
+	battery.time_to_full = seconds(properties, "TimeToFull");
 	Some(battery)
+}
+
+/// A time upower gives in seconds, which it writes as zero where it has none.
+fn seconds(properties: &PropMap, key: &str) -> Option<f64> {
+	prop_cast::<i64>(properties, key)
+		.copied()
+		.filter(|seconds| *seconds > 0)
+		.map(|seconds| seconds as f64)
 }
 
 #[cfg(test)]
@@ -234,6 +244,21 @@ mod tests {
 		assert_eq!(direction(STATE_PENDING_CHARGE), Direction::Idle);
 		assert_eq!(direction(STATE_PENDING_DISCHARGE), Direction::Idle);
 		assert_eq!(direction(STATE_EMPTY), Direction::Idle);
+	}
+
+	/// upower's times are seconds, and zero where it has none (NFO).
+	#[test]
+	fn the_times_are_read_and_zero_is_none() {
+		let mut discharging = laptop_cell();
+		discharging.insert("State".to_owned(), Variant(Box::new(STATE_DISCHARGING)));
+		discharging.insert("TimeToEmpty".to_owned(), Variant(Box::new(5400i64)));
+		discharging.insert("TimeToFull".to_owned(), Variant(Box::new(0i64)));
+		let battery = from_properties("BAT0", &discharging).unwrap();
+		assert_eq!(battery.time_to_empty, Some(5400.0));
+		assert_eq!(battery.time_to_full, None);
+
+		let battery = from_properties("hiddev5", &attached_ups()).unwrap();
+		assert_eq!((battery.time_to_empty, battery.time_to_full), (None, None));
 	}
 
 	/// upower saying it does not know is not a direction to report (NFO).

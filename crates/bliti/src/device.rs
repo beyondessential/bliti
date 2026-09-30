@@ -30,7 +30,7 @@ use tracing::Instrument;
 
 use crate::{
 	NetworkBackend,
-	control::{Controller, systemd::Systemd},
+	facts::{Supply, curve},
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
@@ -38,6 +38,7 @@ use crate::{
 		stack::{Chosen, Stack},
 		wired,
 	},
+	power::{Controller, systemd::Systemd},
 	session::{self, AbortOnDrop},
 };
 
@@ -88,7 +89,7 @@ pub async fn run(
 	tracing::info!(adapter = %adapter.name(), address = %adapter.address().await?, "adapter ready");
 	end_connections(&adapter, "ending a connection made before this start").await?;
 
-	let controller = control(&adapter).await;
+	let controller = controller(&adapter).await;
 
 	let sink = InboundSink::default();
 	// A legacy controller stops advertising the instant a client connects and does not resume by
@@ -98,13 +99,25 @@ pub async fn run(
 	// device back on the air for the next client (ADV, CHN).
 	let readvertise = Arc::new(tokio::sync::Notify::new());
 
+	// The backup supply's curves are read from the curve file the first time its gauge answers, which
+	// is at once where there is one; on a machine with none, it manages nothing (CHG).
+	let supply = Supply::new(curve::store::Store::new(curve::store::DEFAULT_PATH));
+	// Unlike sampling, this never stops: a power cut rarely happens with anyone connected (DEV), and
+	// the low-battery shutdown is watched for whether or not anyone samples (LOW).
+	if let Err(err) = crate::facts::record_supply(supply.clone(), controller.clone()) {
+		tracing::warn!(%err, "cannot watch the backup supply; power changes go unrecorded and no low battery is watched for");
+	}
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
-	let sampler = crate::sampler::Sampler::start(wireless);
-	// Unlike sampling, this never stops: a power cut rarely happens with anyone connected (DEV).
-	if let Err(err) = crate::facts::record_supply() {
-		tracing::warn!(%err, "cannot watch the backup supply; power changes go unrecorded");
-	}
+	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
+	// The command line changes the curves of a running daemon through this, since the daemon holds
+	// them in memory and would otherwise overwrite what it wrote to the curve file (CRV).
+	let socket = Path::new(crate::battery::socket::PATH);
+	let _socket = crate::battery::socket::listen(socket, supply.clone())
+		.inspect_err(|err| {
+			tracing::warn!(%err, path = %socket.display(), "cannot listen for the command line; `bliti battery-curve` will change the curve file behind this daemon's back");
+		})
+		.ok();
 	let (writes, writes_handle) = characteristic_control();
 	let (subscriptions, subscriptions_handle) = characteristic_control();
 	let _application = adapter
@@ -122,6 +135,7 @@ pub async fn run(
 				sampler,
 				configurator,
 				controller,
+				supply,
 				// One allowance for the whole device, since every session shares the one radio.
 				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
 			},
@@ -381,6 +395,7 @@ struct Shared {
 	sampler: crate::sampler::Sampler,
 	configurator: Configurator<Chosen>,
 	controller: Controller,
+	supply: Supply,
 	pacer: Arc<Mutex<Pacer>>,
 }
 
@@ -406,6 +421,7 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 		sampler,
 		configurator,
 		controller,
+		supply,
 		pacer,
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
@@ -451,7 +467,7 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
 	// stays reachable afterwards.
 	tokio::select! {
-		result = session::run(transport, &keys, sampler, configurator, controller) => {
+		result = session::run(transport, &keys, sampler, configurator, controller, supply) => {
 			match result {
 				Ok(()) => tracing::info!("session ended"),
 				Err(err) => tracing::info!(%err, "session ended"),
@@ -560,7 +576,7 @@ const DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 /// The acts this device offers, and what drops its connections before it carries one out (CTL).
 ///
 /// A device whose systemd cannot be reached offers none, and says why.
-async fn control(adapter: &bluer::Adapter) -> Controller {
+async fn controller(adapter: &bluer::Adapter) -> Controller {
 	let probed = tokio::task::spawn_blocking(Systemd::probe)
 		.await
 		.unwrap_or_else(|err| Err(anyhow::anyhow!("probing systemd panicked: {err}")));

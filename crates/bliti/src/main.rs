@@ -11,11 +11,12 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-mod control;
+mod battery;
 mod facts;
 mod gatt;
 mod identity;
 mod network;
+mod power;
 mod qr;
 mod sampler;
 mod session;
@@ -61,6 +62,22 @@ enum Command {
 		/// proposal, `stack` drives iwd, hostapd and systemd-networkd.
 		#[arg(long, value_enum, default_value_t = NetworkBackend::Inert)]
 		network_backend: NetworkBackend,
+	},
+
+	/// Write out the battery curve document in force, load one, or reset to the curve this build
+	/// carries. Goes through the running daemon where one answers, so it takes effect at once, and
+	/// works on the curve file otherwise.
+	BatteryCurve {
+		#[command(subcommand)]
+		action: CurveAction,
+
+		/// Where the daemon listens for the command line.
+		#[arg(long, default_value_os_t = battery::cli::Paths::default().socket)]
+		socket: PathBuf,
+
+		/// The curve file, worked on directly where no daemon answers.
+		#[arg(long, default_value_os_t = battery::cli::Paths::default().store)]
+		curve_file: PathBuf,
 	},
 
 	/// Print the QR code for the board this runs on.
@@ -146,6 +163,21 @@ enum Command {
 	},
 }
 
+/// What `battery-curve` is asked to do (CRV, "At the device").
+#[derive(Debug, Subcommand)]
+enum CurveAction {
+	/// Write the curve document in force to standard output, as JSON.
+	Export,
+	/// Load a curve document.
+	Import {
+		/// The curve document, as JSON, or `-` to read it from standard input.
+		#[arg(value_name = "FILE|-")]
+		file: PathBuf,
+	},
+	/// Return to the curve this build carries, holding no charging curve.
+	Reset,
+}
+
 fn main() -> Result<()> {
 	tracing_subscriber::fmt()
 		.with_env_filter(
@@ -179,6 +211,11 @@ async fn run(cli: Cli) -> Result<()> {
 			.await
 		}
 		Command::Qr { svg } => make_qr(&cli.cache, svg),
+		Command::BatteryCurve {
+			action,
+			socket,
+			curve_file,
+		} => battery_curve(action, socket, curve_file).await,
 		Command::Daemon {
 			adapter,
 			network,
@@ -346,6 +383,19 @@ async fn network_apply(
 #[cfg(not(target_os = "linux"))]
 async fn probe() -> Result<()> {
 	anyhow::bail!("probing radios needs nl80211, which only Linux has")
+}
+
+/// Carry out a `battery-curve` action, a refusal failing with its reason.
+async fn battery_curve(action: CurveAction, socket: PathBuf, store: PathBuf) -> Result<()> {
+	let action = match action {
+		CurveAction::Export => battery::cli::Action::Export,
+		CurveAction::Import { file } => {
+			battery::cli::Action::Import(battery::cli::read_document(&file)?)
+		}
+		CurveAction::Reset => battery::cli::Action::Reset,
+	};
+	let paths = battery::cli::Paths { socket, store };
+	battery::cli::run(action, &paths, &mut std::io::stdout().lock()).await
 }
 
 /// Report what the board offers. Probes only: no source value is read, so this is safe and instant

@@ -69,6 +69,9 @@ fn from_directory(supply: &Path) -> Option<Battery> {
 		.map(|micro| micro / 1_000_000.0)
 		.filter(|volts| *volts > 0.0);
 	battery.direction = direction(read("status").as_deref());
+	// Seconds, where the driver estimates them at all, zero taken as none as upower writes it.
+	battery.time_to_empty = number(supply, "time_to_empty_now").filter(|secs| *secs > 0.0);
+	battery.time_to_full = number(supply, "time_to_full_now").filter(|secs| *secs > 0.0);
 	Some(battery)
 }
 
@@ -222,6 +225,36 @@ mod tests {
 		assert_eq!(found[0].charge, Some(0.5));
 		assert_eq!(found[0].direction, Direction::Discharging);
 		assert_eq!(found[0].volts, None, "no voltage reported is no voltage");
+		fs::remove_dir_all(&root).unwrap();
+	}
+
+	/// The kernel's times are seconds, where the driver gives them.
+	#[test]
+	fn the_times_are_read_where_given() {
+		let root = tree("times");
+		supply(
+			&root,
+			"BAT0",
+			BTreeMap::from([
+				("type", "Battery"),
+				("status", "Charging"),
+				("capacity", "40"),
+				("time_to_full_now", "3600"),
+				("time_to_empty_now", "0"),
+			]),
+		);
+		supply(
+			&root,
+			"BAT1",
+			BTreeMap::from([("type", "Battery"), ("capacity", "40")]),
+		);
+		let found = batteries_in(&root);
+		assert_eq!(found[0].time_to_full, Some(3600.0));
+		assert_eq!(found[0].time_to_empty, None, "zero is no time");
+		assert_eq!(
+			(found[1].time_to_empty, found[1].time_to_full),
+			(None, None)
+		);
 		fs::remove_dir_all(&root).unwrap();
 	}
 

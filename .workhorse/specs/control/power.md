@@ -2,11 +2,11 @@
 id: CTL
 ---
 
-# Device control
+# Power control
 
-A client asks a device to restart its software, reboot, or power off, through a control stream, and the device tells every client connected to it before it goes.
+A client asks a device to restart its software, reboot, or power off, through a power stream, and the device tells every client connected to it before it goes.
 
-The control stream is a stream role beyond those of [MSG](../messages.md), established as [MSG](../messages.md) requires by which end opened the stream and by its first message.
+The power stream is a stream role beyond those of [MSG](../messages.md), established as [MSG](../messages.md) requires by which end opened the stream and by its first message.
 
 ## The acts
 
@@ -23,27 +23,36 @@ A device MUST list an act only where it can carry it out.
 
 ## The exchange
 
-A client MUST open a control stream by opening a stream whose first message is `control`.
+A client MUST open a power stream by opening a stream whose first message is `power`.
 
-A device MUST answer `control` with `acts`, carrying as `acts` an array of the acts it can carry out.
+A device MUST answer `power` with `acts`, carrying as `acts` an array of the acts it can carry out.
 
-A client MUST ask for an act by sending `act` on the control stream, carrying as `ACT` a critical member naming the act.
+A client MUST ask for an act by sending `act` on the power stream, carrying as `ACT` a critical member naming the act.
 
 A device MUST answer every `act` exactly once, with `accepted` where it will carry the act out, and otherwise with `refused`.
 
-A device MUST refuse an act it did not list, and every act asked for once it has accepted one, until it has failed to carry that one out.
+A device MUST refuse an act it did not list, and every act asked for once it has accepted one or begun a shutdown under [LOW](../battery/shutdown.md), until it has failed to carry that one out.
 
 `refused` MUST carry `reason`, in the device's own words, saying why.
 
-A device MUST serve any number of control streams at once, on one channel or across several.
+A device MUST serve any number of power streams at once, on one channel or across several.
 
 > [!NOTE]
 > An act is a request to do something that cannot be taken back, which is the case [MSG](../messages.md) reserves critical members for: a device that acted on an `act` whose selector it had not read would do something it was not asked to do.
-> Several operators may each have a control stream open. The first act accepted is the one carried out, and the refusal each later one receives says so.
+> Several operators may each have a power stream open. The first act accepted is the one carried out, and the refusal each later one receives says so.
 
 ## Going away
 
 Once it has accepted an act, a device MUST send `going-away`, carrying as `act` the act accepted, on the `default` feed of every channel where that feed is open, the channel of the client that asked included.
+
+`going-away` MUST carry `cause`, saying why the device is going away:
+
+| `cause` | meaning |
+| --- | --- |
+| `manual-control` | a client asked for the act on a power stream |
+| `low-battery` | the device is powering off before its battery runs out, under [LOW](../battery/shutdown.md) |
+
+A client MUST treat a `going-away` whose `cause` it does not recognise as it treats one whose cause it does, by its `act`.
 
 A device MUST end every connection once it has sent `going-away` on each, and MUST then carry the act out.
 
@@ -55,6 +64,7 @@ A device MUST log an act it accepted and then failed to carry out, with the reas
 
 > [!NOTE]
 > `going-away` lets every operator watching a device tell a device that is restarting from one that has dropped, and wait for it rather than go looking for a fault.
+> The cause tells an operator whether anyone meant the device to go, and a device powered off for its battery from one an operator powered off.
 > A client that has declined `default` is not being looked at, so its channel ends as any other channel ends.
 > Ending every connection before acting makes the channel close the same way whichever act follows, rather than on however the system happens to wind down.
 
@@ -62,9 +72,9 @@ A device MUST log an act it accepted and then failed to carry out, with the reas
 
 | type | sent by | on | carries |
 | --- | --- | --- | --- |
-| `control` | client | a control stream, as the first message | nothing beyond `type` |
-| `acts` | device | the control stream | `acts` |
-| `act` | client | the control stream | `ACT` |
-| `accepted` | device | the control stream | nothing beyond `type` |
-| `refused` | device | the control stream | `reason` |
-| `going-away` | device | the `default` feed | `act` |
+| `power` | client | a power stream, as the first message | nothing beyond `type` |
+| `acts` | device | the power stream | `acts` |
+| `act` | client | the power stream | `ACT` |
+| `accepted` | device | the power stream | nothing beyond `type` |
+| `refused` | device | the power stream | `reason` |
+| `going-away` | device | the `default` feed | `act`, `cause` |

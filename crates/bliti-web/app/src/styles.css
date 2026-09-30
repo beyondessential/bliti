@@ -103,6 +103,7 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .tile .value.small { font-size: 1rem; line-height: 1.5; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .tile .value .addresses { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.5; }
 .tile .value .part { color: var(--muted); font-size: 0.8rem; }
+.tile .value .margin { font-size: 0.8rem; }
 .tile .value .warn { color: var(--warn); }
 .tile .value .bad { color: var(--bad); }
 .tile .value.warn { color: var(--warn); }
@@ -114,6 +115,8 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .detail dt { color: var(--muted); font-size: 0.85rem; }
 .detail dd { margin: 0; font-size: 0.85rem; }
 .detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+/* How far either way a reading may be off, beside its value (VIEW). */
+.margin { color: var(--muted); margin-left: 6px; }
 
 /* The code a phone joins the hotspot by. It draws in the text colour over nothing, so its quiet zone
    is whatever the surface behind it is, in any theme. */
@@ -221,6 +224,9 @@ button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bott
 .acts .name { display: block; }
 .acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
 button.secondary.danger { color: var(--bad); }
+
+/* What the device gives for its battery, above the battery section's rows (CSCR). */
+.learnt { margin: 0 0 10px; }
 
 /* The devices this tab has reached, laid out as the acts are: which device, and the button that
    holds its code again (WEB). */

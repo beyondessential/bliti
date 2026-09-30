@@ -268,28 +268,59 @@ export function createClient() {
 			}
 		},
 
-		// Open a control stream (BLI-CTL): the acts the device can carry out, and its answer to each
+		// Open a power stream (BLI-CTL): the acts the device can carry out, and its answer to each
 		// asked for. Every message the device sends on it reaches onEvent as a feed's messages do;
 		// onClosed is called once the stream ends.
-		async control({ onEvent, onClosed, onActivity }) {
+		async power({ onEvent, onClosed, onActivity }) {
 			if (!channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
-			say('control')
-			const handle = await channel.control(
+			say('power')
+			const handle = await channel.power(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
 			let closed = false
 			return {
 				act: (act) => {
-					if (closed) throw new Error('The control stream has ended.')
+					if (closed) throw new Error('The power stream has ended.')
 					say(`act  ${act}`)
 					handle.act(act)
 				},
 				close: () => {
 					if (closed) return
 					closed = true
-					say('end of the control stream')
+					say('end of the power stream')
+					handle.close()
+					handle.free()
+				},
+			}
+		},
+
+		// Open a curve stream (BLI-CRV): the device's battery curve document and what it gives for a
+		// full charge and a full recharge, and its answer to each load and reset asked for. Every
+		// message the device sends on it reaches onEvent as a feed's messages do; onClosed is called
+		// once the stream ends.
+		async curve({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('curve')
+			const handle = await channel.curve(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			const sending = (text, send) => {
+				if (closed) throw new Error('The curve stream has ended.')
+				say(text)
+				send()
+			}
+			return {
+				load: (document) => sending('load  document', () => handle.load(document)),
+				reset: () => sending('reset', () => handle.reset()),
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the curve stream')
 					handle.close()
 					handle.free()
 				},

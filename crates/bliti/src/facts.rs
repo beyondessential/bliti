@@ -27,7 +27,7 @@ use bliti_core::channel::readings::Entry;
 
 use crate::network::stack::Report;
 
-pub use power::record_supply;
+pub use power::{Supply, Unchanged, curve, record_supply};
 
 mod board;
 mod compute;
@@ -50,14 +50,14 @@ pub fn facts(at: u64) -> Vec<Entry> {
 	entries
 }
 
-/// The readings-derivation state: the counters and voltage history that only mean something across
-/// samples. The sampler holds one of these and ticks it (NFO).
+/// The readings-derivation state: the counters that only mean something across samples, and the
+/// backup supply the battery readings come from. The sampler holds one of these and ticks it (NFO).
 #[derive(Debug, Default)]
 pub struct Facts {
 	cpu: Option<compute::CpuCounters>,
 	network: BTreeMap<String, network::Counters>,
-	// The cell is watched across samples: what tells a battery carrying the device from one sitting
-	// idle is whether its voltage moves, which no single reading can say.
+	// The cell is watched by the supply's record thread, which holds the history telling a battery
+	// carrying the device from one sitting idle; this reports from it.
 	power: power::Watch,
 	taken: Option<Instant>,
 	/// What the network backend joined and runs, where it configures the network.
@@ -66,10 +66,11 @@ pub struct Facts {
 
 impl Facts {
 	/// A fresh source, holding no baseline yet, reporting too what the network backend joined and
-	/// runs where it has one (NFO).
-	pub fn new(wireless: Option<Report>) -> Self {
+	/// runs where it has one, and the battery as `supply` last saw it (NFO).
+	pub fn new(wireless: Option<Report>, supply: Supply) -> Self {
 		Self {
 			wireless,
+			power: power::Watch::new(supply),
 			..Self::default()
 		}
 	}
@@ -121,11 +122,12 @@ impl crate::sampler::Source for Facts {
 	}
 
 	fn reset(&mut self) {
-		*self = Self::new(self.wireless.take());
+		*self = Self::new(self.wireless.take(), self.power.supply().clone());
 	}
 }
 
-/// How long the device has been up. The first field of `/proc/uptime`, in seconds.
+/// How long the system has been up, counting from its boot rather than bliti's start and including
+/// time suspended. The first field of `/proc/uptime`, in seconds.
 fn uptime() -> Option<Duration> {
 	let raw = fs::read_to_string("/proc/uptime").ok()?;
 	let seconds: f64 = raw.split_whitespace().next()?.parse().ok()?;
@@ -175,7 +177,7 @@ mod tests {
 			assert!(entry.status().is_some(), "{entry:?}");
 			assert!(!entry.name.is_empty());
 		}
-		let mut source = Facts::new(None);
+		let mut source = Facts::new(None, Supply::default());
 		for _ in 0..2 {
 			for entry in source.sample(1, true) {
 				assert!(entry.status().is_some(), "{entry:?}");
@@ -188,7 +190,7 @@ mod tests {
 	/// reports no rate (NFO).
 	#[test]
 	fn the_first_sample_reports_no_rate() {
-		let mut source = Facts::new(None);
+		let mut source = Facts::new(None, Supply::default());
 		let first = source.sample(1, true);
 		assert!(
 			!first.iter().any(|e| e.name == "cpu-usage"),

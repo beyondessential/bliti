@@ -13,6 +13,7 @@ import {
 	NETWORK_CONFIGURATION,
 	PROVISIONAL_TILES,
 	TILE_ORDER,
+	formatMargin,
 	formatValue,
 	hasValue,
 	isTrouble,
@@ -162,6 +163,8 @@ function renderTile(name, byName, history) {
 					charges={group}
 					voltages={byName.get('battery-voltage') ?? []}
 					directions={byName.get('battery-direction') ?? []}
+					empties={byName.get('battery-time-to-empty') ?? []}
+					fulls={byName.get('battery-time-to-full') ?? []}
 					history={history}
 				/>
 			)
@@ -214,6 +217,23 @@ function headline(entry) {
 	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
 }
 
+/// The headline with the entry's margin beside it, where it carries one.
+function face(entry) {
+	return withMargin(entry, headline(entry))
+}
+
+/// A value with how far either way it may be off beside it, for any reading carrying a margin (VIEW).
+function withMargin(entry, text) {
+	const margin = formatMargin(entry)
+	if (!margin) return text
+	return (
+		<>
+			{text}
+			<span className="margin">{margin}</span>
+		</>
+	)
+}
+
 /// A single-instance reading: cpu, memory, power, battery and the like. Its reveal carries its scale,
 /// its history, its reason, and any entries VIEW folds into it.
 function SimpleTile({ entry, history, total = null, reveal = [] }) {
@@ -225,7 +245,7 @@ function SimpleTile({ entry, history, total = null, reveal = [] }) {
 		reasonOf(entry) || scale !== null || graphable || revealed.length > 0
 
 	return (
-		<Tile label={labelOf(entry.name)} wide={isLong(headline(entry))} more={more} tone={tone(entry)} face={headline(entry)}>
+		<Tile label={labelOf(entry.name)} wide={isLong(headline(entry))} more={more} tone={tone(entry)} face={face(entry)}>
 			<Reveal entry={entry} scale={scale} series={graphable ? series : null} />
 			{revealed.map((sub) => (
 				<Folded key={sub.name} entry={sub} />
@@ -268,7 +288,7 @@ function Folded({ entry }) {
 /// A folded entry's figure, or its reason where it has no value: a skipped voltage says why it is
 /// not there rather than showing a bare dash (VIEW).
 function foldedValue(entry) {
-	return hasValue(entry) ? formatValue(entry) : (reasonOf(entry) ?? '—')
+	return hasValue(entry) ? withMargin(entry, formatValue(entry)) : (reasonOf(entry) ?? '—')
 }
 
 /// Which battery a reading is about.
@@ -277,12 +297,12 @@ function batteryName(entry) {
 }
 
 /// Battery: headline the cell named `built-in` where the device reports one and the first by name
-/// otherwise, pair each battery's voltage and direction with its own charge, and show every battery
-/// in the reveal (VIEW).
+/// otherwise, pair each battery's voltage, direction and times to empty and to full with its own
+/// charge, and show every battery in the reveal (VIEW).
 ///
 /// A device with one battery is the ordinary case and keeps the plain reading tile: its scale, its
-/// history, and the voltage and direction folded in beneath.
-function BatteryTile({ charges, voltages, directions, history }) {
+/// history, and the rest folded in beneath.
+function BatteryTile({ charges, voltages, directions, empties, fulls, history }) {
 	const ordered = [...charges].sort((a, b) => batteryName(a).localeCompare(batteryName(b)))
 	const headlined = ordered.find((entry) => batteryName(entry) === 'built-in') ?? ordered[0]
 	if (!headlined) return null
@@ -295,7 +315,12 @@ function BatteryTile({ charges, voltages, directions, history }) {
 			<SimpleTile
 				entry={headlined}
 				history={history}
-				reveal={[partner(voltages, headlined), partner(directions, headlined)]}
+				reveal={[
+					partner(voltages, headlined),
+					partner(directions, headlined),
+					partner(empties, headlined),
+					partner(fulls, headlined),
+				]}
 			/>
 		)
 	}
@@ -305,21 +330,21 @@ function BatteryTile({ charges, voltages, directions, history }) {
 			label={labelOf('battery-charge')}
 			more
 			tone={tone(headlined)}
-			face={headline(headlined)}
+			face={face(headlined)}
 		>
 			{ordered.map((entry) => {
 				const volts = partner(voltages, entry)
 				const way = partner(directions, entry)
+				const empty = partner(empties, entry)
+				const full = partner(fulls, entry)
 				const scale = scaleOf(entry)
 				return (
 					<div className="revealed" key={batteryName(entry)}>
 						<dl>
-							<Line
-								label={batteryName(entry)}
-								value={hasValue(entry) ? formatValue(entry) : headline(entry)}
-							/>
-							{volts && <Line label={labelOf(volts.name)} value={foldedValue(volts)} />}
-							{way && <Line label={labelOf(way.name)} value={foldedValue(way)} />}
+							<Line label={batteryName(entry)} value={face(entry)} />
+							{[volts, way, empty, full].filter(Boolean).map((sub) => (
+								<Line key={sub.name} label={labelOf(sub.name)} value={foldedValue(sub)} />
+							))}
 						</dl>
 						{scale !== null && (
 							<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
@@ -437,12 +462,12 @@ function StorageTile({ filesystems, totals }) {
 			label={labelOf('filesystem-usage')}
 			more={filesystems.length > 0}
 			tone={fullest ? tone(fullest) : ''}
-			face={fullest ? headline(fullest) : '—'}
+			face={fullest ? face(fullest) : '—'}
 		>
 			{filesystems.map((entry) => (
 				<div className="revealed" key={mountOf(entry)}>
 					<dl>
-						<Line label={mountOf(entry)} value={hasValue(entry) ? formatValue(entry) : '—'} />
+						<Line label={mountOf(entry)} value={hasValue(entry) ? withMargin(entry, formatValue(entry)) : '—'} />
 					</dl>
 					{scaleOf(entry, totalFor(entry)) !== null && (
 						<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
@@ -514,13 +539,14 @@ function Interface({ name, pair, history }) {
 
 function summary(pair) {
 	return ['in', 'out']
-		.map((direction) => {
-			const entry = pair[direction]
-			if (!entry) return null
-			return hasValue(entry) ? formatValue(entry) : 'unavailable'
-		})
+		.map((direction) => pair[direction])
 		.filter(Boolean)
-		.join(' · ')
+		.map((entry, index) => (
+			<span key={entry.traits?.direction}>
+				{index > 0 && ' · '}
+				{hasValue(entry) ? withMargin(entry, formatValue(entry)) : 'unavailable'}
+			</span>
+		))
 }
 
 /// Temperature: headline the cpu sensor, and show every sensor in the reveal, each with its own scale
@@ -532,14 +558,14 @@ function TemperatureTile({ sensors, history }) {
 			label={labelOf('temperature')}
 			more={sensors.length > 0}
 			tone={cpu ? tone(cpu) : ''}
-			face={cpu ? headline(cpu) : '—'}
+			face={cpu ? face(cpu) : '—'}
 		>
 			{sensors.map((entry) => {
 				const series = history.get(seriesKey(entry)) ?? []
 				return (
 					<div className="revealed" key={sensorName(entry)}>
 						<dl>
-							<Line label={sensorName(entry)} value={hasValue(entry) ? formatValue(entry) : (reasonOf(entry) ?? '—')} />
+							<Line label={sensorName(entry)} value={foldedValue(entry)} />
 						</dl>
 						<Reveal entry={entry} scale={scaleOf(entry)} series={series.length > 1 ? series : null} />
 					</div>
@@ -561,17 +587,16 @@ function GenericTile({ label, entries, history }) {
 		const graphable = !entry.fact && series.length > 1
 		const scale = scaleOf(entry)
 		const qualifier = qualifierOf(entry)
-		const face = hasValue(entry) ? formatValue(entry) : headline(entry)
 		const more = reasonOf(entry) || scale !== null || graphable
 
 		return (
 			<Tile
 				key={label + qualifier}
 				label={qualifier ? `${label} · ${qualifier}` : label}
-				wide={isLong(String(face))}
+				wide={isLong(String(headline(entry)))}
 				more={more}
 				tone={tone(entry)}
-				face={face}
+				face={face(entry)}
 			>
 				<Reveal entry={entry} scale={scale} series={graphable ? series : null} />
 			</Tile>

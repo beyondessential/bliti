@@ -1,13 +1,13 @@
 //! The sampling task: the readings the device is taking now, and a feed of them as they are taken.
 //!
 //! Behaviour is specified in NFO, "Sampling". Sampling runs whether or not anyone is connected, so a
-//! feed that opens is served what is current at once rather than waiting a tick for it, and so the
-//! cell voltage has the history its direction of travel is derived from. It stops after a spell with
-//! no session, and starts again when one opens.
+//! feed that opens is served what is current at once rather than waiting a tick for it. It stops
+//! after a spell with no session, and starts again when one opens. The cell voltage's history is kept
+//! by the backup supply's own record thread, which never stops.
 //!
 //! Nothing is held for replay. A reader that comes back is sent what is current, not what accumulated
 //! while it was away; history is the reader's to accumulate forward from when it connects (NFO). The
-//! only state kept is what a derivation needs, which lives on [`Facts`].
+//! only state kept is what a derivation needs, which lives on [`Facts`] and the supply it reads.
 
 use std::{
 	collections::HashMap,
@@ -18,7 +18,7 @@ use std::{
 use bliti_core::channel::readings::{Entry, LIMITS, STATUS};
 use tokio::sync::broadcast;
 
-use crate::facts::Facts;
+use crate::facts::{Facts, Supply};
 
 /// How long the fast readings go between samples. Often enough to read as live.
 const FAST: Duration = Duration::from_secs(1);
@@ -58,9 +58,10 @@ impl Sampler {
 	/// Start sampling. Called when the device starts, so a feed that opens finds current readings
 	/// rather than an empty view (NFO).
 	///
-	/// `wireless` is what the network backend joined and runs, where it configures the network.
-	pub fn start(wireless: Option<crate::network::stack::Report>) -> Self {
-		Self::start_with(Box::new(Facts::new(wireless)))
+	/// `wireless` is what the network backend joined and runs, where it configures the network, and
+	/// `supply` the backup supply the battery readings are reported from.
+	pub fn start(wireless: Option<crate::network::stack::Report>, supply: Supply) -> Self {
+		Self::start_with(Box::new(Facts::new(wireless, supply)))
 	}
 
 	/// Start sampling from a given source. The device samples [`Facts`]; a test substitutes a source
@@ -192,7 +193,14 @@ impl Sampler {
 }
 
 /// The traits NFO makes wholly descriptive, and the members of others that describe.
-const DESCRIPTIVE: [&str; 4] = [STATUS, LIMITS, "security", "channel"];
+const DESCRIPTIVE: [&str; 6] = [
+	STATUS,
+	LIMITS,
+	"security",
+	"channel",
+	"passphrase",
+	"margin",
+];
 const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
 	("interface", &["route", "overlay"]),
 	("battery", &["serial", "model", "vendor"]),
@@ -388,11 +396,33 @@ mod tests {
 			identity_key(&joined(1, false)),
 			identity_key(&joined(11, true))
 		);
+
+		// A hotspot given a new passphrase is the same hotspot.
+		let hotspot = |passphrase: &str| {
+			Entry::text(1, "hotspot", "bliti-setup").with_trait("passphrase", json!(passphrase))
+		};
+		assert_eq!(identity_key(&hotspot("one")), identity_key(&hotspot("two")));
+	}
+
+	/// A time left whose margin narrows between looks is the same time left, so a slow tick does not
+	/// send the previous one as ended, which a reader would take for this one ending (NFO).
+	#[test]
+	fn a_changing_margin_keeps_the_key() {
+		use serde_json::json;
+		let left = |seconds: f64, margin: f64| {
+			Entry::duration(1, "battery-time-to-empty", seconds)
+				.with_trait("battery", json!({ "name": "built-in" }))
+				.with_trait("margin", json!(margin))
+		};
+		assert_eq!(
+			identity_key(&left(9000.0, 1200.0)),
+			identity_key(&left(8990.0, 1100.0))
+		);
 	}
 
 	#[tokio::test(start_paused = true)]
 	async fn a_subscriber_receives_readings_as_they_are_taken() {
-		let sampler = Sampler::start(None);
+		let sampler = Sampler::start(None, Supply::default());
 		let _session = sampler.session();
 		let mut live = sampler.live();
 
@@ -405,7 +435,7 @@ mod tests {
 	/// set at once.
 	#[tokio::test(start_paused = true)]
 	async fn the_snapshot_merges_across_fast_and_slow_ticks() {
-		let sampler = Sampler::start(None);
+		let sampler = Sampler::start(None, Supply::default());
 		let _session = sampler.session();
 		tokio::time::sleep(FAST * 7).await;
 

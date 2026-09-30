@@ -355,18 +355,27 @@ pub async fn connect(
 					)) => {
 						println!("config:   a configuration-session message");
 					}
-					Ok(Reading::Message(Message::GoingAway { act })) => {
-						println!("going:    the device is carrying out {act}");
+					Ok(Reading::Message(Message::GoingAway { act, cause })) => {
+						println!("going:    the device is carrying out {act} ({cause})");
 					}
-					// The control stream of CTL. This diagnostic client opens none.
+					// The power stream of CTL. This diagnostic client opens none.
 					Ok(Reading::Message(
-						Message::Control
+						Message::Power
 						| Message::Acts { .. }
 						| Message::Act { .. }
 						| Message::Accepted
 						| Message::Refused { .. },
 					)) => {
-						println!("control:  a control-stream message");
+						println!("power:    a power-stream message");
+					}
+					// The curve stream of CRV. This diagnostic client opens none.
+					Ok(Reading::Message(
+						Message::Curve
+						| Message::Curves { .. }
+						| Message::Load { .. }
+						| Message::Reset,
+					)) => {
+						println!("curve:    a curve-stream message");
 					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),

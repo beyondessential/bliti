@@ -357,6 +357,51 @@ test.describe('batteries', () => {
 		await expect(page.getByText('Discharging', { exact: true })).toBeVisible()
 	})
 
+	const time = (measurement, about, value, margin) =>
+		reading(measurement, { kind: 'duration', value, traits: { status: { is: 'passed' }, battery: about, margin } })
+
+	// The times to empty and to full are the battery's, folded into its reveal with their margins in
+	// their own unit, and get no tiles of their own (VIEW).
+	test('time left and time to full fold into the reveal with their margins', async ({ page }) => {
+		await openChannel(page)
+		const about = battery('built-in')
+		await emit(page, charge(about, 0.18))
+		await emit(page, volts(about, 3.41))
+		await emit(page, direction(about, 'discharging'))
+		await emit(page, time('battery-time-to-empty', about, 3240, 480))
+
+		await expect(page.locator('.tile')).toHaveCount(1)
+		await page.getByRole('button', { name: /Battery/ }).click()
+		const reveal = page.locator('.tile.expanded .detail')
+		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time left'])
+		await expect(reveal.locator('dd').last()).toHaveText('54m±8m')
+		await expect(reveal.locator('dd').last().locator('.margin')).toHaveText('±8m')
+
+		// Charging: time left ends and time to full takes its place.
+		await emit(
+			page,
+			reading('battery-time-to-empty', { kind: 'duration', traits: { status: { is: 'ended' }, battery: about } }),
+		)
+		await emit(page, direction(about, 'charging'))
+		await emit(page, time('battery-time-to-full', about, 5100, 1200))
+		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time to full'])
+		await expect(reveal.locator('dd').last()).toHaveText('1h 25m±20m')
+		await expect(page.locator('.tile')).toHaveCount(1)
+	})
+
+	// Each battery's times are its own where there are several.
+	test('time left pairs with its own battery', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, charge(battery('built-in'), 0.5))
+		await emit(page, charge(battery('Eaton 3S'), 1))
+		await emit(page, time('battery-time-to-empty', battery('Eaton 3S'), 7200, 600))
+		await page.getByRole('button', { name: /Battery/ }).click()
+		const ups = page.locator('.tile.expanded .revealed').filter({ hasText: 'Eaton 3S' })
+		await expect(ups).toContainText('Time left')
+		await expect(ups).toContainText('2h 0m±10m')
+		await expect(page.locator('.tile.expanded .revealed').filter({ hasText: 'built-in' })).not.toContainText('Time left')
+	})
+
 	// With no built-in cell the headline is settled by name rather than by arrival order (VIEW).
 	test('with no built-in cell the first by name headlines', async ({ page }) => {
 		await openChannel(page)
@@ -373,6 +418,26 @@ test.describe('batteries', () => {
 		await emit(page, charge(battery('BAT0', { model: 'DELL T453X (refurbished)' }), 0.9))
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' })).toHaveCount(1)
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('90%')
+	})
+})
+
+test.describe('margins', () => {
+	// Any reading carrying a margin shows it beside its value, in the reading's unit (VIEW).
+	test('a reading carrying a margin shows it beside its value', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
+		await expect(page.locator('.tile .value')).toHaveText('0.12 µSv/h±0.03 µSv/h')
+		await expect(page.locator('.tile .value .margin')).toHaveText('±0.03 µSv/h')
+	})
+
+	// A margin describes a reading rather than telling it from another, so a changing one does not
+	// split it into two (NFO).
+	test('a changing margin does not split one reading into two', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
+		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.14, traits: { status: { is: 'passed' }, margin: 0.02 } }))
+		await expect(page.locator('.tile')).toHaveCount(1)
+		await expect(page.locator('.tile .value')).toHaveText('0.14 µSv/h±0.02 µSv/h')
 	})
 })
 

@@ -24,5 +24,11 @@ RestartSec=10s
 # that cache lives by default.
 StateDirectory=bliti
 
+# Creates /run/bliti, where the daemon listens for `bliti battery-curve` on
+# battery.sock. Root-only, as the socket is, so it is never reachable by anyone
+# else, not even in the moment between binding it and setting its mode.
+RuntimeDirectory=bliti
+RuntimeDirectoryMode=0700
+
 [Install]
 WantedBy=multi-user.target

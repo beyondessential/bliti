@@ -27,7 +27,13 @@ async function open(page, code, hostname) {
 	await read(page, code)
 	await page.getByRole('button', { name: 'Find the device' }).click()
 	await expect(title(page)).toHaveText('Info')
-	if (hostname) await emit(page, hostnameFact(hostname))
+	if (hostname) {
+		await emit(page, hostnameFact(hostname))
+		// Remembered once the page has rendered the fact, so a reload straight after could lose it.
+		await expect
+			.poll(() => page.evaluate(() => sessionStorage.getItem('bliti.recent') ?? ''))
+			.toContain(hostname)
+	}
 }
 
 /// Reach a device, let it go, and go back to reading a code.
@@ -144,7 +150,7 @@ test.describe('a reload', () => {
 
 	test('while the device restarts comes back holding that device', async ({ page }) => {
 		await open(page, A, 'clinic-store-2')
-		await emit(page, message({ type: 'going-away', act: 'restart' }))
+		await emit(page, message({ type: 'going-away', act: 'restart', cause: 'manual-control' }))
 		await expect(page.getByText('Restarting bliti…')).toBeVisible()
 		await page.reload()
 		await expect(held(page).locator('p.code')).toHaveText(A)
