@@ -147,7 +147,7 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 - [ ] Which handshake pattern replaces `NKpsk0`, for Tech design: `NXpsk0` is the closest, with alternatives (a later psk position, for one) compared and the SEC argument written out. The key it sends is the device static key of KEY, the same X25519 key the code carries today; the advertisement carries only the handle and never the key.
 
-- [ ] Does the iOS Camera app offer to open a registered custom scheme from a QR code, and does Google Lens or the Android camera app hand one to an application? Only matters once a native application exists.
+- [ ] Does the iOS Camera app offer to open a registered custom scheme from a QR code? Only matters once a native application exists. The Android camera app does: tapping a `BLITI:` code, it tried to hand it to an application and reported that none was installed.
 
 ## Trade-offs
 
