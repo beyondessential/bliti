@@ -18,11 +18,12 @@ const SOURCE = new URL('./src/sw.js', import.meta.url)
 const TOKEN = 'self.__BLITI_PRECACHE__'
 const BUNDLED = new Set(['.js', '.css', '.html', '.wasm'])
 
-async function worker(list) {
-	const source = await readFile(SOURCE, 'utf8')
-	if (!source.includes(TOKEN)) throw new Error(`${SOURCE.pathname} does not carry ${TOKEN}`)
+export function inject(source, list) {
+	if (!source.includes(TOKEN)) throw new Error(`the service worker does not carry ${TOKEN}`)
 	return source.replace(TOKEN, JSON.stringify(list))
 }
+
+const worker = async (list) => inject(await readFile(SOURCE, 'utf8'), list)
 
 const revision = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16)
 
