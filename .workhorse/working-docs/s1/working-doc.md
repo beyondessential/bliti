@@ -2,9 +2,9 @@
 status: draft
 ---
 
-# Encode the QR payload for alphanumeric mode
+# Shrink the QR code to fit the side of the case
 
-Work out whether the sticker QR code can use QR alphanumeric mode (upper-case URL, Base45, or a bare `BLITI:` prefix) to stay coarse enough to scan as the payload grows from 33 to 65 bytes.
+Get the device QR code to 30 mm or less at a module size a phone still reads, through its payload, its encoding, and the text around it.
 
 ## Behaviour
 
@@ -17,9 +17,37 @@ Settled so far:
 - The client authenticates the device by checking the static key it receives in the handshake against the fingerprint, rather than by knowing the key beforehand.
 - The payload stays base32. Base45 buys no version at any size priced, cannot ride in a URL fragment, and makes a poor human-readable rendering.
 - The generator segments the code explicitly, so every board's code is the same version and that version is the smallest the text allows.
-- The lower-case rule for the URL stays. Upper-casing never beats dropping the trailing slash.
+- The code carries no link. Its text is `BLITI:` followed by the 53 base32 characters of the payload, all in QR's alphanumeric set.
+- Only the application's own camera, or the human-readable rendering typed in, reads a code. The follow-the-link path, and the fragment it delivers, go from QR and WEB.
+- What a sticker looks like is a product decision outside bliti. Bliti provides the QR code, as SVG with its quiet zone, and the human-readable rendering alongside it for whoever lays the sticker out to use or not. QR's rule that the rendering is printed alongside the code goes.
+- The rendering is the payload's 53 characters grouped for legibility, without the prefix.
+- The reader takes the code text and anything a person would type for it: the prefix in any case or absent, the payload in any case, dashes and spaces ignored. One reading covers the code and the rendering.
+- The key schedule expands the 16-byte token twice: the pre-shared key is a BLAKE3 derivation of it under `bliti pre-shared key`, and the advertised handle is keyed on a derivation under `bliti advertised handle`. The handle key and the Noise key are never the same bytes.
 
-Still to be settled by the print trial: URL or bare `BLITI:` prefix, and the error correction level.
+With no link, only someone who knows what the code is for, and has the application, gets anything from it; a generic camera shows a string and opens nothing.
+That is obscurity, not a security property: SEC still holds that anyone with the presence token can open a session, and a photograph of the code yields it either way.
+
+Still to be settled: the error correction level, by the print trial.
+
+### Prefix or bare payload
+
+Settled on the prefix. The reasoning, for the record:
+
+At 33 bytes the prefix costs nothing: `BLITI:` + 53 characters and the bare 53 characters land on the same version at every level (H v5, Q v4, M v3, L v3), by both libqrencode and the crate.
+The tightest is M, where the prefixed text (≈338 bits) sits 14 bits under the v3 boundary.
+
+For a prefix:
+
+- A reader rejects a foreign code, such as the device's own hotspot QR code (VIEW) or any other code in frame, on six characters, before decoding.
+- A camera app shows `BLITI:…`, which tells a person holding the device what the code belongs to.
+
+For the bare payload:
+
+- The code text is exactly the fragment form `QrPayload::read` already takes, so no new form is parsed.
+- A camera app shows an anonymous string, which is the obscurity above at its strongest.
+- The payload already validates itself: 53 characters exactly, base32 alphabet, a version marker the reader recognises. QR's own Reed-Solomon makes a misread that passes all three implausible, so the prefix's early validation is mostly a clearer error message.
+
+Dropping the link also removes the path in WEB and QR where following the link delivers the payload in a fragment. Only the application's own camera, or the human-readable rendering typed in, reads a code.
 
 ## Implementation options
 
@@ -115,17 +143,14 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 ## Open questions
 
-- [ ] Does dropping the trailing slash survive every path a scan takes: generic camera apps on Android and iOS, the web app's own reader, and a future App Link or Universal Link (whose path matching may treat an empty path differently from `/`)?
-- [ ] What result from the print trial would push the design from the URL to the bare prefix?
-- [ ] Is the case surface light and plain enough to serve as the quiet zone on a side face?
-- [ ] Is the PSK the 32-byte expansion of the token under its own context string, and is the handle keyed on the PSK or on a separate expansion?
-- [ ] Does the handshake become `NXpsk0`, and is the fingerprint check a failed handshake as far as the client's error reporting (WEB) is concerned?
+- [ ] Which handshake pattern replaces `NKpsk0`, for Tech design: `NXpsk0` is the closest, with alternatives (a later psk position, for one) compared and the SEC argument written out. The key it sends is the device static key of KEY, the same X25519 key the code carries today; the advertisement carries only the handle and never the key.
+- [ ] When the key the device sends does not match the fingerprint, does the operator see it as any failed handshake, or distinctly as a device that is not the one the code belongs to?
 
 ## Trade-offs
 
-- A native application claiming links is possible in future but not planned, so link claiming is kept possible where it is free and not treated as a hard constraint.
-- An upper-case URL never wins a version over the lower-case URL without its trailing slash, at any of H, Q or M. Dropping the slash gets the same code with the URL still lower case, which makes the App Links and Universal Links case question moot for sizing. The lower-case rule in QR can stay.
-- A generic phone camera opening the web app is nice to have. The URL stays unless the print trial shows its version reads badly off an enclosure, in which case the bare prefix wins.
+- No link. A generic phone camera opening the web app was nice to have, and a native application claiming links only a possibility. Against that, a code that opens nothing for a stranger is worth more, and it costs a version at every level.
+- On the way there: an upper-case URL never won a version over the lower-case URL without its trailing slash, so the App Links and Universal Links case question never mattered for sizing.
+- The `BLITI:` prefix over the bare payload. It costs no version at 33 bytes, and it gives the reader an early rejection of foreign codes, at the price of naming the code's purpose to anyone who scans it.
 - Shrinking the payload is priced here, with the encoding, not treated as fixed. Both cuts are taken: 33 bytes buys back the error correction that encoding alone would have to spend, and it gets the bare prefix to 26 mm at level H.
 - The key fingerprint gives up `NKpsk0`'s encryption of the client's first message to the device's key. That message carries an empty payload, so nothing is lost.
 - Error correction level is open down to M, to be settled by the print trial rather than fixed at H up front.
@@ -133,12 +158,12 @@ The payload cut buys back the error correction that the encoding alone would hav
 ## Testing notes
 
 - First print-and-scan run, at 0.70 mm modules:
-  - today's v10 H (40 mm) and the no-slash URL at v9 H (37.2 mm), as baselines
-  - no-slash URL at M, v6 (28.8 mm)
-  - bare prefix at M, v5 (26.0 mm)
-  - bare prefix at L, v4 (23.2 mm)
-  - 33-byte bare prefix at H, v5 (26.0 mm)
-  - 33-byte URL at Q, v6 (28.8 mm)
+  - today's code, v10 H (40 mm), as the baseline that is known to read
+  - `BLITI:` + 33-byte payload at H, v5 (26.0 mm)
+  - the same at Q, v4 (23.2 mm)
+  - the same at M, v3 (20.3 mm)
+  - Level L gains no version over M at 33 bytes, so it is left out.
 - Trial codes are printed from random bytes of the right length. A print test needs no working handshake.
+- For the sticker design rather than bliti: whether a light, plain case surface can serve as the quiet zone on a side face, which decides whether v5 (31.6 mm with a printed quiet zone) fits the 35 mm face comfortably.
 - Each candidate on paper, and in the protective pouch once one is chosen, since glare costs error correction.
-- Print each candidate at the real sticker size and scan with a spread of phone cameras (generic camera app and the web app's own reader), including a scuffed or partly covered code.
+- Print each candidate at the real sticker size and scan with a spread of phone cameras (the web app's own reader, on a spread of phones), including a scuffed or partly covered code.
