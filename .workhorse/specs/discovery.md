@@ -26,12 +26,15 @@ The payload MUST be nine bytes: the one-byte [version marker](overview.md#versio
 
 A device MUST advertise the same local name for as long as it holds the same presence token.
 
+A device MUST serve that local name as the value of the Device Name characteristic of its GAP service.
+
 > [!NOTE]
 > A scan filter is applied to advertisement data and never to the scan response, so a service UUID a client filters on has to sit in the advertisement.
 > The payload rides in the local name because a host, not a device, decides which element goes in which packet. On a legacy controller the mandatory flags take three bytes and a 128-bit service UUID eighteen, leaving ten of the advertisement's 31, while service data keyed by that same UUID would need 31 of its own before it fit anywhere. A local name costs two bytes of element header rather than eighteen of repeated UUID, and is the one element a host will place in the scan response.
 > Eight bytes of handle makes a collision between two devices at one site implausible. The handle is not secret, so carrying it in the clear costs nothing.
 > The marker comes first so that a client can read it however a later version lays out the bytes that follow.
 > Because the name is fixed and follows from the QR code alone, a client that can only filter by name computes the whole of it before it listens.
+> A host that connects to a device reads its Device Name and keeps it as the device's name, in place of the name it heard advertised. Were the two different, one connection would leave the host filtering on a name the device does not have.
 
 ## Matching
 

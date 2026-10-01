@@ -46,7 +46,7 @@ test('any other failure to connect is reported as itself', async ({ page }) => {
 })
 
 // The real client, with its wasm module: the name is computed from the payload, and the chooser is
-// filtered on exactly that name and the bliti service.
+// filtered on exactly that name alone, with the bliti service asked for alongside.
 test('the real client filters the chooser on the name it shows', async ({ page }) => {
 	await page.addInitScript(() => {
 		window.__requested = []
@@ -72,5 +72,6 @@ test('the real client filters the chooser on the name it shows', async ({ page }
 	const [options] = await page.evaluate(() => window.__requested)
 	expect(options.filters).toHaveLength(1)
 	expect(options.filters[0].name).toBe('AGBLGHFV3XA7CLA')
-	expect(options.filters[0].services).toHaveLength(1)
+	expect(options.filters[0].services).toBeUndefined()
+	expect(options.optionalServices).toEqual(['63c7f3bc-0599-4a66-bdcd-f28ec571c118'])
 })

@@ -44,7 +44,7 @@ The application MUST compute the local name of [ADV](discovery.md) that the devi
 
 Before offering the chooser, the application MUST show the operator that name, and that it should be the only device listed.
 
-Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by the service UUID of [ADV](discovery.md) and by that exact local name.
+Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by that exact local name alone, and MUST ask for access to the service of [ADV](discovery.md) alongside the filter.
 
 The application MUST match the device picked against the QR code as [ADV](discovery.md) specifies before it sends that device anything.
 
@@ -52,6 +52,7 @@ Where the chooser closes without a device picked, the application MUST tell the 
 
 > [!NOTE]
 > Filtering the chooser puts the device whose QR code was read in front of the operator, rather than every bliti device in range, and showing the name first tells them which device to expect there.
+> A chooser matches a filter against the host's record of a device, not against what the device advertises. A host that has once resolved a device's services reports those in place of the services it hears advertised, so a record from a time the device was not offering its service would hide it from a chooser filtered on that service, and only a connection could correct the record. The name alone already narrows the chooser to the one device.
 > The browser does not say why a chooser closed with nothing picked, so the application cannot tell an empty list from an operator who dismissed it.
 
 ## Remembering devices
