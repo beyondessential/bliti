@@ -32,7 +32,7 @@ struct Cli {
 	#[command(subcommand)]
 	command: Command,
 
-	/// Where the derived presence token is cached.
+	/// Where the derived root is cached.
 	#[arg(long, global = true, default_value_os_t = identity::default_cache_path())]
 	cache: PathBuf,
 }
@@ -83,7 +83,7 @@ enum Command {
 	/// Print the QR code for the board this runs on.
 	Qr {
 		/// Write the QR code to stdout as SVG, the image alone, rather than drawing it in the
-		/// terminal. The rendering printed beneath the code goes to stderr.
+		/// terminal.
 		#[arg(long)]
 		svg: bool,
 	},
@@ -120,7 +120,7 @@ enum Command {
 
 	/// Scan for the device a QR code belongs to. The client half of discovery, without a browser.
 	Scan {
-		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		/// The text of the device's QR code, as its code encodes it or as a person typed it.
 		code: String,
 
 		/// How long to listen for.
@@ -136,7 +136,7 @@ enum Command {
 	/// and each message the device answers with is printed as it arrived. The session ends with
 	/// standard input.
 	Configure {
-		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		/// The text of the device's QR code, as its code encodes it or as a person typed it.
 		code: String,
 
 		/// The device's address, as reported by `scan`. Found by matching the QR code when absent.
@@ -150,7 +150,7 @@ enum Command {
 
 	/// Open a channel to a device and exchange the milestone's two messages.
 	Connect {
-		/// The QR code payload: a QR code URL, its fragment, or the rendering printed beneath the code.
+		/// The text of the device's QR code, as its code encodes it or as a person typed it.
 		code: String,
 
 		/// The device's address, as reported by `scan`. Found by matching the QR code when absent.
@@ -426,16 +426,10 @@ fn make_qr(cache: &std::path::Path, svg: bool) -> Result<()> {
 	}
 
 	let payload = bliti_core::qr::QrPayload::new(
-		identity.keys.presence_token,
-		identity.keys.static_key.public_key(),
+		identity.keys.presence_token.clone(),
+		identity.keys.fingerprint(),
 	);
-	qr::write(
-		&payload,
-		svg,
-		&mut std::io::stdout().lock(),
-		&mut std::io::stderr().lock(),
-	)
-	.context("writing the QR code")
+	qr::write(&payload, svg, &mut std::io::stdout().lock()).context("writing the QR code")
 }
 
 #[cfg(target_os = "linux")]
@@ -448,8 +442,7 @@ async fn daemon(
 	device::run(cache, network, backend, adapter).await
 }
 
-/// Read a QR code however it was given: the URL a code encodes, its fragment alone, or the
-/// human-readable rendering printed beneath the code. All three carry the same payload.
+/// Read a QR code from its text, as its code encodes it or as a person typed it (QR, "Reading").
 fn read_qr(given: &str) -> Result<bliti_core::qr::QrPayload> {
 	bliti_core::qr::QrPayload::read(given).context("reading the QR code")
 }

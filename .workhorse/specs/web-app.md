@@ -12,39 +12,35 @@ The web application is a client that runs in a browser: it reads a QR code, find
 | --- | --- |
 | secure context | A browsing context a browser considers safe enough to expose powerful features to. An `https://` origin satisfies it, as does `http://localhost`. |
 | chooser | The picker a browser may present in place of the advertisements themselves, from which a person selects the one device a page may talk to. |
-| fragment | The part of a URL after `#`, which a browser resolves locally and does not send to a server. |
 
 ## Reading a QR code
 
-The application MUST accept a payload by either path: following the link, which opens the application with the payload already in the fragment, or capturing the code with the camera while the application is already open.
+The application MUST accept a payload by either path: capturing the code with the camera, or the operator entering the code's text, each read as [QR](qr-code.md) specifies.
 
 The application MUST treat a payload identically however it arrived, including one it held from before, as [Remembering devices](#remembering-devices) and [After a reload](#after-a-reload) have it.
 
-The application MUST report a payload it cannot parse and a payload at an unsupported version as the distinct conditions they are.
-
-Once it has taken the fragment, whether or not it could parse it, the application MUST remove the fragment from its address.
-
 > [!NOTE]
-> The link is the path for a device scanned with a generic phone camera, by an operator with nothing installed. The camera is the path for provisioning several devices in one session, where returning through the link each time would mean leaving and re-entering the application.
-> Removing the fragment lets a reload come back to the payload the page held rather than to the link it was opened with, and keeps the token out of an address copied from the page.
+> A code is best read with the camera from as far away, and at as small a size, as the camera application of the device it runs on reads the same code. The operator holds the phone where the code is legible to that camera, and a page that reads less would send them looking for a fault in the code.
 
 ## Exporting the QR code
 
-The application MUST offer a QR code it has read for download as the SVG image of [QR](qr-code.md).
+The application MUST offer a QR code it has read for download as an SVG image of the code [QR](qr-code.md) specifies.
+The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
+The image MUST NOT state a physical size.
 
-The downloaded file MUST be named after the last group of the human-readable rendering, as `bliti-` followed by that group and `.svg`.
+The downloaded file MUST be named after the last four characters of the encoded payload of [QR](qr-code.md), as `bliti-` followed by those characters and `.svg`.
 
 > [!NOTE]
-> This is how a scuffed code is reprinted with only a phone to hand: the payload is read from the remains of the code, or typed from the rendering beside it, and printed again.
-> The last group of the rendering falls wholly within the device static public key, so the name gives away nothing secret, and it matches the end of the rendering printed beside the code.
+> This is how a scuffed code is reprinted with only a phone to hand: the payload is read from the remains of the code and printed again.
+> Those characters fall wholly within the key fingerprint, so the name gives away nothing secret.
 
 ## Finding the device
 
-The application MUST compute the local name of [ADV](discovery.md) that the device whose QR code it has read advertises, at the version marked on that QR code.
+The application MUST compute the local names of [ADV](discovery.md) that the device whose QR code it has read may advertise: one for each version marker it implements that reads the code's payload version, as [VER](version.md) has it.
 
-Before offering the chooser, the application MUST show the operator that name, and that it should be the only device listed.
+Before offering the chooser, the application MUST show the operator the name for the highest of those markers, and that it should be the only device listed.
 
-Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by that exact local name alone, and MUST ask for access to the service of [ADV](discovery.md) alongside the filter.
+Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by those exact local names alone, and MUST ask for access to the service of [ADV](discovery.md) alongside the filter.
 
 The application MUST match the device picked against the QR code as [ADV](discovery.md) specifies before it sends that device anything.
 
@@ -52,7 +48,7 @@ Where the chooser closes without a device picked, the application MUST tell the 
 
 > [!NOTE]
 > Filtering the chooser puts the device whose QR code was read in front of the operator, rather than every bliti device in range, and showing the name first tells them which device to expect there.
-> A chooser matches a filter against the host's record of a device, not against what the device advertises. A host that has once resolved a device's services reports those in place of the services it hears advertised, so a record from a time the device was not offering its service would hide it from a chooser filtered on that service, and only a connection could correct the record. The name alone already narrows the chooser to the one device.
+> A chooser matches a filter against the host's record of a device, not against what the device advertises. A host that has once resolved a device's services reports those in place of the services it hears advertised, so a record from a time the device was not offering its service would hide it from a chooser filtered on that service, and only a connection could correct the record. The names alone already narrow the chooser to the one device.
 > The browser does not say why a chooser closed with nothing picked, so the application cannot tell an empty list from an operator who dismissed it.
 
 ## Remembering devices
@@ -66,7 +62,7 @@ The application MUST remember at most three devices, forgetting the one whose ch
 The application MUST forget a remembered device whose payload it can no longer read, as after an update that drops the payload's version.
 
 Where it holds no payload, the application MUST list the devices it remembers beneath the means of reading a QR code, the one whose channel opened most recently first.
-Each MUST be listed by its hostname and the last group of the human-readable rendering of [QR](qr-code.md), or by that group alone where the device has reported no hostname.
+Each MUST be listed by its hostname and the last four characters of the encoded payload of [QR](qr-code.md), or by those characters alone where the device has reported no hostname.
 
 Choosing a remembered device MUST hold its payload as though it had just been read, and the application MUST then find the device as [Finding the device](#finding-the-device) specifies, the operator opening the chooser as for any other payload.
 
@@ -87,12 +83,12 @@ Where the page is reloaded otherwise, or where it can no longer read that device
 
 ## Opening the channel
 
-The application MUST run the handshake of [CHN](channel.md) with the presence token read from the payload.
+The application MUST run the handshake of [CHN](channel.md) with the pre-shared key derived from the presence token read from the payload, and the key fingerprint read from it.
 
 The application MUST NOT run the memory-hard derivation of [KEY](key-schedule.md).
 
 > [!NOTE]
-> A client reads the token from the payload rather than deriving it, so nothing in a client needs the argon2id parameters or the memory they ask for. The handle a client does compute is a fast hash.
+> A client reads the token from the payload rather than deriving it, so nothing in a client needs the argon2id parameters or the memory they ask for. The pre-shared key, the handle and the fingerprint a client does compute are fast derivations.
 
 ## When the device goes away
 
@@ -119,8 +115,6 @@ The application MUST NOT reconnect on its own after a `power-off`.
 > A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
 
 ## Installation and offline use
-
-The application MUST be served from the origin the QR code encodes, as [QR](qr-code.md) specifies.
 
 The application MUST run without being installed first.
 

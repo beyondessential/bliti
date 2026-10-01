@@ -6,7 +6,7 @@ import { useOfflineReady } from './offline.js'
 import Readings, { Identity } from './Readings.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
 import { entryOf, forgetHistory, hasValue, identityKey, isEnded, pushHistory } from './readings.js'
-import { lastGroup, loadOn, loadRecent, remember, saveOn, saveRecent } from './remembered.js'
+import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 
 // How many notices are kept. The far end decides how many arrive.
@@ -80,8 +80,8 @@ export default function App() {
 	const [notices, setNotices] = useState([])
 	const [log, setLog] = useState([])
 	// What the tab held before this load, read once, so that a second run of the mount effect under
-	// StrictMode sees the same fragment and the same device as the first (WEB, "After a reload").
-	const [start] = useState(() => ({ fragment: location.hash, on: loadOn(), recent: loadRecent() }))
+	// StrictMode sees the same device as the first (WEB, "After a reload").
+	const [start] = useState(() => ({ on: loadOn(), recent: loadRecent() }))
 	// The devices this tab has opened a channel with, most recent first, once those stored have been
 	// checked to still read. Null until then (WEB, "Remembering devices").
 	const [recent, setRecent] = useState(null)
@@ -177,7 +177,7 @@ export default function App() {
 				const read = await client.readCode(text)
 				setCode(read)
 				setReadError('')
-				note('note', `code read  ${read.human}`)
+				note('note', `code read  ${read.text}`)
 			} catch (error) {
 				const why = error.message ?? String(error)
 				setReadError(why)
@@ -187,31 +187,25 @@ export default function App() {
 		[client, note],
 	)
 
-	// Following the link opens the application with the payload already in the fragment, which is
-	// taken off the address once read so a reload comes back to what the page held (WEB). Otherwise, a
-	// page reloaded while on a device comes back holding its code. A remembered code that no longer
-	// reads is forgotten, and never held.
+	// A page reloaded while on a device comes back holding its code (WEB). A remembered code that no
+	// longer reads is forgotten, and never held.
 	useEffect(() => {
 		let live = true
 		const stillReads = (text) => client.readCode(text).catch(() => null)
-		if (start.fragment.length > 1) {
-			window.history.replaceState(null, '', location.pathname + location.search)
-			readFrom(start.fragment)
-		}
 		;(async () => {
 			const read = await Promise.all(start.recent.map((each) => stillReads(each.code)))
 			if (!live) return
 			setRecent((held) => held ?? start.recent.filter((_, index) => read[index]))
-			if (start.fragment.length > 1 || !start.on) return
+			if (!start.on) return
 			const back = await stillReads(start.on)
 			if (!live || !back) return
 			setCode((held) => held ?? back)
-			note('note', `code held from before the reload  ${back.human}`)
+			note('note', `code held from before the reload  ${back.text}`)
 		})()
 		return () => {
 			live = false
 		}
-	}, [client, readFrom, note, start])
+	}, [client, note, start])
 
 	// Remembered whenever a channel opens, which also puts it at the top, and again once it says what
 	// it is called.
@@ -220,7 +214,7 @@ export default function App() {
 		: undefined
 	const hostname = hostnameEntry ? String(hostnameEntry.value) : undefined
 	useEffect(() => {
-		if (connected && code) setRecent((held) => remember(held ?? [], code.human, hostname))
+		if (connected && code) setRecent((held) => remember(held ?? [], code.text, hostname))
 	}, [connected, code, hostname])
 	useEffect(() => {
 		if (recent) saveRecent(recent)
@@ -228,7 +222,7 @@ export default function App() {
 
 	// The device the page is on, for as long as a reload should come back to it: while the channel is
 	// open, and while the device carries out an act.
-	const on = code && (connected || going) ? code.human : null
+	const on = code && (connected || going) ? code.text : null
 	useEffect(() => saveOn(on), [on])
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
@@ -383,7 +377,7 @@ export default function App() {
 			if (found) {
 				setCode(found)
 				setReadError('')
-				note('note', `code read from the camera  ${found.human}`)
+				note('note', `code read from the camera  ${found.text}`)
 			}
 		} catch (error) {
 			setReadError(`The camera is not available: ${error.message ?? error}`)
@@ -552,7 +546,7 @@ export default function App() {
 	}
 
 	// The code held is a remembered device's, which is shown with its hostname (WEB).
-	const known = code && recent?.find((each) => each.code === code.human)
+	const known = code && recent?.find((each) => each.code === code.text)
 
 	return (
 		<main>
@@ -566,7 +560,7 @@ export default function App() {
 			{!code && (
 				<section>
 					<h2>QR code</h2>
-					<p className="muted">Scan the code on the device, or type the letters printed under it.</p>
+					<p className="muted">Scan the code on the device, or type its text.</p>
 					<TypedCode onRead={readFrom} />
 					{cameraAvailable() && (
 						<div className="row" style={{ marginTop: 8 }}>
@@ -594,11 +588,11 @@ export default function App() {
 							<li key={each.code}>
 								<div>
 									{each.hostname && <span className="name">{each.hostname}</span>}
-									<span className="code">…-{lastGroup(each.code)}</span>
+									<span className="code">…{suffix(each.code)}</span>
 								</div>
 								<button
 									className="secondary"
-									aria-label={`Use ${each.hostname ?? lastGroup(each.code)}`}
+									aria-label={`Use ${each.hostname ?? suffix(each.code)}`}
 									onClick={() => readFrom(each.code)}
 								>
 									Use
@@ -613,7 +607,7 @@ export default function App() {
 				<section>
 					<h2>QR code read</h2>
 					{known?.hostname && <strong className="device-name">{known.hostname}</strong>}
-					<p className="code">{code.human}</p>
+					<p className="code">{code.text}</p>
 					<p>
 						<button className="link" onClick={() => download(code)}>
 							Download SVG
@@ -683,13 +677,13 @@ function describe(message) {
 	return summary ? `${type}  ${summary}` : type
 }
 
-/// Save the code as SVG, for printing a replacement. Named after the rendering's last group, which is
-/// all public key and matches the end of the rendering printed beside the code (WEB).
+/// Save the code as SVG, for printing a replacement. Named after the last four characters of the
+/// encoded payload, which are all key fingerprint (WEB).
 function download(code) {
 	const url = URL.createObjectURL(new Blob([code.svg], { type: 'image/svg+xml' }))
 	const link = document.createElement('a')
 	link.href = url
-	link.download = `bliti-${code.human.split('-').pop()}.svg`
+	link.download = `bliti-${code.suffix}.svg`
 	link.click()
 	// Revoked once the browser has had a turn to start the download from it.
 	setTimeout(() => URL.revokeObjectURL(url), 0)
@@ -703,7 +697,7 @@ function TypedCode({ onRead }) {
 				value={typed}
 				onChange={(event) => setTyped(event.target.value)}
 				onKeyDown={(event) => event.key === 'Enter' && onRead(typed)}
-				placeholder="AHFY-TP4T-..."
+				placeholder="BLITI:..."
 				autoComplete="off"
 				autoCapitalize="characters"
 				spellCheck="false"

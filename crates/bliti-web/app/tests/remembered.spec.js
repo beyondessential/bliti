@@ -5,10 +5,10 @@ import { expect, test } from '@playwright/test'
 
 import { emit, installFakeClient, message } from './fake-client.js'
 
-const A = 'AHFY-TP4T-6K2M-9WQX'
-const B = 'AHFY-TP4T-6K2M-2KXA'
-const C = 'AHFY-TP4T-6K2M-H6TE'
-const D = 'AHFY-TP4T-6K2M-Q7RM'
+const A = 'BLITI:AHFYTP4T6K2M9WQX'
+const B = 'BLITI:AHFYTP4T6K2M2KXA'
+const C = 'BLITI:AHFYTP4T6K2MH6TE'
+const D = 'BLITI:AHFYTP4T6K2MQ7RM'
 
 const hostnameFact = (value) =>
 	message({ type: 'fact', at: 1, fact: 'hostname', traits: { status: { is: 'passed' } }, kind: 'text', value })
@@ -18,7 +18,7 @@ const held = (page) => page.locator('section').filter({ has: page.getByRole('hea
 const title = (page) => page.getByRole('heading', { level: 1 })
 
 async function read(page, code) {
-	await page.getByPlaceholder('AHFY-TP4T-...').fill(code)
+	await page.getByPlaceholder('BLITI:...').fill(code)
 	await page.getByRole('button', { name: 'Use', exact: true }).click()
 }
 
@@ -49,11 +49,11 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('the Recent list', () => {
-	test('lists a device by hostname and last group once a channel has opened', async ({ page }) => {
+	test('lists a device by hostname and the last four characters of its code once a channel has opened', async ({ page }) => {
 		await visit(page, A, 'clinic-store-2')
 		await expect(recent(page).locator('li')).toHaveCount(1)
 		await expect(recent(page).locator('li .name')).toHaveText('clinic-store-2')
-		await expect(recent(page).locator('li .code')).toHaveText('…-9WQX')
+		await expect(recent(page).locator('li .code')).toHaveText('…9WQX')
 		await expect(recent(page).getByRole('button', { name: 'Use clinic-store-2' })).toBeVisible()
 	})
 
@@ -70,10 +70,10 @@ test.describe('the Recent list', () => {
 		await expect(recent(page)).toHaveCount(0)
 	})
 
-	test('lists a device that reported no hostname by its last group alone', async ({ page }) => {
+	test('lists a device that reported no hostname by those characters alone', async ({ page }) => {
 		await visit(page, A)
 		await expect(recent(page).locator('li .name')).toHaveCount(0)
-		await expect(recent(page).locator('li')).toHaveText(/…-9WQX/)
+		await expect(recent(page).locator('li')).toHaveText(/…9WQX/)
 		await expect(recent(page).getByRole('button', { name: 'Use 9WQX' })).toBeVisible()
 	})
 
@@ -176,29 +176,11 @@ test.describe('a reload', () => {
 	})
 })
 
-// A page opened by a link is a fresh load. Going to a fragment from the page itself is a navigation
-// within it, which reads nothing, so each of these arrives from elsewhere.
-async function follow(page, fragment) {
+// A code never arrives by a link, so an address carrying a fragment is just an address.
+test('a fragment in the address is passed over', async ({ page }) => {
 	await page.goto('about:blank')
-	await page.goto(`/#${fragment}`)
-}
-
-test.describe('the fragment', () => {
-	test('is taken off the address once read', async ({ page }) => {
-		await follow(page, A)
-		await expect(held(page).locator('p.code')).toHaveText(A)
-		expect(new URL(page.url()).hash).toBe('')
-	})
-
-	test('is taken off the address even when it does not parse, and is reported', async ({ page }) => {
-		await follow(page, 'nope')
-		await expect(page.getByText('That is not a bliti code.', { exact: true })).toBeVisible()
-		expect(new URL(page.url()).hash).toBe('')
-	})
-
-	test('wins over the device a reloaded page was on', async ({ page }) => {
-		await open(page, A, 'clinic-store-2')
-		await follow(page, B)
-		await expect(held(page).locator('p.code')).toHaveText(B)
-	})
+	await page.goto(`/#${A.split(':').pop()}`)
+	await expect(page.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+	await expect(held(page)).toHaveCount(0)
+	await expect(page.locator('.bad')).toHaveCount(0)
 })

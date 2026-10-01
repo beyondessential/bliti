@@ -20,7 +20,8 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 | [yamux](https://github.com/hashicorp/yamux/blob/master/spec.md) | the streams of [CHN](channel.md) |
 | [Core Specification Supplement](https://www.bluetooth.com/specifications/specs/core-specification-supplement/) | the advertising data types of [ADV](discovery.md) |
 | [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106) | the argon2id derivation of [KEY](key-schedule.md) |
-| [the BLAKE3 specification](https://github.com/BLAKE3-team/BLAKE3-specs) | the keyed hash of [KEY](key-schedule.md) |
+| [the BLAKE3 specification](https://github.com/BLAKE3-team/BLAKE3-specs) | the key derivations of [KEY](key-schedule.md) |
+| [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) | the device KEM key of [KEY](key-schedule.md) |
 | [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) | the base32 rendering of [QR](qr-code.md) and [ADV](discovery.md) |
 | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | the JSON of [MSG](messages.md) |
 | ISO/IEC 18004 | the QR code symbology of [QR](qr-code.md) |
@@ -57,10 +58,20 @@ Defined in [BID](board-id.md).
 The credential carried in a device's QR code.
 Defined in [KEY](key-schedule.md).
 
+### Key fingerprint
+
+The digest of a device's keys carried in its QR code, against which a client authenticates the device.
+Defined in [KEY](key-schedule.md).
+
 ### Advertised handle
 
 The value a device broadcasts.
 Defined in [KEY](key-schedule.md).
+
+### Payload version
+
+The number identifying the layout of a QR payload and the key schedule it was derived under.
+Defined in [VER](version.md).
 
 ### Version marker
 

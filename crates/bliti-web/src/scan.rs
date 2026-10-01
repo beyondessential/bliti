@@ -55,9 +55,9 @@ mod tests {
 
 	#[test]
 	fn a_code_in_frame_is_read() {
-		let url = "https://bliti.example/#AEAACAQDAQCQMBYIBEFAWDANBYHRAEISCMKBKFQXDAMRUGY4DUPB7";
-		let (width, height, rgba) = frame(url);
-		assert_eq!(decode_qr(width, height, &rgba), vec![url.to_owned()]);
+		let text = "BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER";
+		let (width, height, rgba) = frame(text);
+		assert_eq!(decode_qr(width, height, &rgba), vec![text.to_owned()]);
 	}
 
 	#[test]

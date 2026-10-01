@@ -10,7 +10,7 @@ use std::{
 use anyhow::{Context, Result};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
-	advertisement::Advertised,
+	advertisement::{Advertised, Heard},
 	key_schedule::{DeviceKeys, Handle},
 	qr::QrPayload,
 };
@@ -563,24 +563,20 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 			continue;
 		};
 
-		// The version is read before comparing, so a device speaking a version this client does not
-		// hold is reported as exactly that rather than as a device that simply did not match.
-		if advertised.version != payload.version() {
-			println!(
-				"{address}  a bliti device at unsupported version {}",
-				advertised.version
-			);
-			continue;
-		}
-
-		if advertised.matches(payload.presence_token()) {
-			matched += 1;
-			println!(
-				"{address}  MATCHES the QR code (handle {})",
-				hex(advertised.handle)
-			);
-		} else {
-			println!("{address}  another bliti device");
+		// The version marker is read before comparing, so a device speaking a version this client
+		// does not hold is reported as exactly that rather than as a device that simply did not match.
+		match advertised.heard_by(payload) {
+			Heard::Matches => {
+				matched += 1;
+				println!(
+					"{address}  MATCHES the QR code (handle {})",
+					hex(advertised.handle)
+				);
+			}
+			Heard::Other => println!("{address}  another bliti device"),
+			Heard::Unsupported(marker) => {
+				println!("{address}  a bliti device at unsupported version marker {marker}")
+			}
 		}
 	}
 

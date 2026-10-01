@@ -1,25 +1,21 @@
 //! The key schedule: one memory-hard derivation from a board ID to a root, and the cheap ones that
-//! descend from it to the presence token, the device static key, and the advertised handle.
+//! descend from it to the presence token, the pre-shared key, the device keys and their
+//! fingerprint, and the advertised handle.
 //!
 //! Behaviour is specified in `.workhorse/specs/key-schedule.md` (KEY). Every constant and context
 //! string here is public: they are compiled into the device, the QR code generator, and every
 //! client, and publishing them weakens nothing because no derivation runs backwards. What they
 //! provide is domain separation.
 //!
-//! Everything a QR code depends on is versioned together under [`VERSION`]. The constants, the
-//! argon2id parameters, the source precedence and the encoding below, the pinned Endorsement Key
-//! template, and the handle length are all covered by it; any of them changing is a new version,
+//! Everything here is covered by the payload version of VER ([`crate::version::PAYLOAD_VERSION`]):
+//! the constants, the argon2id parameters, the source precedence and the encoding below, the pinned
+//! Endorsement Key template, and every length. Any of them changing is a new payload version,
 //! because any of them changing changes what a QR code carries.
 
 use curve25519_dalek::montgomery::MontgomeryPoint;
+use ml_kem::{KeyExport, MlKem768, Seed};
 
 use crate::board_id::SourceKind;
-
-/// The version marker carried in the QR payload (QR) and in the advertisement (ADV).
-///
-/// It covers everything a QR code depends on. A change that leaves the QR payload identical does not
-/// move it, because moving it orphans every QR code already fixed to an enclosure.
-pub const VERSION: u8 = 1;
 
 /// The fixed argon2id salt for the root derivation. Public and versioned. Only the memory-hard
 /// derivation uses it, so it is gated with that.
@@ -28,16 +24,13 @@ const ROOT_SALT: [u8; 16] = [
 	0x3e, 0xdf, 0xe9, 0x5c, 0xeb, 0x86, 0xfa, 0xdd, 0x23, 0xd4, 0x6a, 0x87, 0x34, 0xc7, 0xeb, 0x13,
 ];
 
-/// The key derivation context for the presence token. Public and versioned.
 const PRESENCE_TOKEN_CONTEXT: &str = "bliti presence token";
-
-/// The key derivation context for the device static private key. Public and versioned.
+const PRE_SHARED_KEY_CONTEXT: &str = "bliti pre-shared key";
 const DEVICE_STATIC_KEY_CONTEXT: &str = "bliti device static key";
-
-/// The fixed domain-separation constant for the handle derivation. Public and versioned.
-const HANDLE_CONSTANT: [u8; 16] = [
-	0x15, 0x9f, 0x0a, 0x92, 0x9c, 0x9d, 0x0b, 0x80, 0x41, 0x7e, 0x9b, 0x87, 0x75, 0xbb, 0x18, 0x39,
-];
+const DEVICE_KEM_SEED_CONTEXT: &str = "bliti device kem seed";
+const KEM_KEY_DIGEST_CONTEXT: &str = "bliti device kem key digest";
+const KEY_FINGERPRINT_CONTEXT: &str = "bliti device key fingerprint";
+const HANDLE_CONTEXT: &str = "bliti advertised handle";
 
 /// The argon2id memory parameter, in kibibytes: 2 GiB. Part of the derivation, not a tuning choice.
 pub const ROOT_MEMORY_KIB: u32 = 2 * 1024 * 1024;
@@ -56,19 +49,29 @@ pub const ROOT_LANES: u32 = 2;
 /// The length of a root in bytes.
 pub const ROOT_LEN: usize = 32;
 
-/// The length of a presence token in bytes.
-pub const PRESENCE_TOKEN_LEN: usize = 32;
+/// The length of a presence token in bytes: sixteen, which is beyond guessing online or offline.
+pub const PRESENCE_TOKEN_LEN: usize = 16;
+
+/// The length of the pre-shared key in bytes, which the handshake of CHN takes.
+pub const PRE_SHARED_KEY_LEN: usize = 32;
 
 /// The length of a device static key, private or public, in bytes.
 pub const DEVICE_KEY_LEN: usize = 32;
+
+/// The length of a KEM key digest in bytes.
+pub const KEM_KEY_DIGEST_LEN: usize = 32;
+
+/// The length of a key fingerprint in bytes: eighteen, which puts a key matching a given fingerprint
+/// out of reach and makes the QR payload a whole number of base32 groups.
+pub const KEY_FINGERPRINT_LEN: usize = 18;
 
 /// The length of an advertised handle in bytes: eight, which makes a collision between two devices
 /// at one site implausible and fits the advertising budget in ADV.
 pub const HANDLE_LEN: usize = 8;
 
-/// A root: the output of the memory-hard derivation, from which the presence token and the device
-/// static key descend (KEY, "The root"). It never leaves the device that derived it, other than into
-/// the QR code generator's own derivation of the same board.
+/// A root: the output of the memory-hard derivation, from which everything else in the key schedule
+/// descends (KEY, "The root"). It never leaves the device that derived it, other than into the QR
+/// code generator's own derivation of the same board.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Root([u8; ROOT_LEN]);
 
@@ -83,9 +86,10 @@ impl Root {
 		&self.0
 	}
 
-	/// The presence token (KEY, "Presence token").
+	/// The presence token (KEY, "Presence token"): the first sixteen bytes of the root's derivation.
 	pub fn presence_token(&self) -> PresenceToken {
-		PresenceToken(blake3::derive_key(PRESENCE_TOKEN_CONTEXT, &self.0))
+		let derived = blake3::derive_key(PRESENCE_TOKEN_CONTEXT, &self.0);
+		PresenceToken(prefix(&derived))
 	}
 
 	/// The device static key (KEY, "Device static key"): the key derivation of the root, clamped as
@@ -98,11 +102,25 @@ impl Root {
 		DeviceStaticKey(key)
 	}
 
-	/// Both credentials a device holds, derived together.
+	/// The device KEM key (KEY, "Device KEM key"): the ML-KEM-768 key pair FIPS 203 generates from 64
+	/// bytes of the root's derivation, read through BLAKE3's extendable output.
+	pub fn device_kem_key(&self) -> DeviceKemKey {
+		let mut seed = Seed::default();
+		blake3::Hasher::new_derive_key(DEVICE_KEM_SEED_CONTEXT)
+			.update(&self.0)
+			.finalize_xof()
+			.fill(&mut seed);
+		DeviceKemKey::from_seed(seed)
+	}
+
+	/// Everything a device holds to be reached, derived together.
 	pub fn device_keys(&self) -> DeviceKeys {
+		let presence_token = self.presence_token();
 		DeviceKeys {
-			presence_token: self.presence_token(),
+			pre_shared_key: presence_token.pre_shared_key(),
+			presence_token,
 			static_key: self.device_static_key(),
+			kem_key_digest: self.device_kem_key().digest(),
 		}
 	}
 }
@@ -113,14 +131,30 @@ impl core::fmt::Debug for Root {
 	}
 }
 
-/// What a device holds to be reached: the presence token a client proves it read, and the static key
-/// the device proves it holds (CHN, "Authentication").
+/// The first `N` bytes of a 32-byte derivation.
+fn prefix<const N: usize>(derived: &[u8; 32]) -> [u8; N] {
+	derived[..N].try_into().expect("N is at most 32")
+}
+
+/// What a device holds to be reached: the presence token a client proves it read, by way of the
+/// pre-shared key, and the keys the device proves it holds (CHN, "Authentication").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceKeys {
-	/// The presence token.
+	/// The presence token, which the device advertises a handle for.
 	pub presence_token: PresenceToken,
+	/// The pre-shared key of the handshake.
+	pub pre_shared_key: PreSharedKey,
 	/// The device static key.
 	pub static_key: DeviceStaticKey,
+	/// The digest of the device KEM key, which the device sends in the handshake.
+	pub kem_key_digest: KemKeyDigest,
+}
+
+impl DeviceKeys {
+	/// The key fingerprint these keys carry in the device's QR code.
+	pub fn fingerprint(&self) -> KeyFingerprint {
+		KeyFingerprint::of(&self.static_key.public_key(), &self.kem_key_digest)
+	}
 }
 
 /// The device static private key, clamped. Held only by the device.
@@ -133,7 +167,7 @@ impl DeviceStaticKey {
 		&self.0
 	}
 
-	/// The X25519 public key for this private key, as carried in the QR code.
+	/// The X25519 public key for this private key, which the device sends in the handshake.
 	pub fn public_key(&self) -> DevicePublicKey {
 		DevicePublicKey(MontgomeryPoint::mul_base_clamped(self.0).to_bytes())
 	}
@@ -145,12 +179,13 @@ impl core::fmt::Debug for DeviceStaticKey {
 	}
 }
 
-/// The device static public key, carried in the QR code so a client can authenticate the device.
+/// The device static public key, which a client receives in the handshake and checks against the
+/// key fingerprint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DevicePublicKey([u8; DEVICE_KEY_LEN]);
 
 impl DevicePublicKey {
-	/// Wrap raw bytes as a device public key, as read from a QR payload by a client.
+	/// Wrap raw bytes as a device public key, as received in the handshake.
 	pub fn from_bytes(bytes: [u8; DEVICE_KEY_LEN]) -> Self {
 		Self(bytes)
 	}
@@ -161,7 +196,82 @@ impl DevicePublicKey {
 	}
 }
 
-/// A presence token: the value printed in the QR code, which a client proves it holds.
+/// The device KEM key: an ML-KEM-768 key pair. Nothing is encapsulated to it yet; the key
+/// fingerprint commits to it so that a later handshake can authenticate the device by it.
+pub struct DeviceKemKey(ml_kem::DecapsulationKey<MlKem768>);
+
+impl DeviceKemKey {
+	/// The key pair FIPS 203 generates from a 64-byte seed `d ‖ z`.
+	pub fn from_seed(seed: Seed) -> Self {
+		Self(ml_kem::DecapsulationKey::from_seed(seed))
+	}
+
+	/// The encapsulation key, the public half, in its FIPS 203 encoding.
+	pub fn encapsulation_key(&self) -> Vec<u8> {
+		self.0.encapsulation_key().to_bytes().to_vec()
+	}
+
+	/// The KEM key digest (KEY, "Device KEM key").
+	pub fn digest(&self) -> KemKeyDigest {
+		KemKeyDigest(blake3::derive_key(
+			KEM_KEY_DIGEST_CONTEXT,
+			&self.encapsulation_key(),
+		))
+	}
+}
+
+impl core::fmt::Debug for DeviceKemKey {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		f.write_str("DeviceKemKey(..)")
+	}
+}
+
+/// The digest of the device KEM key's encapsulation key, which the device sends in the handshake
+/// and the key fingerprint commits to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KemKeyDigest([u8; KEM_KEY_DIGEST_LEN]);
+
+impl KemKeyDigest {
+	/// Wrap raw bytes as a KEM key digest, as received in the handshake.
+	pub fn from_bytes(bytes: [u8; KEM_KEY_DIGEST_LEN]) -> Self {
+		Self(bytes)
+	}
+
+	/// The raw bytes of the digest.
+	pub fn as_bytes(&self) -> &[u8; KEM_KEY_DIGEST_LEN] {
+		&self.0
+	}
+}
+
+/// The key fingerprint: the digest of a device's keys carried in its QR code, against which a client
+/// authenticates the device (KEY, "Key fingerprint").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeyFingerprint([u8; KEY_FINGERPRINT_LEN]);
+
+impl KeyFingerprint {
+	/// The fingerprint of a device static public key and a KEM key digest.
+	pub fn of(public_key: &DevicePublicKey, kem_key_digest: &KemKeyDigest) -> Self {
+		let mut material = [0u8; DEVICE_KEY_LEN + KEM_KEY_DIGEST_LEN];
+		material[..DEVICE_KEY_LEN].copy_from_slice(public_key.as_bytes());
+		material[DEVICE_KEY_LEN..].copy_from_slice(kem_key_digest.as_bytes());
+		Self(prefix(&blake3::derive_key(
+			KEY_FINGERPRINT_CONTEXT,
+			&material,
+		)))
+	}
+
+	/// Wrap raw bytes as a key fingerprint, as read from a QR payload by a client.
+	pub fn from_bytes(bytes: [u8; KEY_FINGERPRINT_LEN]) -> Self {
+		Self(bytes)
+	}
+
+	/// The raw bytes of the fingerprint.
+	pub fn as_bytes(&self) -> &[u8; KEY_FINGERPRINT_LEN] {
+		&self.0
+	}
+}
+
+/// A presence token: the credential printed in the QR code, which a client proves it holds.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PresenceToken([u8; PRESENCE_TOKEN_LEN]);
 
@@ -176,15 +286,17 @@ impl PresenceToken {
 		&self.0
 	}
 
+	/// The pre-shared key of the handshake (KEY, "Pre-shared key").
+	pub fn pre_shared_key(&self) -> PreSharedKey {
+		PreSharedKey(blake3::derive_key(PRE_SHARED_KEY_CONTEXT, &self.0))
+	}
+
 	/// Derive the advertised handle (KEY, "Advertised handle"), fixed for the life of the token.
 	///
-	/// This is a fast keyed hash, deliberately cheap: a client computes it for every QR code it
-	/// holds. It runs in the browser, where the memory-hard derivation never does.
+	/// Deliberately cheap: a client computes it for every QR code it holds. It runs in the browser,
+	/// where the memory-hard derivation never does.
 	pub fn handle(&self) -> Handle {
-		let digest = blake3::keyed_hash(&self.0, &HANDLE_CONSTANT);
-		let mut handle = [0u8; HANDLE_LEN];
-		handle.copy_from_slice(&digest.as_bytes()[..HANDLE_LEN]);
-		Handle(handle)
+		Handle(prefix(&blake3::derive_key(HANDLE_CONTEXT, &self.0)))
 	}
 }
 
@@ -192,6 +304,23 @@ impl core::fmt::Debug for PresenceToken {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		// A presence token is a credential; never render it in a debug log.
 		f.write_str("PresenceToken(..)")
+	}
+}
+
+/// The pre-shared key of the handshake, derived from the presence token.
+#[derive(Clone, PartialEq, Eq)]
+pub struct PreSharedKey([u8; PRE_SHARED_KEY_LEN]);
+
+impl PreSharedKey {
+	/// The raw bytes of the key.
+	pub fn as_bytes(&self) -> &[u8; PRE_SHARED_KEY_LEN] {
+		&self.0
+	}
+}
+
+impl core::fmt::Debug for PreSharedKey {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		f.write_str("PreSharedKey(..)")
 	}
 }
 
@@ -295,158 +424,4 @@ pub enum KeyError {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	fn hex(bytes: &[u8]) -> String {
-		bytes.iter().map(|b| format!("{b:02x}")).collect()
-	}
-
-	#[test]
-	fn production_parameters_are_pinned() {
-		// A guard that always runs: an accidental edit to the memory-hard parameters, which are
-		// versioned into every QR code, fails here without allocating 2 GiB.
-		assert_eq!(ROOT_MEMORY_KIB, 2 * 1024 * 1024);
-		assert_eq!(ROOT_MEMORY_BYTES, 2 * 1024 * 1024 * 1024);
-		assert_eq!(ROOT_PASSES, 1);
-		assert_eq!(ROOT_LANES, 2);
-		assert_eq!(ROOT_LEN, 32);
-		assert_eq!(PRESENCE_TOKEN_LEN, 32);
-		assert_eq!(DEVICE_KEY_LEN, 32);
-		assert_eq!(HANDLE_LEN, 8);
-		assert_eq!(VERSION, 1);
-	}
-
-	#[test]
-	fn password_is_tag_then_raw_bytes() {
-		let password = argon2_password(SourceKind::RaspberryPiSerial, &[0xf3, 0x75]);
-		assert_eq!(
-			password,
-			vec![SourceKind::RaspberryPiSerial.tag(), 0xf3, 0x75]
-		);
-	}
-
-	#[test]
-	fn deriving_from_characters_differs_from_the_bytes_they_denote() {
-		// The raw bytes are used, never a text rendering: a serial read as characters gives a
-		// different password from the bytes those characters denote.
-		let from_chars = argon2_password(SourceKind::RaspberryPiSerial, b"f375");
-		let from_bytes = argon2_password(SourceKind::RaspberryPiSerial, &[0xf3, 0x75]);
-		assert_ne!(from_chars, from_bytes);
-	}
-
-	#[test]
-	fn identical_values_from_different_sources_derive_differently() {
-		let value = [0x11, 0x22, 0x33, 0x44];
-		let a = argon2_password(SourceKind::OneTimeProgrammable, &value);
-		let b = argon2_password(SourceKind::RaspberryPiSerial, &value);
-		assert_ne!(a, b);
-	}
-
-	#[test]
-	fn check_memory_reports_insufficient() {
-		assert!(matches!(
-			check_memory(ROOT_MEMORY_BYTES - 1),
-			Err(KeyError::InsufficientMemory { .. })
-		));
-		assert!(check_memory(ROOT_MEMORY_BYTES).is_ok());
-	}
-
-	#[test]
-	fn handle_known_answer() {
-		// Pins the handle derivation: constant, keying, and eight-byte truncation.
-		let token = PresenceToken::from_bytes([0x42; PRESENCE_TOKEN_LEN]);
-		assert_eq!(hex(token.handle().as_bytes()), "dd6d13341f37cdc6");
-	}
-
-	/// The root the canonical board of `root_production_known_answer` derives. The cheap derivations
-	/// below are pinned from it, so they run on every test pass without the 2 GiB derivation.
-	const CANONICAL_ROOT: &str = "cb89bf939b867ec6e15530a6b92db98a14f170e1f4c9ff218cbd460e2140ccbd";
-
-	fn canonical_root() -> Root {
-		let mut bytes = [0u8; ROOT_LEN];
-		for (i, byte) in bytes.iter_mut().enumerate() {
-			*byte = u8::from_str_radix(&CANONICAL_ROOT[2 * i..2 * i + 2], 16).unwrap();
-		}
-		Root::from_bytes(bytes)
-	}
-
-	#[test]
-	fn presence_token_known_answer() {
-		assert_eq!(
-			hex(canonical_root().presence_token().as_bytes()),
-			"e4602ffee2a5aecac332443a8474650161980709aafdf8e766bae48c81e1e1ef"
-		);
-	}
-
-	#[test]
-	fn device_static_key_known_answer() {
-		// Pins the context string, the clamping, and the X25519 public key.
-		let key = canonical_root().device_static_key();
-		assert_eq!(
-			hex(key.as_bytes()),
-			"201f75c2f3241873c2ecd0ed15ffb73acc0c93347460039203352fa75ae5db75"
-		);
-		assert_eq!(
-			hex(key.public_key().as_bytes()),
-			"5b89128820363945de1431e0e33cae6281a1fb410422a8ba77ebd9b766358f19"
-		);
-	}
-
-	#[test]
-	fn device_static_key_is_clamped() {
-		for byte in [0x00, 0x42, 0xff] {
-			let key = Root::from_bytes([byte; ROOT_LEN]).device_static_key();
-			let key = key.as_bytes();
-			assert_eq!(key[0] & 0b0000_0111, 0);
-			assert_eq!(key[31] & 0b1100_0000, 0b0100_0000);
-		}
-	}
-
-	#[test]
-	fn token_and_static_key_are_separated() {
-		// The two context strings are what keep one from being the other.
-		let root = canonical_root();
-		assert_ne!(
-			root.presence_token().as_bytes(),
-			root.device_static_key().as_bytes()
-		);
-		assert_ne!(root.presence_token().as_bytes(), root.as_bytes());
-	}
-
-	#[cfg(feature = "derive")]
-	#[test]
-	fn root_wiring_known_answer() {
-		// A cheap known-answer test with small memory: pins the algorithm, version, salt constant,
-		// password encoding, and output length. The memory-hard magnitude is pinned separately by
-		// `production_parameters_are_pinned`, so together they cover the whole derivation.
-		let password = argon2_password(SourceKind::RaspberryPiSerial, &[0xf3, 0x75, 0x65, 0x10]);
-		let root = derive_root_with(32, 1, 2, &password).unwrap();
-		assert_eq!(
-			hex(root.as_bytes()),
-			"6f1389914fdb010c7ed6f41278bf0dd2ee97f0fd692e8bae7c3f581c06ef610c"
-		);
-	}
-
-	/// The canonical version 1 vector. Measured at 2.2 s on a Raspberry Pi 5, the slowest board in
-	/// scope, with the lanes computed concurrently, and 3.1 s with them in sequence.
-	///
-	/// This one value is what pins the whole memory-hard derivation, and it holds across every way of
-	/// computing it: it is identical on x86-64 and aarch64, and identical whether or not the
-	/// `parallel` feature is on. Running this test under each of those settings is what verifies that
-	/// the device, the QR code generator, and any future implementation agree on a board's root
-	/// regardless of the machine they run on or how each chooses to compute it.
-	#[cfg(feature = "derive")]
-	#[test]
-	#[ignore = "allocates 2 GiB and runs the full derivation; run explicitly with --ignored"]
-	fn root_production_known_answer() {
-		use crate::board_id::BoardId;
-		let board_id = BoardId::new(
-			SourceKind::RaspberryPiSerial,
-			vec![0xf3, 0x75, 0x65, 0x10, 0xf6, 0x32, 0xcf, 0xad],
-		)
-		.unwrap();
-		let root = derive_root(&board_id).unwrap();
-		assert_eq!(hex(root.as_bytes()), CANONICAL_ROOT);
-	}
-}
+mod tests;

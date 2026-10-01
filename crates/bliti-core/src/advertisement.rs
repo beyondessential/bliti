@@ -10,7 +10,11 @@
 
 use data_encoding::BASE32_NOPAD;
 
-use crate::key_schedule::{HANDLE_LEN, Handle, PresenceToken, VERSION};
+use crate::{
+	key_schedule::{HANDLE_LEN, Handle, PresenceToken},
+	qr::QrPayload,
+	version::{VERSION_MARKER, implements, markers_reading},
+};
 
 /// A legacy advertising payload carries 31 bytes.
 pub const ADVERTISING_BUDGET: usize = 31;
@@ -52,11 +56,18 @@ pub struct Advertised {
 }
 
 impl Advertised {
-	/// What the device holding `token` advertises at the current version. Fixed for the life of the
-	/// token, which is what lets a client compute the name before it listens.
+	/// What the device holding `token` advertises: the highest version marker this build supports.
+	/// Fixed for the life of the token, which is what lets a client compute the name before it
+	/// listens.
 	pub fn new(token: &PresenceToken) -> Self {
+		Self::at(VERSION_MARKER, token)
+	}
+
+	/// What the device holding `token` advertises at version marker `version`, for a client
+	/// computing the name for each marker it considers.
+	pub fn at(version: u8, token: &PresenceToken) -> Self {
 		Self {
-			version: VERSION,
+			version,
 			handle: token.handle(),
 		}
 	}
@@ -101,11 +112,47 @@ impl Advertised {
 
 	/// Whether this advertisement belongs to the device holding `token`.
 	///
-	/// The caller checks the version first, because no two versions produce a matching handle and
-	/// silence would not say which it was.
+	/// The caller checks the version marker first, because a device at a marker the caller does not
+	/// implement is to be reported as that, not as a different device. [`heard_by`](Self::heard_by)
+	/// does both.
 	pub fn matches(self, token: &PresenceToken) -> bool {
 		token.handle() == self.handle
 	}
+
+	/// What a client holding `code` makes of this advertisement (ADV, "Matching"; VER, "Acting on the
+	/// versions"): the marker is read first, and the handle compared only under a marker the client
+	/// considers for the code.
+	pub fn heard_by(self, code: &QrPayload) -> Heard {
+		if !implements(self.version) {
+			Heard::Unsupported(self.version)
+		} else if markers_reading(code.version()).any(|marker| marker == self.version)
+			&& self.matches(code.presence_token())
+		{
+			Heard::Matches
+		} else {
+			Heard::Other
+		}
+	}
+}
+
+/// What a client made of one advertisement, against the QR code it holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Heard {
+	/// The device the QR code belongs to.
+	Matches,
+	/// Another device this client could speak to.
+	Other,
+	/// A device at a version marker this client does not implement.
+	Unsupported(u8),
+}
+
+/// The local names the device whose QR code is `code` may advertise: one for each version marker
+/// this build implements that reads the code's payload version, highest first. Known before
+/// anything is heard, which is what lets a client filter on them.
+pub fn local_names(code: &QrPayload) -> Vec<String> {
+	markers_reading(code.version())
+		.map(|marker| Advertised::at(marker, code.presence_token()).to_local_name())
+		.collect()
 }
 
 #[cfg(test)]
@@ -123,7 +170,7 @@ mod tests {
 
 	#[test]
 	fn the_rendering_is_the_stated_length() {
-		let name = Advertised::new(&PresenceToken::from_bytes([0x11; 32])).to_local_name();
+		let name = Advertised::new(&PresenceToken::from_bytes([0x11; 16])).to_local_name();
 		assert_eq!(name.len(), LOCAL_NAME_LEN);
 	}
 
@@ -131,17 +178,17 @@ mod tests {
 	fn the_local_name_known_answer() {
 		// Pins the layout: version first, then the handle, as unpadded base32. The handle is the
 		// known answer of KEY for this token.
-		let advertised = Advertised::new(&PresenceToken::from_bytes([0x42; 32]));
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0x42; 16]));
 		assert_eq!(
 			advertised.to_bytes()[1..],
-			[0xdd, 0x6d, 0x13, 0x34, 0x1f, 0x37, 0xcd, 0xc6]
+			[0x5e, 0xf4, 0x15, 0xeb, 0xca, 0x67, 0x35, 0x2c]
 		);
-		assert_eq!(advertised.to_local_name(), "AHOW2EZUD4343RQ");
+		assert_eq!(advertised.to_local_name(), "AFPPIFPLZJTTKLA");
 	}
 
 	#[test]
 	fn a_local_name_round_trips() {
-		let advertised = Advertised::new(&PresenceToken::from_bytes([0xab; 32]));
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0xab; 16]));
 		assert_eq!(
 			Advertised::from_local_name(&advertised.to_local_name()),
 			Some(advertised)
@@ -150,8 +197,8 @@ mod tests {
 
 	#[test]
 	fn the_version_marker_leads_and_is_readable_when_unsupported() {
-		let advertised = Advertised::new(&PresenceToken::from_bytes([0x01; 32]));
-		assert_eq!(advertised.to_bytes()[0], VERSION);
+		let advertised = Advertised::new(&PresenceToken::from_bytes([0x01; 16]));
+		assert_eq!(advertised.to_bytes()[0], VERSION_MARKER);
 
 		// A client must be able to read a version it does not hold, which is what separates "a device
 		// at an unsupported version" from hearing nothing at all.
@@ -175,10 +222,42 @@ mod tests {
 		);
 	}
 
+	fn code(token: [u8; 16]) -> QrPayload {
+		QrPayload::new(
+			PresenceToken::from_bytes(token),
+			crate::key_schedule::KeyFingerprint::from_bytes([0x07; 18]),
+		)
+	}
+
+	#[test]
+	fn a_client_hears_its_device_another_and_an_unsupported_one_apart() {
+		let ours = code([0x5a; 16]);
+		let theirs = code([0x5b; 16]);
+		let advertised = Advertised::new(ours.presence_token());
+		assert_eq!(advertised.heard_by(&ours), Heard::Matches);
+		assert_eq!(advertised.heard_by(&theirs), Heard::Other);
+
+		// A marker this build does not implement is reported as that, even with a matching handle.
+		let later = Advertised {
+			version: 99,
+			..advertised
+		};
+		assert_eq!(later.heard_by(&ours), Heard::Unsupported(99));
+	}
+
+	#[test]
+	fn the_names_a_code_may_be_advertised_under_are_one_per_marker_considered() {
+		let ours = code([0x5a; 16]);
+		assert_eq!(
+			local_names(&ours),
+			vec![Advertised::new(ours.presence_token()).to_local_name()]
+		);
+	}
+
 	#[test]
 	fn a_client_matches_only_the_device_whose_code_it_holds() {
-		let ours = PresenceToken::from_bytes([0x5a; 32]);
-		let theirs = PresenceToken::from_bytes([0x5b; 32]);
+		let ours = PresenceToken::from_bytes([0x5a; 16]);
+		let theirs = PresenceToken::from_bytes([0x5b; 16]);
 
 		let advertised = Advertised::new(&ours);
 		assert!(advertised.matches(&ours));

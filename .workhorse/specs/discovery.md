@@ -48,7 +48,7 @@ A local name that is not a bliti payload MUST be passed over.
 
 > [!NOTE]
 > Matching on the payload means a client that is never shown the peer's address can still identify a device, and a device whose address rotates is still recognised.
-> The cost to a client is one fast hash per QR code held.
+> The cost to a client is one fast derivation for each version marker it considers, for each QR code held.
 
 ## Advertising continuously
 

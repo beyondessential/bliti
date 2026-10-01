@@ -182,7 +182,7 @@ fn verdict_of(sent: &[u8], back: &[u8]) -> Verdict {
 /// so every question this crate asks is vacuous (VER). The checks report themselves skipped rather
 /// than passing quietly.
 pub fn markers_agree() -> bool {
-	bliti_core::key_schedule::VERSION == bliti_core_baseline::key_schedule::VERSION
+	bliti_core::version::VERSION_MARKER == bliti_core_baseline::key_schedule::VERSION
 }
 
 /// The broad snapshot of what the baseline emits, one message per line.

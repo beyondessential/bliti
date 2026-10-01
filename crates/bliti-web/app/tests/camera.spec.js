@@ -10,7 +10,7 @@ import { expect, test } from '@playwright/test'
 import { installFakeClient } from './fake-client.js'
 
 const PAYLOAD =
-	'AEAACAQDAQCQMBYIBEFAWDANBYHRAEISCMKBKFQXDAMRUGY4DUPB7AEBQKBYJBMGQ6EITCULRSGY5D4QSGJJHFEVS2LZRGM2TOOJ3HU7'
+	'BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER'
 
 const noDetector = () => delete window.BarcodeDetector
 
@@ -34,7 +34,7 @@ function cameraShowing(svg) {
 }
 
 async function readTyped(page, code) {
-	await page.getByPlaceholder('AHFY-TP4T-...').fill(code)
+	await page.getByPlaceholder('BLITI:...').fill(code)
 	await page.getByRole('button', { name: 'Use' }).click()
 }
 
@@ -53,7 +53,7 @@ test('a code held up to the camera is read without a QR detector in the browser'
 	await exporting.addInitScript(bluetooth)
 	await exporting.goto('/')
 	await readTyped(exporting, PAYLOAD)
-	const human = await exporting.locator('p.code').textContent()
+	const text = await exporting.locator('p.code').textContent()
 	const [download] = await Promise.all([
 		exporting.waitForEvent('download'),
 		exporting.getByRole('button', { name: 'Download SVG' }).click(),
@@ -68,6 +68,26 @@ test('a code held up to the camera is read without a QR detector in the browser'
 	await page.goto('/')
 	await page.getByRole('button', { name: 'Scan with camera' }).click()
 	await expect(page.getByRole('heading', { name: 'QR code read' })).toBeVisible()
-	await expect(page.locator('p.code')).toHaveText(human)
+	await expect(page.locator('p.code')).toHaveText(text)
 	await page.close()
+})
+
+test('the camera is asked for a stream larger than a phone browser opens by default', async ({ page }) => {
+	// A phone browser left to itself opens the camera at 640 by 480, too coarse to read a code on an
+	// enclosure from where an operator holds the phone.
+	await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { value: {} }))
+	await page.addInitScript(noDetector)
+	await page.addInitScript(() => {
+		navigator.mediaDevices.getUserMedia = async (constraints) => {
+			window.cameraConstraints = constraints
+			return document.createElement('canvas').captureStream()
+		}
+	})
+	await page.goto('/')
+	await page.getByRole('button', { name: 'Scan with camera' }).click()
+	await expect.poll(() => page.evaluate(() => window.cameraConstraints)).toBeTruthy()
+	const { video } = await page.evaluate(() => window.cameraConstraints)
+	expect(video.facingMode).toBe('environment')
+	expect(video.width.ideal).toBeGreaterThanOrEqual(1920)
+	expect(video.height.ideal).toBeGreaterThanOrEqual(1080)
 })

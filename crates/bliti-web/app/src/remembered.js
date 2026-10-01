@@ -2,8 +2,8 @@
 // "After a reload").
 //
 // Kept in session storage, which lives exactly as long as the tab: a reload or a restored tab keeps it,
-// and closing the tab forgets it. A code is kept as its human-readable rendering, which reads back to
-// the same payload, so a remembered code is read by the same path as a typed one.
+// and closing the tab forgets it. A code is kept as the text it encodes, which reads back to the same
+// payload, so a remembered code is read by the same path as a typed one.
 
 // How many devices are remembered (WEB).
 const KEPT = 3
@@ -19,9 +19,9 @@ export function remember(recent, code, hostname) {
 	return [entry, ...recent.filter((each) => each.code !== code)].slice(0, KEPT)
 }
 
-/// The last group of a rendering, which is all public key (WEB).
-export function lastGroup(code) {
-	return code.split('-').pop()
+/// The last four characters of a code's text, which are all key fingerprint (WEB).
+export function suffix(code) {
+	return code.slice(-4)
 }
 
 /// The remembered devices as stored, most recent first. Anything unreadable is treated as nothing.
