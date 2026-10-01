@@ -13,14 +13,13 @@ use std::{
 use anyhow::{Context as _, Result, anyhow};
 use bliti_core::{
 	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
-	advertisement::Advertised,
+	advertisement::{Advertised, Heard},
 	channel::{
 		envelope::{Reading, read},
 		messages::Message,
 		readings::Entry,
 		stream::{Mode, Streams, connect_initiator, multiplex, read_message, write_message},
 	},
-	key_schedule::PresenceToken,
 	qr::QrPayload,
 };
 use bluer::gatt::remote::Characteristic;
@@ -140,11 +139,7 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 /// A client cannot reach a device it has not heard: a peer has to be discovered before it can be
 /// connected to. So finding it is part of connecting, and this is the same scan-then-match the web
 /// application performs before it opens a channel.
-async fn find(
-	adapter: &bluer::Adapter,
-	token: &PresenceToken,
-	seconds: u64,
-) -> Result<bluer::Address> {
+async fn find(adapter: &bluer::Adapter, code: &QrPayload, seconds: u64) -> Result<bluer::Address> {
 	// Discovery has to be running for names to be refreshed, but the events it emits are not enough
 	// on their own: a device is announced once, and its name rides in the scan response, which can
 	// arrive after the announcement. So the names of every device known are re-read while the scan
@@ -161,17 +156,17 @@ async fn find(
 			let Some(advertised) = Advertised::from_local_name(&name) else {
 				continue;
 			};
-			if advertised.version != bliti_core::key_schedule::VERSION {
-				tracing::warn!(
+			match advertised.heard_by(code) {
+				Heard::Matches => {
+					tracing::info!(%address, "matched the QR code");
+					return Ok(address);
+				}
+				Heard::Other => {}
+				Heard::Unsupported(marker) => tracing::warn!(
 					%address,
-					version = advertised.version,
-					"a bliti device at an unsupported version"
-				);
-				continue;
-			}
-			if advertised.matches(token) {
-				tracing::info!(%address, "matched the QR code");
-				return Ok(address);
+					marker,
+					"a bliti device at an unsupported version marker"
+				),
 			}
 		}
 		tokio::time::sleep(std::time::Duration::from_secs(3)).await;
@@ -207,7 +202,7 @@ async fn open(
 	for attempt in 0..2 {
 		let found = match address {
 			Some(address) => address,
-			None => find(&adapter, code.presence_token(), 20).await?,
+			None => find(&adapter, code, 20).await?,
 		};
 		let candidate = adapter.device(found)?;
 		if !candidate.is_connected().await? {
@@ -273,9 +268,13 @@ async fn open(
 	};
 
 	// Everything from here is the same stack the browser will run.
-	let encrypted = connect_initiator(transport, code.presence_token(), code.device_public_key())
-		.await
-		.map_err(|err| anyhow!("handshake failed: {err}"))?;
+	let encrypted = connect_initiator(
+		transport,
+		&code.presence_token().pre_shared_key(),
+		code.fingerprint(),
+	)
+	.await
+	.map_err(|err| anyhow!("handshake failed: {err}"))?;
 	tracing::info!("handshake complete");
 
 	let (mut streams, driver) = multiplex(encrypted, Mode::Client);

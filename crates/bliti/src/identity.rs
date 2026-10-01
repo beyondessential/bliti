@@ -1,10 +1,10 @@
 //! Establishing a device's own keys: which source wins, whether the cached root still holds, the
-//! derivation when it does not, and the presence token and static key descending from the root.
+//! derivation when it does not, and the keys descending from the root.
 //!
 //! Behaviour is specified in BID and in KEY, "Deriving on the device". The memory-hard
 //! derivation of the root is paid once and cached; establishing whether the cache still holds is a
-//! comparison of cheap reads against the board, not a rederivation. The presence token and static key
-//! are derived from the root on every start, which is cheap.
+//! comparison of cheap reads against the board, not a rederivation. The presence token, pre-shared
+//! key, static key and KEM key are derived from the root on every start, which is cheap.
 
 use std::{
 	fs,
@@ -17,7 +17,8 @@ use bliti_core::{
 		PlatformSerial, RaspberryPiSerialSource, SourceKind, evaluate_cache, select,
 		strongest_present,
 	},
-	key_schedule::{DeviceKeys, ROOT_LEN, Root, VERSION, check_memory, derive_root},
+	key_schedule::{DeviceKeys, ROOT_LEN, Root, check_memory, derive_root},
+	version::PAYLOAD_VERSION,
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +28,7 @@ pub const DEFAULT_CACHE_PATH: &str = "/var/lib/bliti/identity.json";
 
 /// The device's own identity, once established.
 pub struct Identity {
-	/// The presence token and device static key this board derives.
+	/// The keys this board derives.
 	pub keys: DeviceKeys,
 	/// Which kind of source it was derived from.
 	pub kind: SourceKind,
@@ -41,8 +42,8 @@ pub struct Identity {
 /// and is rederived.
 #[derive(Debug, Serialize, Deserialize)]
 struct CacheFile {
-	/// The key-schedule version the root was derived under. A device that finds a different one has
-	/// been upgraded across a version change and rederives.
+	/// The payload version the root was derived under. A device that finds a different one has been
+	/// upgraded across a change to the key schedule and rederives.
 	version: u8,
 	/// Which kind of source won the precedence.
 	kind: String,
@@ -199,11 +200,11 @@ fn read_cache(path: &Path) -> Result<Option<(CacheState, Root)>, IdentityError> 
 		tracing::warn!("identity cache is unreadable; rederiving");
 		return Ok(None);
 	};
-	if file.version != VERSION {
+	if file.version != PAYLOAD_VERSION {
 		tracing::warn!(
 			cached = file.version,
-			current = VERSION,
-			"identity cache is from another key-schedule version; rederiving"
+			current = PAYLOAD_VERSION,
+			"identity cache is from another payload version; rederiving"
 		);
 		return Ok(None);
 	}
@@ -243,7 +244,7 @@ fn write_cache(
 		fs::create_dir_all(parent).map_err(|err| IdentityError::Cache(err.to_string()))?;
 	}
 	let file = CacheFile {
-		version: VERSION,
+		version: PAYLOAD_VERSION,
 		kind: kind_name(board_id.kind()).to_owned(),
 		board_id: hex::encode(board_id.raw()),
 		platform_serial: platform_serial.as_ref().map(hex::encode),
@@ -377,7 +378,7 @@ mod tests {
 		fs::write(
 			scratch.path(),
 			serde_json::json!({
-				"version": VERSION,
+				"version": PAYLOAD_VERSION,
 				"kind": "raspberry-pi-serial",
 				"platform_serial": "f3756510",
 				"secret": hex::encode([0x42; 32]),

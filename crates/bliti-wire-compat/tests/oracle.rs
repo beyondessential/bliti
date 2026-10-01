@@ -16,7 +16,7 @@ fn vacuous() -> bool {
 	eprintln!(
 		"skipped: the baseline is at version marker {} and this build at {}, so the two never speak",
 		bliti_core_baseline::key_schedule::VERSION,
-		bliti_core::key_schedule::VERSION,
+		bliti_core::version::VERSION_MARKER,
 	);
 	true
 }

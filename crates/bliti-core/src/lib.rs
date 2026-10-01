@@ -2,16 +2,17 @@
 //!
 //! bliti provisions headless devices over Bluetooth Low Energy, anchored to a QR QR code printed on
 //! the device's enclosure. This crate is the protocol core: the derivation chain from a board ID to
-//! a presence token to an advertised handle, the QR code payload, and the authenticated channel. It
-//! carries no BlueZ and no hardware beyond the board-ID backends behind the `backends` feature, so
-//! it unit-tests anywhere and compiles for `wasm32-unknown-unknown`, which is what lets the web
-//! application share one implementation of the key schedule and the handshake with the device.
+//! a presence token, a key fingerprint and an advertised handle, the QR code payload, and the
+//! authenticated channel. It carries no BlueZ and no hardware beyond the board-ID backends behind
+//! the `backends` feature, so it unit-tests anywhere and compiles for `wasm32-unknown-unknown`,
+//! which is what lets the web application share one implementation of the key schedule and the
+//! handshake with the device.
 //!
 //! Behaviour is specified under `.workhorse/specs/`; each module names the spec it implements.
 //!
 //! # Features
 //!
-//! - `derive` (default): the memory-hard presence-token derivation (argon2id). Needed by the device
+//! - `derive` (default): the memory-hard root derivation (argon2id). Needed by the device
 //!   and the QR code generator, never by a client, and left out of wasm builds.
 //! - `backends` (default): board-ID backends that read real firmware. Left out of wasm builds.
 
@@ -22,6 +23,7 @@ pub mod board_id;
 pub mod channel;
 pub mod key_schedule;
 pub mod qr;
+pub mod version;
 pub mod wifi_qr;
 
 #[cfg(test)]

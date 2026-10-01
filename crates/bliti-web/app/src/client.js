@@ -120,37 +120,39 @@ export function createClient() {
 			if (!window.isSecureContext) {
 				return 'This page needs a secure context. Open it over https, or over localhost while developing.'
 			}
-			// Temporary, for the S1 print trial: reading a code needs no Bluetooth, so `?scan-only` lets
-			// a browser without it (any on an iPad) open the scanner. Remove before merge.
-			if (!navigator.bluetooth && !new URLSearchParams(location.search).has('scan-only')) {
+			if (!navigator.bluetooth) {
 				return 'This browser does not offer Web Bluetooth. Chrome on Android is the tested one.'
 			}
 			return null
 		},
 
 		// Both paths a QR code arrives by land here, and the payload is treated identically once read.
+		// `localName` is the name for the highest version marker considered, the one shown before the
+		// chooser opens.
 		async readCode(text) {
 			await protocol()
 			const qr = new QrCode(text)
-			return { qr, human: qr.human, svg: qr.svg, version: qr.version, localName: qr.local_name }
+			const localNames = qr.local_names
+			return { qr, text: qr.text, suffix: qr.suffix, svg: qr.svg, version: qr.version, localName: localNames[0], localNames }
 		},
 
 		// Finding the device the QR code belongs to (ADV, "Matching").
 		//
-		// The browser gives a chooser rather than the advertisements themselves. The name a device
-		// advertises follows from its QR code alone, so the chooser is filtered on that exact name,
-		// which leaves the one device the code belongs to. Not on the bliti service as well: the
-		// chooser matches the host's record of a device, and a host that once resolved the device's
-		// services without bliti's among them goes on reporting those in place of what it hears
-		// advertised (WEB). The pick is still checked against the QR code before anything is sent
-		// to it.
+		// The browser gives a chooser rather than the advertisements themselves. The names a device may
+		// advertise follow from its QR code alone, one for each version marker considered, so the
+		// chooser is filtered on those exact names, which leaves the one device the code belongs to.
+		// Not on the bliti service as well: the chooser matches the host's record of a device, and a
+		// host that once resolved the device's services without bliti's among them goes on reporting
+		// those in place of what it hears advertised (WEB). The pick is still checked against the QR
+		// code before anything is sent to it.
 		async connect(qr, handlers) {
 			const say = (direction, text) => handlers.onActivity?.(direction, text)
 			await protocol()
-			say('note', `asking the browser to choose ${qr.local_name}`)
+			const names = qr.local_names
+			say('note', `asking the browser to choose ${names.join(' or ')}`)
 			try {
 				device = await navigator.bluetooth.requestDevice({
-					filters: [{ name: qr.local_name }],
+					filters: names.map((name) => ({ name })),
 					optionalServices: [service_uuid()],
 				})
 			} catch (error) {
@@ -167,7 +169,7 @@ export function createClient() {
 			if (!advertised) {
 				throw new Error('That device is not advertising a bliti payload.')
 			}
-			if (advertised.version !== qr.version) {
+			if (!advertised.supported) {
 				throw new Error(
 					`That device speaks bliti version ${advertised.version}, which this app does not read.`,
 				)

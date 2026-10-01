@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { installFakeClient } from './fake-client.js'
 
 async function read(page, code) {
-	await page.getByPlaceholder('AHFY-TP4T-...').fill(code)
+	await page.getByPlaceholder('BLITI:...').fill(code)
 	await page.getByRole('button', { name: 'Use' }).click()
 }
 
@@ -19,10 +19,10 @@ async function downloaded(page) {
 	return { name: download.suggestedFilename(), body: await readFile(await download.path(), 'utf8') }
 }
 
-test('the file is the code the client read, named after the last group of its rendering', async ({ page }) => {
+test('the file is the code the client read, named after the last four characters of its code', async ({ page }) => {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')
-	await read(page, 'AHFY-TP4T-6K2M-9WQX')
+	await read(page, 'BLITI:AHFYTP4T6K2M9WQX')
 	const { name, body } = await downloaded(page)
 	expect(name).toBe('bliti-9WQX.svg')
 	expect(body).toBe('<svg xmlns="http://www.w3.org/2000/svg"/>')
@@ -35,10 +35,10 @@ test('the real client produces the image from the payload', async ({ page }) => 
 	await page.goto('/')
 	await read(
 		page,
-		'AEAACAQDAQCQMBYIBEFAWDANBYHRAEISCMKBKFQXDAMRUGY4DUPB7AEBQKBYJBMGQ6EITCULRSGY5D4QSGJJHFEVS2LZRGM2TOOJ3HU7',
+		'BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER',
 	)
 	const { name, body } = await downloaded(page)
-	expect(name).toBe('bliti-3HU7.svg')
+	expect(name).toBe('bliti-7EER.svg')
 	expect(body).toMatch(/^<\?xml[^>]*>\s*<svg[^>]*>.*<\/svg>$/s)
 	expect(body).not.toContain('<text')
 })

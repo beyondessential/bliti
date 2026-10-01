@@ -1,7 +1,7 @@
 //! The browser client for bliti: the protocol half of the web application (WEB).
 //!
 //! This crate compiles to wasm and carries everything the specs describe — reading a QR code
-//! (QR), computing and matching the advertised handle (ADV), the `NKpsk0` handshake, the
+//! (QR), computing and matching the advertised handle (ADV), the `NXpsk0` handshake, the
 //! stream layer, and the JSON messages (CHN). It is the same code the daemon and the
 //! command-line client run, which is the point: one implementation of the key schedule and the
 //! handshake rather than a Rust one and a JavaScript one that must agree forever.
@@ -10,14 +10,15 @@
 //! with no protocol in them, and binding them through wasm would buy nothing. Decoding what the
 //! camera sees is here, for a browser with no QR detector of its own.
 //!
-//! The memory-hard derivation of KEY never runs here: a client reads the presence token and the
-//! device static public key from the payload and only computes the handle, which is a fast hash. The crate therefore takes `bliti-core`
-//! without its default features, and argon2 is not in the build at all.
+//! The memory-hard derivation of KEY never runs here: a client reads the presence token and the key
+//! fingerprint from the payload and computes only the pre-shared key, the handle and the
+//! fingerprint, which are fast derivations. The crate therefore takes `bliti-core` without its
+//! default features, and argon2 is not in the build at all.
 
 use std::{cell::RefCell, rc::Rc};
 
 use bliti_core::{
-	advertisement::Advertised,
+	advertisement::{Advertised, Heard, local_names},
 	channel::{
 		capabilities,
 		envelope::{Reading, read},
@@ -177,7 +178,7 @@ fn placement_fault(
 		.map(|invalid| serde_json::json!({ "at": invalid.at, "reason": invalid.reason })))
 }
 
-/// A QR code the application has read, by either of the paths in WEB.
+/// A QR code the application has read, from the camera or typed in (WEB).
 #[wasm_bindgen]
 pub struct QrCode {
 	payload: QrPayload,
@@ -185,38 +186,37 @@ pub struct QrCode {
 
 #[wasm_bindgen]
 impl QrCode {
-	/// Read a QR code however it was given: the URL a code encodes, the fragment alone, or the
-	/// human-readable rendering printed beneath the code. All three carry the same payload, and a
-	/// payload that parses as none of them is reported as unreadable.
+	/// Read a QR code from its text, as captured from the code or entered by the operator (QR,
+	/// "Reading").
 	#[wasm_bindgen(constructor)]
 	pub fn new(text: &str) -> Result<QrCode, JsError> {
 		use bliti_core::qr::QrError;
 		let payload = QrPayload::read(text).map_err(|err| match err {
 			QrError::UnsupportedVersion(version) => JsError::new(&format!(
-				"That QR code is bliti version {version}, which this app does not read."
+				"That QR code is bliti payload version {version}, which this app does not read."
 			)),
 			QrError::Malformed => JsError::new("That is not a bliti QR code."),
 		})?;
 		Ok(Self { payload })
 	}
 
-	/// The version of the QR code in hand. A device advertising a different one is reported as being
-	/// at a version this client does not support, rather than as not matching.
+	/// The payload version of the QR code in hand.
 	#[wasm_bindgen(getter)]
 	pub fn version(&self) -> u8 {
 		self.payload.version()
 	}
 
-	/// The QR code's URL, as its code encodes it.
+	/// The text the QR code encodes.
 	#[wasm_bindgen(getter)]
-	pub fn url(&self) -> String {
-		self.payload.to_url()
+	pub fn text(&self) -> String {
+		self.payload.to_text()
 	}
 
-	/// The human-readable rendering printed beneath the code.
+	/// The last characters of the encoded payload, which name the device without giving away
+	/// anything secret (WEB, "Exporting the QR code").
 	#[wasm_bindgen(getter)]
-	pub fn human(&self) -> String {
-		self.payload.to_human()
+	pub fn suffix(&self) -> String {
+		self.payload.suffix()
 	}
 
 	/// The QR code as the SVG image a generator produces for it, for printing a replacement.
@@ -225,11 +225,12 @@ impl QrCode {
 		self.payload.to_svg()
 	}
 
-	/// The local name the device this QR code belongs to advertises, at the QR code's version. Known
-	/// before anything is heard, so the chooser is filtered on it and the operator told it (WEB).
+	/// The local names the device this QR code belongs to may advertise, one for each version marker
+	/// this build considers for the code, highest first. Known before anything is heard, so the
+	/// chooser is filtered on them and the operator told the first (WEB, "Finding the device").
 	#[wasm_bindgen(getter)]
-	pub fn local_name(&self) -> String {
-		self.advertised().to_local_name()
+	pub fn local_names(&self) -> Vec<String> {
+		local_names(&self.payload)
 	}
 
 	/// Read a local name heard over the air against this QR code (ADV, "Matching").
@@ -239,20 +240,8 @@ impl QrCode {
 	pub fn read_local_name(&self, name: &str) -> Option<Advertisement> {
 		Advertised::from_local_name(name).map(|advertised| Advertisement {
 			version: advertised.version,
-			// The version is checked by the caller before the match is believed: no two versions
-			// produce a matching handle, so a mismatch there is not a different device.
-			matches: advertised.version == self.payload.version()
-				&& advertised.matches(self.payload.presence_token()),
+			heard: advertised.heard_by(&self.payload),
 		})
-	}
-}
-
-impl QrCode {
-	fn advertised(&self) -> Advertised {
-		Advertised {
-			version: self.payload.version(),
-			handle: self.payload.presence_token().handle(),
-		}
 	}
 }
 
@@ -260,21 +249,28 @@ impl QrCode {
 #[wasm_bindgen]
 pub struct Advertisement {
 	version: u8,
-	matches: bool,
+	heard: Heard,
 }
 
 #[wasm_bindgen]
 impl Advertisement {
-	/// The version the device advertises.
+	/// The version marker the device advertises.
 	#[wasm_bindgen(getter)]
 	pub fn version(&self) -> u8 {
 		self.version
 	}
 
+	/// Whether this client implements the version marker the device advertises. Where it does not,
+	/// whether the device matches cannot be said (VER).
+	#[wasm_bindgen(getter)]
+	pub fn supported(&self) -> bool {
+		!matches!(self.heard, Heard::Unsupported(_))
+	}
+
 	/// Whether this device is the one the QR code belongs to.
 	#[wasm_bindgen(getter)]
 	pub fn matches(&self) -> bool {
-		self.matches
+		self.heard == Heard::Matches
 	}
 }
 
@@ -350,8 +346,8 @@ impl Channel {
 
 			let encrypted = connect_initiator(
 				transport,
-				inner.payload.presence_token(),
-				inner.payload.device_public_key(),
+				&inner.payload.presence_token().pre_shared_key(),
+				inner.payload.fingerprint(),
 			)
 			.await
 			.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
@@ -1034,25 +1030,38 @@ mod tests {
 		);
 	}
 
-	/// The name a page filters the chooser on is the one the device advertises, and it matches.
+	/// The names a page filters the chooser on are the ones the device may advertise, the first its
+	/// own, and it matches.
 	#[test]
-	fn the_expected_local_name_is_the_devices() {
-		let token = bliti_core::key_schedule::PresenceToken::from_bytes([0x42; 32]);
-		let public = bliti_core::key_schedule::DevicePublicKey::from_bytes([0x07; 32]);
+	fn the_expected_local_names_are_the_devices() {
+		use bliti_core::key_schedule::{KeyFingerprint, PresenceToken};
+		let token = PresenceToken::from_bytes([0x42; 16]);
+		let fingerprint = KeyFingerprint::from_bytes([0x07; 18]);
 		let code = QrCode {
-			payload: QrPayload::new(token.clone(), public),
+			payload: QrPayload::new(token.clone(), fingerprint),
 		};
-		assert_eq!(code.local_name(), Advertised::new(&token).to_local_name());
-		let advertisement = code.read_local_name(&code.local_name()).unwrap();
+		let names = code.local_names();
+		assert_eq!(names, vec![Advertised::new(&token).to_local_name()]);
+		let advertisement = code.read_local_name(&names[0]).unwrap();
+		assert!(advertisement.supported());
 		assert!(advertisement.matches());
 
 		let other = QrCode {
-			payload: QrPayload::new(
-				bliti_core::key_schedule::PresenceToken::from_bytes([0x43; 32]),
-				public,
-			),
+			payload: QrPayload::new(PresenceToken::from_bytes([0x43; 16]), fingerprint),
 		};
-		assert!(!other.read_local_name(&code.local_name()).unwrap().matches());
+		let heard = other.read_local_name(&names[0]).unwrap();
+		assert!(heard.supported());
+		assert!(!heard.matches());
+
+		// A marker this build does not implement is unsupported, not a different device.
+		let later = Advertised {
+			version: 99,
+			..Advertised::new(&token)
+		};
+		let heard = code.read_local_name(&later.to_local_name()).unwrap();
+		assert_eq!(heard.version(), 99);
+		assert!(!heard.supported());
+		assert!(!heard.matches());
 	}
 
 	#[test]

@@ -330,4 +330,4 @@ Camera app and bliti in Chrome on the same Android phone:
 
 ### Trial scaffolding to remove
 
-- [ ] `?scan-only` in `client.js`, which skips the Web Bluetooth check so an iPad can open the scanner. The page reads codes and connects to nothing.
+- [x] `?scan-only` in `client.js`, which skips the Web Bluetooth check so an iPad can open the scanner. The page reads codes and connects to nothing.

@@ -16,24 +16,26 @@ Every value descends from an identifier the board's own firmware provides, under
 public:
 
 ```
-                            ┌──> presence token ──keyed hash──> advertised handle
-board ID ──argon2id──> root ┤    (in the QR code)               (broadcast over BLE)
-(firmware)                  └──> device static key
-                                 (public half in the QR code)
+                            ┌──> presence token ──┬──> advertised handle (broadcast over BLE)
+                            │    (in the QR code) └──> pre-shared key
+board ID ──argon2id──> root ┤
+(firmware)                  ├──> device static key ─┬──> key fingerprint
+                            └──> device KEM key ────┘    (in the QR code)
 ```
 
 The board ID is the strongest identifier the board offers: a TPM Endorsement Key, else written
 one-time-programmable memory, else the Raspberry Pi device-tree serial. It appears in no QR payload and no
 advertisement, and the derivation does not run backwards, so photographing a QR code does not yield
-it, and cannot yield the device's static key either.
+it, and cannot yield the device's keys either.
 
 There is no fleet key and no authoritative per-device record. The whole chain is reproducible from
 the board alone, so a QR code can be reproduced from the device itself rather than from a record of
 what was issued, and anything a device stores about its own identity is a cache it can rebuild.
 
-Above the link, the two ends run a Noise `NKpsk0` handshake: the device is authenticated by its
-static key, whose public half the QR code carries, and the client by the presence token as the
-pre-shared key. They then multiplex JSON messages over streams either end can open.
+Above the link, the two ends run a Noise `NXpsk0` handshake: the client is authenticated by the
+pre-shared key it derives from the presence token, and the device by the static key it sends, which
+the client checks against the key fingerprint in the QR code. They then multiplex JSON messages over
+streams either end can open.
 
 ## The crates
 
@@ -97,10 +99,9 @@ be printed from a list gathered beforehand.
 
 ## Clients
 
-The browser client is the one an operator uses, because it runs without being installed first.
-Scanning the QR code with a generic phone camera opens the page with the payload in the fragment,
-which is never sent to a server; an already-open page reads further codes with its own camera.
-It needs a secure context, since neither the camera nor Web Bluetooth is available without one.
+The browser client is the one an operator uses, because it runs without being installed first. It
+reads a QR code with its own camera, or from the code's text typed in. It needs a secure context,
+since neither the camera nor Web Bluetooth is available without one.
 
 Run `just setup` once to install what a build needs, then `just build` to build it.
 
@@ -111,7 +112,8 @@ $ bliti scan <code>       # find the device the code belongs to
 $ bliti connect <code>    # open a channel to it
 ```
 
-`<code>` is a QR code URL, its fragment, or the rendering printed beneath the code.
+`<code>` is the text the QR code encodes, `BLITI:` followed by the payload, with or without the
+prefix and in any case.
 
 ## Development
 

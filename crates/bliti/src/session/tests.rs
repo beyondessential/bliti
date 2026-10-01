@@ -57,8 +57,8 @@ async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) ->
 
 	let encrypted = connect_initiator(
 		client_side.compat(),
-		&keys.presence_token,
-		&keys.static_key.public_key(),
+		&keys.pre_shared_key,
+		&keys.fingerprint(),
 	)
 	.await
 	.unwrap();
@@ -284,8 +284,8 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 	assert!(
 		connect_initiator(
 			client_side.compat(),
-			&other.presence_token,
-			&other.static_key.public_key()
+			&other.pre_shared_key,
+			&keys(0x01).fingerprint()
 		)
 		.await
 		.is_err()
@@ -296,11 +296,13 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 	));
 }
 
-/// A client holding the right presence token but expecting another device's static key does not
-/// open a session: the token alone, as a photograph of the QR code yields, is not enough to be
-/// taken for this device (SEC, "A photograph does not permit impersonation").
+/// A client holding the right presence token but another device's key fingerprint does not open a
+/// session: the token alone, as a photograph of the QR code yields, is not enough to be taken for
+/// this device (SEC, "A photograph does not permit impersonation"). The client fails the handshake
+/// on the device's second message and sends nothing further, so the device's session ends with the
+/// connection.
 #[tokio::test]
-async fn the_right_token_with_the_wrong_static_key_cannot_open_a_session() {
+async fn the_right_token_with_the_wrong_fingerprint_cannot_open_a_session() {
 	let (client_side, device_side) = tokio::io::duplex(1 << 16);
 	let configurator = inert().await;
 	let device = tokio::spawn(async move {
@@ -318,16 +320,17 @@ async fn the_right_token_with_the_wrong_static_key_cannot_open_a_session() {
 	assert!(
 		connect_initiator(
 			client_side.compat(),
-			&keys(0x01).presence_token,
-			&keys(0x02).static_key.public_key()
+			&keys(0x01).pre_shared_key,
+			&keys(0x02).fingerprint()
 		)
 		.await
 		.is_err()
 	);
-	assert!(matches!(
-		device.await.unwrap(),
-		Err(SessionError::Handshake(_))
-	));
+	tokio::time::timeout(std::time::Duration::from_secs(5), device)
+		.await
+		.expect("the device's session ends once the client has gone")
+		.unwrap()
+		.ok();
 }
 /// A stream opened with `configure` is served a configuration session, and a second one while it
 /// is open is told the device is busy (CFG).
@@ -401,8 +404,8 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 	};
 	let encrypted = connect_initiator(
 		client_side.compat(),
-		&keys.presence_token,
-		&keys.static_key.public_key(),
+		&keys.pre_shared_key,
+		&keys.fingerprint(),
 	)
 	.await
 	.unwrap();
@@ -438,8 +441,8 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 	});
 	let encrypted = connect_initiator(
 		client_side.compat(),
-		&keys.presence_token,
-		&keys.static_key.public_key(),
+		&keys.pre_shared_key,
+		&keys.fingerprint(),
 	)
 	.await
 	.unwrap();

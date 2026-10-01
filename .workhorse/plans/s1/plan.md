@@ -40,22 +40,31 @@ Base45; an upper-case URL; the bare payload without a prefix; levels M and Q; `N
 
 ## Build
 
-- [ ] Key schedule: 16-byte token, PSK, handle by derivation, device KEM key, KEM key digest, fingerprint (KEY)
-  - [ ] Add `ml-kem` with `cargo add`; confirm `FromSeed` and its wasm build
-  - [ ] ACVP keyGen vectors test for ML-KEM-768
-  - [ ] Known-answer test pinning the whole chain from a fixed root
-- [ ] Versions: split `VERSION` into payload version and version marker across `qr.rs`, `advertisement.rs`, `bliti-web`, the CLI and the wire-compat crate (VER)
-- [ ] QR payload and code: 35-byte payload, `BLITI:` text, explicit v5 level H segment, single reader (any prefix, `0`/`1`/`8` mapping, version byte first) (QR)
-  - [ ] Remove the human-readable rendering: `HUMAN_GROUP` and its reader in `qr.rs`, the CLI's printed rendering, and its tests
-- [ ] Handshake: `NXpsk0`, message 2 payload, fingerprint check in `Handshake` (CHN)
-  - [ ] Device side (`bliti` session/identity) derives the PSK and KEM key digest
-  - [ ] CLI `connect`/`configure` take a code through the new reader
-- [ ] Web client (WEB)
-  - [ ] `bliti-web` `QrCode`: fingerprint and PSK in place of the public key and token; local names as a list
-  - [ ] `client.js` chooser filters on every local name
-  - [ ] `App.jsx`: remove the fragment path (`location.hash`, `replaceState`) and its reload handling
-  - [ ] Export file name and remembered-device label use the last four characters of the encoded payload (`remembered.js` `lastGroup`, `App.jsx`); remembered devices kept as the code text rather than the rendering
+- [x] Key schedule: 16-byte token, PSK, handle by derivation, device KEM key, KEM key digest, fingerprint (KEY)
+  - [x] Add `ml-kem` with `cargo add`; confirm `FromSeed` and its wasm build
+  - [x] ACVP keyGen vectors test for ML-KEM-768
+  - [x] Known-answer test pinning the whole chain from a fixed root
+- [x] Versions: split `VERSION` into payload version and version marker across `qr.rs`, `advertisement.rs`, `bliti-web`, the CLI and the wire-compat crate (VER)
+- [x] QR payload and code: 35-byte payload, `BLITI:` text, explicit v5 level H segment, single reader (any prefix, `0`/`1`/`8` mapping, version byte first) (QR)
+  - [x] Remove the human-readable rendering: `HUMAN_GROUP` and its reader in `qr.rs`, the CLI's printed rendering, and its tests
+- [x] Handshake: `NXpsk0`, message 2 payload, fingerprint check in `Handshake` (CHN)
+  - [x] Device side (`bliti` session/identity) derives the PSK and KEM key digest
+  - [x] CLI `connect`/`configure` take a code through the new reader
+- [x] Web client (WEB)
+  - [x] `bliti-web` `QrCode`: fingerprint and PSK in place of the public key and token; local names as a list
+  - [x] `client.js` chooser filters on every local name
+  - [x] `App.jsx`: remove the fragment path (`location.hash`, `replaceState`) and its reload handling
+  - [x] Export file name and remembered-device label use the last four characters of the encoded payload (`remembered.js` `lastGroup`, `App.jsx`); remembered devices kept as the code text rather than the rendering
   - [x] Scanner asks the camera for up to 3840 × 2160 and continuous focus (`scanner.js`), with a test
-- [ ] README and CLI help: the keyed-hash diagram, `NKpsk0` description, and link and fragment descriptions in `README.md` (lines 19, 34, 101, 114) and the `--help` text in `main.rs`
-- [ ] Remove trial scaffolding: `?scan-only` in `client.js`
-- [ ] `cargo fmt`, `just test`, `just test-web`
+- [x] README and CLI help: the keyed-hash diagram, `NKpsk0` description, and link and fragment descriptions in `README.md` (lines 19, 34, 101, 114) and the `--help` text in `main.rs`
+- [x] Remove trial scaffolding: `?scan-only` in `client.js`
+- [x] `cargo fmt`, `just test`, `just test-web`
+
+## Implementation notes
+
+- Versions live in `bliti-core`'s `version` module: the payload version, the version marker, and the table of markers this build implements with the payload version each reads. `advertisement::Advertised::heard_by` reads an advertisement against a code (marker first, then the handle under a marker considered), and `advertisement::local_names` gives the names for a code; the CLI's `scan` and `connect` and the web client all go through these.
+- `DeviceKeys` carries the token, the PSK, the static key and the KEM key digest. The KEM key itself is derived only to take its digest; nothing holds it.
+- The responder refuses a first message carrying a payload, since CHN fixes it empty.
+- The known-answer values were checked against an independent implementation (Python `blake3` and `kyber-py`'s ML-KEM) before being pinned. The ACVP vectors are the 25 ML-KEM-768 keyGen cases of NIST's ACVP-Server, pinned by commit in the data file's `source`.
+- `ml-kem` adds nothing to the browser bundle: the wasm module built from this branch is the same size as `main`'s, since no client path generates a KEM key.
+- The wire-compat baseline still points at a revision before this card. Its oracle compares messages only, which this card does not change, so the baseline does not need to move for it.

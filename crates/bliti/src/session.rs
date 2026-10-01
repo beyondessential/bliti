@@ -103,7 +103,7 @@ where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 	B: Backend,
 {
-	let encrypted = accept_responder(transport, &keys.presence_token, &keys.static_key)
+	let encrypted = accept_responder(transport, keys)
 		.await
 		.map_err(|err| SessionError::Handshake(err.to_string()))?;
 	tracing::info!("handshake complete");

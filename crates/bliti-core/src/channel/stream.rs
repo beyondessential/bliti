@@ -67,7 +67,7 @@ use super::{
 	noise::{Handshake, MAX_PLAINTEXT, Transport},
 	write_backlog::WriteBacklog,
 };
-use crate::key_schedule::{DevicePublicKey, DeviceStaticKey, PresenceToken};
+use crate::key_schedule::{DeviceKeys, KeyFingerprint, PreSharedKey};
 
 /// The size of the buffer used to pull bytes off the inner transport on each read.
 const READ_CHUNK: usize = 8192;
@@ -333,16 +333,16 @@ where
 	.await
 }
 
-/// Run the `NKpsk0` handshake as the initiator over a byte transport and return the encrypted stream.
-/// The client is the initiator, holding the presence token and the device static public key from the
-/// QR code. The handshake reads exactly its two framed messages, leaving no bytes buffered, so the
-/// returned [`NoiseStream`] takes over a clean transport.
+/// Run the `NXpsk0` handshake as the initiator over a byte transport and return the encrypted stream.
+/// The client is the initiator, holding the pre-shared key and the key fingerprint from the QR code.
+/// The handshake reads exactly its two framed messages, leaving no bytes buffered, so the returned
+/// [`NoiseStream`] takes over a clean transport.
 pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
-	psk: &PresenceToken,
-	device_public_key: &DevicePublicKey,
+	psk: &PreSharedKey,
+	fingerprint: &KeyFingerprint,
 ) -> Result<NoiseStream<S>, ChannelError> {
-	let mut handshake = Handshake::initiator(psk, device_public_key)?;
+	let mut handshake = Handshake::initiator(psk, fingerprint)?;
 	let msg1 = handshake.write_message()?;
 	write_delimited::<TRANSPORT_PREFIX, _>(&mut inner, &msg1)
 		.await
@@ -355,14 +355,15 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 	Ok(NoiseStream::new(inner, handshake.into_transport()?))
 }
 
-/// Run the `NKpsk0` handshake as the responder over a byte transport and return the encrypted stream.
-/// The device is the responder, holding the presence token and its static private key.
+/// Run the `NXpsk0` handshake as the responder over a byte transport and return the encrypted stream.
+/// The device is the responder, holding the pre-shared key, its static private key, and its KEM key
+/// digest.
 pub async fn accept_responder<S: AsyncRead + AsyncWrite + Unpin>(
 	mut inner: S,
-	psk: &PresenceToken,
-	device_static_key: &DeviceStaticKey,
+	keys: &DeviceKeys,
 ) -> Result<NoiseStream<S>, ChannelError> {
-	let mut handshake = Handshake::responder(psk, device_static_key)?;
+	let mut handshake =
+		Handshake::responder(&keys.pre_shared_key, &keys.static_key, &keys.kem_key_digest)?;
 	let msg1 = read_delimited::<TRANSPORT_PREFIX, _>(&mut inner)
 		.await
 		.map_err(|err| ChannelError::Handshake(err.to_string()))?
@@ -417,15 +418,15 @@ mod tests {
 		Result<NoiseStream<Duplex>, ChannelError>,
 	) {
 		let keys = Root::from_bytes([0x5a; 32]).device_keys();
-		let public_key = keys.static_key.public_key();
+		let fingerprint = keys.fingerprint();
 		let (a, b) = tokio::io::duplex(1 << 16);
 		tokio::join!(
-			connect_initiator(a.compat(), &keys.presence_token, &public_key),
-			accept_responder(b.compat(), &keys.presence_token, &keys.static_key)
+			connect_initiator(a.compat(), &keys.pre_shared_key, &fingerprint),
+			accept_responder(b.compat(), &keys)
 		)
 	}
 
-	/// Set up a client and device connected over an in-memory duplex: a full `NKpsk0` handshake, then
+	/// Set up a client and device connected over an in-memory duplex: a full `NXpsk0` handshake, then
 	/// yamux on both ends with their drivers spawned. No BLE is involved.
 	async fn paired() -> (Streams, Streams) {
 		let (client_ns, device_ns) = handshaken().await;

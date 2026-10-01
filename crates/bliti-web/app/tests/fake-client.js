@@ -26,9 +26,9 @@
 //
 // Setting window.__blitiNothingPicked makes connect fail as a chooser closed with nothing picked does.
 //
-// A code reads as its own rendering: the fragment or the text typed, upper-cased, so each code a test
-// types is a device of its own. Any rendering in window.__blitiUnreadable reads as a version this build
-// does not read.
+// A code reads as its own text: whatever follows the last colon, upper-cased behind the prefix, so
+// each code a test types is a device of its own. Any text in window.__blitiUnreadable reads as a
+// payload version this build does not read.
 export const installFakeClient = `
 window.__blitiFeeds = []
 window.__blitiSent = []
@@ -45,13 +45,14 @@ window.__blitiTimings = { retry: 50, giveUp: 1500, hold: 400 }
 window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
-		const body = text?.split('#').pop()
+		const body = text?.split(':').pop().trim()
 		if (!body || body === 'nope') throw new Error('That is not a bliti code.')
-		const human = body.toUpperCase()
-		if ((window.__blitiUnreadable ?? []).includes(human)) {
-			throw new Error('That QR code is bliti version 9, which this app does not read.')
+		const code = 'BLITI:' + body.toUpperCase()
+		if ((window.__blitiUnreadable ?? []).includes(code)) {
+			throw new Error('That QR code is bliti payload version 9, which this app does not read.')
 		}
-		return { qr: { fake: true }, human, svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1, localName: 'AHOW2EZUD4343RQ' }
+		const localName = 'AHOW2EZUD4343RQ'
+		return { qr: { fake: true }, text: code, suffix: code.slice(-4), svg: '<svg xmlns="http://www.w3.org/2000/svg"/>', version: 1, localName, localNames: [localName] }
 	},
 	async connect(qr, handlers) {
 		if (window.__blitiNothingPicked) {
@@ -209,7 +210,7 @@ window.__blitiClient = {
 export async function openChannel(page) {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')
-	await page.getByPlaceholder('AHFY-TP4T-...').fill('AHFY-TP4T-6K2M-9WQX')
+	await page.getByPlaceholder('BLITI:...').fill('BLITI:AHFYTP4T6K2M9WQX')
 	await page.getByRole('button', { name: 'Use', exact: true }).click()
 	await page.getByRole('button', { name: 'Find the device' }).click()
 }
