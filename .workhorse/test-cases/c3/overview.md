@@ -15,6 +15,9 @@ The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `of
 - [x] An update that changes the worker and not its list fetches nothing at install, and the precache in use is left as it is
 - [x] An update whose install hits a missing entry never activates, and the old version keeps answering offline
 - [x] Once a next version activates, only its own `bliti-precache-*` cache remains, and `bliti-runtime` is kept
+- [x] With no service worker to hold it, the screen for reading a code says "Not ready offline" beside the title (verifies spec: WEB)
+- [x] Once a worker controls the page, the screen for reading a code says nothing about being offline (verifies spec: WEB)
+- [x] An install cut short leaves the label up, and the next time the browser reports a connection the application installs again and the label goes (verifies spec: WEB)
 - [x] Reload the built bundle with a network that holds every connection open: the app renders from the precache
 - [x] A POST from the page reaches the server and nothing is stored for it in either cache
 - [x] `just build` writes gzip, brotli and zstd encodings beside `dist/sw.js` (verifies spec: WEB)
@@ -38,7 +41,8 @@ The automated ones live in `crates/bliti-web/app/tests/`: build scenarios in `of
 Run through `bliti-web-serve` on this worktree, in Chrome on Android on the tailnet.
 
 - [ ] Load the client once online, turn on airplane mode with Bluetooth left on, reload: the client runs, reads a device's QR code with the camera, and opens a channel to it (verifies spec: WEB)
-- [ ] With Tailscale left connected, turn on airplane mode, swipe the installed client away and reopen it: it loads from the cache after a short wait
+- [x] With Tailscale left connected, turn on airplane mode, swipe the installed client away and reopen it: it loads from the cache after a short wait
+- [ ] Clear the site's data, load the client online and turn on airplane mode at once: the start screen says "Not ready offline" until it is, and the app does not open offline if it never got there (verifies spec: WEB)
 - [ ] With the dev client open, turn on airplane mode and leave it a while: the page stays put rather than reloading while the dev client looks for its server. Manual only, because emulated offline in the harness reaches neither WebSockets nor the SharedWorker the dev client pings from
 - [ ] Back online, edit a component on the laptop: the phone shows the change live
 - [ ] Install the client to the home screen from the dev origin, then open it in airplane mode: it runs, with its icon (verifies spec: WEB)

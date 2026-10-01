@@ -1,0 +1,89 @@
+<!-- spec: web-app.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline readiness on the start screen</title>
+<style>
+	/* The client's own styles, from crates/bliti-web/app/src/styles.css. */
+	:root {
+		--page: #fbfbfa;
+		--surface: #ffffff;
+		--line: #e4e2dd;
+		--text: #1c1917;
+		--muted: #57534e;
+		--accent: #1d4ed8;
+		--bad: #b91c1c;
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 16px; background: #eceae5; color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+	.phones { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+	.phone { width: 360px; background: var(--page); padding: 16px; border-radius: 12px; border: 1px solid var(--line); }
+	.caption { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; text-align: center; }
+	main { max-width: 34rem; margin: 0 auto; }
+	h1 { font-size: 1.25rem; margin: 0 0 16px; }
+	section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+	h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+	button { font: inherit; padding: 12px 16px; min-height: 44px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; }
+	button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+	input { font: inherit; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); color: var(--text); }
+	.muted { color: var(--muted); font-size: 0.9rem; }
+	.row { display: flex; gap: 8px; flex-wrap: wrap; }
+	.row > * { flex: 1 1 auto; }
+	.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+	.heading.title { margin-bottom: 16px; }
+	.heading.title h1 { margin: 0; }
+
+	/* New: the start screen's title row, with readiness beside the title while it is not ready. */
+	.offline { color: var(--bad); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="phones">
+	<div>
+		<p class="caption">Not yet ready offline</p>
+		<div class="phone">
+			<main>
+				<div class="heading title">
+					<h1>bliti</h1>
+					<span class="offline">Not ready offline</span>
+				</div>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type the letters printed under it.</p>
+					<div class="row">
+						<input placeholder="AHFY-TP4T-..." aria-label="Code">
+						<button>Use</button>
+					</div>
+					<div class="row" style="margin-top: 8px">
+						<button class="secondary">Scan with camera</button>
+					</div>
+				</section>
+			</main>
+		</div>
+	</div>
+	<div>
+		<p class="caption">Ready offline</p>
+		<div class="phone">
+			<main>
+				<div class="heading title">
+					<h1>bliti</h1>
+				</div>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type the letters printed under it.</p>
+					<div class="row">
+						<input placeholder="AHFY-TP4T-..." aria-label="Code">
+						<button>Use</button>
+					</div>
+					<div class="row" style="margin-top: 8px">
+						<button class="secondary">Scan with camera</button>
+					</div>
+				</section>
+			</main>
+		</div>
+	</div>
+</div>
+</body>
+</html>

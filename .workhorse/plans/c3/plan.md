@@ -47,7 +47,13 @@ The precache list stays a literal list of paths in the emitted `sw.js`: `offline
 
 ## Registration
 
-- `main.jsx` registers `/sw.js` with scope `/`, in the test build too, as today.
+- `main.jsx` calls `keepReady()` from `src/offline.js`, which registers `/sw.js` with scope `/`, in the test build too, and registers again on the browser's `online` event while no worker controls the page. An install cut short leaves nothing behind, so that is how a phone that lost its connection mid-install becomes ready offline once it is back.
+
+## Offline readiness
+
+- A precache is complete or discarded, so a phone either holds everything offline or nothing. Between the first load and the end of install it holds nothing, and a browser offers to install the application before then.
+- The start screen says "Not ready offline" in red, right-aligned in the title row, until a worker controls the page, and nothing once one does. `useOfflineReady()` reads `navigator.serviceWorker.controller` and follows `controllerchange`. One label for both waiting and failed, because the retry on reconnecting means the operator does the same thing either way.
+- The Web application spec's "Installation and offline use" separates staying usable while the page is open from opening offline, which needs the app to be ready offline.
 
 ## Manifest
 

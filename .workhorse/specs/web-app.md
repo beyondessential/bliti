@@ -122,13 +122,22 @@ The application MUST NOT reconnect on its own after a `power-off`.
 
 The application MUST be served from the origin the QR code encodes, as [QR](qr-code.md) specifies.
 
-The application MUST run without being installed first, and MUST remain usable offline once it has been loaded.
+The application MUST run without being installed first.
+
+Once loaded, the application MUST remain usable offline for as long as the page stays open.
+
+The application MUST open offline once it is ready offline, holding everything it needs to load with no connection.
+
+Until it is ready offline, the application MUST say that it is not, beside its title on the screen for reading a QR code, and MUST stop saying so once it is.
+
+Where it could not become ready offline, the application MUST try again once the browser has a connection.
 
 The application MUST also be installable, such that a browser offers to add it to the device's home screen.
 
 > [!NOTE]
 > Running uninstalled lets anyone standing in front of a device provision it.
 > Working offline makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).
+> A browser offers to install the application before it is ready offline, so an operator who installs it and leaves coverage at once has an application that will not open until it is back. Saying so while it is not ready is what tells them to wait.
 
 ## Delivery
 

@@ -3,6 +3,7 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 
 import { inject } from '../sw-plugin.js'
+import { installFakeClient } from './fake-client.js'
 
 // How the built worker fills, replaces and clears its precache (WEB). Each test that stands up a
 // next version writes it beside the bundle under a name of its own, and removes it after.
@@ -70,6 +71,64 @@ test('controls a first visit once it activates, without a reload', async ({ page
 	})
 	await controlled(page)
 	expect(await page.evaluate(() => window.__stayed)).toBe(true)
+})
+
+const notReady = (page) => page.locator('.heading.title .offline')
+
+// Readiness is said on the screen for reading a code, which the harness's client is needed to reach.
+test.describe('saying whether it is ready offline', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.addInitScript(installFakeClient)
+	})
+
+	test.describe('with no service worker to hold it', () => {
+		test.use({ serviceWorkers: 'block' })
+
+		test('says beside the title that it is not ready offline', async ({ page }) => {
+			await page.goto('/')
+			await expect(notReady(page)).toHaveText('Not ready offline')
+		})
+	})
+
+	test('stops saying it is not ready offline once a worker holds it', async ({ page }) => {
+		await page.goto('/')
+		await controlled(page)
+		await expect(page.locator('.heading.title h1')).toHaveText('bliti')
+		await expect(notReady(page)).toHaveCount(0)
+	})
+
+	test('tries again to become ready offline once the connection comes back', async ({
+		page,
+		context,
+	}) => {
+		// The first install is cut short on one of its entries, as a lost connection would.
+		let failed
+		const failedOnce = new Promise((resolve) => {
+			failed = resolve
+		})
+		await context.route('**/icon-512.png', (route) => {
+			if (!route.request().serviceWorker()) return route.continue()
+			failed()
+			return route.fulfill({ status: 404 })
+		})
+		await page.goto('/')
+		await failedOnce
+		await expect
+			.poll(() =>
+				page.evaluate(async () => {
+					const reg = await navigator.serviceWorker.getRegistration()
+					return Boolean(reg?.installing || reg?.waiting || reg?.active)
+				}),
+			)
+			.toBe(false)
+		await expect(notReady(page)).toBeVisible()
+
+		await context.unrouteAll({ behavior: 'ignoreErrors' })
+		await context.setOffline(true)
+		await context.setOffline(false)
+		await controlled(page)
+		await expect(notReady(page)).toHaveCount(0)
+	})
 })
 
 // A phone in airplane mode with a VPN up holds a connection open rather than failing it.
