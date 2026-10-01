@@ -43,5 +43,5 @@ Run through `bliti-web-serve` on this worktree, in Chrome on Android on the tail
 
 ## Laptop setup
 
-- [ ] After `bliti-web-serve`, `tailscale serve status` has no `/sw.js` path, and `/sw.js` on the dev origin returns the dev server's worker
+- [x] After `bliti-web-serve`, `tailscale serve status` has no `/sw.js` path, and `/sw.js` on the dev origin returns the dev server's worker
 - [x] `~/.local/share/bliti-web/sw.js` is gone, and the bliti-prototype skill's known-noise entry names clearing site data for a production worker left on the dev origin
