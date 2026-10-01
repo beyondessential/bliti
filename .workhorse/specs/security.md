@@ -49,7 +49,7 @@ Upheld by the handle derivation of [KEY](key-schedule.md), which yields nothing 
 
 Someone holding a device's QR code, or a photograph of one, cannot complete a handshake as that device.
 
-Upheld by the device static key of [KEY](key-schedule.md), whose private half descends from the board ID and appears in no QR code, and by the handshake of [CHN](channel.md), which authenticates the device against it.
+Upheld by the device static key of [KEY](key-schedule.md), whose private half descends from the board ID and appears in no QR code, by the key fingerprint, which no other key matches, and by the handshake of [CHN](channel.md), which authenticates the device's key against the fingerprint.
 
 ### Compromising one device tells nothing about another
 
@@ -67,8 +67,8 @@ Anyone holding a device's presence token can open a session with that device.
 A photograph of the QR code yields the token, because the code carries it outright.
 
 A client that has read the code holds the token as well.
-The web application keeps it in its tab's storage for the life of that tab, as [WEB](web-app.md) specifies, and a browser that opened the code by its link records it among the pages it has visited.
-Anyone who can read either can open a session, just as with a photograph of the code.
+The web application keeps it in its tab's storage for the life of that tab, as [WEB](web-app.md) specifies.
+Anyone who can read that storage can open a session, just as with a photograph of the code.
 
 > [!NOTE]
 > The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
@@ -96,6 +96,17 @@ The handle reveals nothing about the presence token, and holding it opens nothin
 
 > [!NOTE]
 > A handle that changes would stop an observer following a device, and would equally stop a browser's chooser from being narrowed to the one device whose QR code was read, because the chooser can only filter on a name known before it opens. Picking out the device outweighs hiding it.
+
+### A quantum computer reaches what the token protects
+
+The handshake of [CHN](channel.md) rests on X25519, which an adversary with a cryptographically relevant quantum computer can break.
+
+Such an adversary who does not hold the presence token gains nothing from it: the pre-shared key enters every session key, and the token is out of reach of a quantum search.
+
+Such an adversary who holds the presence token, as a photograph of the code gives, can decrypt a session recorded before or after obtaining it, and can recover the device static private key from the key the device sends and complete a handshake as that device.
+
+> [!NOTE]
+> The key fingerprint also commits to a post-quantum key, as [KEY](key-schedule.md) specifies, so a protocol version whose handshake authenticates the device by that key closes both, for every QR code already printed, as [VER](version.md) allows.
 
 ### A board ID can be searched for
 

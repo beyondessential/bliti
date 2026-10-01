@@ -19,13 +19,20 @@ Once a client has matched a device by its [advertised handle](overview.md#advert
 
 ## Authentication
 
-Client and device MUST run a Noise `NKpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
+Client and device MUST run a Noise `NXpsk0` handshake, as specified in [The Noise Protocol Framework](https://noiseprotocol.org/noise.html) revision 34, with the client as initiator and the device as responder.
 
-The Noise protocol name MUST be `Noise_NKpsk0_25519_ChaChaPoly_BLAKE2s`.
+The Noise protocol name MUST be `Noise_NXpsk0_25519_ChaChaPoly_BLAKE2s`.
 
-The responder's static key, which `NKpsk0` requires the initiator to know in advance, MUST be the device static key of [KEY](key-schedule.md). The client MUST take its public half from the QR code, and the device MUST hold the private half.
+The responder's static key MUST be the device static key of [KEY](key-schedule.md), which the device holds and sends in the handshake.
 
-The pre-shared key MUST be the 32-byte [presence token](overview.md#presence-token), at PSK position zero, used exactly as [KEY](key-schedule.md) produces it with no further derivation.
+The pre-shared key MUST be the pre-shared key of [KEY](key-schedule.md), at PSK position zero.
+
+The first message MUST carry an empty payload.
+The second message MUST carry the KEM key digest of [KEY](key-schedule.md) as its payload, 32 bytes.
+
+Having read the second message, the client MUST compute the key fingerprint of [KEY](key-schedule.md) from the static key and the digest the device sent, and MUST compare it against the key fingerprint in the QR code.
+Where the two differ, the client MUST fail the handshake, and MUST NOT send anything further.
+The client MUST report that failure as it reports any other failed handshake.
 
 The handshake gives the session forward secrecy.
 
@@ -33,7 +40,8 @@ The security properties this upholds, and their limits, are specified in [SEC](s
 
 > [!NOTE]
 > The two credentials authenticate different things. The static key proves the device holds something derived from its own board ID, which nothing in the QR code yields. The pre-shared key proves the client read that device's code.
-> `NKpsk0` encrypts the client's first message to the device's static key, so a party without the private half cannot read it at all, rather than merely failing to prove itself.
+> With the pre-shared key at position zero, a client without it fails at the first message, so the device runs no Diffie-Hellman for it and never sends it the static key.
+> The static key and the digest travel encrypted, so a listener without the pre-shared key sees neither.
 
 ## Send rate
 

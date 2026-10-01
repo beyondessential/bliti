@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 ---
 
 # Shrink the QR code to fit the side of the case
@@ -14,17 +14,17 @@ The settled design is level H, version 5, printed at 0.5 mm modules: 18.5 mm a s
 
 Settled so far:
 
-- The payload is 33 bytes: the version marker, a 16-byte presence token, and a 16-byte fingerprint of the device static public key.
+- The payload is 35 bytes: the version marker, a 16-byte presence token, and an 18-byte fingerprint of the device's keys. That is 56 base32 characters, fourteen groups of four with no partial character, the last group wholly within the fingerprint. It fits version 5 at level H (354 of 368 data bits), the same as 33 bytes would.
 - The client authenticates the device by checking the static key it receives in the handshake against the fingerprint, rather than by knowing the key beforehand.
 - A device whose static key does not match the fingerprint fails the handshake, and the operator sees it as any failed handshake.
 - The payload stays base32. Base45 buys no version at any size priced, cannot ride in a URL fragment, and makes a poor human-readable rendering.
-- The code is generated at error correction level H, which comes out at version 5 (37 modules) for `BLITI:` and the 33-byte payload.
+- The code is generated at error correction level H, which comes out at version 5 (37 modules) for `BLITI:` and the 35-byte payload.
 - The generator segments the code explicitly, so every board's code is the same version and that version is the smallest the text allows.
-- The code carries no link. Its text is `BLITI:` followed by the 53 base32 characters of the payload, all in QR's alphanumeric set.
+- The code carries no link. Its text is `BLITI:` followed by the 56 base32 characters of the payload, all in QR's alphanumeric set.
 - Only the application's own camera, or the human-readable rendering typed in, reads a code. The follow-the-link path, and the fragment it delivers, go from QR and WEB.
 - What a sticker looks like is a product decision outside bliti. Bliti provides the QR code, as SVG with its quiet zone, and the human-readable rendering alongside it for whoever lays the sticker out to use or not. QR's rule that the rendering is printed alongside the code goes.
 - The SVG carries no physical size. Print size is left to whoever lays the sticker out; 0.5 mm modules is what the trial found reads, and is recorded for them, not imposed by the image.
-- The rendering is the payload's 53 characters grouped for legibility, without the prefix.
+- The rendering is the payload's 56 characters in groups of four, without the prefix.
 - The reader takes the code text and anything a person would type for it: the prefix in any case or absent, the payload in any case, dashes and spaces ignored. One reading covers the code and the rendering.
 - With no link, the application's camera is the only way a code is read, so it has to read a code at least as well as the phone's own camera app does: from the same distance, at the same size.
 - The key schedule expands the 16-byte token twice: the pre-shared key is a BLAKE3 derivation of it under `bliti pre-shared key`, and the advertised handle is the first eight bytes of a derivation under `bliti advertised handle`. The handle and the Noise key are never derived the same way.
@@ -169,7 +169,7 @@ It fixes the KEM and its parameter set at print time.
 
 - ML-KEM-768 seed: 64 bytes of BLAKE3's derive-key mode over the root under `bliti device kem seed`, read through its extendable output. The key pair comes from it by FIPS 203's deterministic key generation, which RustCrypto `ml-kem` (0.3) exposes as `FromSeed` over its 64-byte `Seed`.
 - KEM key digest: `derive_key("bliti device kem key digest", encapsulation key)`, 32 bytes.
-- Fingerprint: the first 16 bytes of `derive_key("bliti device key fingerprint", X25519 public key ‖ KEM key digest)`.
+- Fingerprint: the first 18 bytes of `derive_key("bliti device key fingerprint", X25519 public key ‖ KEM key digest)`. Eighteen rather than sixteen so the payload is 35 bytes and its base32 ends on a whole group.
 - Message 2 carries the KEM key digest as its payload: encrypted, and bound to the handshake. It grows from 96 to 128 bytes. The client recomputes the fingerprint from the received X25519 static and the digest.
 - Later, a hybrid handshake sends the full encapsulation key (1184 bytes), and the client checks it against the same digest, so the fingerprint on every printed sticker still verifies.
 - Why a digest and not the whole key now: equally secure, as the X25519 static is what authenticates the device classically and the digest only has to be bound to the handshake. Sending 1184 bytes the client cannot use yet would only lengthen message 2.
@@ -265,7 +265,7 @@ The payload cut buys back the error correction that the encoding alone would hav
 
 ## Open questions
 
-- [ ] Does the iOS Camera app offer to open a registered custom scheme from a QR code? Only matters once a native application exists. The Android camera app does: tapping a `BLITI:` code, it tried to hand it to an application and reported that none was installed.
+- [x] ~~Does the iOS Camera app hand a `bliti:` code to an installed application?~~ Discarded: there is no native application, and a Web Bluetooth browser on iOS makes one unnecessary.
 
 ## Trade-offs
 
