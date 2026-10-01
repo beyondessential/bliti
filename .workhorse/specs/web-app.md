@@ -24,7 +24,9 @@ The application MUST treat a payload identically however it arrived, including o
 
 ## Exporting the QR code
 
-The application MUST offer a QR code it has read for download as the SVG image of [QR](qr-code.md).
+The application MUST offer a QR code it has read for download as an SVG image of the code [QR](qr-code.md) specifies.
+The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
+The image MUST NOT state a physical size.
 
 The downloaded file MUST be named after the last four characters of the encoded payload of [QR](qr-code.md), as `bliti-` followed by those characters and `.svg`.
 

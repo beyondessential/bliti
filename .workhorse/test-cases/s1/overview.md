@@ -10,7 +10,7 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [ ] Every code is version 5 at level H, across many random payloads, including ones heavy in the digits `2`–`7`, as QR recommends
 - [ ] The last four characters of the encoded payload lie within the fingerprint (verifies spec: QR)
 - [ ] The export file name and the remembered-device label use the last four characters of the encoded payload (verifies spec: WEB)
-- [ ] The SVG carries the code alone with its quiet zone and no physical size (verifies spec: QR)
+- [ ] The exported SVG carries the code alone with its quiet zone and no physical size (verifies spec: WEB)
 - [ ] The same board produces a byte-identical SVG every time
 
 ## Reading

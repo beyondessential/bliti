@@ -52,12 +52,6 @@ A client MUST report text that does not hold a payload, and a payload at a paylo
 > Base32 has no `0`, `1` or `8`, so a reader can take them as `O`, `I` and `B` at no cost, which tolerates text a person or another application has transcribed.
 > The payload version comes first so that a client can recognise a payload at a version it does not support, however that version lays out the bytes that follow.
 
-## What a generator offers
-
-A generator MUST offer the code as an SVG image.
-The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
-The image MUST NOT state a physical size.
-
 ## Generation
 
 A QR code MUST be generated from a board ID.
