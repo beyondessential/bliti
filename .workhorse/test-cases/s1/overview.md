@@ -18,7 +18,7 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [ ] The code text, the code text in lower case, the payload behind any prefix ending in `:`, and the payload with no prefix all read to the same payload (verifies spec: QR)
 - [ ] Only text up to the last `:` is discarded, so a prefix holding a `:` of its own still reads (verifies spec: QR)
 - [ ] Dashes and whitespace anywhere are ignored (verifies spec: QR)
-- [ ] `0` reads as `O` and `1` as `I`, in either case (verifies spec: QR)
+- [ ] `0` reads as `O`, `1` as `I` and `8` as `B`, our reader's optional hardening
 - [ ] A payload whose first byte is an unsupported payload version is reported as such even when its length differs from 35 bytes (verifies spec: QR)
 - [ ] Text that is not a payload and a payload at an unsupported payload version are reported distinctly (verifies spec: QR)
 - [ ] The web application reads a code pasted as the code's text (verifies spec: WEB)

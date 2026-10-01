@@ -42,14 +42,14 @@ A client MUST read a payload from the text of a QR code, whether captured from t
 
 A client MUST discard everything up to and including the last `:` in the text, where there is one, and MUST discard dashes and whitespace.
 
-A client MUST accept the payload in any case, and MUST read `0` as `O` and `1` as `I`.
+A client MUST accept the payload in any case.
 
 A client MUST read the payload version from the first byte of the decoded payload before it checks anything else about the payload.
 
 A client MUST report text that does not hold a payload, and a payload at a payload version it does not support, as the distinct conditions they are.
 
 > [!NOTE]
-> Base32 has no `0` or `1`, so reading them as the letters they resemble costs nothing.
+> Base32 has no `0`, `1` or `8`, so a reader can take them as `O`, `I` and `B` at no cost, which tolerates text a person or another application has transcribed.
 > The payload version comes first so that a client can recognise a payload at a version it does not support, however that version lays out the bytes that follow.
 
 ## What a generator offers

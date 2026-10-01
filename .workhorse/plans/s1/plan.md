@@ -9,7 +9,7 @@ The reasoning, sizes, print-trial results and rejected options are in the workin
 
 - Payload: payload version (1 byte), presence token (16), key fingerprint (18). 35 bytes is 56 base32 characters with no padding bits; the last four lie within the fingerprint.
 - Code text: `BLITI:` + the 56 characters, as one alphanumeric segment, at level H. Built with the `qrcode` crate's `Bits` (`push_alphanumeric_data`, `push_terminator`, `QrCode::with_bits`) at the smallest version that takes it, which is v5 (354 of 368 data bits). The crate's automatic segmentation is content-dependent and can land a payload a version up, so it is not used.
-- Reading: one reader for the code text, whether scanned or pasted. Drop everything through the last `:`, strip whitespace and dashes, upper-case, map `0` to `O` and `1` to `I`, base32-decode, then check the first byte as the payload version before the length. The URL and fragment forms go.
+- Reading: one reader for the code text, whether scanned or pasted. Drop everything through the last `:`, strip whitespace and dashes, upper-case, map `0` to `O`, `1` to `I` and `8` to `B` (optional hardening, non-normative in QR), base32-decode, then check the first byte as the payload version before the length. The URL and fragment forms go.
 - SVG stays unitless.
 
 ### Versions
@@ -45,7 +45,7 @@ Base45; an upper-case URL; the bare payload without a prefix; levels M and Q; `N
   - [ ] ACVP keyGen vectors test for ML-KEM-768
   - [ ] Known-answer test pinning the whole chain from a fixed root
 - [ ] Versions: split `VERSION` into payload version and version marker across `qr.rs`, `advertisement.rs`, `bliti-web`, the CLI and the wire-compat crate (VER)
-- [ ] QR payload and code: 35-byte payload, `BLITI:` text, explicit v5 level H segment, single reader (any prefix, `0`/`1` mapping, version byte first) (QR)
+- [ ] QR payload and code: 35-byte payload, `BLITI:` text, explicit v5 level H segment, single reader (any prefix, `0`/`1`/`8` mapping, version byte first) (QR)
   - [ ] Remove the human-readable rendering: `HUMAN_GROUP` and its reader in `qr.rs`, the CLI's printed rendering, and its tests
 - [ ] Handshake: `NXpsk0`, message 2 payload, fingerprint check in `Handshake` (CHN)
   - [ ] Device side (`bliti` session/identity) derives the PSK and KEM key digest
