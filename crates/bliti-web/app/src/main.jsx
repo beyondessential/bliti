@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import App from './App.jsx'
+import { keepReady } from './offline.js'
 import { loadProtocol } from './protocol.js'
 import './styles.css'
 
@@ -9,6 +10,8 @@ import './styles.css'
 // module even where the connection drops before the service worker has cached it (WEB). A failure
 // here is left for that first read to retry and report.
 loadProtocol().catch(() => {})
+
+keepReady()
 
 createRoot(document.getElementById('root')).render(
 	<StrictMode>

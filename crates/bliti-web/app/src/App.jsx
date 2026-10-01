@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Control from './Control.jsx'
 import Network, { HeldBar } from './Network.jsx'
+import { useOfflineReady } from './offline.js'
 import Readings, { Identity } from './Readings.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
 import { entryOf, forgetHistory, hasValue, identityKey, isEnded, pushHistory } from './readings.js'
@@ -44,6 +45,8 @@ export default function App() {
 	const [code, setCode] = useState(null)
 	const [readError, setReadError] = useState('')
 	const [scanning, setScanning] = useState(false)
+	// Said beside the title on the screen for reading a code until the application can open offline (WEB).
+	const offlineReady = useOfflineReady()
 	const [connecting, setConnecting] = useState(false)
 	const [connectStatus, setConnectStatus] = useState('')
 	const [connected, setConnected] = useState(false)
@@ -554,7 +557,10 @@ export default function App() {
 	return (
 		<main>
 			{network}
-			<h1>bliti</h1>
+			<div className="heading title">
+				<h1>bliti</h1>
+				{!offlineReady && <span className="offline">Not ready offline</span>}
+			</div>
 			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 
 			{!code && (
