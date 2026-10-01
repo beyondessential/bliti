@@ -18,11 +18,12 @@ The version marker MUST be carried in the advertisement of [ADV](discovery.md).
 The payload version covers everything between a board ID and a QR code, and between a QR code and the values a client takes from it:
 
 - the layout of the QR payload of [QR](qr-code.md)
-- the derivation constants and context strings, argon2id parameters, source precedence, input encoding, pinned Endorsement Key template, and token, fingerprint and handle lengths of [KEY](key-schedule.md)
+- everything specified in [KEY](key-schedule.md)
 
 The version marker covers everything two ends must agree on before or during a session:
 
 - the payload version it reads
+- the layout of the advertised payload of [ADV](discovery.md) after the marker itself
 - the handshake, framing, transport, compression and streams of [CHN](channel.md)
 - the message encoding and envelope of [MSG](messages.md)
 
@@ -37,6 +38,12 @@ The text around the payload in the QR code, and the human-readable rendering of 
 > [!NOTE]
 > Moving the payload version orphans every QR code already fixed to an enclosure, so it moves only when something it covers has actually changed. Moving the version marker alone orphans none: a QR code is valid under every version marker that reads its payload version.
 > The version marker is the only version signal that exists before a connection does, which is why it covers the layers above the key schedule as well as the key schedule itself. Were it to cover only the inputs that change the secret, two peers running incompatible handshakes would recognise each other and fail with nothing to tell an operator.
+
+## The versions defined
+
+The payload of [QR](qr-code.md), under the key schedule of [KEY](key-schedule.md), MUST carry payload version 1.
+
+The protocol these specifications describe MUST be advertised as version marker 1, which reads payload version 1.
 
 ## Acting on the versions
 
@@ -63,4 +70,6 @@ The software each end runs carries its own version, exchanged and displayed unde
 A client holds a QR code, reads the payload version marked on it, and derives once under that payload version.
 
 A device holds no QR code and cannot know which payload version was printed for it.
-A device that supports more than one payload version MUST derive under each, and MUST advertise one version marker at a time.
+A device that supports more than one payload version MUST derive under each.
+
+A device MUST advertise one version marker at a time, and by default MUST advertise the highest version marker it supports.

@@ -8,6 +8,8 @@ The [presence token](overview.md#presence-token) is the only credential in the s
 
 ## What is guaranteed
 
+The guarantees below hold against an adversary without a cryptographically relevant quantum computer; what such an adversary gains is specified in [A quantum computer reaches what the token protects](#a-quantum-computer-reaches-what-the-token-protects).
+
 ### An operator can pick out their device
 
 An operator who has scanned a device's QR code can identify that device among every device advertising nearby.
@@ -49,7 +51,7 @@ Upheld by the handle derivation of [KEY](key-schedule.md), which yields nothing 
 
 Someone holding a device's QR code, or a photograph of one, cannot complete a handshake as that device.
 
-Upheld by the device static key of [KEY](key-schedule.md), whose private half descends from the board ID and appears in no QR code, by the key fingerprint, which no other key matches, and by the handshake of [CHN](channel.md), which authenticates the device's key against the fingerprint.
+Upheld by the device static key of [KEY](key-schedule.md), whose private half descends from the board ID and appears in no QR code, by the key fingerprint, which no other key can be found to match, and by the handshake of [CHN](channel.md), which authenticates the device's key against the fingerprint.
 
 ### Compromising one device tells nothing about another
 

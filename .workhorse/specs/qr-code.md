@@ -4,7 +4,7 @@ id: QR
 
 # QR code
 
-A device's QR code carries the [presence token](overview.md#presence-token), the [key fingerprint](overview.md#key-fingerprint), and the [payload version](overview.md#payload-version) on the outside of the device.
+A device's QR code carries its [presence token](overview.md#presence-token), [key fingerprint](overview.md#key-fingerprint) and [payload version](overview.md#payload-version).
 
 ## Borrowed terms
 
@@ -28,38 +28,40 @@ The payload MUST be encoded as base32 without padding, giving 56 characters.
 
 ## The code
 
-The QR code MUST encode the text `BLITI:` followed by the encoded payload, as one segment in alphanumeric mode.
-
-The QR code MUST be at error correction level H, at the smallest symbol version that holds that segment, which is version 5.
+The QR code MUST encode the text `BLITI:` followed by the encoded payload.
 
 > [!NOTE]
-> Base32 and the prefix lie wholly within the alphanumeric set, which packs them tighter than any other mode would, and one segment leaves no choice to an encoder's optimiser. Every device's code is therefore the same size.
-> Level H tolerates the most damage of the four, and a code fixed to an enclosure needs that tolerance.
-> A generic camera shows the code's text and has nothing to open. A client reads it, as [WEB](web-app.md) specifies.
+> The code is best encoded as one segment in alphanumeric mode, at error correction level H, at the smallest symbol version that holds it, which is version 5.
+> The prefix and base32 lie wholly within the alphanumeric set, which packs them tighter than any other mode, and one segment leaves an encoder's optimiser no choice, so every device's code is the same size.
+> Level H tolerates the most damage of the four.
 
 ## Reading
 
-A client MUST read a payload from the text of a QR code, or from the human-readable rendering typed by a person.
+A client MUST read a payload from the text of a QR code, or from text a person enters, such as the human-readable rendering.
 
-A client MUST accept the prefix in any case or absent, MUST accept the payload in any case, and MUST ignore dashes and whitespace.
+A client MUST discard everything up to and including the last `:` in the text, where there is one, and MUST discard dashes and whitespace.
+
+A client MUST accept the payload in any case, and MUST read `0` as `O` and `1` as `I`.
+
+A client MUST read the payload version from the first byte of the decoded payload before it checks anything else about the payload.
 
 A client MUST report text that does not hold a payload, and a payload at a payload version it does not support, as the distinct conditions they are.
 
 > [!NOTE]
-> One reading covers both forms, because a person typing the rendering, or the code's text, should not have to know which they hold.
+> One reading covers the code and the rendering, because a person typing or pasting either should not have to know which they hold.
+> Base32 has no `0` or `1`, so reading them as the letters they resemble costs nothing.
+> The payload version comes first so that a client can recognise a payload at a version it does not support, however that version lays out the bytes that follow.
 
-## Printing
+## What a generator offers
 
 A generator MUST offer the human-readable rendering of the payload: the 56 characters of the encoded payload in fourteen groups of four, separated by dashes.
 
-A generator MUST offer the code as an SVG image, for sending to a printer.
+A generator MUST offer the code as an SVG image.
 The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
 The image MUST NOT state a physical size.
 
 > [!NOTE]
-> How the code and the rendering are laid out on an enclosure is a choice for whoever designs it.
-> A version 5 code printed with modules of half a millimetre reads from a phone held a hand's span away.
-> The rendering keeps a device reachable once the code itself is scuffed. The last group lies wholly within the key fingerprint, so it can name a device without giving away anything secret.
+> The last group of the rendering lies wholly within the key fingerprint, so it can name a device without giving away anything secret.
 
 ## Generation
 

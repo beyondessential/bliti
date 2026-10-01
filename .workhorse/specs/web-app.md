@@ -15,16 +15,12 @@ The web application is a client that runs in a browser: it reads a QR code, find
 
 ## Reading a QR code
 
-The application MUST accept a payload by either path: capturing the code with the camera, or the operator typing the human-readable rendering, each read as [QR](qr-code.md) specifies.
-
-The application MUST read a code with the camera from as far away, and at as small a size, as the camera application of the device it runs on reads the same code.
+The application MUST accept a payload by either path: capturing the code with the camera, or the operator entering the code's text or the human-readable rendering, each read as [QR](qr-code.md) specifies.
 
 The application MUST treat a payload identically however it arrived, including one it held from before, as [Remembering devices](#remembering-devices) and [After a reload](#after-a-reload) have it.
 
-The application MUST report a payload it cannot parse and a payload at an unsupported payload version as the distinct conditions they are.
-
 > [!NOTE]
-> A device's code is small, and the operator holds the phone where the code is legible to its own camera. A page that reads less than that camera would send the operator looking for a fault in the code.
+> A code is best read with the camera from as far away, and at as small a size, as the camera application of the device it runs on reads the same code. The operator holds the phone where the code is legible to that camera, and a page that reads less would send them looking for a fault in the code.
 
 ## Exporting the QR code
 
@@ -40,7 +36,7 @@ The downloaded file MUST be named after the last group of the human-readable ren
 
 The application MUST compute the local names of [ADV](discovery.md) that the device whose QR code it has read may advertise: one for each version marker it implements that reads the code's payload version, as [VER](version.md) has it.
 
-Before offering the chooser, the application MUST show the operator the name for the newest of those markers, and that it should be the only device listed.
+Before offering the chooser, the application MUST show the operator the name for the highest of those markers, and that it should be the only device listed.
 
 Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by those exact local names alone, and MUST ask for access to the service of [ADV](discovery.md) alongside the filter.
 
@@ -117,8 +113,6 @@ The application MUST NOT reconnect on its own after a `power-off`.
 > A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
 
 ## Installation and offline use
-
-The application MUST be served from the origin the QR code encodes, as [QR](qr-code.md) specifies.
 
 The application MUST run without being installed first.
 

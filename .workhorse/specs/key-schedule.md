@@ -70,7 +70,7 @@ The device static public key MUST be the X25519 public key for that private key.
 
 The device KEM key MUST be the ML-KEM-768 key pair generated from a seed of 64 bytes of the key derivation of the root under the context string `bliti device kem seed`, the first 32 bytes as `d` and the last 32 as `z`.
 
-The KEM key digest MUST be the key derivation of the encapsulation key under the context string `bliti device kem key digest`.
+The KEM key digest MUST be the key derivation of the encapsulation key, in its FIPS 203 encoding, under the context string `bliti device kem key digest`.
 
 > [!NOTE]
 > The key fingerprint commits to the KEM key so that a QR code stays valid under any protocol version whose handshake authenticates the device by it, as [VER](version.md) allows. A QR code cannot be changed once it is fixed to an enclosure, and a handshake can.
