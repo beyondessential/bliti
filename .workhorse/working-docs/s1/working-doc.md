@@ -9,7 +9,8 @@ Get the device QR code to 30 mm or less at a module size a phone still reads, th
 ## Behaviour
 
 QR currently carries a 65-byte payload (version marker, 32-byte presence token, 32-byte device static public key) as 104 base32 characters at level H, which comes out at v10, 40 mm.
-The aim is a code of 30 mm or less, ideally 25 mm, that fits a 35 mm side face of the 90 × 90 × 35 mm case.
+The aim was a code of 30 mm or less, ideally 25 mm, that fits a 35 mm side face of the 90 × 90 × 35 mm case.
+The settled design is level H, version 5, printed at 0.5 mm modules: 18.5 mm a side, 22.5 mm with its quiet zone.
 
 Settled so far:
 
@@ -17,10 +18,12 @@ Settled so far:
 - The client authenticates the device by checking the static key it receives in the handshake against the fingerprint, rather than by knowing the key beforehand.
 - A device whose static key does not match the fingerprint fails the handshake, and the operator sees it as any failed handshake.
 - The payload stays base32. Base45 buys no version at any size priced, cannot ride in a URL fragment, and makes a poor human-readable rendering.
+- The code is generated at error correction level H, which comes out at version 5 (37 modules) for `BLITI:` and the 33-byte payload.
 - The generator segments the code explicitly, so every board's code is the same version and that version is the smallest the text allows.
 - The code carries no link. Its text is `BLITI:` followed by the 53 base32 characters of the payload, all in QR's alphanumeric set.
 - Only the application's own camera, or the human-readable rendering typed in, reads a code. The follow-the-link path, and the fragment it delivers, go from QR and WEB.
 - What a sticker looks like is a product decision outside bliti. Bliti provides the QR code, as SVG with its quiet zone, and the human-readable rendering alongside it for whoever lays the sticker out to use or not. QR's rule that the rendering is printed alongside the code goes.
+- The SVG carries no physical size. Print size is left to whoever lays the sticker out; 0.5 mm modules is what the trial found reads, and is recorded for them, not imposed by the image.
 - The rendering is the payload's 53 characters grouped for legibility, without the prefix.
 - The reader takes the code text and anything a person would type for it: the prefix in any case or absent, the payload in any case, dashes and spaces ignored. One reading covers the code and the rendering.
 - With no link, the application's camera is the only way a code is read, so it has to read a code at least as well as the phone's own camera app does: from the same distance, at the same size.
@@ -28,8 +31,6 @@ Settled so far:
 
 With no link, only someone who knows what the code is for, and has the application, gets anything from it; a generic camera shows a string and opens nothing.
 That is obscurity, not a security property: SEC still holds that anyone with the presence token can open a session, and a photograph of the code yields it either way.
-
-Still to be settled: the error correction level, by the print trial.
 
 ### Prefix or bare payload
 
@@ -146,7 +147,6 @@ The payload cut buys back the error correction that the encoding alone would hav
 ## Open questions
 
 - [ ] Which handshake pattern replaces `NKpsk0`, for Tech design: `NXpsk0` is the closest, with alternatives (a later psk position, for one) compared and the SEC argument written out. The key it sends is the device static key of KEY, the same X25519 key the code carries today; the advertisement carries only the handle and never the key.
-
 - [ ] Does the iOS Camera app offer to open a registered custom scheme from a QR code? Only matters once a native application exists. The Android camera app does: tapping a `BLITI:` code, it tried to hand it to an application and reported that none was installed.
 
 ## Trade-offs
@@ -157,7 +157,10 @@ The payload cut buys back the error correction that the encoding alone would hav
 - A native iOS application is more likely than it was: iOS has no Web Bluetooth, so an iPhone or iPad operator otherwise needs a browser like Bluefy. `BLITI:` + payload is already a URI under RFC 3986 (`bliti` is a valid scheme, and schemes are case-insensitive), so such an application could register the `bliti` scheme and the system camera would hand the code to it. A phone without the application still gets only a string, so the obscurity holds. The bare payload would not have allowed this.
 - Shrinking the payload is priced here, with the encoding, not treated as fixed. Both cuts are taken: 33 bytes buys back the error correction that encoding alone would have to spend, and it gets the bare prefix to 26 mm at level H.
 - The key fingerprint gives up `NKpsk0`'s encryption of the client's first message to the device's key. That message carries an empty payload, so nothing is lost.
-- Error correction level is open down to M, to be settled by the print trial rather than fixed at H up front.
+- Level H at v5, 0.5 mm modules. The print trial (round 2) settled it:
+  - M (D series) is out. The camera app failed it at the smallest blot, and bliti at 15%.
+  - Q (C series) is the smallest that works, and stays the fallback if a code has to shrink further: v4, 16.5 mm at 0.5 mm modules, surviving a 15% blot.
+  - H (B series) read at every module size down to 0.5 mm, and through a 20% blot at 0.7 mm, once the scanner asked the camera for a full-resolution stream. At 0.5 mm it fits a 35 mm side face with room to spare.
 
 ## Testing notes
 
@@ -171,6 +174,7 @@ The payload cut buys back the error correction that the encoding alone would hav
 - The Android phone and the iPad are each read two ways: with the camera app, and with bliti in the browser. Android Chrome has `BarcodeDetector`. Safari has none, so bliti on the iPad falls back to `quircs`, the same decoder as the webcam. That gives five readers across three decoders.
 - Digital thresholds before printing (largest blot still read by quirc and zbar across eight random payloads each): M v3 ≈ 5%, Q v4 ≈ 11%, H v5 ≈ 17%, today's H v10 ≈ 24%. Every clean code reads at every module size.
 - The smaller symbols tolerate less than their level promises (M is nominally 15% of codewords, H 30%). A contiguous blot touches more codewords than the share of area it covers, and at v3 to v5 it also covers the alignment pattern.
+- Still owed: the settled code (H v5, 0.5 mm modules) with a 10% and a 15% blot, on paper and in the protective pouch once one is chosen. The trial tested damage only at 0.7 mm.
 - Trial codes are printed from random bytes of the right length. A print test needs no working handshake.
 - For the sticker design rather than bliti: whether a light, plain case surface can serve as the quiet zone on a side face, which decides whether v5 (31.6 mm with a printed quiet zone) fits the 35 mm face comfortably.
 - Each candidate on paper, and in the protective pouch once one is chosen, since glare costs error correction.
