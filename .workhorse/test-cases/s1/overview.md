@@ -37,7 +37,8 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [x] A device whose X25519 static does not match the fingerprint fails the handshake at the client, which sends nothing further (verifies spec: CHN, SEC)
 - [x] A device whose KEM key digest does not match the fingerprint fails the handshake the same way (verifies spec: CHN)
 - [ ] A fingerprint mismatch is reported to the operator as any failed handshake (verifies spec: CHN, WEB)
-- [ ] The CLI and the web client both connect to a device through the new handshake
+- [x] The web client connects to a device through the new handshake
+- [ ] The CLI connects to a device through the new handshake
 
 ## Versions and finding the device
 
@@ -59,3 +60,4 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [ ] A v5 level H code at 0.5 mm modules with a 10% and a 15% blot reads in the web application on Android
 - [ ] The same codes read through the chosen protective pouch
 - [ ] A v5 code at 0.5 mm modules with its quiet zone fits a 35 mm side face of the case
+- [x] A code printed at 28 mm a side reads at 30 cm in the web application, whole and partly covered

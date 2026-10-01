@@ -328,6 +328,14 @@ Camera app and bliti in Chrome on the same Android phone:
 - Level M is out: the camera app fails it at the smallest blot.
 - Not yet tested together: damage at 0.5 and 0.6 mm modules. The damage sheet is all at 0.7 mm.
 
+### Round 3 (v4 prototype, end to end)
+
+The build of this card (`bliti 0.0.0+ea4f07cf`) on the v4 prototype, its web client served from the same commit, and the device's own code printed from `bliti qr --svg`.
+
+- Printed at 28 mm a side, the code read easily at 30 cm.
+- It still read with part of the code covered.
+- The web client found the device by its advertised name and completed the `NXpsk0` handshake, fingerprint check included.
+
 ### Trial scaffolding to remove
 
 - [x] `?scan-only` in `client.js`, which skips the Web Bluetooth check so an iPad can open the scanner. The page reads codes and connects to nothing.
