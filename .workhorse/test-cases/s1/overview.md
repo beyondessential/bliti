@@ -8,19 +8,20 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [ ] Every payload is 35 bytes: payload version, 16-byte token, 18-byte fingerprint (verifies spec: QR)
 - [ ] The code text is `BLITI:` followed by 56 base32 characters with no padding (verifies spec: QR)
 - [ ] Every code is version 5 at level H, across many random payloads, including ones heavy in the digits `2`–`7`, as QR recommends
-- [ ] The rendering is fourteen groups of four separated by dashes, and its last group lies within the fingerprint (verifies spec: QR)
+- [ ] The last four characters of the encoded payload lie within the fingerprint (verifies spec: QR)
+- [ ] The export file name and the remembered-device label use the last four characters of the encoded payload (verifies spec: WEB)
 - [ ] The SVG carries the code alone with its quiet zone and no physical size (verifies spec: QR)
 - [ ] The same board produces a byte-identical SVG every time
 
 ## Reading
 
-- [ ] The code text, the rendering, the rendering in lower case, the payload behind any prefix ending in `:`, and the payload with no prefix all read to the same payload (verifies spec: QR)
+- [ ] The code text, the code text in lower case, the payload behind any prefix ending in `:`, and the payload with no prefix all read to the same payload (verifies spec: QR)
 - [ ] Only text up to the last `:` is discarded, so a prefix holding a `:` of its own still reads (verifies spec: QR)
 - [ ] Dashes and whitespace anywhere are ignored (verifies spec: QR)
 - [ ] `0` reads as `O` and `1` as `I`, in either case (verifies spec: QR)
 - [ ] A payload whose first byte is an unsupported payload version is reported as such even when its length differs from 35 bytes (verifies spec: QR)
-- [ ] Text that is not a payload and a payload at an unsupported payload version are reported distinctly (verifies spec: QR, WEB)
-- [ ] The web application reads a code entered as the rendering, or pasted as the code's text (verifies spec: WEB)
+- [ ] Text that is not a payload and a payload at an unsupported payload version are reported distinctly (verifies spec: QR)
+- [ ] The web application reads a code pasted as the code's text (verifies spec: WEB)
 - [ ] The web application opened with a fragment in its address does nothing with it
 
 ## Key schedule

@@ -25,6 +25,7 @@ The payload MUST be encoded as base32 without padding, giving 56 characters.
 > [!NOTE]
 > RFC 4648 pads by default and leaves it to a referencing specification to say when padding is omitted. Thirty-five bytes is a whole number of base32 blocks, so there is nothing to pad.
 > The fingerprint lets a client authenticate the device rather than merely share a secret with whoever holds one. It reveals nothing about the token or the board ID, so carrying it in the clear costs nothing.
+> The last four characters of the encoded payload lie wholly within the key fingerprint, so they can name a device without giving away anything secret.
 
 ## The code
 
@@ -37,7 +38,7 @@ The QR code MUST encode the text `BLITI:` followed by the encoded payload.
 
 ## Reading
 
-A client MUST read a payload from the text of a QR code, or from text a person enters, such as the human-readable rendering.
+A client MUST read a payload from the text of a QR code, whether captured from the code or entered by a person.
 
 A client MUST discard everything up to and including the last `:` in the text, where there is one, and MUST discard dashes and whitespace.
 
@@ -48,20 +49,14 @@ A client MUST read the payload version from the first byte of the decoded payloa
 A client MUST report text that does not hold a payload, and a payload at a payload version it does not support, as the distinct conditions they are.
 
 > [!NOTE]
-> One reading covers the code and the rendering, because a person typing or pasting either should not have to know which they hold.
 > Base32 has no `0` or `1`, so reading them as the letters they resemble costs nothing.
 > The payload version comes first so that a client can recognise a payload at a version it does not support, however that version lays out the bytes that follow.
 
 ## What a generator offers
 
-A generator MUST offer the human-readable rendering of the payload: the 56 characters of the encoded payload in fourteen groups of four, separated by dashes.
-
 A generator MUST offer the code as an SVG image.
 The image MUST carry the code alone, with its quiet zone, dark modules on a light ground.
 The image MUST NOT state a physical size.
-
-> [!NOTE]
-> The last group of the rendering lies wholly within the key fingerprint, so it can name a device without giving away anything secret.
 
 ## Generation
 
@@ -75,4 +70,4 @@ Generation MUST be refused where the board offers no usable source, as [BID](boa
 
 > [!NOTE]
 > Whether a list can be gathered before the boards are to hand depends on which source wins the precedence in [BID](board-id.md). A platform serial can be known without the board present, while an Endorsement Key name or written one-time-programmable memory is readable only from the board itself.
-> Because the payload for a board is fixed, no record of the codes issued is kept or needed, and a damaged code is replaced by printing the same payload again, recovered from the code, from the rendering, or by deriving it from the board once more.
+> Because the payload for a board is fixed, no record of the codes issued is kept or needed, and a damaged code is replaced by printing the same payload again, recovered from the code, or by deriving it from the board once more.

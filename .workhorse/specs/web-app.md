@@ -15,7 +15,7 @@ The web application is a client that runs in a browser: it reads a QR code, find
 
 ## Reading a QR code
 
-The application MUST accept a payload by either path: capturing the code with the camera, or the operator entering the code's text or the human-readable rendering, each read as [QR](qr-code.md) specifies.
+The application MUST accept a payload by either path: capturing the code with the camera, or the operator entering the code's text, each read as [QR](qr-code.md) specifies.
 
 The application MUST treat a payload identically however it arrived, including one it held from before, as [Remembering devices](#remembering-devices) and [After a reload](#after-a-reload) have it.
 
@@ -26,11 +26,11 @@ The application MUST treat a payload identically however it arrived, including o
 
 The application MUST offer a QR code it has read for download as the SVG image of [QR](qr-code.md).
 
-The downloaded file MUST be named after the last group of the human-readable rendering, as `bliti-` followed by that group and `.svg`.
+The downloaded file MUST be named after the last four characters of the encoded payload of [QR](qr-code.md), as `bliti-` followed by those characters and `.svg`.
 
 > [!NOTE]
-> This is how a scuffed code is reprinted with only a phone to hand: the payload is read from the remains of the code, or typed from the rendering, and printed again.
-> The last group of the rendering falls wholly within the key fingerprint, so the name gives away nothing secret.
+> This is how a scuffed code is reprinted with only a phone to hand: the payload is read from the remains of the code and printed again.
+> Those characters fall wholly within the key fingerprint, so the name gives away nothing secret.
 
 ## Finding the device
 
@@ -60,7 +60,7 @@ The application MUST remember at most three devices, forgetting the one whose ch
 The application MUST forget a remembered device whose payload it can no longer read, as after an update that drops the payload's version.
 
 Where it holds no payload, the application MUST list the devices it remembers beneath the means of reading a QR code, the one whose channel opened most recently first.
-Each MUST be listed by its hostname and the last group of the human-readable rendering of [QR](qr-code.md), or by that group alone where the device has reported no hostname.
+Each MUST be listed by its hostname and the last four characters of the encoded payload of [QR](qr-code.md), or by those characters alone where the device has reported no hostname.
 
 Choosing a remembered device MUST hold its payload as though it had just been read, and the application MUST then find the device as [Finding the device](#finding-the-device) specifies, the operator opening the chooser as for any other payload.
 

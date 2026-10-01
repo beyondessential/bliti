@@ -33,7 +33,7 @@ A change to anything the payload version covers is a new payload version, and so
 A change to anything else the version marker covers is a new version marker reading the same payload version.
 A change that leaves all of them identical MUST NOT move either number.
 
-The text around the payload in the QR code, and the human-readable rendering of [QR](qr-code.md), are carriers rather than payload, and changing either MUST NOT move either number.
+The text around the payload in the QR code is a carrier rather than payload, and changing it MUST NOT move either number.
 
 > [!NOTE]
 > Moving the payload version orphans every QR code already fixed to an enclosure, so it moves only when something it covers has actually changed. Moving the version marker alone orphans none: a QR code is valid under every version marker that reads its payload version.
