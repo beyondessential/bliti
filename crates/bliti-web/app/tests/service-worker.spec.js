@@ -72,6 +72,15 @@ test('controls a first visit once it activates, without a reload', async ({ page
 	expect(await page.evaluate(() => window.__stayed)).toBe(true)
 })
 
+// A phone in airplane mode with a VPN up holds a connection open rather than failing it.
+test('answers a load from the precache where the network hangs', async ({ page, context }) => {
+	await page.goto('/')
+	await controlled(page)
+	await context.route('**/*', () => {})
+	await page.reload({ timeout: 5_000 })
+	await expect(page.locator('#root')).not.toBeEmpty()
+})
+
 test('lets a POST through to the network', async ({ page }) => {
 	await page.goto('/')
 	await controlled(page)

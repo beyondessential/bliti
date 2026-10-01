@@ -96,6 +96,33 @@ test('works offline after one load online', async ({ page, context }) => {
 	expect(await fetchText(page, '/src/wasm/bliti_web_bg.wasm')).not.toMatch(/^(status|TypeError)/)
 })
 
+// A phone in airplane mode with a VPN up, as on the tailnet, holds a connection open rather than
+// failing it, so offline can mean a network that never answers.
+test('works offline after one load online where the network hangs', async ({ page, context }) => {
+	await page.goto('/')
+	await controlled(page)
+
+	await context.route('**/*', () => {})
+	await page.reload({ timeout: 15_000 })
+	await expect(page.locator('#root')).not.toBeEmpty()
+})
+
+test('asks the network again once it answers after hanging', async ({ page, context }) => {
+	await page.goto('/')
+	await controlled(page)
+	await context.route('**/*', () => {})
+	await page.reload({ timeout: 15_000 })
+	await expect(page.locator('#root')).not.toBeEmpty()
+
+	await context.unrouteAll({ behavior: 'ignoreErrors' })
+	const asked = page.context().waitForEvent('request', (req) =>
+		Boolean(req.serviceWorker()) && new URL(req.url()).pathname === '/src/main.jsx',
+	)
+	await page.reload()
+	await asked
+	await expect(page.locator('#root')).not.toBeEmpty()
+})
+
 test('answers a precached module from the network while online', async ({ page, context }) => {
 	await page.goto('/')
 	await controlled(page)

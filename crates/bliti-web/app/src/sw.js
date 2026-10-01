@@ -109,19 +109,39 @@ self.addEventListener('activate', (event) => {
 	)
 })
 
+// How long a request waits on the network before a stored copy answers it. A phone in airplane mode
+// with a VPN up, as on the tailnet, holds a connection open rather than failing it.
+const PATIENCE = 3000
+
+// Set once the network has kept a request waiting past PATIENCE, so the rest of a load is answered
+// from the cache at once rather than each import waiting its turn behind the one before. Cleared by
+// the next answer the network gives; a navigation always asks it, so a page loaded once the network
+// is back finds it.
+let unreachable = false
+
 // The network's answer, stored under key in cacheName where it is one worth keeping, or the stored
-// one where the network cannot be reached.
+// one where the network fails or keeps the request waiting.
 async function fromNetwork(request, cacheName, key) {
 	const cache = await caches.open(cacheName)
-	try {
-		const res = await fetch(request)
+	const stored = await cache.match(key)
+	if (stored && unreachable && request.mode !== 'navigate') return stored
+	const fetched = fetch(request).then(async (res) => {
+		unreachable = false
 		if (res.ok) await cache.put(key, res.clone())
 		return res
-	} catch (error) {
-		const stored = await cache.match(key)
-		if (stored) return stored
-		throw error
+	})
+	if (!stored) return fetched
+	// Answered late or not at all, it still stores what it brings for the next load.
+	fetched.catch(() => {})
+	const late = new Promise((resolve) => setTimeout(resolve, PATIENCE, null))
+	try {
+		const res = await Promise.race([fetched, late])
+		if (res) return res
+		unreachable = true
+	} catch {
+		// Failed outright: the stored copy answers.
 	}
+	return stored
 }
 
 async function respond(request) {

@@ -35,6 +35,7 @@ The precache list stays a literal list of paths in the emitted `sw.js`: `offline
 - Install fetches with `cache: 'no-cache'`, so an unhashed entry (`index.html`, icons, the manifest) is never filled from a stale HTTP cache.
 - Non-GET, cross-origin, and the worker's own script pass straight through.
 - Rule 3 stores only `ok` responses.
+- Network-first waits a few seconds before a stored copy answers, because a phone in airplane mode with Tailscale connected holds tailnet connections open rather than failing them, which left the installed dev client on its splash screen. Once one request has waited that long, the rest of the load is answered from the cache at once, since imports chain about six deep and each would otherwise wait its turn. Every navigation asks the network again, so the first page loaded once it answers clears that.
 
 ## Plugin
 
