@@ -335,6 +335,7 @@ The build of this card (`bliti 0.0.0+ea4f07cf`) on the v4 prototype, its web cli
 - Printed at 28 mm a side, the code read easily at 30 cm.
 - It still read with part of the code covered.
 - The web client found the device by its advertised name and completed the `NXpsk0` handshake, fingerprint check included.
+- `bliti connect` from the laptop, given the code text, found the device, completed the handshake and read its feed.
 
 ### Trial scaffolding to remove
 

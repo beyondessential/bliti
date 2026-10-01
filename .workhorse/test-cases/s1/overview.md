@@ -38,7 +38,7 @@ The print trial that chose the parameters is recorded in the working doc; the ca
 - [x] A device whose KEM key digest does not match the fingerprint fails the handshake the same way (verifies spec: CHN)
 - [ ] A fingerprint mismatch is reported to the operator as any failed handshake (verifies spec: CHN, WEB)
 - [x] The web client connects to a device through the new handshake
-- [ ] The CLI connects to a device through the new handshake
+- [x] The CLI connects to a device through the new handshake
 
 ## Versions and finding the device
 
