@@ -192,6 +192,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `battery-direction` | `text` | `battery` | the cell's direction of travel |
 | `battery-time-to-empty` | `duration` | `battery`, `margin` | how long the battery can go on carrying the device |
 | `battery-time-to-full` | `duration` | `battery`, `margin` | how long until the battery is full |
+| `channel-clients` | `quantity`, `clients` | — | how many clients have a channel open to the device, counting the one it is sent to |
 
 ### Traits
 

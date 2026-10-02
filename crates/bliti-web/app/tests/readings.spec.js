@@ -562,3 +562,16 @@ test.describe('wireless', () => {
 		await expect(page.locator('.tile.provisional')).toHaveCount(0)
 	})
 })
+
+test.describe('other clients', () => {
+	// The device counts every open channel, this page's among them; the page shows the others (VIEW).
+	test('leave the page itself out', async ({ page }) => {
+		await openChannel(page)
+		const clients = (value) => reading('channel-clients', { kind: 'quantity', unit: 'clients', value })
+		await emit(page, clients(3))
+		const tile = page.locator('.tile', { hasText: 'Also connected' })
+		await expect(tile).toContainText('2 clients')
+		await emit(page, clients(1))
+		await expect(tile).toContainText('0 clients')
+	})
+})

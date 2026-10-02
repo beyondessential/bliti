@@ -40,7 +40,7 @@ The application MUST render in this order:
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
 | a notice beneath the header, only while `provisional` | `network-configuration` |
-| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
+| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full` |
 | appended | everything it does not recognise |
 
@@ -56,6 +56,8 @@ The application MUST supply its own wording for every catalogue name, trait, dis
 The application MUST render a `reason` as the sender wrote it.
 
 The application MUST render `last-boot` as an elapsed time.
+
+The application MUST render `channel-clients` as the number of other clients, leaving itself out, in its tile and in its graph alike.
 
 > [!NOTE]
 > A layout that rearranged while an operator was looking at it would cost the screen its familiarity, and a device with several marginal readings would reshuffle as they crossed back and forth. Trouble is found by colour instead.

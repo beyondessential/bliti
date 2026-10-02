@@ -8,15 +8,25 @@
 /// One fact or reading, normalised from a message. `fact` is true for a fact, false for a reading;
 /// the two catalogues are separate and a name may appear in both.
 export function entryOf(message) {
+	const fact = message.type === 'fact'
+	const name = message.fact ?? message.measurement
 	return {
-		fact: message.type === 'fact',
-		name: message.fact ?? message.measurement,
+		fact,
+		name,
 		at: message.at,
 		traits: message.traits ?? {},
 		kind: message.kind,
 		unit: message.unit,
-		value: message.value,
+		value: !fact && name === CHANNEL_CLIENTS ? othersOf(message.value) : message.value,
 	}
+}
+
+// The device counts every open channel, this page's among them; the page shows the others, the same
+// in the tile as in the graph (VIEW).
+const CHANNEL_CLIENTS = 'channel-clients'
+
+function othersOf(value) {
+	return typeof value === 'number' ? Math.max(0, value - 1) : value
 }
 
 /// The status trait's `is`, or null. A status this build does not know is left as it arrived, and
@@ -60,6 +70,7 @@ export const TILE_ORDER = [
 	'fan-speed',
 	'power-source',
 	'battery-charge',
+	'channel-clients',
 	'last-boot',
 ]
 
@@ -96,6 +107,7 @@ const LABELS = {
 	'battery-charge': 'Battery',
 	'battery-time-to-empty': 'Time left',
 	'battery-time-to-full': 'Time to full',
+	'channel-clients': 'Also connected',
 	'last-boot': 'Uptime',
 }
 

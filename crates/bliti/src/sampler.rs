@@ -29,6 +29,9 @@ const SLOW_EVERY: u32 = 5;
 /// How long sampling continues with no session open (NFO).
 const IDLE_STOP: Duration = Duration::from_secs(30 * 60);
 
+/// The reading of how many clients have a channel open (NFO).
+const CHANNEL_CLIENTS: &str = "channel-clients";
+
 /// How many ticks the live feed can fall behind before a subscriber misses some. A subscriber too
 /// slow to keep up misses samples rather than stalling the sampler.
 const LIVE_LAG: usize = 64;
@@ -79,12 +82,27 @@ impl Sampler {
 	/// The newest reading of each distinct measurement, as one set. Merged across fast and slow ticks,
 	/// so a feed opening sends a complete view at once rather than filling in over five seconds.
 	pub fn current(&self) -> Vec<Entry> {
-		self.current
+		let mut current: Vec<Entry> = self
+			.current
 			.lock()
 			.expect("the snapshot is never held across a panic")
 			.values()
+			.filter(|entry| entry.name != CHANNEL_CLIENTS)
 			.cloned()
-			.collect()
+			.collect();
+		current.push(self.channel_clients());
+		current
+	}
+
+	/// How many channels are open, counted now rather than at the last tick, so the snapshot a session
+	/// is sent as it opens counts that session.
+	fn channel_clients(&self) -> Entry {
+		Entry::quantity(
+			Facts::since_boot(),
+			CHANNEL_CLIENTS,
+			"clients",
+			self.open_sessions() as f64,
+		)
 	}
 
 	/// Subscribe to readings as they are taken.
@@ -152,6 +170,7 @@ impl Sampler {
 			.expect("the sampling task neither panics nor is cancelled");
 			source = returned;
 			let mut readings = readings;
+			readings.push(self.channel_clients());
 
 			{
 				let mut current = self
@@ -472,7 +491,7 @@ mod tests {
 		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
 		let _session = sampler.session();
 		let names = |sampler: &Sampler| -> Vec<String> {
-			sampler.current().iter().map(|e| e.name.clone()).collect()
+			sampled(sampler).iter().map(|e| e.name.clone()).collect()
 		};
 		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
 		assert!(names(&sampler).contains(&"hotspot".to_owned()));
@@ -544,7 +563,7 @@ mod tests {
 		let _session = sampler.session();
 		let mut live = sampler.live();
 		tokio::time::sleep(FAST * (SLOW_EVERY + 1)).await;
-		assert_eq!(sampler.current().len(), 3, "{:?}", sampler.current());
+		assert_eq!(sampled(&sampler).len(), 3, "{:?}", sampled(&sampler));
 
 		tokio::time::sleep(FAST * SLOW_EVERY).await;
 		let mut sent = Vec::new();
@@ -560,6 +579,49 @@ mod tests {
 			ended[0].value,
 			Some(serde_json::Value::String("2407:8b00::3".into()))
 		);
-		assert_eq!(sampler.current().len(), 2);
+		assert_eq!(sampled(&sampler).len(), 2);
+	}
+
+	fn channel_clients(readings: &[Entry]) -> Option<f64> {
+		readings
+			.iter()
+			.find(|entry| entry.name == CHANNEL_CLIENTS)
+			.and_then(|entry| entry.value.as_ref()?.as_f64())
+	}
+
+	/// The snapshot as the source sampled it, without the count of open channels every tick adds.
+	fn sampled(sampler: &Sampler) -> Vec<Entry> {
+		sampler
+			.current()
+			.into_iter()
+			.filter(|entry| entry.name != CHANNEL_CLIENTS)
+			.collect()
+	}
+
+	/// A session is sent the snapshot as it opens, so the count in it is taken then rather than at the
+	/// last tick, which may have been before the session opened (NFO).
+	#[tokio::test(start_paused = true)]
+	async fn the_snapshot_counts_a_session_opened_since_the_last_tick() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _first = sampler.session();
+		tokio::time::sleep(FAST * 2).await;
+		assert_eq!(channel_clients(&sampler.current()), Some(1.0));
+
+		let second = sampler.session();
+		assert_eq!(channel_clients(&sampler.current()), Some(2.0));
+		drop(second);
+		assert_eq!(channel_clients(&sampler.current()), Some(1.0));
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn every_tick_carries_how_many_channels_are_open() {
+		let sampler = Sampler::start_with(Box::new(Stopping { slow_ticks: 0 }));
+		let _first = sampler.session();
+		let _second = sampler.session();
+		let mut live = sampler.live();
+
+		tokio::time::sleep(FAST * 2).await;
+		let readings = live.try_recv().expect("a tick reached the subscriber");
+		assert_eq!(channel_clients(&readings), Some(2.0));
 	}
 }

@@ -26,6 +26,13 @@ With one subscriber per characteristic, "the head" can only be the leaver's own 
 
 The client transmit characteristic stays single: BlueZ matches write sockets by socket, so writes are unaffected.
 
+## Other clients, live
+
+The page shows how many other clients have a channel open, as the `channel-clients` reading of NFO.
+It counts channels, which the sampler already does to keep sampling open, rather than slots: a slot is given before the handshake, so a stranger in range trying one would count as an operator.
+The device reports the total and the page subtracts itself, since the readings feed is the same for every session.
+The snapshot a session is sent as it opens counts the channels then rather than at the last tick, so a page never receives a count that leaves itself out.
+
 ## Outstanding
 
 - [ ] Find the BCM4345C0 (CYW43455, the Pi 5 controller) concurrent LE connection limit, in case it is tighter than eight slots. The datasheet lookup failed in the session that wrote this; testing needs as many centrals as slots.

@@ -22,3 +22,10 @@ The device's journal names each session's client and slot.
 ## When a channel ends
 
 - [ ] A session the device ends while its client is connected, such as on a failed handshake, ends that client's connection, and the page reports the channel closed (verifies spec: CHN)
+
+## Other clients
+
+- [x] The snapshot a session is sent as it opens counts that session, and every tick carries the count of open channels (verifies spec: NFO)
+- [x] The page shows the count less itself (verifies spec: VIEW)
+- [ ] On the prototype, the page's Also connected tile goes from none to one as the laptop CLI opens a channel, and back as it leaves (verifies spec: NFO, VIEW)
+- [ ] A client in range that fails its handshake does not show in the count (verifies spec: NFO)
