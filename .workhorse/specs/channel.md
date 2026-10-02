@@ -57,15 +57,21 @@ A device that reaches the ceiling MUST hold the remainder until the window allow
 
 ## Transport
 
-The channel MUST run over GATT, under the service UUID of [ADV](discovery.md), using two characteristics:
+The channel MUST run over GATT, under the service UUID of [ADV](discovery.md), using these characteristics:
 
 | characteristic | UUID | direction |
 | --- | --- | --- |
 | client transmit | `973bed6f-f4f9-4cae-b237-1b51701a77f5` | written by the client, carrying bytes to the device |
-| device transmit | `a7aabad6-3fc2-4c9b-953b-03a70a193ec4` | notified on by the device, carrying bytes to the client |
+| slot allocation | `7f0c7b93-87a1-40d3-abcb-f8381c30824f` | read by the client, naming its device transmit slot |
+| device transmit, slot 0 to 7 | `a7aabad6-3fc2-4c9b-953b-03a70a193e00` to `a7aabad6-3fc2-4c9b-953b-03a70a193e07` | notified on by the device, carrying bytes to the client |
 
 GATT is specified in Volume 3, Part G of the [Bluetooth Core Specification](https://www.bluetooth.com/specifications/specs/core-specification-6-3/), and the Attribute Protocol beneath it, including the ATT_MTU negotiation referred to below, in Volume 3, Part F.
 The device MUST accept both a write with response and a write without response on the client transmit characteristic, and a client MAY use either.
+
+The device MUST offer eight device transmit characteristics, the slots, each UUID ending in its slot number.
+A read of the slot allocation characteristic MUST answer one byte, the number of the slot given to the reading client, or an empty value where no slot is free.
+A client MUST read the slot allocation characteristic before subscribing, and MUST subscribe only to the slot it was given.
+Subscribing to its slot opens a client's channel.
 
 Each direction is a stream of bytes.
 The sender MUST chunk it into writes or notifications whose payload is at most the negotiated ATT_MTU less the three-byte ATT header.
@@ -84,8 +90,16 @@ A device MUST serve a channel to each client connected to it, each independently
 The data a client writes MUST reach only that client's channel, and the data the device sends on a channel MUST reach only that channel's client.
 A client connecting, failing its handshake, or leaving MUST NOT end or disturb another client's channel.
 
+The device MUST give each connected client a slot no other connected client holds, and MUST give a client that reads again while connected the slot it already holds.
+A client MUST hold its slot for as long as it is connected.
+The device MUST NOT open a channel on a slot for a client it was not given to.
+A device that ends a channel while its client is still connected MUST end that connection.
+
+A client given no slot MUST tell the operator that the device is serving as many clients as it can.
+
 > [!NOTE]
-> Any number of operators can watch one device at once. Configuring it is exclusive, as [CFG](network/session.md) specifies.
+> Up to eight operators can watch one device at once. Configuring it is exclusive, as [CFG](network/session.md) specifies.
+> A slot per client is what keeps one client leaving from reaching another's channel. A host stack may end the notifications of a different subscriber to the same characteristic when a client that is not bonded disconnects, which a device cannot undo and which no characteristic shared between clients would survive.
 
 ## The device is a peripheral only
 
