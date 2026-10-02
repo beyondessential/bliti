@@ -9,7 +9,7 @@
 // decoded messages with no channel and no Bluetooth in the loop, which is what lets the view and the
 // subscription lifecycle be tested without pretending to be a Bluetooth stack.
 
-import { Channel, QrCode, client_tx_uuid, device_tx_uuid, service_uuid } from './wasm/bliti_web.js'
+import { Channel, QrCode, allocation_uuid, client_tx_uuid, service_uuid, slot_uuid } from './wasm/bliti_web.js'
 import { loadProtocol as protocol } from './protocol.js'
 
 /// What this client calls itself to a device. Opaque to the device, which logs it (BLI-MSG).
@@ -60,7 +60,15 @@ export function createClient() {
 		current()
 		const service = await server.getPrimaryService(service_uuid())
 		const clientTx = await service.getCharacteristic(client_tx_uuid())
-		const deviceTx = await service.getCharacteristic(device_tx_uuid())
+		// The device notifies each client on a characteristic of its own, and says which (CHN).
+		const allocation = await service.getCharacteristic(allocation_uuid())
+		const slot = slot_uuid(new Uint8Array((await allocation.readValue()).buffer))
+		current()
+		if (!slot) {
+			if (device?.gatt?.connected) device.gatt.disconnect()
+			throw new Error('The device is serving as many clients as it can. Try again later.')
+		}
+		const deviceTx = await service.getCharacteristic(slot)
 		current()
 
 		// Writes are acknowledged, so the device is never sent more than it has taken. The bytes are

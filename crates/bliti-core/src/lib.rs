@@ -23,6 +23,7 @@ pub mod board_id;
 pub mod channel;
 pub mod key_schedule;
 pub mod qr;
+pub mod slot;
 pub mod version;
 pub mod wifi_qr;
 
@@ -37,8 +38,3 @@ pub const SERVICE_UUID: Uuid = Uuid::from_u128(0x63c7f3bc_0599_4a66_bdcd_f28ec57
 /// The GATT characteristic the client writes to send bytes to the device (CHN, "Transport").
 pub const CHARACTERISTIC_UUID_CLIENT_TX: Uuid =
 	Uuid::from_u128(0x973bed6f_f4f9_4cae_b237_1b51701a77f5);
-
-/// The GATT characteristic the device notifies on to send bytes to the client (CHN,
-/// "Transport").
-pub const CHARACTERISTIC_UUID_DEVICE_TX: Uuid =
-	Uuid::from_u128(0xa7aabad6_3fc2_4c9b_953b_03a70a193ec4);

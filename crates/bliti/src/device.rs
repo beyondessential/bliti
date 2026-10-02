@@ -9,10 +9,11 @@ use std::{
 
 use anyhow::{Context, Result};
 use bliti_core::{
-	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
+	CHARACTERISTIC_UUID_CLIENT_TX, SERVICE_UUID,
 	advertisement::{Advertised, Heard},
 	key_schedule::{DeviceKeys, Handle},
 	qr::QrPayload,
+	slot::{Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
 };
 use bluer::{
 	adv::{Advertisement, AdvertisementHandle},
@@ -21,13 +22,15 @@ use bluer::{
 		local::{
 			Application, Characteristic, CharacteristicControl, CharacteristicControlEvent,
 			CharacteristicControlHandle, CharacteristicNotify, CharacteristicNotifyMethod,
-			CharacteristicWrite, CharacteristicWriteMethod, Service, characteristic_control,
+			CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod, Service,
+			characteristic_control,
 		},
 	},
 };
-use futures::StreamExt;
+use futures::{StreamExt, stream};
 use tracing::Instrument;
 
+use self::slots::Slots;
 use crate::{
 	NetworkBackend,
 	facts::{Supply, curve},
@@ -41,6 +44,8 @@ use crate::{
 	power::{Controller, systemd::Systemd},
 	session::{self, AbortOnDrop},
 };
+
+mod slots;
 
 /// Run the daemon until interrupted.
 pub async fn run(
@@ -126,9 +131,19 @@ pub async fn run(
 		})
 		.ok();
 	let (writes, writes_handle) = characteristic_control();
-	let (subscriptions, subscriptions_handle) = characteristic_control();
+	let (subscriptions, subscription_handles): (Vec<_>, Vec<_>) = Slot::all()
+		.map(|slot| {
+			let (control, handle) = characteristic_control();
+			((slot, control), (slot, handle))
+		})
+		.unzip();
+	let slots = Arc::new(Slots::default());
 	let _application = adapter
-		.serve_gatt_application(application(writes_handle, subscriptions_handle))
+		.serve_gatt_application(application(
+			writes_handle,
+			allocation(adapter.clone(), slots.clone(), readvertise.clone()),
+			subscription_handles,
+		))
 		.await
 		.context("registering the GATT application")?;
 	// Only once the service is back: a client still connected from before was told it had gone, and
@@ -139,6 +154,8 @@ pub async fn run(
 		tokio::spawn(serve_sessions(
 			subscriptions,
 			Shared {
+				adapter: adapter.clone(),
+				slots,
 				sink,
 				keys: keys.clone(),
 				readvertise: readvertise.clone(),
@@ -332,46 +349,99 @@ fn advertisement(advertised: Advertised) -> Advertisement {
 	}
 }
 
-/// The GATT application: one service with the characteristic a client writes and the one the device
-/// notifies on.
+/// The GATT application: one service with the characteristic a client writes, the one it reads for
+/// its slot, and the slots the device notifies on.
 ///
-/// Both run over sockets BlueZ acquires for each client: one carrying that client's writes in the
-/// order it made them, the other what the device notifies to that client alone. Each arrives on the
-/// characteristic's control, `writes` and `subscriptions` (CHN, "Several clients at once").
+/// Writes and notifications run over sockets BlueZ acquires for each client: one carrying that
+/// client's writes in the order it made them, the other what the device notifies to that client
+/// alone. Each arrives on the characteristic's control, `writes` and one per slot in `slots` (CHN,
+/// "Several clients at once").
 fn application(
 	writes: CharacteristicControlHandle,
-	subscriptions: CharacteristicControlHandle,
+	allocation: CharacteristicRead,
+	slots: Vec<(Slot, CharacteristicControlHandle)>,
 ) -> Application {
+	let client_tx = Characteristic {
+		uuid: CHARACTERISTIC_UUID_CLIENT_TX,
+		write: Some(CharacteristicWrite {
+			write: true,
+			write_without_response: true,
+			method: CharacteristicWriteMethod::Io,
+			..Default::default()
+		}),
+		control_handle: writes,
+		..Default::default()
+	};
+	let allocation = Characteristic {
+		uuid: CHARACTERISTIC_UUID_ALLOCATION,
+		read: Some(allocation),
+		..Default::default()
+	};
+	let device_tx = slots
+		.into_iter()
+		.map(|(slot, subscriptions)| Characteristic {
+			uuid: slot.uuid(),
+			notify: Some(CharacteristicNotify {
+				notify: true,
+				method: CharacteristicNotifyMethod::Io,
+				..Default::default()
+			}),
+			control_handle: subscriptions,
+			..Default::default()
+		});
 	Application {
 		services: vec![Service {
 			uuid: SERVICE_UUID,
 			primary: true,
-			characteristics: vec![
-				Characteristic {
-					uuid: CHARACTERISTIC_UUID_CLIENT_TX,
-					write: Some(CharacteristicWrite {
-						write: true,
-						write_without_response: true,
-						method: CharacteristicWriteMethod::Io,
-						..Default::default()
-					}),
-					control_handle: writes,
-					..Default::default()
-				},
-				Characteristic {
-					uuid: CHARACTERISTIC_UUID_DEVICE_TX,
-					notify: Some(CharacteristicNotify {
-						notify: true,
-						method: CharacteristicNotifyMethod::Io,
-						..Default::default()
-					}),
-					control_handle: subscriptions,
-					..Default::default()
-				},
-			],
+			characteristics: [client_tx, allocation]
+				.into_iter()
+				.chain(device_tx)
+				.collect(),
 			..Default::default()
 		}],
 		..Default::default()
+	}
+}
+
+/// Answer a read of the allocation characteristic with the reading client's slot (CHN, "Transport").
+fn allocation(
+	adapter: bluer::Adapter,
+	slots: Arc<Slots>,
+	readvertise: Arc<tokio::sync::Notify>,
+) -> CharacteristicRead {
+	CharacteristicRead {
+		read: true,
+		fun: Box::new(move |request| {
+			let (adapter, slots, readvertise) =
+				(adapter.clone(), slots.clone(), readvertise.clone());
+			Box::pin(async move {
+				let client = request.device_address;
+				let allocation = slots
+					.allocate(client, |holder| is_connected(&adapter, holder))
+					.await;
+				match allocation {
+					Allocation::Given(slot) => {
+						tracing::info!(%client, slot = slot.number(), "gave a client its slot");
+					}
+					Allocation::Full => {
+						tracing::warn!(%client, "every slot is held; turning a client away");
+						// Its connecting stopped the controller advertising, and it opens no session
+						// whose opening would resume it.
+						readvertise.notify_one();
+					}
+				}
+				Ok(allocation.to_value())
+			})
+		}),
+		..Default::default()
+	}
+}
+
+/// Whether a client is connected, as far as BlueZ knows. One BlueZ cannot name has gone.
+async fn is_connected(adapter: &bluer::Adapter, client: bluer::Address) -> bool {
+	match adapter.device(client) {
+		Ok(device) => device.is_connected().await.unwrap_or(false),
+		Err(_) => false,
 	}
 }
 
@@ -413,6 +483,8 @@ async fn serve_writes(mut writes: CharacteristicControl, sink: InboundSink) {
 /// brings it back.
 #[derive(Clone)]
 struct Shared {
+	adapter: bluer::Adapter,
+	slots: Arc<Slots>,
 	sink: InboundSink,
 	keys: Arc<DeviceKeys>,
 	readvertise: Arc<tokio::sync::Notify>,
@@ -423,22 +495,40 @@ struct Shared {
 	pacer: Arc<Mutex<Pacer>>,
 }
 
-/// Open a session for each client that subscribes, and run them side by side.
-async fn serve_sessions(mut subscriptions: CharacteristicControl, shared: Shared) {
-	while let Some(event) = subscriptions.next().await {
+/// Open a session for each client that subscribes to its slot, and run them side by side.
+async fn serve_sessions(subscriptions: Vec<(Slot, CharacteristicControl)>, shared: Shared) {
+	let mut subscriptions = stream::select_all(
+		subscriptions
+			.into_iter()
+			.map(|(slot, control)| control.map(move |event| (slot, event))),
+	);
+	while let Some((slot, event)) = subscriptions.next().await {
 		let CharacteristicControlEvent::Notify(notifier) = event else {
 			continue;
 		};
 		// Every line a session logs names its client, so sessions running side by side read apart.
-		let span = tracing::info_span!("session", client = %notifier.device_address());
-		tokio::spawn(serve_session(notifier, shared.clone()).instrument(span));
+		let span = tracing::info_span!(
+			"session",
+			client = %notifier.device_address(),
+			slot = slot.number()
+		);
+		tokio::spawn(serve_session(slot, notifier, shared.clone()).instrument(span));
 	}
 	tracing::error!("BlueZ stopped reporting subscriptions; no further sessions can open");
 }
 
 /// Serve one client's session, from its subscribing to its leaving or the session ending.
-async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
+async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Shared) {
+	let client = notifier.device_address();
+	// Dropping the notifier closes only this client's socket, so the slot's holder is untouched.
+	if !shared.slots.holds(slot, client).await {
+		tracing::warn!("client subscribed to a slot it was not given; opening no session");
+		return;
+	}
+
 	let Shared {
+		adapter,
+		slots: _,
 		sink,
 		keys,
 		readvertise,
@@ -450,7 +540,6 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
 	// it is the point at which a handshake can run.
-	let client = notifier.device_address();
 	tracing::info!("client subscribed; opening a session");
 	readvertise.notify_one();
 	let (transport, mut outbound) = GattTransport::open(&sink, client);
@@ -505,6 +594,16 @@ async fn serve_session(notifier: CharacteristicWriter, shared: Shared) {
 		_ = gone => tracing::info!("client unsubscribed; session ended"),
 	}
 	pump.abort();
+	// A client left connected with no channel would wait on one nothing answers, and would go on
+	// holding its slot (CHN).
+	if is_connected(&adapter, client).await {
+		tracing::info!("ending the connection of a client whose channel has ended");
+		if let Ok(device) = adapter.device(client) {
+			if let Err(error) = device.disconnect().await {
+				tracing::debug!(%error, "could not end the connection; it may already be going");
+			}
+		}
+	}
 	readvertise.notify_one();
 }
 
