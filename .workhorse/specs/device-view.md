@@ -41,7 +41,7 @@ The application MUST render in this order:
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
 | a notice beneath the header, only while `provisional` | `network-configuration` |
 | tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
-| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full` |
+| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
@@ -56,8 +56,6 @@ The application MUST supply its own wording for every catalogue name, trait, dis
 The application MUST render a `reason` as the sender wrote it.
 
 The application MUST render `last-boot` as an elapsed time.
-
-The application MUST render `channel-clients` as the number of other clients, leaving itself out, in its tile and in its graph alike.
 
 > [!NOTE]
 > A layout that rearranged while an operator was looking at it would cost the screen its familiarity, and a device with several marginal readings would reshuffle as they crossed back and forth. Trouble is found by colour instead.
@@ -111,6 +109,8 @@ The application MUST headline `network-address` with at most two addresses, each
 The application MUST show every address in the reveal, each with its interface.
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
+
+The application MUST headline `channel-clients` together with `channel-clients-max`, as how many of the clients the device can hold are connected, and MUST draw it against `channel-clients-max`.
 
 The application MUST show `memory-total` in the reveal of `memory-usage`.
 

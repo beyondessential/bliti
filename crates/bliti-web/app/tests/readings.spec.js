@@ -563,15 +563,13 @@ test.describe('wireless', () => {
 	})
 })
 
-test.describe('other clients', () => {
-	// The device counts every open channel, this page's among them; the page shows the others (VIEW).
-	test('leave the page itself out', async ({ page }) => {
+test.describe('connected clients', () => {
+	// Every open channel, this page's among them, out of the most the device can hold (VIEW).
+	test('are headlined out of the most the device can hold', async ({ page }) => {
 		await openChannel(page)
-		const clients = (value) => reading('channel-clients', { kind: 'quantity', unit: 'clients', value })
-		await emit(page, clients(3))
-		const tile = page.locator('.tile', { hasText: 'Also connected' })
-		await expect(tile).toContainText('2 clients')
-		await emit(page, clients(1))
-		await expect(tile).toContainText('0 clients')
+		await emit(page, fact('channel-clients-max', { kind: 'quantity', unit: 'clients', value: 8 }))
+		await emit(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 2 }))
+		await expect(page.locator('.tile', { hasText: 'Connected' })).toContainText('2/8 clients')
+		await expect(page.locator('.tile', { hasText: 'Room for' })).toHaveCount(0)
 	})
 })

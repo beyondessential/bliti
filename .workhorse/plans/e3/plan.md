@@ -28,9 +28,8 @@ The client transmit characteristic stays single: BlueZ matches write sockets by 
 
 ## Other clients, live
 
-The page shows how many other clients have a channel open, as the `channel-clients` reading of NFO.
+The page shows how many clients have a channel open, itself among them, out of how many the device can hold: the `channel-clients` reading over the `channel-clients-max` fact of NFO, as `2/8 clients`.
 It counts channels, which the sampler already does to keep sampling open, rather than slots: a slot is given before the handshake, so a stranger in range trying one would count as an operator.
-The device reports the total and the page subtracts itself, since the readings feed is the same for every session.
 The snapshot a session is sent as it opens counts the channels then rather than at the last tick, so a page never receives a count that leaves itself out.
 
 ## Outstanding
@@ -47,6 +46,9 @@ The snapshot a session is sent as it opens counts the channels then rather than 
 - [x] Web: allocate then subscribe, busy error
 - [x] On-device check, both orders (earlier client leaves, later client leaves)
 - [x] Bring the bliti-prototype skill's second-client note in line
+- [x] `channel-clients` and `channel-clients-max`: NFO, VIEW, device, page
+- [ ] Run the Rust and web suites over the `2/8` change (deployed to the prototype without them, at the user's request)
+- [ ] On the prototype: the Connected tile reads `1/8` alone and `2/8` with the laptop CLI connected
 
 ## Upstream report draft
 
