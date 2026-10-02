@@ -26,7 +26,8 @@ use bliti_core::{
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{
-	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt as _, SinkExt, StreamExt, channel::mpsc,
+	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt as _, SinkExt, Stream, StreamExt,
+	channel::mpsc,
 };
 
 /// How long to wait for the host to discover what the peer offers, after the link is up.
@@ -152,6 +153,19 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 	Err(anyhow!("the device does not carry the bliti service"))
 }
 
+/// Hand every notification to the transport, in order, until either end goes.
+///
+/// A full channel waits rather than ends the channel: the device sends a burst as a session opens,
+/// and a reader slower than that burst must still get all of it.
+async fn forward(notifications: impl Stream<Item = Vec<u8>>, mut inbound: mpsc::Sender<Vec<u8>>) {
+	let mut notifications = std::pin::pin!(notifications);
+	while let Some(chunk) = notifications.next().await {
+		if inbound.send(chunk).await.is_err() {
+			break;
+		}
+	}
+}
+
 /// Find the device a QR code belongs to, by the matching of ADV.
 ///
 /// A client cannot reach a device it has not heard: a peer has to be discovered before it can be
@@ -260,16 +274,9 @@ async fn open(
 	let notifications = from_device.notify().await?;
 
 	// Pump notifications in and writes out, so the transport sees an ordinary byte stream.
-	let (mut inbound_tx, inbound_rx) = mpsc::channel(64);
+	let (inbound_tx, inbound_rx) = mpsc::channel(64);
 	let (outbound_tx, mut outbound_rx) = mpsc::channel::<Vec<u8>>(64);
-	tokio::spawn(async move {
-		let mut notifications = std::pin::pin!(notifications);
-		while let Some(chunk) = notifications.next().await {
-			if inbound_tx.try_send(chunk).is_err() {
-				break;
-			}
-		}
-	});
+	tokio::spawn(forward(notifications, inbound_tx));
 	tokio::spawn(async move {
 		while let Some(chunk) = outbound_rx.next().await {
 			if to_device.write(&chunk).await.is_err() {
@@ -515,5 +522,26 @@ fn show(value: &serde_json::Value, kind: &str, unit: Option<&str>) -> String {
 				None => number,
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn a_burst_larger_than_the_channel_all_arrives_in_order() {
+		let burst: Vec<Vec<u8>> = (0..=255u8).map(|n| vec![n]).collect();
+		let (inbound_tx, mut inbound_rx) = mpsc::channel(1);
+		let forwarding = tokio::spawn(forward(futures::stream::iter(burst.clone()), inbound_tx));
+
+		// Read nothing until the whole burst is on offer, as a reader busy with the handshake would.
+		tokio::task::yield_now().await;
+		let mut received = Vec::new();
+		while let Some(chunk) = inbound_rx.next().await {
+			received.push(chunk);
+		}
+		forwarding.await.expect("forwarding panicked");
+		assert_eq!(received, burst);
 	}
 }
