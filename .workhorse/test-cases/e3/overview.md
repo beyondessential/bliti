@@ -7,7 +7,7 @@ The device's journal names each session's client and slot.
 
 - [x] The two clients are given different slots (verifies spec: CHN)
 - [x] The later client leaving leaves the earlier one's page live: readings keep arriving, and the device logs only the leaver's session ending (verifies spec: CHN)
-- [ ] The earlier client leaving leaves the later one's session running (verifies spec: CHN)
+- [x] The earlier client leaving leaves the later one's session running (verifies spec: CHN)
 - [ ] A client that fails its handshake and leaves, while another is connected, leaves the other's session running (verifies spec: CHN)
 - [x] A client reconnecting after leaving is given a slot and opens a session (verifies spec: CHN)
 

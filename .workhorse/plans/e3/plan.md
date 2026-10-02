@@ -38,8 +38,8 @@ The client transmit characteristic stays single: BlueZ matches write sockets by 
 - [x] Device: slots, allocation read, one control per slot, end connection on session end
 - [x] CLI: allocate then subscribe
 - [x] Web: allocate then subscribe, busy error
-- [ ] On-device check, both orders (earlier client leaves, later client leaves)
-- [ ] Bring the bliti-prototype skill's second-client note in line
+- [x] On-device check, both orders (earlier client leaves, later client leaves)
+- [x] Bring the bliti-prototype skill's second-client note in line
 
 ## Upstream report draft
 
