@@ -26,6 +26,6 @@ The device's journal names each session's client and slot.
 ## Other clients
 
 - [x] The snapshot a session is sent as it opens counts that session, and every tick carries the count of open channels (verifies spec: NFO)
-- [ ] The page headlines the count out of `channel-clients-max`, as `2/8 clients`, and gives `channel-clients-max` no tile of its own (verifies spec: VIEW)
+- [x] The page headlines the count out of `channel-clients-max`, as `2/8 clients`, and gives `channel-clients-max` no tile of its own (verifies spec: VIEW)
 - [ ] On the prototype, the page's Connected tile reads `1/8 clients` alone, `2/8 clients` while the laptop CLI is connected, and `1/8 clients` again once it leaves (verifies spec: NFO, VIEW)
 - [ ] A client in range that fails its handshake does not show in the count (verifies spec: NFO)
