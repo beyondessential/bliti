@@ -48,7 +48,7 @@ The snapshot a session is sent as it opens counts the channels then rather than 
 - [x] Bring the bliti-prototype skill's second-client note in line
 - [x] `channel-clients` and `channel-clients-max`: NFO, VIEW, device, page
 - [x] Run the Rust and web suites over the `2/8` change
-- [ ] On the prototype: the Connected tile reads `1/8` alone and `2/8` with the laptop CLI connected
+- [x] On the prototype: the Connected tile reads `1/8` alone and `2/8` with the laptop CLI connected
 
 ## Upstream report draft
 
