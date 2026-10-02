@@ -50,12 +50,54 @@ The snapshot a session is sent as it opens counts the channels then rather than 
 - [x] Run the Rust and web suites over the `2/8` change
 - [x] On the prototype: the Connected tile reads `1/8` alone and `2/8` with the laptop CLI connected
 
-## Upstream report draft
+## Upstream report
 
-> Subject: gatt-database: disconnect of an unbonded device frees another device's AcquireNotify socket
->
-> When an unbonded device disconnects, att_disconnected() calls clear_ccc_state(), which invokes the external characteristic's ccc_write_cb() with op == NULL.
-> ccc_write_cb() then does queue_remove_if(chrc->notify_ios, match_client_att, NULL), and match_client_att() returns true for any entry when att is NULL, so the first client_io in notify_ios is freed: the earliest subscriber's socket, not the disconnecting device's.
-> With two unbonded centrals subscribed through AcquireNotify, the later one disconnecting closes the earlier one's notify socket while its link and CCC stay up; BlueZ does not call AcquireNotify again until that central rewrites the CCC.
-> Seen on 5.85, and the code is unchanged on master.
-> Passing the disconnecting device's bt_att through to the CCC callback (or matching notify_ios entries by that device) would remove only its own entry.
+For the BlueZ issue form (`.github/ISSUE_TEMPLATE/issue.yml`), or a private draft advisory if it is treated as a vulnerability (`SECURITY.md`): any central in range can trigger it without pairing, and each time it stops another client's notifications.
+The user files it; nothing here is sent by an agent (`doc/coding-assistants.rst`).
+
+Still to gather, with the build before E3 deployed (`bec14b56`; a dev deploy runs from `/run`, so the kept build is untouched) and two unbonded centrals:
+
+- [ ] A btmon trace on the peripheral of the later central leaving (`btmon -w btmon.log`): it shows B disconnecting without writing its CCC
+- [ ] The bluetoothd debug log over the same run (debug on with `SIGUSR2`, then `journalctl -u bluetooth --boot 0`): `External CCC write received with value: 0x0000` at B's disconnect, and A's socket closing with B's
+- [ ] The same run with the earlier central leaving, where only its own socket closes
+- [ ] The phone's model and Android version, for Versions
+- [ ] Decide whether to write a functional test reproducer (`test/functional`, three hosts on emulated controllers), which the AI policy prefers for a bug that is not trivial
+
+### Description
+
+When an unbonded LE central disconnects, bluetoothd closes the AcquireNotify socket of a different central subscribed to the same external characteristic: the earliest subscriber still in `chrc->notify_ios`, rather than the one that disconnected.
+
+`att_disconnected()` in `src/gatt-database.c` removes the device state of a device that is not bonded and runs `clear_ccc_state()` for each CCC it had enabled.
+`clear_ccc_state()` calls the CCC callback with `op == NULL`, so `ccc_write_cb()` runs `queue_remove_if(chrc->notify_ios, match_client_att, NULL)`.
+`match_client_att()` matches any entry when `att` is NULL ("used by clear_cc_state to clear all instances"), and `queue_remove_if()` removes only the first match, so the head of `notify_ios` is freed.
+Where the disconnecting device was not the first subscriber, that is another device's `client_io`: its socket is closed while its link and its CCC stay up, so its notifications stop, and the application cannot restore them, since bluetoothd calls AcquireNotify again only on a new CCC write.
+The disconnecting device's own socket is closed separately, through `att_disconnect_cb()` and `sock_hup()`.
+
+Expected: only the disconnecting device's notify socket is closed.
+
+It came in with 8eb1dee87 ("gatt: Fix not establishing a socket for each device"), first released in 5.69, and the code is unchanged on master at ae69dcddd.
+
+Any central in range can trigger it without pairing: connect, enable notifications on such a characteristic, and disconnect. Each disconnect stops the notifications of the earliest other subscriber.
+
+Untested observation: the leaving device's own `client_io` is already closed through `att_disconnect_cb()`, so the `op == NULL` path may only need to drop the notification count rather than remove an entry.
+
+### To reproduce
+
+1. A peripheral runs bluetoothd 5.69 or later with an external GATT application whose characteristic notifies through AcquireNotify (`NotifyAcquired`), and centrals connect without pairing.
+2. Central A connects and enables notifications; the application receives AcquireNotify for A.
+3. Central B connects and enables notifications; the application receives AcquireNotify for B.
+4. B disconnects.
+5. The application sees A's socket close at the same moment as B's. A's link stays up and A receives no further notifications.
+6. Where A disconnects instead of B, only A's socket closes.
+
+Seen with a Rust application (bluer) on a Raspberry Pi 5, an Android phone running Chrome (Web Bluetooth) as A and a Linux laptop as B: the application logged both sockets closing within 0.1 ms of B leaving.
+
+### Versions
+
+- BlueZ version: 5.85 (Ubuntu 5.85-4ubuntu0.2), on the peripheral
+- Kernel version: 7.0.0-1017-raspi (Ubuntu 26.04 LTS)
+- Problematic device: Raspberry Pi 5 Model B Rev 1.1, BCM4345C0 controller on UART, as the peripheral. Centrals: an Android phone with Chrome (model to fill in), and an Arch Linux laptop with BlueZ 5.87, kernel 7.2.6, Intel controller
+
+### AI use
+
+Disclose which tool and model versions were used, and for what: Claude Code (claude-opus-4-8, then claude-opus-5-5) read the gatt-database.c code path, found the introducing commit and drafted this report. Whoever files it has to have read and verified it first.
