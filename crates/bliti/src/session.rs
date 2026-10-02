@@ -492,6 +492,12 @@ fn facts_now<B>(configurator: &Configurator<B>) -> Vec<Entry> {
 		"recorded"
 	};
 	facts.push(Entry::text(at, "network-configuration", network));
+	facts.push(Entry::quantity(
+		at,
+		"channel-clients-max",
+		"clients",
+		f64::from(bliti_core::slot::COUNT),
+	));
 	facts
 }
 

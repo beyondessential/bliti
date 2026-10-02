@@ -14,6 +14,7 @@ import {
 	PROVISIONAL_TILES,
 	TILE_ORDER,
 	formatMargin,
+	formatOutOf,
 	formatValue,
 	hasValue,
 	isTrouble,
@@ -156,6 +157,17 @@ function renderTile(name, byName, history) {
 					reveal={[byName.get('cpu-frequency-max')?.[0]]}
 				/>
 			)
+		case 'channel-clients':
+			return (
+				<SimpleTile
+					key={name}
+					entry={group[0]}
+					history={history}
+					total={numberOf(byName.get('channel-clients-max')?.[0])}
+					outOf
+					reveal={[byName.get('channel-clients-max')?.[0]]}
+				/>
+			)
 		case 'battery-charge':
 			return (
 				<BatteryTile
@@ -236,16 +248,18 @@ function withMargin(entry, text) {
 
 /// A single-instance reading: cpu, memory, power, battery and the like. Its reveal carries its scale,
 /// its history, its reason, and any entries VIEW folds into it.
-function SimpleTile({ entry, history, total = null, reveal = [] }) {
+function SimpleTile({ entry, history, total = null, outOf = false, reveal = [] }) {
 	const revealed = reveal.filter(Boolean)
 	const scale = scaleOf(entry, total)
 	const series = history.get(seriesKey(entry)) ?? []
 	const graphable = !entry.fact && series.length > 1
 	const more =
 		reasonOf(entry) || scale !== null || graphable || revealed.length > 0
+	// Headlined against its total where it is one the operator reads out of, as connected clients are.
+	const text = outOf && total !== null && hasValue(entry) ? formatOutOf(entry, total) : headline(entry)
 
 	return (
-		<Tile label={labelOf(entry.name)} wide={isLong(headline(entry))} more={more} tone={tone(entry)} face={face(entry)}>
+		<Tile label={labelOf(entry.name)} wide={isLong(text)} more={more} tone={tone(entry)} face={withMargin(entry, text)}>
 			<Reveal entry={entry} scale={scale} series={graphable ? series : null} />
 			{revealed.map((sub) => (
 				<Folded key={sub.name} entry={sub} />

@@ -60,6 +60,7 @@ export const TILE_ORDER = [
 	'fan-speed',
 	'power-source',
 	'battery-charge',
+	'channel-clients',
 	'last-boot',
 ]
 
@@ -77,6 +78,7 @@ export const IN_REVEAL = new Set([
 	'battery-direction',
 	'battery-time-to-empty',
 	'battery-time-to-full',
+	'channel-clients-max',
 ])
 
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
@@ -96,6 +98,8 @@ const LABELS = {
 	'battery-charge': 'Battery',
 	'battery-time-to-empty': 'Time left',
 	'battery-time-to-full': 'Time to full',
+	'channel-clients': 'Connected',
+	'channel-clients-max': 'Room for',
 	'last-boot': 'Uptime',
 }
 
@@ -114,6 +118,12 @@ function titleCase(name) {
 		.split(/[-_]/)
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(' ')
+}
+
+/// A quantity against the most it can be, as `2/8 clients`.
+export function formatOutOf(entry, total) {
+	if (!hasValue(entry)) return null
+	return `${trim(entry.value)}/${formatQuantity(total, entry.unit)}`
 }
 
 /// A value as an operator reads it: by its kind, in our own wording and at our own magnitude, or the

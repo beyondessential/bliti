@@ -62,10 +62,21 @@ pub fn client_tx_uuid() -> String {
 	bliti_core::CHARACTERISTIC_UUID_CLIENT_TX.to_string()
 }
 
-/// The characteristic the device notifies on to send bytes to the client (CHN, "Transport").
+/// The characteristic a client reads to be given its slot (CHN, "Transport").
 #[wasm_bindgen]
-pub fn device_tx_uuid() -> String {
-	bliti_core::CHARACTERISTIC_UUID_DEVICE_TX.to_string()
+pub fn allocation_uuid() -> String {
+	bliti_core::slot::CHARACTERISTIC_UUID_ALLOCATION.to_string()
+}
+
+/// The characteristic the device notifies this client on, read from what the allocation
+/// characteristic answered, or null where the device has no slot free (CHN, "Transport").
+#[wasm_bindgen]
+pub fn slot_uuid(allocation: &[u8]) -> Result<Option<String>, JsError> {
+	use bliti_core::slot::Allocation;
+	match Allocation::from_value(allocation).map_err(|why| JsError::new(&why.to_string()))? {
+		Allocation::Given(slot) => Ok(Some(slot.uuid().to_string())),
+		Allocation::Full => Ok(None),
+	}
 }
 
 /// The QR code a phone joins a device's hotspot by, as an SVG image for inlining in the page (VIEW).

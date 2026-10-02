@@ -562,3 +562,14 @@ test.describe('wireless', () => {
 		await expect(page.locator('.tile.provisional')).toHaveCount(0)
 	})
 })
+
+test.describe('connected clients', () => {
+	// Every open channel, this page's among them, out of the most the device can hold (VIEW).
+	test('are headlined out of the most the device can hold', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, fact('channel-clients-max', { kind: 'quantity', unit: 'clients', value: 8 }))
+		await emit(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 2 }))
+		await expect(page.locator('.tile', { hasText: 'Connected' })).toContainText('2/8 clients')
+		await expect(page.locator('.tile', { hasText: 'Room for' })).toHaveCount(0)
+	})
+})

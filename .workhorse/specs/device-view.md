@@ -40,8 +40,8 @@ The application MUST render in this order:
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
 | a notice beneath the header, only while `provisional` | `network-configuration` |
-| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `last-boot` |
-| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full` |
+| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
+| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
@@ -109,6 +109,8 @@ The application MUST headline `network-address` with at most two addresses, each
 The application MUST show every address in the reveal, each with its interface.
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
+
+The application MUST headline `channel-clients` together with `channel-clients-max`, as how many of the clients the device can hold are connected, and MUST draw it against `channel-clients-max`.
 
 The application MUST show `memory-total` in the reveal of `memory-usage`.
 

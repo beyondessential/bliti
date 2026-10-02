@@ -5,6 +5,7 @@
 //! and both sit on the same [`bliti_core::channel`] stack, so what this proves the browser inherits.
 
 use std::{
+	collections::HashMap,
 	io,
 	pin::Pin,
 	task::{Context, Poll},
@@ -12,7 +13,7 @@ use std::{
 
 use anyhow::{Context as _, Result, anyhow};
 use bliti_core::{
-	CHARACTERISTIC_UUID_CLIENT_TX, CHARACTERISTIC_UUID_DEVICE_TX, SERVICE_UUID,
+	CHARACTERISTIC_UUID_CLIENT_TX, SERVICE_UUID,
 	advertisement::{Advertised, Heard},
 	channel::{
 		envelope::{Reading, read},
@@ -21,10 +22,12 @@ use bliti_core::{
 		stream::{Mode, Streams, connect_initiator, multiplex, read_message, write_message},
 	},
 	qr::QrPayload,
+	slot::{Allocation, CHARACTERISTIC_UUID_ALLOCATION},
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{
-	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt as _, SinkExt, StreamExt, channel::mpsc,
+	AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt as _, SinkExt, Stream, StreamExt,
+	channel::mpsc,
 };
 
 /// How long to wait for the host to discover what the peer offers, after the link is up.
@@ -113,25 +116,54 @@ impl AsyncWrite for GattClientTransport {
 	}
 }
 
-/// Find the bliti service's two characteristics on a connected device.
+/// Find the characteristic this client writes on a connected device, and be given the slot it is
+/// notified on (CHN, "Transport").
 async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Characteristic)> {
 	for service in device.services().await? {
 		if service.uuid().await? != SERVICE_UUID {
 			continue;
 		}
-		let (mut to_device, mut from_device) = (None, None);
+		let mut found = HashMap::new();
 		for characteristic in service.characteristics().await? {
-			match characteristic.uuid().await? {
-				u if u == CHARACTERISTIC_UUID_CLIENT_TX => to_device = Some(characteristic),
-				u if u == CHARACTERISTIC_UUID_DEVICE_TX => from_device = Some(characteristic),
-				_ => {}
+			found.insert(characteristic.uuid().await?, characteristic);
+		}
+		let (Some(to_device), Some(allocation)) = (
+			found.remove(&CHARACTERISTIC_UUID_CLIENT_TX),
+			found.remove(&CHARACTERISTIC_UUID_ALLOCATION),
+		) else {
+			continue;
+		};
+		let slot = match Allocation::from_value(&allocation.read().await?)? {
+			Allocation::Given(slot) => slot,
+			Allocation::Full => {
+				return Err(anyhow!(
+					"the device is serving as many clients as it can; try again later"
+				));
 			}
-		}
-		if let (Some(to_device), Some(from_device)) = (to_device, from_device) {
-			return Ok((to_device, from_device));
-		}
+		};
+		tracing::debug!(slot = slot.number(), "given a slot");
+		let from_device = found.remove(&slot.uuid()).ok_or_else(|| {
+			anyhow!(
+				"the device gave slot {}, which it does not carry",
+				slot.number()
+			)
+		})?;
+		return Ok((to_device, from_device));
 	}
 	Err(anyhow!("the device does not carry the bliti service"))
+}
+
+/// Hand every notification to the transport, in order, until either end goes.
+///
+/// A full channel waits rather than ends the channel: the device sends a burst as a session opens,
+/// and a reader slower than that burst must still get all of it.
+async fn forward(notifications: impl Stream<Item = Vec<u8>>, mut inbound: mpsc::Sender<Vec<u8>>) {
+	let mut notifications = std::pin::pin!(notifications);
+	while let Some(chunk) = notifications.next().await {
+		if inbound.send(chunk).await.is_err() {
+			break;
+		}
+	}
 }
 
 /// Find the device a QR code belongs to, by the matching of ADV.
@@ -242,16 +274,9 @@ async fn open(
 	let notifications = from_device.notify().await?;
 
 	// Pump notifications in and writes out, so the transport sees an ordinary byte stream.
-	let (mut inbound_tx, inbound_rx) = mpsc::channel(64);
+	let (inbound_tx, inbound_rx) = mpsc::channel(64);
 	let (outbound_tx, mut outbound_rx) = mpsc::channel::<Vec<u8>>(64);
-	tokio::spawn(async move {
-		let mut notifications = std::pin::pin!(notifications);
-		while let Some(chunk) = notifications.next().await {
-			if inbound_tx.try_send(chunk).is_err() {
-				break;
-			}
-		}
-	});
+	tokio::spawn(forward(notifications, inbound_tx));
 	tokio::spawn(async move {
 		while let Some(chunk) = outbound_rx.next().await {
 			if to_device.write(&chunk).await.is_err() {
@@ -497,5 +522,26 @@ fn show(value: &serde_json::Value, kind: &str, unit: Option<&str>) -> String {
 				None => number,
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn a_burst_larger_than_the_channel_all_arrives_in_order() {
+		let burst: Vec<Vec<u8>> = (0..=255u8).map(|n| vec![n]).collect();
+		let (inbound_tx, mut inbound_rx) = mpsc::channel(1);
+		let forwarding = tokio::spawn(forward(futures::stream::iter(burst.clone()), inbound_tx));
+
+		// Read nothing until the whole burst is on offer, as a reader busy with the handshake would.
+		tokio::task::yield_now().await;
+		let mut received = Vec::new();
+		while let Some(chunk) = inbound_rx.next().await {
+			received.push(chunk);
+		}
+		forwarding.await.expect("forwarding panicked");
+		assert_eq!(received, burst);
 	}
 }
