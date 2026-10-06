@@ -227,12 +227,6 @@ dd .link { margin-left: 8px; }
 .input-show .link { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
 .recent li .code { display: block; }
 
-/* The phone's own keyboard, up while a field has focus. */
-.kbd { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 4px 30px; background: #d1d0cc; border-radius: 0 0 36px 36px; }
-.kbd .r { display: flex; justify-content: center; gap: 5px; margin-bottom: 8px; }
-.kbd span { flex: 0 0 auto; width: 26px; height: 36px; background: #fff; border-radius: 5px; display: grid; place-items: center; font-size: 0.85rem; box-shadow: 0 1px 0 rgba(28, 25, 23, 0.3); }
-.kbd span.wide { width: 40px; background: #b4b2ad; }
-.kbd span.space { width: 150px; }
 .phone input.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* A step that went wrong: the same pale red circle as a service not running on the Status screen. */
@@ -248,7 +242,7 @@ dd .link { margin-left: 8px; }
 <!-- ============================================================ -->
 <div class="lane">
 <h2 class="lane-title">1. Connect to the Iti</h2>
-<p class="lane-sub">Three steps, shown at the top of every screen, each with one thing to do. Step 1 is scanning the code, or typing it. Once connected, the operator lands on the Status screen.</p>
+<p class="lane-sub">Three steps, shown at the top of every screen, each with one thing to do. Step 1 is scanning the code. Technical staff can paste the code text under Advanced instead. Once connected, the operator lands on the Status screen.</p>
 <div class="flow">
 <div class="step">
 <p class="step-label"><b>Step 1</b>. First visit.</p>
@@ -260,8 +254,8 @@ dd .link { margin-left: 8px; }
 <p class="lead">Scan the code on your Iti</p>
 <p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
 <button class="block">Open camera</button>
-<div class="links"><button class="link">Type the code instead</button></div>
 </section>
+<div class="advanced"><div class="summary">Advanced</div></div>
 </div>
 </div>
 <div class="arrow">Tap Open camera<span class="glyph">&rarr;</span></div>
@@ -279,26 +273,30 @@ dd .link { margin-left: 8px; }
 </section>
 </div>
 </div>
-<div class="arrow dashed">Or tap Type the code instead<span class="glyph">&#8618;</span></div>
+<div class="arrow dashed">Or open Advanced and paste the code text<span class="glyph">&#8618;</span></div>
 <div class="step">
-<p class="step-label"><b>Step 1</b>, the other way. Typing the code.</p>
+<p class="step-label"><b>Step 1</b>, for technical staff. Pasting the code text.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 <div class="heading title"><h1>Tamanu Iti</h1></div>
 <ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
 <section>
-<p class="lead">Type the code for your Iti</p>
-<p class="muted">You don&#39;t need to type the spaces or dashes.</p>
-<label>Code</label>
-<input type="text" value="AEAA CACQ DAQC QMBY IBEF AWDA NBYH" class="focus" style="font-family:ui-monospace,monospace;font-size:0.9rem">
-
-<button class="block" style="margin-top:12px">Continue</button>
-<div class="links"><button class="link">Use the camera instead</button></div>
+<p class="lead">Scan the code on your Iti</p>
+<p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
+<button class="block">Open camera</button>
 </section>
-<div class="kbd" aria-hidden="true"><div class="r"><span>Q</span><span>W</span><span>E</span><span>R</span><span>T</span><span>Y</span><span>U</span><span>I</span><span>O</span><span>P</span></div><div class="r"><span>A</span><span>S</span><span>D</span><span>F</span><span>G</span><span>H</span><span>J</span><span>K</span><span>L</span></div><div class="r"><span class="wide">&#8679;</span><span>Z</span><span>X</span><span>C</span><span>V</span><span>B</span><span>N</span><span>M</span><span class="wide">&#9003;</span></div><div class="r"><span class="wide">123</span><span class="space">space</span><span class="wide">go</span></div></div>
+<div class="advanced open">
+<div class="summary">Advanced</div>
+<div class="inside">
+<label style="margin:0">QR code text</label>
+<input type="text" value="BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER" class="focus" placeholder="BLITI:..." style="font-family:ui-monospace,monospace;font-size:0.8rem">
+<p class="muted" style="margin:0">Paste the text from a decoded QR code.</p>
+<button>Use</button>
 </div>
 </div>
-<div class="arrow">Code scanned or typed<span class="glyph">&rarr;</span></div>
+</div>
+</div>
+<div class="arrow">Code scanned or pasted<span class="glyph">&rarr;</span></div>
 <div class="step">
 <p class="step-label"><b>Step 2</b>. Says which device to choose.</p>
 <div class="phone">
@@ -414,8 +412,8 @@ dd .link { margin-left: 8px; }
 <p class="lead">Or connect to a different Iti</p>
 <p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
 <button class="block">Open camera</button>
-<div class="links"><button class="link">Type the code instead</button></div>
 </section>
+<div class="advanced"><div class="summary">Advanced</div></div>
 </div>
 </div>
 </div>
