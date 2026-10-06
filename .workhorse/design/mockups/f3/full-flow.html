@@ -116,7 +116,6 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 /* Set-up tasks. */
 .tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .tasks button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-.tasks button.tapped { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .tasks .body { flex: 1 1 auto; min-width: 0; }
 .tasks .name { display: block; font-weight: 600; }
 .tasks .now { color: var(--muted); font-size: 0.85rem; }
@@ -124,19 +123,19 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 
 /* Advanced. */
 .advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
-.advanced .summary { padding: 14px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.advanced .summary { display: flex; align-items: center; justify-content: space-between; padding: 14px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.advanced .summary::after { content: ""; width: 7px; height: 7px; margin: -4px 4px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+.advanced.open .summary::after { margin-top: 4px; transform: rotate(-135deg); }
 .advanced.open .summary { border-bottom: 1px solid var(--line); }
 .advanced .inside { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
 .advanced .inside button { width: 100%; }
-.advanced .inside button.tapped { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* Wifi. */
-.networks { list-style: none; margin: 0; padding: 0; }
-.networks li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
-.networks li:first-child { border-top: 0; padding-top: 0; }
-.networks li.tapped .name { color: var(--accent); font-weight: 600; }
-.networks .name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.networks .signal { color: var(--muted); font-size: 0.85rem; }
+.networks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.networks button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.networks .name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.networks .signal { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; }
+.networks .signal svg { display: block; width: 16px; height: 12px; fill: currentColor; }
 .current .name { font-weight: 600; }
 
 /* Share. */
@@ -549,7 +548,7 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Set up</h2>
 <ul class="tasks">
-<li><button class="tapped"><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
 <li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 </section>
@@ -566,9 +565,9 @@ dd .link { margin-left: 8px; }
 <p class="lead">Choose a wifi network</p>
 <p class="muted">The Iti is online by cable, so wifi is optional.</p>
 <ul class="networks">
-<li class="tapped"><span class="name">Clinic-Staff</span><span class="signal">Strong</span></li>
-<li><span class="name">Clinic-Guest</span><span class="signal">Strong</span></li>
-<li><span class="name">HealthPost-4G</span><span class="signal">Weak</span></li>
+<li><button><span class="name">Clinic-Staff</span><span class="signal"><svg viewBox="0 0 16 12" aria-hidden="true"><rect x="0.0" y="9" width="3" height="3" rx="0.8"/><rect x="4.2" y="6" width="3" height="6" rx="0.8"/><rect x="8.4" y="3" width="3" height="9" rx="0.8"/><rect x="12.6" y="0" width="3" height="12" rx="0.8"/></svg>Strong</span><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="name">Clinic-Guest</span><span class="signal"><svg viewBox="0 0 16 12" aria-hidden="true"><rect x="0.0" y="9" width="3" height="3" rx="0.8"/><rect x="4.2" y="6" width="3" height="6" rx="0.8"/><rect x="8.4" y="3" width="3" height="9" rx="0.8"/><rect x="12.6" y="0" width="3" height="12" rx="0.8"/></svg>Strong</span><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="name">HealthPost-4G</span><span class="signal"><svg viewBox="0 0 16 12" aria-hidden="true"><rect x="0.0" y="9" width="3" height="3" rx="0.8"/><rect x="4.2" y="6" width="3" height="6" rx="0.8" opacity="0.25"/><rect x="8.4" y="3" width="3" height="9" rx="0.8" opacity="0.25"/><rect x="12.6" y="0" width="3" height="12" rx="0.8" opacity="0.25"/></svg>Weak</span><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 <div class="links"><button class="link">Refresh</button><button class="link">My network isn&#39;t listed</button></div>
 </section>
@@ -789,7 +788,7 @@ dd .link { margin-left: 8px; }
 				<div class="advanced open">
 					<div class="summary">Advanced</div>
 					<div class="inside">
-						<button class="secondary tapped">All readings</button>
+						<button class="secondary">All readings</button>
 						<button class="secondary">Network settings</button>
 						<button class="secondary">Power and battery</button>
 					</div>
