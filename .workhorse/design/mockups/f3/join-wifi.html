@@ -1,0 +1,160 @@
+<!-- spec: network/screen.md -->
+<!-- The Wifi screen for the Tamanu Iti redesign: the simplified single-network join (task 1). An
+     operator sees the current wifi, scans, picks one and types the password. Priority ordering and
+     enterprise networks stay in Advanced. Variables, type and component shapes are taken from
+     crates/bliti-web/app/src/styles.css; only what this card adds is authored here. -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wifi</title>
+<style>
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+input {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0 0 4px; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.good { color: var(--good); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading.title { margin-bottom: 16px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The networks a scan heard, strongest first, one tappable row each. Signal reads from a small
+   glyph so the list scans at a glance; the lock marks the ones that need a password. */
+.networks { list-style: none; margin: 0; padding: 0; }
+.networks li { border-top: 1px solid var(--line); }
+.networks li:first-child { border-top: 0; }
+.networks button.pick {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	color: inherit;
+	border: 0;
+	border-radius: 0;
+	padding: 12px 0;
+	min-height: 0;
+}
+.networks .name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.networks .lock { flex: 0 0 auto; color: var(--muted); font-size: 0.85rem; }
+.networks .signal { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.current { display: flex; align-items: baseline; gap: 8px; }
+.current .name { font-weight: 600; }
+.scanning { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; margin: 0 0 12px; }
+.spinner { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* The password step: the one network picked, its field, and the join. Takes the list's place so it
+   reads as the answer to the row tapped. */
+.picked .name { font-weight: 600; }
+.picked { margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<main>
+	<div class="heading title">
+		<h1>Wifi</h1>
+		<button class="secondary small">Back</button>
+	</div>
+
+	<section>
+		<h2>Current</h2>
+		<p class="current"><span class="name">Not using wifi</span></p>
+		<p class="muted">The Iti is online through the wired network. Join a wifi network to use it as well or instead.</p>
+	</section>
+
+	<section>
+		<div class="heading" style="margin-bottom:12px"><h2 style="margin:0">Networks</h2><button class="link">Rescan</button></div>
+		<p class="scanning"><span class="spinner" aria-hidden="true"></span>Scanning&hellip;</p>
+		<ul class="networks">
+			<li>
+				<button class="pick">
+					<span class="name">Clinic-Staff</span>
+					<span class="lock" aria-hidden="true">&#128274;</span>
+					<span class="signal">Strong</span>
+				</button>
+			</li>
+			<li>
+				<button class="pick">
+					<span class="name">Clinic-Guest</span>
+					<span class="lock" aria-hidden="true">&#128274;</span>
+					<span class="signal">Strong</span>
+				</button>
+			</li>
+			<li>
+				<button class="pick">
+					<span class="name">HealthPost-4G</span>
+					<span class="lock" aria-hidden="true">&#128274;</span>
+					<span class="signal">Weak</span>
+				</button>
+			</li>
+		</ul>
+		<p style="margin:12px 0 0"><button class="link">Join a hidden network</button></p>
+	</section>
+
+	<!-- The password step, shown once a network is picked (in place of the list above). -->
+	<section>
+		<h2>Join Clinic-Staff</h2>
+		<p class="picked"><span class="name">Clinic-Staff</span> <span class="muted">&middot; WPA2</span></p>
+		<label for="pw">Password</label>
+		<input id="pw" type="text" value="" placeholder="Network password" autocomplete="off">
+		<div class="row" style="margin-top:12px">
+			<button>Join</button>
+			<button class="secondary">Cancel</button>
+		</div>
+	</section>
+</main>
+</body>
+</html>

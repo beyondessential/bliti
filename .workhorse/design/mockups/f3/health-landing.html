@@ -1,0 +1,201 @@
+<!-- spec: device-view.md -->
+<!-- The connected-device landing for the Tamanu Iti redesign: an at-a-glance health overview
+     (internet, Tailscale, Tamanu) with per-service restart, the two common set-up tasks beneath,
+     and the existing technical screens gathered under Advanced. Variables, type and component shapes
+     are taken from crates/bliti-web/app/src/styles.css so this sits inside the screen an operator
+     already knows; only what this card adds is authored here. -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tamanu Iti status</title>
+<style>
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading.title { margin-bottom: 16px; }
+.heading.title h1 { margin: 0; }
+.heading .actions { display: flex; gap: 8px; }
+.software { margin: 4px 0 0; }
+
+/* The health overview. One row per thing that must be running, each reading at a glance from its
+   mark: a green tick when it is well, a red cross when it is not. The detail line carries what the
+   operator came to read (the Tailscale device name, the Tamanu versions) and the restart sits on
+   the row it restarts, so a problem and its remedy are never apart. */
+.health { list-style: none; margin: 0; padding: 0; }
+.health li { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.health li:first-child { border-top: 0; padding-top: 0; }
+.health .mark {
+	flex: 0 0 auto;
+	width: 1.6rem;
+	height: 1.6rem;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.95rem;
+	line-height: 1;
+}
+.health .mark.good { background: #e8f5ec; color: var(--good); }
+.health .mark.bad { background: #fbeaea; color: var(--bad); }
+.health .mark.good::before { content: "\2713"; }
+.health .mark.bad::before { content: "\2717"; }
+.health .body { flex: 1 1 auto; min-width: 0; }
+.health .name { display: block; font-weight: 600; }
+.health .detail { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.health .detail .sep { margin: 0 6px; opacity: 0.5; }
+.health button { flex: 0 0 auto; align-self: center; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
+
+/* The set-up tasks: the two things an operator comes to do, each a full-width target carrying what
+   it does and where it stands now, so the screen answers "is the wifi on?" without being opened. */
+.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tasks button {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	color: inherit;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 14px 16px;
+}
+.tasks .body { flex: 1 1 auto; min-width: 0; }
+.tasks .name { display: block; font-weight: 600; }
+.tasks .now { color: var(--muted); font-size: 0.9rem; }
+.tasks .chevron { flex: 0 0 auto; color: var(--muted); }
+
+/* Advanced gathers the screens the redesign demotes: the full readings view, the network editor,
+   and reboot and power off. A plain disclosure, closed by default, so a facility operator never
+   meets it by accident and a field technician finds it exactly where they expect. */
+details.advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+details.advanced > summary { padding: 16px; cursor: pointer; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); list-style: none; }
+details.advanced > summary::-webkit-details-marker { display: none; }
+details.advanced[open] > summary { border-bottom: 1px solid var(--line); }
+details.advanced .inside { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+details.advanced .inside button { width: 100%; }
+</style>
+</head>
+<body>
+<main>
+	<div class="heading title">
+		<div>
+			<h1>clinic-iti-07</h1>
+			<p class="muted software">Tamanu Iti &middot; Raspberry Pi 5 &middot; Ubuntu 26.04</p>
+		</div>
+		<div class="actions">
+			<button class="secondary small">Disconnect</button>
+		</div>
+	</div>
+
+	<section>
+		<h2>Status</h2>
+		<ul class="health">
+			<li>
+				<span class="mark good" aria-hidden="true"></span>
+				<div class="body">
+					<span class="name">Online</span>
+					<span class="detail">Connected to the internet through the wired network.</span>
+				</div>
+			</li>
+			<li>
+				<span class="mark good" aria-hidden="true"></span>
+				<div class="body">
+					<span class="name">Tailscale connected</span>
+					<span class="detail">Device name <strong>clinic-iti-07</strong></span>
+				</div>
+				<button class="secondary">Restart</button>
+			</li>
+			<li>
+				<span class="mark good" aria-hidden="true"></span>
+				<div class="body">
+					<span class="name">Tamanu running</span>
+					<span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span>
+				</div>
+				<button class="secondary">Restart</button>
+			</li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>Set up</h2>
+		<ul class="tasks">
+			<li>
+				<button>
+					<div class="body">
+						<span class="name">Wifi</span>
+						<span class="now">Using the wired network. No wifi joined.</span>
+					</div>
+					<span class="chevron" aria-hidden="true">&rsaquo;</span>
+				</button>
+			</li>
+			<li>
+				<button>
+					<div class="body">
+						<span class="name">Share wifi to other devices</span>
+						<span class="now">On &middot; <strong>Clinic-Iti</strong> &middot; 3 devices joined</span>
+					</div>
+					<span class="chevron" aria-hidden="true">&rsaquo;</span>
+				</button>
+			</li>
+		</ul>
+	</section>
+
+	<details class="advanced">
+		<summary>Advanced</summary>
+		<div class="inside">
+			<button class="secondary">All device readings</button>
+			<button class="secondary">Network settings</button>
+			<button class="secondary">Battery</button>
+			<button class="secondary">Reboot or power off</button>
+		</div>
+	</details>
+</main>
+</body>
+</html>

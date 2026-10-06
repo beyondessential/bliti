@@ -11,7 +11,7 @@ This spec says how ours applies them, and binds nothing else that controls a bli
 
 ## What it holds
 
-The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
+The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md), which it is reached from under Advanced, beside it.
 
 The application MUST hold the Control screen's sections in the order network, power, battery.
 

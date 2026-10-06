@@ -165,6 +165,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `board-revision` | `text` | — | the board's revision, or the machine's version |
 | `os` | `text` | — | the operating system and its version |
 | `kernel` | `text` | — | the kernel version |
+| `service` | `text` | `service` | one entry per service the device runs; its version, or the identity the device is reached by through it |
 | `last-boot` | `datetime` | — | the instant the device booted |
 | `network-configuration` | `text` | — | whether the network runs the recorded configuration, `recorded`, or one being tried, `provisional` |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
@@ -203,6 +204,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `security` | — | how a wireless link is secured |
 | `channel` | `number`, `band`, `width` | the channel a wireless link is on; `band` is named as [HOT](network/hotspot.md) names bands, and `width` is in megahertz |
 | `passphrase` | — | the secret a client joins the hotspot with |
+| `service` | `name` | which service a `service` fact is about; `name` tells services apart |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
 | `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
@@ -251,6 +253,24 @@ The networks a device joins, and the hotspot it runs, are configured under [NET]
 
 > [!NOTE]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.
+
+## Services
+
+A device reports the services it runs as `service` facts, one per service, told apart by the `service` trait.
+
+A device MUST name each service it reports in the `name` member of its `service` trait, by a stable name a reader recognises it by, and MUST NOT rely on the name's meaning being understood to report the service.
+
+A device MUST report a `service` as `passed` while the service is running and well, as `failed` where the service is present but not running or, for a service that reaches a network, present but not connected, and as `broken` where checking it errored.
+
+A device MUST carry as a `service`'s value, where its `status` gives it one, a string identifying the running service: the version it runs, or the name the device is reached by through it where the service gives the device one and no version is the more useful of the two.
+
+A device MUST omit a `service` for a service it does not run, and MUST report one it has reported and no longer runs as `ended`, as every entry is ended.
+
+The services a client restarts are controlled under [SVC](control/services.md).
+
+> [!NOTE]
+> The names a device reports services by are the device's own, as the overlay's name is: a reader renders a name it recognises in its own words and one it does not generically, exactly as it renders any other catalogue entry.
+> A service restarting is seen on the feed as the entry leaving and returning, which is how a client watching knows the restart it asked for under [SVC](control/services.md) is under way and then done.
 
 ## Power source and battery
 

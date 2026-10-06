@@ -1,0 +1,141 @@
+<!-- spec: network/screen.md -->
+<!-- The Share screen for the Tamanu Iti redesign: turning the hotspot on and off, and reading or
+     changing its credentials (tasks 2 and 3 merged). Variables, type and component shapes are taken
+     from crates/bliti-web/app/src/styles.css; only what this card adds is authored here. -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share wifi</title>
+<style>
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #1d4ed8;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.good { color: var(--good); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading.title { margin-bottom: 16px; }
+
+/* The switch is the whole point of the screen: whether other devices can join. Large, labelled by
+   its state, so there is no doubt which way is on. */
+.toggle { display: flex; align-items: center; gap: 12px; }
+.toggle .body { flex: 1 1 auto; }
+.toggle .name { display: block; font-weight: 600; }
+.toggle .sub { color: var(--muted); font-size: 0.9rem; }
+.switch { flex: 0 0 auto; position: relative; width: 52px; height: 32px; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track { position: absolute; inset: 0; background: #cbd5e1; border-radius: 999px; transition: background 0.15s; }
+.switch .knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; background: #fff; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: left 0.15s; }
+.switch input:checked + .track { background: var(--good); }
+.switch input:checked + .track + .knob { left: 23px; }
+
+/* How the hotspot is running now: enough for an operator to tell whether their own connection is
+   affected, no more. */
+.running { margin: 12px 0 0; }
+
+/* The credentials to read aloud or scan. The name and password sit in a definition list like the
+   rest of the client's detail; the password reveals on request. */
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: baseline; }
+dt { color: var(--muted); font-size: 0.9rem; }
+dd { margin: 0; }
+dd.secret { font-family: ui-monospace, monospace; }
+dd .reveal { margin-left: 10px; }
+
+.join { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 16px; }
+.join .qr { width: 12rem; max-width: 100%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: var(--muted); font-size: 0.8rem; background: var(--surface); }
+.join .caption { font-size: 0.85rem; color: var(--muted); }
+
+/* The note shown when turning sharing on would take the Iti's own wifi connection off, because one
+   radio cannot do both. Reads as a consequence, not an error. */
+.bar-state {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 8px;
+	padding: 12px 16px;
+	margin-top: 12px;
+}
+.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+	<div class="heading title">
+		<h1>Share wifi</h1>
+		<button class="secondary small">Back</button>
+	</div>
+
+	<section>
+		<h2>Sharing</h2>
+		<div class="toggle">
+			<div class="body">
+				<span class="name">Other devices can join</span>
+				<span class="sub">3 devices joined now</span>
+			</div>
+			<label class="switch">
+				<input type="checkbox" checked aria-label="Other devices can join">
+				<span class="track"></span>
+				<span class="knob"></span>
+			</label>
+		</div>
+		<p class="muted running">Running on the wifi radio. The Iti stays online through the wired network.</p>
+	</section>
+
+	<section>
+		<h2>Credentials</h2>
+		<dl>
+			<dt>Network name</dt>
+			<dd><strong>Clinic-Iti</strong></dd>
+			<dt>Password</dt>
+			<dd class="secret">reef-otter-9471<button class="link reveal">Hide</button></dd>
+		</dl>
+		<div class="join">
+			<div class="qr" aria-hidden="true">QR</div>
+			<span class="caption">Scan with a phone camera to join</span>
+		</div>
+		<p style="margin:16px 0 0"><button class="secondary">Change name or password</button></p>
+	</section>
+</main>
+</body>
+</html>
