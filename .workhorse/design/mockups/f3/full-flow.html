@@ -236,6 +236,10 @@ dd .link { margin-left: 8px; }
 .kbd span.wide { width: 40px; background: #b4b2ad; }
 .kbd span.space { width: 150px; }
 .phone input.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* A step that went wrong: the same pale red circle as a service not running on the Status screen. */
+.lead.problem { display: flex; align-items: center; gap: 8px; }
+.alert { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #fbeaea; color: var(--bad); display: grid; place-items: center; font-size: 0.9rem; font-weight: 700; line-height: 1; }
 </style>
 </head>
 <body>
@@ -386,7 +390,7 @@ dd .link { margin-left: 8px; }
 <div class="heading title"><h1>Tamanu Iti</h1></div>
 <ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
 <section>
-<p class="lead">Your Iti wasn&#39;t found</p>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>Your Iti wasn&#39;t found</p>
 <p class="muted">Check it&#39;s switched on and nearby, then try again. Look for:</p>
 <span class="chip">AHOW2EZUD4343RQ</span>
 <button class="block" style="margin-top:4px">Try again</button>
