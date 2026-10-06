@@ -1,11 +1,12 @@
+<!-- spec: web-app.md -->
 <!-- spec: status-screen.md -->
 <!-- spec: network/wifi.md -->
 <!-- spec: network/share.md -->
-<!-- The whole Tamanu Iti flow on one canvas: one lane per task, each a run of phone frames joined by
+<!-- The whole Tamanu Iti flow on one canvas, from reaching the device to each task: one lane per task, each a run of phone frames joined by
      the tap that leads from one to the next. Inside the frames, variables, type and component shapes
      are taken from crates/bliti-web/app/src/styles.css, scoped under .phone so the canvas chrome
-     around them does not inherit them. The Info and Control frames are the shipped screens, reached
-     under Advanced. -->
+     around them does not inherit them. The connection frames and the Info and Control frames are the
+     shipped screens; the Bluetooth picker is the browser's own, drawn so it reads as not ours. -->
 <!DOCTYPE html>
 <html lang="en-AU">
 <head>
@@ -167,16 +168,202 @@ dd .link { margin-left: 8px; }
 .acts li > div { flex: 1 1 auto; }
 .acts .name { display: block; }
 .acts button { flex: 0 0 auto; min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
+
+/* The shipped screen for reading a code and finding the device. */
+.code { font-family: ui-monospace, monospace; font-size: 0.8rem; word-break: break-all; }
+.offline { color: var(--bad); font-size: 0.85rem; align-self: center; }
+.row.fill > * { flex: 1 1 auto; }
+.row.fill input { flex: 1 1 60%; width: auto; }
+.device-name { display: block; margin: 0 0 4px; }
+.recent .code { color: var(--muted); font-size: 0.8rem; }
+.camera { width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 6px; margin-top: 10px; display: grid; place-items: center; }
+.camera .seen { width: 42%; color: #e7e5e0; opacity: 0.9; transform: rotate(-4deg); }
+
+/* The browser's Bluetooth picker, over a dimmed page. Drawn in the browser's grey, not the app's
+   palette, because it is not the app's to style. */
+.phone.overlaid { position: relative; overflow: hidden; }
+.scrim { position: absolute; inset: 0; background: rgba(28, 25, 23, 0.45); }
+.chooser { position: absolute; left: 14px; right: 14px; top: 110px; background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); font-family: Roboto, system-ui, sans-serif; color: #202124; }
+.chooser .ask { font-size: 1rem; margin: 0 0 12px; }
+.chooser ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.chooser li { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; }
+.chooser li.picked { background: #e8eaed; }
+.chooser .scanning { font-size: 0.8rem; color: #5f6368; margin: 0 0 12px; }
+.chooser .buttons { display: flex; justify-content: flex-end; gap: 16px; }
+.chooser .buttons span { color: #1a73e8; font-size: 0.9rem; font-weight: 500; }
+.chooser .buttons span.dim { color: #5f6368; }
 </style>
 </head>
 <body>
 
 <h1 class="canvas-title">Tamanu Iti screen flow</h1>
-<p class="canvas-sub">Every lane starts from the Status screen, which opens when the Iti connects.</p>
+<p class="canvas-sub">Lane 1 is how an operator reaches an Iti. Every other lane starts from the Status screen it lands on.</p>
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">1. Check everything is running</h2>
+	<h2 class="lane-title">1. Connect to the Iti</h2>
+	<p class="lane-sub">The screens as they ship today. Once the device is reached, the operator lands on the new Status screen.</p>
+	<div class="flow">
+
+		<div class="step">
+			<p class="step-label"><b>Landing</b>. Opening the app for the first time.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type its text.</p>
+					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
+					<div class="row fill" style="margin-top:8px"><button class="secondary">Scan with camera</button></div>
+				</section>
+			</div>
+		</div>
+
+		<div class="arrow">Tap Scan with camera<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Scanning</b>. Pointed at the code on the Iti.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type its text.</p>
+					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
+					<div class="row fill" style="margin-top:8px"><button class="secondary">Stop the camera</button></div>
+					<div class="camera"><svg class="seen" viewBox="-2 -2 29 29" aria-hidden="true" shape-rendering="crispEdges"><rect fill="none" x="-2" y="-2" width="29" height="29" fill="#fff"/><g fill="currentColor"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="0" y="21" width="1" height="1"/><rect x="0" y="22" width="1" height="1"/><rect x="0" y="23" width="1" height="1"/><rect x="0" y="24" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="1" y="24" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="2" y="24" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="3" y="21" width="1" height="1"/><rect x="3" y="22" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="4" y="21" width="1" height="1"/><rect x="4" y="22" width="1" height="1"/><rect x="4" y="24" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="5" y="18" width="1" height="1"/><rect x="5" y="24" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="6" y="21" width="1" height="1"/><rect x="6" y="22" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="22" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="18" y="1" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="16" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="21" y="24" width="1" height="1"/><rect x="22" y="0" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="22" y="3" width="1" height="1"/><rect x="22" y="4" width="1" height="1"/><rect x="22" y="6" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="0" width="1" height="1"/><rect x="23" y="6" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="20" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="0" width="1" height="1"/><rect x="24" y="1" width="1" height="1"/><rect x="24" y="2" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="24" y="5" width="1" height="1"/><rect x="24" y="6" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></g></svg></div>
+				</section>
+			</div>
+		</div>
+
+		<div class="arrow">Code read<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Code read</b>. Says which device to expect.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code read</h2>
+					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
+					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
+					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
+					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
+				</section>
+			</div>
+		</div>
+
+		<div class="arrow">Tap Find the device<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Bluetooth picker</b>. The browser's, not the app's.</p>
+			<div class="phone overlaid">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code read</h2>
+					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
+					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
+					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
+					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
+				</section>
+				<div class="scrim"></div>
+				<div class="chooser" role="dialog">
+					<p class="ask">bliti wants to pair</p>
+					<ul><li class="picked">AHOW2EZUD4343RQ</li></ul>
+					<p class="scanning">Searching for devices&hellip;</p>
+					<div class="buttons"><span class="dim">Cancel</span><span>Pair</span></div>
+				</div>
+			</div>
+		</div>
+
+		<div class="arrow">Pick it, tap Pair<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Connecting</b>. Opening the secure channel.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code read</h2>
+					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
+					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
+					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
+					<div class="row fill" style="margin-top:12px"><button disabled style="background:var(--muted);opacity:0.5">Find the device</button><button class="secondary">Use another code</button></div>
+					<p class="muted" style="margin-top:10px">Looking for the device...</p>
+				</section>
+			</div>
+		</div>
+
+		<div class="arrow">Channel open<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Status</b>. The new landing. Lanes 2 to 5 start here.</p>
+			<div class="phone">
+				<div class="heading title">
+					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+					<button class="secondary small">Disconnect</button>
+				</div>
+				<section>
+					<h2>Status</h2>
+					<ul class="health">
+						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+					</ul>
+				</section>
+				<section>
+					<h2>Set up</h2>
+					<ul class="tasks">
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not using wifi</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+					</ul>
+				</section>
+				<div class="advanced"><div class="summary">Advanced</div></div>
+			</div>
+		</div>
+
+		<div class="gap"></div>
+		<div class="arrow dashed">Or, from the picker, if the Iti isn't listed<span class="glyph">&#8618;</span></div>
+
+		<div class="step branch">
+			<p class="step-label"><b>Not found</b>. Picker closed with nothing picked.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code read</h2>
+					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
+					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
+					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
+					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
+					<p class="muted" style="margin-top:10px">If your device was not in the list, check it is on and nearby.</p>
+				</section>
+			</div>
+		</div>
+
+		<div class="gap"></div>
+		<div class="arrow dashed">Next time, the Iti is under Recent<span class="glyph">&#8618;</span></div>
+
+		<div class="step branch">
+			<p class="step-label"><b>Landing, returning</b>. Use skips scanning; then Find the device as above.</p>
+			<div class="phone">
+				<div class="heading title"><h1>bliti</h1></div>
+				<section>
+					<h2>QR code</h2>
+					<p class="muted">Scan the code on the device, or type its text.</p>
+					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
+					<div class="row fill" style="margin-top:8px"><button class="secondary">Scan with camera</button></div>
+				</section>
+				<section>
+					<h2>Recent</h2>
+					<ul class="acts recent">
+						<li><div><span class="name">clinic-iti-07</span><span class="code">&hellip;7EER</span></div><button class="secondary">Use</button></li>
+					</ul>
+				</section>
+			</div>
+		</div>
+
+	</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="lane">
+	<h2 class="lane-title">2. Check everything is running</h2>
 	<p class="lane-sub">The operator sees a problem and fixes it without leaving the screen.</p>
 	<div class="flow">
 
@@ -286,7 +473,7 @@ dd .link { margin-left: 8px; }
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">2. Connect the Iti to a wifi network</h2>
+	<h2 class="lane-title">3. Connect the Iti to a wifi network</h2>
 	<p class="lane-sub">One network. A join is tried first and only kept once the operator says so.</p>
 	<div class="flow">
 
@@ -424,7 +611,7 @@ dd .link { margin-left: 8px; }
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">3. Share the Iti's wifi with other devices</h2>
+	<h2 class="lane-title">4. Share the Iti's wifi with other devices</h2>
 	<p class="lane-sub">Turning sharing on, seeing the password, and changing it. Here the Iti has just joined Clinic-Staff, so its one radio has to stop using that network to share.</p>
 	<div class="flow">
 
@@ -542,7 +729,7 @@ dd .link { margin-left: 8px; }
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">4. Advanced</h2>
+	<h2 class="lane-title">5. Advanced</h2>
 	<p class="lane-sub">The screens field staff already know, unchanged, one tap behind a closed disclosure.</p>
 	<div class="flow">
 
