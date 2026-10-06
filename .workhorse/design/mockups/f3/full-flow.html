@@ -231,6 +231,29 @@ dd .link { margin-left: 8px; }
 /* A step that went wrong: the same pale red circle as a service not running on the Status screen. */
 .lead.problem { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .alert { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #fbeaea; color: var(--bad); display: grid; place-items: center; font-size: 0.85rem; font-weight: 400; line-height: 1; }
+
+/* Network settings, as the shipped editor draws it. */
+.net .heading { margin-bottom: 8px; }
+.net .heading h2 { margin: 0; }
+.net .hint { margin: 0 0 8px; font-size: 0.8rem; }
+.order { list-style: none; margin: 0; padding: 0; }
+.order li { display: flex; align-items: baseline; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.order li:first-child { border-top: 0; }
+.order .grip { color: var(--muted); font-size: 0.9rem; }
+.order .what { flex: 1 1 auto; min-width: 0; }
+.order .name { display: block; }
+.order .kind { color: var(--muted); font-size: 0.8rem; }
+.order .state { font-size: 0.8rem; white-space: nowrap; }
+.order .state.good { color: var(--good); }
+.order .state.muted { color: var(--muted); }
+.pair { display: flex; gap: 8px; }
+.pair > * { flex: 1 1 0; }
+.pair > button { flex: 0 0 auto; }
+.phone .check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
+.phone .check input { width: auto; padding: 0; }
+.select { padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); }
+.phone .summary-link { margin-top: 12px; font-size: 0.85rem; color: var(--accent); }
+.phone button:disabled { opacity: 0.5; }
 </style>
 </head>
 <body>
@@ -776,17 +799,17 @@ dd .link { margin-left: 8px; }
 		<div class="arrow">All readings<span class="glyph">&rarr;</span></div>
 
 		<div class="step">
-			<p class="step-label"><b>Info</b>. Every reading, as today.</p>
+			<p class="step-label"><b>All readings</b>. Every reading, as today.</p>
 			<div class="phone">
 				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Info</h1><button class="secondary small">Back</button></div>
+				<div class="heading title"><h1>All readings</h1><button class="secondary small">Back</button></div>
 				<section style="padding-bottom:10px">
 					<h2>Device</h2>
 					<div class="device"><div class="name">clinic-iti-07</div><div class="sub muted">Raspberry Pi 5 Model B Rev 1.0 &middot; Ubuntu 26.04 &middot; 6.17.0</div></div>
 				</section>
 				<div class="tiles">
 					<div class="tile"><div class="label">Address</div><div class="value small">192.168.1.40<br>100.101.4.7</div></div>
-					<div class="tile"><div class="label">Wireless</div><div class="value small">Clinic-Staff</div></div>
+					<div class="tile"><div class="label">Wireless</div><div class="value small">&mdash;</div></div>
 					<div class="tile"><div class="label">Hotspot</div><div class="value small">Clinic-Iti</div></div>
 					<div class="tile"><div class="label">Hotspot clients</div><div class="value">3</div></div>
 					<div class="tile"><div class="label">Processor</div><div class="value">12%</div></div>
@@ -798,17 +821,52 @@ dd .link { margin-left: 8px; }
 		</div>
 
 		<div class="gap"></div>
+		<div class="arrow">Network settings<span class="glyph">&rarr;</span></div>
+
+		<div class="step">
+			<p class="step-label"><b>Network settings</b>. The existing editor.</p>
+			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+				<div class="heading title"><h1>Network settings</h1><button class="secondary small">Back</button></div>
+				<section class="net">
+					<div class="heading"><h2>Connections</h2><button class="secondary small">Add</button></div>
+					<p class="muted hint">Tried from the top. The device uses the first one that connects, and moves to another when that changes. Drag to reorder.</p>
+					<ul class="order">
+						<li><span class="grip">&#10303;</span><div class="what"><span class="name">eth0 automatic</span><span class="kind">Wired, eth0, DHCP</span></div><span class="state good">Default route</span></li>
+						<li><span class="grip">&#10303;</span><div class="what"><span class="name">Clinic-Staff</span><span class="kind">Wireless, WPA2/WPA3, off</span></div><span class="state muted">Off</span></li>
+					</ul>
+				</section>
+				<section class="net">
+					<div class="heading"><h2>Hotspot</h2><button class="secondary small">Turn off</button></div>
+					<label>SSID</label>
+					<input type="text" value="Clinic-Iti">
+					<label>Passphrase</label>
+					<div class="pair"><input type="text" value="reef-otter-9471"><button class="secondary">Generate</button></div>
+					<label class="check"><input type="checkbox" checked> Share upstream connection</label>
+					<label class="check"><input type="checkbox" checked> Keep clients isolated</label>
+					<p class="summary-link">Radio and addressing</p>
+				</section>
+				<section class="net">
+					<h2>Country</h2>
+					<div class="pair"><div class="select">New Zealand</div><button class="secondary">Scan</button></div>
+					<p class="muted hint">Sets which channels the radio may use.</p>
+				</section>
+				<section class="bar-state">
+					<p><strong>Saved.</strong> The device is on its saved configuration.</p>
+					<div class="row"><button disabled>Apply</button><button class="secondary" disabled>Reset</button></div>
+				</section>
+			</div>
+		</div>
+
+
+		<div class="gap"></div>
 		<div class="arrow">Power and battery<span class="glyph">&rarr;</span></div>
 
 		<div class="step">
-			<p class="step-label"><b>Control</b>. Reboot, power off, battery.</p>
+			<p class="step-label"><b>Power and battery</b>. Reboot, power off, battery.</p>
 			<div class="phone">
 				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Control</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Network</h2>
-					<button class="secondary">Network settings</button>
-				</section>
+				<div class="heading title"><h1>Power and battery</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Power</h2>
 					<ul class="acts">
@@ -823,9 +881,6 @@ dd .link { margin-left: 8px; }
 				</section>
 			</div>
 		</div>
-
-		<div class="gap"></div>
-		<div class="arrow dashed">Network settings opens the existing editor<span class="glyph">&rarr;</span></div>
 
 	</div>
 </div>

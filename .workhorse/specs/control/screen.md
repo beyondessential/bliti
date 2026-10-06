@@ -2,22 +2,20 @@
 id: CSCR
 ---
 
-# Control screen
+# Power and battery screen
 
-The screen an operator controls a device from: its network, through the screen of [NSCR](../network/screen.md), its power, through the acts of [CTL](power.md), and its battery's curves, through [CRV](../battery/curve.md), by our application.
+The screen an operator controls a device's power from, through the acts of [CTL](power.md), and its battery's curves, through [CRV](../battery/curve.md), by our application.
 
 [CTL](power.md) and [CRV](../battery/curve.md) bind every implementation.
 This spec says how ours applies them, and binds nothing else that controls a bliti device.
 
 ## What it holds
 
-The application MUST carry the Control screen's title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md), which it is reached from under Advanced, beside it.
+The application MUST title the screen Power and battery, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md), which it is reached from under Advanced, beside it.
 
-The application MUST hold the Control screen's sections in the order network, power, battery.
+The application MUST hold the screen's sections in the order power, battery.
 
-The application MUST offer the network configuration screen of [NSCR](../network/screen.md) from the Control screen, and MUST return the operator to the Control screen when they leave it.
-
-The application MUST open a power stream and a curve stream when the operator opens the Control screen, and MUST close both when they leave.
+The application MUST open a power stream and a curve stream when the operator opens the screen, and MUST close both when they leave.
 
 > [!NOTE]
 > A device older than the application skips `power` and `curve` as it skips anything else it does not recognise, and never answers. Leaving a section out until an answer arrives makes that device look like one with nothing to offer there, rather than one the application is forever waiting on.

@@ -14,12 +14,12 @@ This spec says how ours renders them, and binds nothing else that reads the same
 
 ## Title and actions
 
-The application MUST title the device view Info, and MUST offer beside that title the way back to the Status screen of [STAT](status-screen.md), which it is reached from under Advanced.
+The application MUST title the device view All readings, and MUST offer beside that title the way back to the Status screen of [STAT](status-screen.md), which it is reached from under Advanced.
 
 The application MUST carry the header naming the device beneath the title, under a heading of its own.
 
 > [!NOTE]
-> The Status screen, the device view, the Control screen and the network screen each carry their title in the same place, with their actions beside it, so moving between them keeps the operator at one level.
+> The Status screen, the device view, the power and battery screen and the network screen each carry their title in the same place, with their actions beside it, so moving between them keeps the operator at one level.
 
 ## Everything is rendered
 

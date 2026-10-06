@@ -9,6 +9,8 @@ The screen an operator configures a device from: the document of [NET](overview.
 [NET](overview.md) and [CFG](session.md) bind every implementation.
 This spec covers how ours handles them, and binds nothing else that configures a bliti device.
 
+The application MUST title the screen Network settings, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md), which it is reached from under Advanced, beside it.
+
 ## Editing is the application's own
 
 The application MUST hold the operator's edits itself, and MUST NOT propose a document until the operator asks it to.
