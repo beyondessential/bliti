@@ -35,24 +35,32 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .lane-title { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
 .lane-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 16px; }
 .flow { display: flex; flex-wrap: wrap; align-items: flex-start; row-gap: 32px; padding-bottom: 12px; }
-.step { flex: 0 0 auto; width: 340px; }
+.step { flex: 0 0 auto; width: 360px; }
 .step-label { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; min-height: 2.4em; }
 .step-label b { color: var(--text); }
-.step.branch .phone { border-style: dashed; }
-.arrow { flex: 0 0 auto; width: 96px; align-self: flex-start; margin-top: 160px; text-align: center; color: var(--muted); font-size: 0.75rem; line-height: 1.3; }
+.step.branch .phone { outline: 2px dashed #a8a29e; outline-offset: 8px; }
+.arrow { flex: 0 0 auto; width: 96px; align-self: flex-start; margin-top: 200px; text-align: center; color: var(--muted); font-size: 0.75rem; line-height: 1.3; }
 .arrow .glyph { display: block; font-size: 1.5rem; color: var(--accent); line-height: 1; margin-top: 4px; }
 .arrow.dashed .glyph { color: var(--muted); }
 .gap { flex: 0 0 auto; width: 40px; }
 
-/* A phone frame. Everything inside is the application. */
+/* A phone. The bezel, status bar and home indicator are the device's; everything between them is
+   the application. Tall enough to read as a phone, and taller where a screen scrolls. */
 .phone {
+	position: relative;
 	background: var(--page);
-	border: 1px solid #d6d3cc;
-	border-radius: 20px;
-	padding: 16px;
-	box-shadow: 0 1px 3px rgba(28, 25, 23, 0.08);
+	border: 10px solid #1c1917;
+	border-radius: 46px;
+	padding: 0 14px 34px;
+	min-height: 720px;
+	box-shadow: 0 0 0 1px #3f3a36, 0 12px 28px rgba(28, 25, 23, 0.18);
 	font-size: 15px;
 }
+.phone::after { content: ""; position: absolute; left: 50%; bottom: 9px; width: 120px; height: 5px; margin-left: -60px; border-radius: 3px; background: #1c1917; }
+.statusbar { position: relative; display: flex; align-items: center; justify-content: space-between; height: 46px; margin: 0 -14px 6px; padding: 4px 26px 0; font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.statusbar .island { position: absolute; left: 50%; top: 10px; width: 96px; height: 28px; margin-left: -48px; border-radius: 14px; background: #1c1917; }
+.statusbar .icons { display: flex; align-items: center; gap: 5px; }
+.statusbar svg { display: block; height: 12px; width: auto; fill: currentColor; }
 .phone h1 { font-size: 1.2rem; margin: 0; }
 .phone section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
 .phone h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
@@ -181,9 +189,9 @@ dd .link { margin-left: 8px; }
 
 /* The browser's Bluetooth picker, over a dimmed page. Drawn in the browser's grey, not the app's
    palette, because it is not the app's to style. */
-.phone.overlaid { position: relative; overflow: hidden; }
-.scrim { position: absolute; inset: 0; background: rgba(28, 25, 23, 0.45); }
-.chooser { position: absolute; left: 14px; right: 14px; top: 110px; background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); font-family: Roboto, system-ui, sans-serif; color: #202124; }
+.phone.overlaid { overflow: hidden; }
+.scrim { position: absolute; inset: 0; border-radius: 36px; background: rgba(28, 25, 23, 0.45); }
+.chooser { position: absolute; left: 14px; right: 14px; top: 150px; background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); font-family: Roboto, system-ui, sans-serif; color: #202124; }
 .chooser .ask { font-size: 1rem; margin: 0 0 12px; }
 .chooser ul { list-style: none; margin: 0 0 6px; padding: 0; }
 .chooser li { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; }
@@ -208,6 +216,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Landing</b>. Opening the app for the first time.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code</h2>
@@ -223,6 +232,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Scanning</b>. Pointed at the code on the Iti.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code</h2>
@@ -239,6 +249,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Code read</b>. Says which device to expect.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code read</h2>
@@ -255,6 +266,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Bluetooth picker</b>. The browser's, not the app's.</p>
 			<div class="phone overlaid">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code read</h2>
@@ -278,6 +290,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Connecting</b>. Opening the secure channel.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code read</h2>
@@ -295,6 +308,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Status</b>. The new landing. Lanes 2 to 5 start here.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -324,6 +338,7 @@ dd .link { margin-left: 8px; }
 		<div class="step branch">
 			<p class="step-label"><b>Not found</b>. Picker closed with nothing picked.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code read</h2>
@@ -340,8 +355,9 @@ dd .link { margin-left: 8px; }
 		<div class="arrow dashed">Next time, the Iti is under Recent<span class="glyph">&#8618;</span></div>
 
 		<div class="step branch">
-			<p class="step-label"><b>Landing, returning</b>. Use skips scanning; then Find the device as above.</p>
+			<p class="step-label"><b>Landing, returning</b>. Use skips the scan.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>bliti</h1></div>
 				<section>
 					<h2>QR code</h2>
@@ -370,6 +386,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Status</b>. Tamanu has stopped.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -398,6 +415,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Confirm</b>. Takes the place of the button.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -425,6 +443,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Restarting</b>. Still connected, watching it come back.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -445,6 +464,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Status</b>. Everything well.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -480,6 +500,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Status</b>. Tap the Wifi task.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -499,6 +520,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Wifi</b>. Networks the Iti can hear.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Current</h2>
@@ -522,6 +544,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Password</b>. Takes the place of the list.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Join Clinic-Staff</h2>
@@ -537,6 +560,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Connecting</b>. The Iti tries the network.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Join Clinic-Staff</h2>
@@ -555,6 +579,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Keep it?</b> Not kept, it goes back.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Current</h2>
@@ -574,6 +599,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Wifi</b>. Joined and saved.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Current</h2>
@@ -592,6 +618,7 @@ dd .link { margin-left: 8px; }
 		<div class="step branch">
 			<p class="step-label"><b>Didn't join</b>. Fix the password, try again.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Join Clinic-Staff</h2>
@@ -618,6 +645,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Share wifi</b>. Off.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Sharing</h2>
@@ -642,6 +670,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Warning</b>. Only when sharing costs the Iti its wifi.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Sharing</h2>
@@ -663,6 +692,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Keep it?</b> Same step as joining wifi.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Sharing</h2>
@@ -684,6 +714,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Share wifi</b>. On, with the details to join.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Sharing</h2>
@@ -710,6 +741,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Change</b>. Saved through the same keep step.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Credentials</h2>
@@ -736,6 +768,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Status</b>. Advanced opened.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
 					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
 					<button class="secondary small">Disconnect</button>
@@ -763,6 +796,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Info</b>. Every reading, as today.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Info</h1><button class="secondary small">Back</button></div>
 				<section style="padding-bottom:10px">
 					<h2>Device</h2>
@@ -787,6 +821,7 @@ dd .link { margin-left: 8px; }
 		<div class="step">
 			<p class="step-label"><b>Control</b>. Reboot, power off, battery.</p>
 			<div class="phone">
+				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title"><h1>Control</h1><button class="secondary small">Back</button></div>
 				<section>
 					<h2>Network</h2>
