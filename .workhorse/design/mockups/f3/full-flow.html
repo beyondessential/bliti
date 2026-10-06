@@ -90,9 +90,7 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 
 /* The action bar, as the network screen draws it: a stage, and only what the stage allows. */
-.bar-state { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
-.bar-state.working { border-left-color: var(--accent); }
-.bar-state.failed { border-left-color: var(--bad); }
+.bar-state { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
 .bar-state p { margin: 0 0 8px; font-size: 0.88rem; }
 
 /* Status rows. */
