@@ -38,6 +38,7 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .step { flex: 0 0 auto; width: 360px; }
 .step-label { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; min-height: 2.4em; }
 .step-label b { color: var(--text); }
+.step.branch { margin: 0 12px; }
 .step.branch .phone { outline: 2px dashed #a8a29e; outline-offset: 8px; }
 .arrow { flex: 0 0 auto; width: 96px; align-self: flex-start; margin-top: 200px; text-align: center; color: var(--muted); font-size: 0.75rem; line-height: 1.3; }
 .arrow .glyph { display: block; font-size: 1.5rem; color: var(--accent); line-height: 1; margin-top: 4px; }
@@ -200,6 +201,30 @@ dd .link { margin-left: 8px; }
 .chooser .buttons { display: flex; justify-content: flex-end; gap: 16px; }
 .chooser .buttons span { color: #1a73e8; font-size: 0.9rem; font-weight: 500; }
 .chooser .buttons span.dim { color: #5f6368; }
+
+/* Where the operator is in a flow of steps: done steps ticked, the current one named in full, so
+   "how much is left" is answered without reading anything else. */
+.steps { list-style: none; display: flex; margin: 0 0 14px; padding: 0; }
+.steps li { flex: 1 1 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--muted); text-align: center; }
+.steps li + li::before { content: ""; position: absolute; top: 11px; right: 50%; width: 100%; height: 2px; background: var(--line); }
+.steps li.done::before, .steps li.current::before { background: var(--accent); }
+.steps .dot { position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 0.72rem; font-weight: 600; }
+.steps li.current .dot { border-color: var(--accent); color: var(--accent); }
+.steps li.done .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steps li.current .name { color: var(--text); font-weight: 600; }
+
+/* The one instruction a step carries: what to do, in a line, with a sentence of help beneath. */
+.lead { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.lead + .muted { margin-bottom: 12px; }
+.done-line { color: var(--good); font-size: 0.85rem; font-weight: 600; margin: 0 0 8px; }
+.done-line::before { content: "\2713"; margin-right: 6px; }
+.chip { display: block; text-align: center; font-family: ui-monospace, monospace; font-size: 1rem; letter-spacing: 0.05em; padding: 8px 10px; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--page); }
+.block { width: 100%; }
+.centre { text-align: center; }
+.links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
+.input-show { position: relative; }
+.input-show .link { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+.recent li .code { display: block; }
 </style>
 </head>
 <body>
@@ -209,178 +234,168 @@ dd .link { margin-left: 8px; }
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">1. Connect to the Iti</h2>
-	<p class="lane-sub">The screens as they ship today. Once the device is reached, the operator lands on the new Status screen.</p>
-	<div class="flow">
-
-		<div class="step">
-			<p class="step-label"><b>Landing</b>. Opening the app for the first time.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code</h2>
-					<p class="muted">Scan the code on the device, or type its text.</p>
-					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
-					<div class="row fill" style="margin-top:8px"><button class="secondary">Scan with camera</button></div>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Scan with camera<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Scanning</b>. Pointed at the code on the Iti.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code</h2>
-					<p class="muted">Scan the code on the device, or type its text.</p>
-					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
-					<div class="row fill" style="margin-top:8px"><button class="secondary">Stop the camera</button></div>
-					<div class="camera"><svg class="seen" viewBox="-2 -2 29 29" aria-hidden="true" shape-rendering="crispEdges"><rect fill="none" x="-2" y="-2" width="29" height="29" fill="#fff"/><g fill="currentColor"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="0" y="21" width="1" height="1"/><rect x="0" y="22" width="1" height="1"/><rect x="0" y="23" width="1" height="1"/><rect x="0" y="24" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="1" y="24" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="2" y="24" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="3" y="21" width="1" height="1"/><rect x="3" y="22" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="4" y="21" width="1" height="1"/><rect x="4" y="22" width="1" height="1"/><rect x="4" y="24" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="5" y="18" width="1" height="1"/><rect x="5" y="24" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="6" y="21" width="1" height="1"/><rect x="6" y="22" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="22" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="18" y="1" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="16" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="21" y="24" width="1" height="1"/><rect x="22" y="0" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="22" y="3" width="1" height="1"/><rect x="22" y="4" width="1" height="1"/><rect x="22" y="6" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="0" width="1" height="1"/><rect x="23" y="6" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="20" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="0" width="1" height="1"/><rect x="24" y="1" width="1" height="1"/><rect x="24" y="2" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="24" y="5" width="1" height="1"/><rect x="24" y="6" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></g></svg></div>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Code read<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Code read</b>. Says which device to expect.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code read</h2>
-					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
-					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
-					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
-					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Find the device<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Bluetooth picker</b>. The browser's, not the app's.</p>
-			<div class="phone overlaid">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code read</h2>
-					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
-					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
-					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
-					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
-				</section>
-				<div class="scrim"></div>
-				<div class="chooser" role="dialog">
-					<p class="ask">bliti wants to pair</p>
-					<ul><li class="picked">AHOW2EZUD4343RQ</li></ul>
-					<p class="scanning">Searching for devices&hellip;</p>
-					<div class="buttons"><span class="dim">Cancel</span><span>Pair</span></div>
-				</div>
-			</div>
-		</div>
-
-		<div class="arrow">Pick it, tap Pair<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Connecting</b>. Opening the secure channel.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code read</h2>
-					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
-					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
-					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
-					<div class="row fill" style="margin-top:12px"><button disabled style="background:var(--muted);opacity:0.5">Find the device</button><button class="secondary">Use another code</button></div>
-					<p class="muted" style="margin-top:10px">Looking for the device...</p>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Channel open<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Status</b>. The new landing. Lanes 2 to 5 start here.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title">
-					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
-					<button class="secondary small">Disconnect</button>
-				</div>
-				<section>
-					<h2>Status</h2>
-					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
-					</ul>
-				</section>
-				<section>
-					<h2>Set up</h2>
-					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not using wifi</span></div><span class="chevron">&rsaquo;</span></button></li>
-						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
-					</ul>
-				</section>
-				<div class="advanced"><div class="summary">Advanced</div></div>
-			</div>
-		</div>
-
-		<div class="gap"></div>
-		<div class="arrow dashed">Or, from the picker, if the Iti isn't listed<span class="glyph">&#8618;</span></div>
-
-		<div class="step branch">
-			<p class="step-label"><b>Not found</b>. Picker closed with nothing picked.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code read</h2>
-					<p class="code">BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER</p>
-					<p style="margin:8px 0"><button class="link">Download SVG</button></p>
-					<p class="muted">A device named <span class="code">AHOW2EZUD4343RQ</span> will show up. It should be the only one in the list.</p>
-					<div class="row fill" style="margin-top:12px"><button>Find the device</button><button class="secondary">Use another code</button></div>
-					<p class="muted" style="margin-top:10px">If your device was not in the list, check it is on and nearby.</p>
-				</section>
-			</div>
-		</div>
-
-		<div class="gap"></div>
-		<div class="arrow dashed">Next time, the Iti is under Recent<span class="glyph">&#8618;</span></div>
-
-		<div class="step branch">
-			<p class="step-label"><b>Landing, returning</b>. Use skips the scan.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>bliti</h1></div>
-				<section>
-					<h2>QR code</h2>
-					<p class="muted">Scan the code on the device, or type its text.</p>
-					<div class="row fill" style="margin-top:10px"><input placeholder="BLITI:..."><button>Use</button></div>
-					<div class="row fill" style="margin-top:8px"><button class="secondary">Scan with camera</button></div>
-				</section>
-				<section>
-					<h2>Recent</h2>
-					<ul class="acts recent">
-						<li><div><span class="name">clinic-iti-07</span><span class="code">&hellip;7EER</span></div><button class="secondary">Use</button></li>
-					</ul>
-				</section>
-			</div>
-		</div>
-
-	</div>
+<h2 class="lane-title">1. Connect to the Iti</h2>
+<p class="lane-sub">Three steps, shown at the top of every screen, each with one thing to do. Once connected, the operator lands on the Status screen.</p>
+<div class="flow">
+<div class="step">
+<p class="step-label"><b>Step 1</b>. First visit.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Scan the code on your Iti</p>
+<p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
+<button class="block">Open camera</button>
+<div class="links"><button class="link">Type the code instead</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Open camera<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 1</b>. Scanning.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Point your camera at the code</p>
+<p class="muted">Hold your phone steady. It scans on its own.</p>
+<div class="camera"><svg class="seen" viewBox="-2 -2 29 29" aria-hidden="true" shape-rendering="crispEdges"><rect fill="none" x="-2" y="-2" width="29" height="29" fill="#fff"/><g fill="currentColor"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="0" y="21" width="1" height="1"/><rect x="0" y="22" width="1" height="1"/><rect x="0" y="23" width="1" height="1"/><rect x="0" y="24" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="1" y="24" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="2" y="24" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="3" y="21" width="1" height="1"/><rect x="3" y="22" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="4" y="21" width="1" height="1"/><rect x="4" y="22" width="1" height="1"/><rect x="4" y="24" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="5" y="18" width="1" height="1"/><rect x="5" y="24" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="6" y="21" width="1" height="1"/><rect x="6" y="22" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="22" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="18" y="1" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="16" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="21" y="24" width="1" height="1"/><rect x="22" y="0" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="22" y="3" width="1" height="1"/><rect x="22" y="4" width="1" height="1"/><rect x="22" y="6" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="0" width="1" height="1"/><rect x="23" y="6" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="20" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="0" width="1" height="1"/><rect x="24" y="1" width="1" height="1"/><rect x="24" y="2" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="24" y="5" width="1" height="1"/><rect x="24" y="6" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></g></svg></div>
+<button class="secondary block" style="margin-top:12px">Cancel</button>
+</section>
+</div>
+</div>
+<div class="arrow">Code scanned<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 2</b>. Says which device to choose.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="done-line">Code scanned</p>
+<p class="lead">Now find your Iti</p>
+<p class="muted">Your phone will show a list of nearby devices. Choose this one:</p>
+<span class="chip">AHOW2EZUD4343RQ</span>
+<p class="muted">It should be the only one listed.</p>
+<button class="block" style="margin-top:12px">Find my Iti</button>
+<div class="links"><button class="link">Scan a different code</button><button class="link">Save code for reprinting</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Find my Iti<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 2</b>. The phone&#39;s own list, not ours.</p>
+<div class="phone overlaid">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="done-line">Code scanned</p>
+<p class="lead">Now find your Iti</p>
+<p class="muted">Your phone will show a list of nearby devices. Choose this one:</p>
+<span class="chip">AHOW2EZUD4343RQ</span>
+<p class="muted">It should be the only one listed.</p>
+<button class="block" style="margin-top:12px">Find my Iti</button>
+<div class="links"><button class="link">Scan a different code</button><button class="link">Save code for reprinting</button></div>
+</section>
+<div class="scrim"></div>
+<div class="chooser" role="dialog">
+<p class="ask">This site wants to pair</p>
+<ul><li class="picked">AHOW2EZUD4343RQ</li></ul>
+<p class="scanning">Searching for devices&hellip;</p>
+<div class="buttons"><span class="dim">Cancel</span><span>Pair</span></div>
+</div>
+</div>
+</div>
+<div class="arrow">Choose it, tap Pair<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 3</b>. Connecting.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Find Iti</span></li><li class="current" aria-current="step"><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead"><span class="spinner"></span>Connecting to your Iti</p>
+<p class="muted">Keep your phone close to the Iti.</p>
+<button class="secondary block">Cancel</button>
+</section>
+</div>
+</div>
+<div class="arrow">Connected<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Status</b>. Lanes 2 to 5 start here.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at step 2, if the Iti isn&#39;t in the list<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Not found</b>. Says what to check.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Your Iti wasn&#39;t found</p>
+<p class="muted">Check it&#39;s switched on and nearby, then try again. Look for:</p>
+<span class="chip">AHOW2EZUD4343RQ</span>
+<button class="block" style="margin-top:4px">Try again</button>
+<div class="links"><button class="link">Scan a different code</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Next time, the Iti is listed<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Returning</b>. Connect skips to step 2.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<h2>Recently used</h2>
+<ul class="acts recent">
+<li><div><span class="name">clinic-iti-07</span><span class="muted">Code ending 7EER</span></div><button>Connect</button></li>
+</ul>
+</section>
+<section>
+<p class="lead">Or connect to a different Iti</p>
+<p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
+<button class="block">Open camera</button>
+<div class="links"><button class="link">Type the code instead</button></div>
+</section>
+</div>
+</div>
+</div>
 </div>
 
 <!-- ============================================================ -->
 <div class="lane">
 	<h2 class="lane-title">2. Check everything is running</h2>
-	<p class="lane-sub">The operator sees a problem and fixes it without leaving the screen.</p>
+	<p class="lane-sub">A problem shows as a red cross with a Restart beside it.</p>
 	<div class="flow">
 
 		<div class="step">
@@ -394,15 +409,15 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
-						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail">Try restarting it.</span></div><button class="secondary">Restart</button></li>
 					</ul>
 				</section>
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not using wifi</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -423,13 +438,13 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li class="asking">
-							<div class="top"><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span></div></div>
+							<div class="top"><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail">Try restarting it.</span></div></div>
 							<div class="bar-state" role="alertdialog">
 								<p><strong>Restart Tamanu?</strong></p>
-								<p>The web and facility server restart together.</p>
+								<p>Tamanu will be unavailable while it restarts.</p>
 								<div class="row"><button>Restart</button><button class="secondary">Cancel</button></div>
 							</div>
 						</li>
@@ -441,7 +456,7 @@ dd .link { margin-left: 8px; }
 		<div class="arrow">Tap Restart<span class="glyph">&rarr;</span></div>
 
 		<div class="step">
-			<p class="step-label"><b>Restarting</b>. Still connected, watching it come back.</p>
+			<p class="step-label"><b>Restarting</b>. Tamanu comes back on its own.</p>
 			<div class="phone">
 				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
 				<div class="heading title">
@@ -451,9 +466,9 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
-						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail">Starting up</span></div><span class="busy"><span class="spinner"></span>Restarting&hellip;</span></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail">Please wait.</span></div><span class="busy"><span class="spinner"></span>Restarting&hellip;</span></li>
 					</ul>
 				</section>
 			</div>
@@ -472,15 +487,15 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Through the wired network</span></div></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Device name clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 					</ul>
 				</section>
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not using wifi</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -493,276 +508,240 @@ dd .link { margin-left: 8px; }
 
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">3. Connect the Iti to a wifi network</h2>
-	<p class="lane-sub">One network. A join is tried first and only kept once the operator says so.</p>
-	<div class="flow">
-
-		<div class="step">
-			<p class="step-label"><b>Status</b>. Tap the Wifi task.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title">
-					<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
-					<button class="secondary small">Disconnect</button>
-				</div>
-				<section>
-					<h2>Set up</h2>
-					<ul class="tasks">
-						<li><button class="tapped"><div class="body"><span class="name">Wifi</span><span class="now">Not using wifi</span></div><span class="chevron">&rsaquo;</span></button></li>
-						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
-					</ul>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Opens Wifi and scans<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Wifi</b>. Networks the Iti can hear.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Current</h2>
-					<p class="current"><span class="name">Not using wifi</span></p>
-					<p class="muted">Online through the wired network.</p>
-				</section>
-				<section>
-					<div class="heading" style="margin-bottom:10px"><h2 style="margin:0">Networks</h2><button class="link">Rescan</button></div>
-					<ul class="networks">
-						<li class="tapped"><span class="name">Clinic-Staff</span><span class="signal">Strong</span></li>
-						<li><span class="name">Clinic-Guest</span><span class="signal">Strong</span></li>
-						<li><span class="name">HealthPost-4G</span><span class="signal">Weak</span></li>
-					</ul>
-					<p style="margin-top:10px"><button class="link">Join a hidden network</button></p>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Clinic-Staff<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Password</b>. Takes the place of the list.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Join Clinic-Staff</h2>
-					<label>Password</label>
-					<input type="text" value="harbour-light-22">
-					<div class="row" style="margin-top:12px"><button>Join</button><button class="secondary">Cancel</button></div>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Join<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Connecting</b>. The Iti tries the network.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Join Clinic-Staff</h2>
-					<label>Password</label>
-					<input type="text" value="harbour-light-22" disabled>
-				</section>
-				<div class="bar-state working" role="status">
-					<p><span class="spinner"></span>Connecting to Clinic-Staff&hellip;</p>
-					<div class="row"><button class="secondary">Cancel</button></div>
-				</div>
-			</div>
-		</div>
-
-		<div class="arrow">It connects<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Keep it?</b> Not kept, it goes back.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Current</h2>
-					<p class="current"><span class="name">Clinic-Staff</span></p>
-					<p class="muted">Connected. Not saved yet.</p>
-				</section>
-				<div class="bar-state" role="alertdialog">
-					<p><strong>Keep Clinic-Staff?</strong></p>
-					<p>If not, the Iti goes back to how it was.</p>
-					<div class="row"><button>Keep</button><button class="secondary">Undo</button></div>
-				</div>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Keep<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Wifi</b>. Joined and saved.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Current</h2>
-					<p class="current"><span class="name">Clinic-Staff</span></p>
-					<p class="muted">Joined. The Iti uses this network first.</p>
-				</section>
-				<section>
-					<div class="heading"><h2 style="margin:0">Networks</h2><button class="link">Scan</button></div>
-				</section>
-			</div>
-		</div>
-
-		<div class="gap"></div>
-		<div class="arrow dashed">Or, from Connecting, if the password is wrong<span class="glyph">&#8618;</span></div>
-
-		<div class="step branch">
-			<p class="step-label"><b>Didn't join</b>. Fix the password, try again.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Join Clinic-Staff</h2>
-					<label>Password</label>
-					<input type="text" value="harbour-light-2" class="field-fault">
-					<p class="why">Wrong password.</p>
-				</section>
-				<div class="bar-state failed" role="status">
-					<p>Couldn't join Clinic-Staff. The Iti is back to how it was.</p>
-					<div class="row"><button>Try again</button><button class="secondary">Cancel</button></div>
-				</div>
-			</div>
-		</div>
-
-	</div>
+<h2 class="lane-title">3. Connect the Iti to a wifi network</h2>
+<p class="lane-sub">Optional when the Iti has a cable. Three steps, and the network is only saved once it has worked.</p>
+<div class="flow">
+<div class="step">
+<p class="step-label"><b>Status</b>. Tap Wifi.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
 </div>
-
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button class="tapped"><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+</div>
+</div>
+<div class="arrow">Opens Wifi<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 1</b>. Networks the Iti can see.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Network</span></li><li class=""><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Choose a wifi network</p>
+<p class="muted">The Iti is online by cable, so wifi is optional.</p>
+<ul class="networks">
+<li class="tapped"><span class="name">Clinic-Staff</span><span class="signal">Strong</span></li>
+<li><span class="name">Clinic-Guest</span><span class="signal">Strong</span></li>
+<li><span class="name">HealthPost-4G</span><span class="signal">Weak</span></li>
+</ul>
+<div class="links"><button class="link">Refresh</button><button class="link">My network isn&#39;t listed</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Clinic-Staff<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 2</b>. Password.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Enter the password for Clinic-Staff</p>
+<p class="muted">Ask your IT contact if you don&#39;t know it.</p>
+<label>Password</label>
+<div class="input-show"><input type="text" value="harbour-light-22"><button class="link">Hide</button></div>
+<button class="block" style="margin-top:12px">Connect</button>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Connect<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 3</b>. Trying the network.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Password</span></li><li class="current" aria-current="step"><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead"><span class="spinner"></span>Connecting to Clinic-Staff</p>
+<p class="muted">This can take a moment.</p>
+<button class="secondary block">Cancel</button>
+</section>
+</div>
+</div>
+<div class="arrow">It works<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Step 3</b>. Save it?</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Password</span></li><li class="current" aria-current="step"><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="done-line">Connected to Clinic-Staff</p>
+<p class="lead">Save this network?</p>
+<p class="muted">The Iti will keep using it. If you don&#39;t save, it goes back to how it was.</p>
+<div class="row"><button>Save</button><button class="secondary">Don&#39;t save</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Save<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Done</b>.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Password</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="done-line">Saved</p>
+<p class="lead">Connected to Clinic-Staff</p>
+<p class="muted">The Iti will use this wifi from now on.</p>
+<button class="secondary block">Change network</button>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at step 3, if the password is wrong<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Wrong password</b>. Back to step 2.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Enter the password for Clinic-Staff</p>
+<p class="muted">Ask your IT contact if you don&#39;t know it.</p>
+<label>Password</label>
+<div class="input-show"><input type="text" value="harbour-light-2" class="field-fault"><button class="link">Hide</button></div>
+<p class="why">That password didn&#39;t work. Check it and try again.</p>
+<button class="block" style="margin-top:12px">Connect</button>
+</section>
+</div>
+</div>
+</div>
+</div>
 <!-- ============================================================ -->
 <div class="lane">
-	<h2 class="lane-title">4. Share the Iti's wifi with other devices</h2>
-	<p class="lane-sub">Turning sharing on, seeing the password, and changing it. Here the Iti has just joined Clinic-Staff, so its one radio has to stop using that network to share.</p>
-	<div class="flow">
-
-		<div class="step">
-			<p class="step-label"><b>Share wifi</b>. Off.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Sharing</h2>
-					<div class="toggle">
-						<div class="body"><span class="name">Other devices can join</span><span class="sub">Off</span></div>
-						<span class="switch"></span>
-					</div>
-				</section>
-				<section>
-					<h2>Credentials</h2>
-					<dl>
-						<dt>Network name</dt><dd><strong>Clinic-Iti</strong></dd>
-						<dt>Password</dt><dd class="secret">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<button class="link">Show</button></dd>
-					</dl>
-					<p style="margin-top:12px"><button class="secondary">Change name or password</button></p>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Turn the switch on<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Warning</b>. Only when sharing costs the Iti its wifi.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Sharing</h2>
-					<div class="toggle">
-						<div class="body"><span class="name">Other devices can join</span><span class="sub">Off</span></div>
-						<span class="switch"></span>
-					</div>
-					<div class="bar-state" role="alertdialog" style="margin:12px 0 0">
-						<p><strong>Turn on sharing?</strong></p>
-						<p>The Iti stops using Clinic-Staff. It stays online through the wired network.</p>
-						<div class="row"><button>Turn on</button><button class="secondary">Cancel</button></div>
-					</div>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Turn on<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Keep it?</b> Same step as joining wifi.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Sharing</h2>
-					<div class="toggle">
-						<div class="body"><span class="name">Other devices can join</span><span class="sub">On. Not saved yet.</span></div>
-						<span class="switch on"></span>
-					</div>
-				</section>
-				<div class="bar-state" role="alertdialog">
-					<p><strong>Keep sharing on?</strong></p>
-					<p>If not, the Iti goes back to how it was.</p>
-					<div class="row"><button>Keep</button><button class="secondary">Undo</button></div>
-				</div>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Keep<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Share wifi</b>. On, with the details to join.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Sharing</h2>
-					<div class="toggle">
-						<div class="body"><span class="name">Other devices can join</span><span class="sub">3 devices joined</span></div>
-						<span class="switch on"></span>
-					</div>
-					<p class="muted running">Online through the wired network.</p>
-				</section>
-				<section>
-					<h2>Credentials</h2>
-					<dl>
-						<dt>Network name</dt><dd><strong>Clinic-Iti</strong></dd>
-						<dt>Password</dt><dd class="secret">reef-otter-9471<button class="link">Hide</button></dd>
-					</dl>
-					<div class="join"><svg class="qr" viewBox="-2 -2 29 29" aria-hidden="true" shape-rendering="crispEdges"><rect x="-2" y="-2" width="29" height="29" fill="#fff"/><g fill="currentColor"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="0" y="21" width="1" height="1"/><rect x="0" y="22" width="1" height="1"/><rect x="0" y="23" width="1" height="1"/><rect x="0" y="24" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="1" y="24" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="2" y="24" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="3" y="21" width="1" height="1"/><rect x="3" y="22" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="4" y="21" width="1" height="1"/><rect x="4" y="22" width="1" height="1"/><rect x="4" y="24" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="5" y="18" width="1" height="1"/><rect x="5" y="24" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="6" y="21" width="1" height="1"/><rect x="6" y="22" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="22" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="18" y="1" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="16" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="21" y="24" width="1" height="1"/><rect x="22" y="0" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="22" y="3" width="1" height="1"/><rect x="22" y="4" width="1" height="1"/><rect x="22" y="6" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="0" width="1" height="1"/><rect x="23" y="6" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="20" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="0" width="1" height="1"/><rect x="24" y="1" width="1" height="1"/><rect x="24" y="2" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="24" y="5" width="1" height="1"/><rect x="24" y="6" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></g></svg><span class="caption">Scan with a phone camera to join</span></div>
-					<p style="margin-top:12px"><button class="secondary">Change name or password</button></p>
-				</section>
-			</div>
-		</div>
-
-		<div class="arrow">Tap Change name or password<span class="glyph">&rarr;</span></div>
-
-		<div class="step">
-			<p class="step-label"><b>Change</b>. Saved through the same keep step.</p>
-			<div class="phone">
-				<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-				<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
-				<section>
-					<h2>Credentials</h2>
-					<label>Network name</label>
-					<input type="text" value="Clinic-Iti">
-					<label>Password</label>
-					<input type="text" value="reef-otter-9471">
-					<p class="muted" style="margin-top:6px">At least 8 characters.</p>
-					<div class="row" style="margin-top:12px"><button>Save</button><button class="secondary">Cancel</button></div>
-				</section>
-				<p class="muted">Devices already joined need the new password.</p>
-			</div>
-		</div>
-
-	</div>
+<h2 class="lane-title">4. Share the Iti's wifi with other devices</h2>
+<p class="lane-sub">Here the Iti has just joined Clinic-Staff. It has one wifi radio, so sharing means letting go of Clinic-Staff, and the operator is told first.</p>
+<div class="flow">
+<div class="step">
+<p class="step-label"><b>Share wifi</b>. Off.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">Off</span></div>
+<span class="switch"></span>
 </div>
-
+<p class="muted running">Turn this on so phones and laptops can use the Iti&#39;s own wifi.</p>
+</section>
+<section>
+<h2>Wifi details</h2>
+<dl>
+<dt>Network name</dt><dd><strong>Clinic-Iti</strong></dd>
+<dt>Password</dt><dd class="secret">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<button class="link">Show</button></dd>
+</dl>
+<button class="secondary block" style="margin-top:12px">Change name or password</button>
+</section>
+</div>
+</div>
+<div class="arrow">Turn the switch on<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Check first</b>. Only when sharing ends the Iti&#39;s wifi.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">Off</span></div>
+<span class="switch"></span>
+</div>
+<div class="bar-state" role="alertdialog" style="margin:12px 0 0">
+<p><strong>Turn on sharing?</strong></p>
+<p>The Iti will disconnect from Clinic-Staff to share its own wifi. It stays online by cable.</p>
+<div class="row"><button>Turn on</button><button class="secondary">Cancel</button></div>
+</div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Turn on<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Save it?</b> Same as joining wifi.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">On. Not saved yet.</span></div>
+<span class="switch on"></span>
+</div>
+</section>
+<section>
+<p class="done-line">Sharing is on</p>
+<p class="lead">Save this?</p>
+<p class="muted">Sharing will stay on. If you don&#39;t save, it goes back to how it was.</p>
+<div class="row"><button>Save</button><button class="secondary">Don&#39;t save</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Save<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Sharing on</b>. How others connect.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">On. 3 devices connected</span></div>
+<span class="switch on"></span>
+</div>
+<p class="muted running">The Iti is still online by cable.</p>
+</section>
+<section>
+<h2>How to connect</h2>
+<p class="muted">Scan with another phone&#39;s camera, or enter these details.</p>
+<div class="join"><svg class="qr" viewBox="-2 -2 29 29" aria-hidden="true" shape-rendering="crispEdges"><rect x="-2" y="-2" width="29" height="29" fill="#fff"/><g fill="currentColor"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="0" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="0" y="21" width="1" height="1"/><rect x="0" y="22" width="1" height="1"/><rect x="0" y="23" width="1" height="1"/><rect x="0" y="24" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="1" y="24" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="2" y="24" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="3" y="21" width="1" height="1"/><rect x="3" y="22" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="4" y="20" width="1" height="1"/><rect x="4" y="21" width="1" height="1"/><rect x="4" y="22" width="1" height="1"/><rect x="4" y="24" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="5" y="18" width="1" height="1"/><rect x="5" y="24" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="6" y="19" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="6" y="21" width="1" height="1"/><rect x="6" y="22" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="22" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="0" width="1" height="1"/><rect x="18" y="1" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="18" y="3" width="1" height="1"/><rect x="18" y="4" width="1" height="1"/><rect x="18" y="5" width="1" height="1"/><rect x="18" y="6" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="0" width="1" height="1"/><rect x="19" y="6" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="16" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="21" y="24" width="1" height="1"/><rect x="22" y="0" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="22" y="3" width="1" height="1"/><rect x="22" y="4" width="1" height="1"/><rect x="22" y="6" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="0" width="1" height="1"/><rect x="23" y="6" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="20" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="0" width="1" height="1"/><rect x="24" y="1" width="1" height="1"/><rect x="24" y="2" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="24" y="5" width="1" height="1"/><rect x="24" y="6" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></g></svg></div>
+<dl style="margin-top:12px">
+<dt>Network name</dt><dd><strong>Clinic-Iti</strong></dd>
+<dt>Password</dt><dd class="secret">reef-otter-9471<button class="link">Hide</button></dd>
+</dl>
+<button class="secondary block" style="margin-top:12px">Change name or password</button>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Change name or password<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Change details</b>. Saved the same way.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="lead">Change wifi details</p>
+<p class="muted">Devices already connected will need the new password.</p>
+<label>Network name</label>
+<input type="text" value="Clinic-Iti">
+<label>Password</label>
+<input type="text" value="reef-otter-9471">
+<p class="muted" style="margin-top:6px">At least 8 characters.</p>
+<div class="row" style="margin-top:12px"><button>Save</button><button class="secondary">Cancel</button></div>
+</section>
+</div>
+</div>
+</div>
+</div>
 <!-- ============================================================ -->
 <div class="lane">
 	<h2 class="lane-title">5. Advanced</h2>
-	<p class="lane-sub">The screens field staff already know, unchanged, one tap behind a closed disclosure.</p>
+	<p class="lane-sub">The technical screens, unchanged, behind a closed section. Facility staff don&#39;t need them.</p>
 	<div class="flow">
 
 		<div class="step">
@@ -776,8 +755,8 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
-						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">On &middot; Clinic-Iti &middot; 3 devices</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Connected to Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">On. 3 devices connected</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
 				<div class="advanced open">
