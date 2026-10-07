@@ -2,7 +2,7 @@
 <!-- spec: network/wifi.md -->
 <!-- spec: network/share.md -->
 <!-- The networking setup redesign: one Network task on the Status screen opening a three-way choice
-     (cable, join a wifi network, share the Iti's wifi), hotspot-style sharing, and no confirm step:
+     (cable, join a wifi network, share the Iti's hotspot), phone-style hotspot, and no confirm step:
      a change takes effect and is kept, with Undo offered on a toast. Components are full-flow.html's,
      which take theirs from crates/bliti-web/app/src/styles.css, scoped under .phone. -->
 <!DOCTYPE html>
@@ -102,6 +102,8 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .tasks .name { display: block; font-weight: 600; }
 .tasks .now { color: var(--muted); font-size: 0.85rem; }
 .tasks .now.in-use { color: var(--good); }
+.tasks .ico { flex: 0 0 auto; width: 20px; height: 20px; color: var(--accent); }
+.tasks .ico svg { display: block; width: 100%; height: 100%; }
 .chevron { flex: 0 0 auto; color: var(--muted); }
 .intro { margin-bottom: 12px; }
 
@@ -173,7 +175,7 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <section>
 <h2>Set up</h2>
 <ul class="tasks">
-<li><button><div class="body"><span class="name">Network</span><span class="now">Wifi: Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect x="16" y="16" width="6" height="6" rx="1" /><rect x="2" y="16" width="6" height="6" rx="1" /><rect x="9" y="2" width="6" height="6" rx="1" /><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /><path d="M12 12V8" /></svg></span><div class="body"><span class="name">Network</span><span class="now">Wifi: Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 </section>
 <div class="advanced"><div class="summary">Advanced</div></div>
@@ -190,24 +192,24 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <section>
 <p class="muted intro">Phones and laptops must be on the same network as the Iti.</p>
 <ul class="tasks">
-<li><button><div class="body"><span class="name">Plug in a cable</span><span class="now">No cable</span></div><span class="chevron">&rsaquo;</span></button></li>
-<li><button><div class="body"><span class="name">Join the clinic&#39;s wifi</span><span class="now in-use">In use: Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
-<li><button><div class="body"><span class="name">Share the Iti&#39;s own wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span><div class="body"><span class="name">Plug in a cable</span><span class="now">No cable</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 20h.01" /><path d="M2 8.82a15 15 0 0 1 20 0" /><path d="M5 12.859a10 10 0 0 1 14 0" /><path d="M8.5 16.429a5 5 0 0 1 7 0" /></svg></span><div class="body"><span class="name">Join the clinic&#39;s wifi</span><span class="now in-use">In use: Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9" /><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5" /><circle cx="12" cy="9" r="2" /><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47" /><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1" /><path d="M9.5 18h5" /><path d="m8 22 4-11 4 11" /></svg></span><div class="body"><span class="name">Share the Iti&#39;s hotspot</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 </section>
 </div>
 </div>
 
-<div class="arrow">Tap Share the Iti&#39;s own wifi<span class="glyph">&rarr;</span></div>
+<div class="arrow">Tap Share the Iti&#39;s hotspot<span class="glyph">&rarr;</span></div>
 
 <div class="step">
-<p class="step-label"><b>Share wifi</b>. Off. Says what turning it on costs, under the switch.</p>
+<p class="step-label"><b>Share hotspot</b>. Off. Says what turning it on costs, under the switch.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<div class="heading title"><h1>Share hotspot</h1><button class="secondary small">Back</button></div>
 <section>
 <div class="toggle">
-<div class="body"><span class="name">Let other devices join</span><span class="sub">Off</span></div>
+<div class="body"><span class="name">Let other devices join</span></div>
 <span class="switch"></span>
 </div>
 <p class="muted running">The Iti will leave Clinic-Staff and go offline.</p>
@@ -225,13 +227,13 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <div class="arrow">Turn the switch on<span class="glyph">&rarr;</span></div>
 
 <div class="step">
-<p class="step-label"><b>Sharing on</b>. Kept straight away. Undo goes back to Clinic-Staff.</p>
+<p class="step-label"><b>Hotspot on</b>. Kept straight away. Undo goes back to Clinic-Staff.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<div class="heading title"><h1>Share hotspot</h1><button class="secondary small">Back</button></div>
 <section>
 <div class="toggle">
-<div class="body"><span class="name">Let other devices join</span><span class="sub">On. No devices connected</span></div>
+<div class="body"><span class="name">Let other devices join</span><span class="sub">No devices connected</span></div>
 <span class="switch on"></span>
 </div>
 <div class="details">
@@ -242,7 +244,7 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <div class="links"><button class="link">Change password</button><button class="link">Show QR code</button></div>
 </div>
 </section>
-<div class="toast"><span>Sharing on. The Iti left Clinic-Staff.</span><button class="link">Undo</button></div>
+<div class="toast"><span>Hotspot on. The Iti left Clinic-Staff.</span><button class="link">Undo</button></div>
 </div>
 </div>
 
@@ -253,10 +255,10 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <p class="step-label"><b>QR code</b>. Only on request, as most devices joining are laptops.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<div class="heading title"><h1>Share hotspot</h1><button class="secondary small">Back</button></div>
 <section>
 <div class="toggle">
-<div class="body"><span class="name">Let other devices join</span><span class="sub">On. 3 devices connected</span></div>
+<div class="body"><span class="name">Let other devices join</span><span class="sub">3 devices connected</span></div>
 <span class="switch on"></span>
 </div>
 <div class="details">
@@ -278,10 +280,10 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <p class="step-label"><b>Change password</b>. In place. Saving it keeps it, with Undo.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<div class="heading title"><h1>Share hotspot</h1><button class="secondary small">Back</button></div>
 <section>
 <div class="toggle">
-<div class="body"><span class="name">Let other devices join</span><span class="sub">On. 3 devices connected</span></div>
+<div class="body"><span class="name">Let other devices join</span><span class="sub">3 devices connected</span></div>
 <span class="switch on"></span>
 </div>
 <div class="details">
@@ -341,7 +343,7 @@ dd .link { margin-left: 8px; font-family: system-ui, sans-serif; }
 <p class="done-line">Connected to Clinic-Staff</p>
 <button class="secondary block" style="margin-top:4px">Change network</button>
 </section>
-<div class="toast"><span>Joined Clinic-Staff. Sharing is off.</span><button class="link">Undo</button></div>
+<div class="toast"><span>Joined Clinic-Staff. Hotspot is off.</span><button class="link">Undo</button></div>
 </div>
 </div>
 
