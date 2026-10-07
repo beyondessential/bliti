@@ -73,7 +73,7 @@ The application MUST offer, beneath the status, the way to join a wireless netwo
 
 The application MUST show against each the state it is in now, so the screen says whether wifi is joined and whether sharing is on without either being opened:
 
-- against wifi, the wireless network the device is joined to from `wireless-network`, or that it is using the wired network alone where it is joined to none;
+- against wifi, the wireless network the device is joined to from `wireless-network`; where it is joined to none, that it is using the wired network where a wired interface carries the `default` route, and that it is not connected otherwise;
 - against sharing, whether the hotspot is on and how many clients are joined, from `hotspot` and `hotspot-clients`.
 
 ## Advanced
@@ -87,4 +87,4 @@ The application MUST gather, under a disclosure closed by default and headed Adv
 
 The application MUST show on the Status screen the kept configuration session's bar of [NSCR](network/screen.md), where a session is kept open, offering to return to the screen it belongs to and to confirm or discard what it holds.
 
-The application MUST show on the Status screen a device carrying out an act, as [WEB](web-app.md) specifies, in place of the status while the act is under way.
+The application MUST show on the Status screen a device carrying out an act, as [WEB](web-app.md) specifies, in place of the status, the tasks and Advanced while the act is under way.

@@ -15,7 +15,7 @@ The application MUST present a single wireless candidate: the wireless attachmen
 
 The application MUST leave every wired attachment, the hotspot, and the ordering of [LINK](attachment.md) as the configuration in force holds them, changing only the one wireless candidate.
 
-The application MUST show the network the device is joined to from `wireless-network`, and that the device is using the wired network alone where it reports no wireless network joined.
+The application MUST show the network the device is joined to from `wireless-network`, and, where it reports no wireless network joined, that the device is using the wired network where a wired interface carries the `default` route.
 
 The application MUST send a network the operator joins to the top of the attachment ordering, so the device prefers it, and MUST give it `enabled` and `verify` true.
 

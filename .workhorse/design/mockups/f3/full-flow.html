@@ -254,6 +254,9 @@ dd .link { margin-left: 8px; }
 .select { padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); }
 .phone .summary-link { margin-top: 12px; font-size: 0.85rem; color: var(--accent); }
 .phone button:disabled { opacity: 0.5; }
+
+.switch.disabled { opacity: 0.4; }
+.heading.title .offline { align-self: center; }
 </style>
 </head>
 <body>
@@ -267,10 +270,10 @@ dd .link { margin-left: 8px; }
 <p class="lane-sub">Three steps, shown at the top of every screen, each with one thing to do. Step 1 is scanning the code. Technical staff can paste the code text under Advanced instead. Once connected, the operator lands on the Status screen.</p>
 <div class="flow">
 <div class="step">
-<p class="step-label"><b>Step 1</b>. First visit.</p>
+<p class="step-label"><b>Step 1</b>. First visit, before the app can open offline.</p>
 <div class="phone">
 <div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
-<div class="heading title"><h1>Tamanu Iti</h1></div>
+<div class="heading title"><h1>Tamanu Iti</h1><span class="offline">Not ready offline</span></div>
 <ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
 <section>
 <p class="lead">Scan the code on your Iti</p>
@@ -391,7 +394,7 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Set up</h2>
 <ul class="tasks">
-<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
 <li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 </section>
@@ -437,6 +440,76 @@ dd .link { margin-left: 8px; }
 <div class="advanced"><div class="summary">Advanced</div></div>
 </div>
 </div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the camera can't be used<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Camera blocked</b>. Typing the code still works.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>Camera not available</p>
+<p class="muted">Allow camera access for this page in your browser settings, then try again.</p>
+<button class="block">Try again</button>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the code isn't an Iti's<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Not an Iti code</b>. Also said under the camera, which keeps scanning.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Scan code</span></li><li class=""><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Scan the code on your Iti</p>
+<p class="muted">Find the QR code on the outside of the Iti, then open your camera.</p>
+<button class="block">Open camera</button>
+</section>
+<div class="advanced open">
+<div class="summary">Advanced</div>
+<div class="inside">
+<label style="margin:0">QR code contents</label>
+<input type="text" value="WIFI:S:Clinic-Guest;T:WPA;;" class="field-fault" style="font-family:ui-monospace,monospace;font-size:0.8rem">
+<p class="why" style="margin:0">This isn&#39;t a Tamanu Iti code.</p>
+<button>Use</button>
+</div>
+</div>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the connection drops<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Connection lost</b>. Also when the Iti doesn&#39;t come back after a reboot.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Scan code</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Find Iti</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>Lost connection to your Iti</p>
+<p class="muted">Check it&#39;s switched on and nearby, then try again. Look for:</p>
+<span class="chip">AHOW2EZUD4343RQ</span>
+<button class="block" style="margin-top:12px">Try again</button>
+<div class="links"><button class="link">Scan a different code</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the browser has no Bluetooth<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Can&#39;t connect from this browser</b>. Nothing else is offered.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Tamanu Iti</h1></div>
+<section>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>This browser can&#39;t connect to an Iti</p>
+<p class="muted">Open this page in Chrome on an Android phone.</p>
+</section>
+</div>
+</div>
 </div>
 </div>
 
@@ -465,7 +538,7 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -501,7 +574,7 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -530,7 +603,7 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -538,7 +611,92 @@ dd .link { margin-left: 8px; }
 			</div>
 		</div>
 
-	</div>
+	<div class="gap"></div>
+<div class="arrow dashed">Or, if the Iti refuses the restart<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Restart refused</b>. The Iti&#39;s own reason, as it wrote it.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail reason">Restart refused: an update is being installed.</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the Iti is offline<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Offline</b>. Tailscale goes down with it.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark bad"></span><div class="body"><span class="name">Not online</span><span class="detail">No cable or wifi connection.</span></div></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Tailscale not connected</span><span class="detail">Support can&#39;t reach it.</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if the Iti runs another service<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Another service</b>. Shown by its own name. No Restart where the Iti can&#39;t restart it.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">backup-agent</span><span class="detail">1.4.0</span></div></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+</div>
 </div>
 
 <!-- ============================================================ -->
@@ -546,6 +704,21 @@ dd .link { margin-left: 8px; }
 <h2 class="lane-title">3. Connect the Iti to a wifi network</h2>
 <p class="lane-sub">Optional when the Iti has a cable. Three steps, and the network is only saved once it has worked.</p>
 <div class="flow">
+<div class="step">
+<p class="step-label"><b>Step 1</b>. Looking for networks.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Network</span></li><li class=""><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Choose a wifi network</p>
+<p class="muted">The Iti is online by cable, so wifi is optional.</p>
+<p class="muted" style="margin-top:12px"><span class="spinner"></span>Looking for networks&hellip;</p>
+<div class="links"><button class="link">My network isn&#39;t listed</button></div>
+</section>
+</div>
+</div>
+<div class="arrow">Networks found<span class="glyph">&rarr;</span></div>
 <div class="step">
 <p class="step-label"><b>Step 1</b>. Networks the Iti can see.</p>
 <div class="phone">
@@ -624,6 +797,46 @@ dd .link { margin-left: 8px; }
 </section>
 </div>
 </div>
+<div class="arrow">Tap Back<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Status</b>. On wifi.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by wifi</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+<div class="arrow">Tap Wifi<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Wifi</b>. Already connected.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="lead">Connected to Clinic-Staff</p>
+<p class="muted">The Iti uses this wifi.</p>
+<button class="secondary block" style="margin-top:12px">Change network</button>
+</section>
+</div>
+</div>
 <div class="gap"></div>
 <div class="arrow dashed">Or, at step 3, if the password is wrong<span class="glyph">&#8618;</span></div>
 <div class="step branch">
@@ -639,6 +852,90 @@ dd .link { margin-left: 8px; }
 <div class="input-show"><input type="text" value="harbour-light-2" class="field-fault"><button class="link">Hide</button></div>
 <p class="why">That password didn&#39;t work. Check it and try again.</p>
 <button class="block" style="margin-top:12px">Connect</button>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if no networks are found<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>No networks</b>.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Network</span></li><li class=""><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Choose a wifi network</p>
+<p class="muted">The Iti is online by cable, so wifi is optional.</p>
+<p class="muted" style="margin-top:12px">No wifi networks found nearby.</p>
+<div class="links"><button class="link">Refresh</button><button class="link">My network isn&#39;t listed</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or tap My network isn&#39;t listed<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Hidden network</b>. Then on to the password.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Network</span></li><li class=""><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Enter the network name</p>
+<p class="muted">Type it exactly, including capitals.</p>
+<label>Network name</label>
+<input type="text" value="Clinic-Private" class="focus">
+<button class="block" style="margin-top:12px">Continue</button>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or tap a network that needs a username<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Work network</b>. Set up in Network settings.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="current" aria-current="step"><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>Clinic-Corp needs more settings</p>
+<p class="muted">Networks that need a username are set up under Advanced.</p>
+<button class="block" style="margin-top:12px">Open network settings</button>
+<div class="links"><button class="link">Choose another network</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at step 3, if the network can&#39;t be reached<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Out of range</b>. Any other failure shows the Iti&#39;s own reason here.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="done"><span class="dot">&#10003;</span><span class="name">Network</span></li><li class="done"><span class="dot">&#10003;</span><span class="name">Password</span></li><li class="current" aria-current="step"><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead problem"><span class="alert" aria-hidden="true">!</span>Couldn&#39;t reach Clinic-Staff</p>
+<p class="muted">Move the Iti closer to the wifi router, then try again.</p>
+<button class="block" style="margin-top:12px">Try again</button>
+<div class="links"><button class="link">Choose another network</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at step 3, tap Don&#39;t save<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Not saved</b>. Back to how it was.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Wifi</h1><button class="secondary small">Back</button></div>
+<ol class="steps" aria-label="Progress"><li class="current" aria-current="step"><span class="dot">1</span><span class="name">Network</span></li><li class=""><span class="dot">2</span><span class="name">Password</span></li><li class=""><span class="dot">3</span><span class="name">Connect</span></li></ol>
+<section>
+<p class="lead">Choose a wifi network</p>
+<p class="muted">Clinic-Staff wasn&#39;t saved. The Iti is back on cable.</p>
+<ul class="networks" style="margin-top:12px">
+<li><button><span class="name">Clinic-Staff</span><span class="signal"><svg viewBox="0 0 16 12" aria-hidden="true"><rect x="0.0" y="9" width="3" height="3" rx="0.8"/><rect x="4.2" y="6" width="3" height="6" rx="0.8"/><rect x="8.4" y="3" width="3" height="9" rx="0.8"/><rect x="12.6" y="0" width="3" height="12" rx="0.8"/></svg>Strong</span><span class="chevron">&rsaquo;</span></button></li>
+<li><button><span class="name">Clinic-Guest</span><span class="signal"><svg viewBox="0 0 16 12" aria-hidden="true"><rect x="0.0" y="9" width="3" height="3" rx="0.8"/><rect x="4.2" y="6" width="3" height="6" rx="0.8"/><rect x="8.4" y="3" width="3" height="9" rx="0.8"/><rect x="12.6" y="0" width="3" height="12" rx="0.8"/></svg>Strong</span><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+<div class="links"><button class="link">Refresh</button><button class="link">My network isn&#39;t listed</button></div>
 </section>
 </div>
 </div>
@@ -753,6 +1050,87 @@ dd .link { margin-left: 8px; }
 </section>
 </div>
 </div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, if no name and password are set<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Not set up</b>. Sharing needs a name and password first.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">Off</span></div>
+<span class="switch disabled"></span>
+</div>
+<p class="muted running">Set a name and password first.</p>
+</section>
+<section>
+<h2>Wifi details</h2>
+<p class="muted">Not set up yet.</p>
+<button class="block" style="margin-top:12px">Set name and password</button>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at Check first, if the Iti has no cable<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Check first</b>. Sharing takes the Iti offline.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">Off</span></div>
+<span class="switch"></span>
+</div>
+<div class="bar-state" role="alertdialog" style="margin:12px 0 0">
+<p><strong>Turn on sharing?</strong></p>
+<p>The Iti will disconnect from Clinic-Staff to share its own wifi. It will be offline until sharing is turned off.</p>
+<div class="row"><button>Turn on</button><button class="secondary">Cancel</button></div>
+</div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, from Sharing on, turn the switch off<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Turning off</b>. Saved the same way.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Let other devices connect</span><span class="sub">Off. Not saved yet.</span></div>
+<span class="switch"></span>
+</div>
+</section>
+<section>
+<p class="done-line">Sharing is off</p>
+<p class="lead">Save this?</p>
+<p class="muted">3 devices lost their connection. If you don&#39;t save, it goes back to how it was.</p>
+<div class="row"><button>Save</button><button class="secondary">Don&#39;t save</button></div>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, at Change details, if the password is too short<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Invalid details</b>. Said under the field.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Share wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="lead">Change wifi details</p>
+<p class="muted">Devices already connected will need the new password.</p>
+<label>Network name</label>
+<input type="text" value="Clinic-Iti">
+<label>Password</label>
+<input type="text" value="reef9" class="field-fault">
+<p class="why">Use at least 8 characters.</p>
+<div class="row" style="margin-top:12px"><button>Save</button><button class="secondary">Cancel</button></div>
+</section>
+</div>
+</div>
 </div>
 </div>
 <!-- ============================================================ -->
@@ -780,7 +1158,7 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Set up</h2>
 					<ul class="tasks">
-						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Not connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+						<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
 						<li><button><div class="body"><span class="name">Share wifi</span><span class="now">On. 3 devices connected</span></div><span class="chevron">&rsaquo;</span></button></li>
 					</ul>
 				</section>
@@ -881,7 +1259,72 @@ dd .link { margin-left: 8px; }
 			</div>
 		</div>
 
-	</div>
+	<div class="arrow">Tap Reboot<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Confirm</b>. Takes the place of the list.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title"><h1>Power and battery</h1><button class="secondary small">Back</button></div>
+<section>
+<h2>Power</h2>
+<div class="bar-state" role="alertdialog">
+<p><strong>Reboot the device?</strong></p>
+<div class="row"><button>Reboot</button><button class="secondary">Cancel</button></div>
+</div>
+</section>
+<section>
+<h2>Battery</h2>
+<p class="muted">A full charge lasts 6 h (&plusmn;20 min).</p>
+</section>
+</div>
+</div>
+<div class="arrow">Tap Reboot<span class="glyph">&rarr;</span></div>
+<div class="step">
+<p class="step-label"><b>Rebooting</b>. Reconnects on its own. Restarting bliti and shutting down read the same way.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section class="bar-state" role="status">
+<p style="margin:0"><span class="spinner"></span>Rebooting&hellip;</p>
+</section>
+</div>
+</div>
+<div class="gap"></div>
+<div class="arrow dashed">Or, back from Network settings with changes not applied<span class="glyph">&#8618;</span></div>
+<div class="step branch">
+<p class="step-label"><b>Status</b>. Unsaved network changes.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="icons"><svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 16 12"><path d="M8 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.3A10.6 10.6 0 0 0 8 .4 10.6 10.6 0 0 0 .5 3.4l1.2 1.3A8.9 8.9 0 0 1 8 2.2zm0 3.6c1.4 0 2.7.5 3.7 1.4l1.2-1.3A7.1 7.1 0 0 0 8 4 7.1 7.1 0 0 0 3.1 5.9l1.2 1.3c1-.9 2.3-1.4 3.7-1.4zM8 9.4c.5 0 1 .2 1.3.5L8 11.6 6.7 9.9c.3-.3.8-.5 1.3-.5z"/></svg><svg viewBox="0 0 27 12"><rect x="0.5" y="0.5" width="23" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="18" height="8" rx="1.8"/><rect x="24.5" y="4" width="2" height="4" rx="1" opacity="0.4"/></svg></span></div>
+<div class="heading title">
+<div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div>
+<button class="secondary small">Disconnect</button>
+</div>
+<section class="bar-state" role="status">
+<p><strong>1 network change not applied.</strong> Nobody else can change the network meanwhile.</p>
+<div class="row"><button class="secondary">Review</button><button class="secondary">Discard</button></div>
+</section>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><div class="body"><span class="name">Wifi</span><span class="now">Using cable</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button><div class="body"><span class="name">Share wifi</span><span class="now">On. 3 devices connected</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+</div>
 </div>
 
 </body>
