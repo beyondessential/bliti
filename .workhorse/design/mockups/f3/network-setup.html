@@ -1,0 +1,446 @@
+<!-- spec: status-screen.md -->
+<!-- spec: network/wifi.md -->
+<!-- spec: network/share.md -->
+<!-- The redesigned networking setup, as three changes to the flow in full-flow.html:
+     1. one instructional three-way choice (cable / join wifi / share wifi), presented as exclusive;
+     2. hotspot-style sharing: fixed name, password viewed and edited inline, QR behind a second tap;
+     3. no "Save this?" step: a change applies and is kept, with an Undo toast for a short window.
+     Two structures for where the choice lives are drawn side by side, A and B, to compare. Phone
+     chrome and component shapes are taken from crates/bliti-web/app/src/styles.css by way of
+     full-flow.html, scoped under .phone. -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tamanu Iti network setup</title>
+<style>
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #326699;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+
+body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+.canvas-title { font-size: 1.5rem; margin: 0 0 4px; }
+.canvas-sub { color: var(--muted); margin: 0 0 32px; max-width: 60rem; }
+.lane { margin-bottom: 48px; }
+.lane-title { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
+.lane-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 16px; max-width: 60rem; }
+.flow { display: flex; flex-wrap: wrap; align-items: flex-start; row-gap: 32px; padding-bottom: 12px; }
+.step { flex: 0 0 auto; width: 360px; }
+.step-label { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; min-height: 2.4em; }
+.step-label b { color: var(--text); }
+.step.branch { margin: 0 12px; }
+.step.branch .phone { outline: 2px dashed #a8a29e; outline-offset: 8px; }
+.arrow { flex: 0 0 auto; width: 90px; align-self: flex-start; margin-top: 220px; text-align: center; color: var(--muted); font-size: 0.75rem; line-height: 1.3; }
+.arrow .glyph { display: block; font-size: 1.5rem; color: var(--accent); line-height: 1; margin-top: 4px; }
+.arrow.dashed .glyph { color: var(--muted); }
+.gap { flex: 0 0 auto; width: 32px; }
+
+.phone {
+	position: relative;
+	background: var(--page);
+	border: 10px solid #1c1917;
+	border-radius: 46px;
+	padding: 0 14px 34px;
+	min-height: 720px;
+	box-shadow: 0 0 0 1px #3f3a36, 0 12px 28px rgba(28, 25, 23, 0.18);
+	font-size: 15px;
+	overflow: hidden;
+}
+.phone::after { content: ""; position: absolute; left: 50%; bottom: 9px; width: 120px; height: 5px; margin-left: -60px; border-radius: 3px; background: #1c1917; }
+.statusbar { position: relative; display: flex; align-items: center; justify-content: space-between; height: 44px; margin: 0 -14px 6px; padding: 6px 28px 0; font-size: 0.8rem; font-weight: 600; }
+.statusbar .island { position: absolute; left: 50%; top: 10px; width: 92px; height: 26px; margin-left: -46px; border-radius: 13px; background: #1c1917; }
+.statusbar .dots { letter-spacing: 2px; }
+.phone h1 { font-size: 1.2rem; margin: 0; }
+.phone section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+.phone h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
+.phone button { font: inherit; padding: 10px 14px; min-height: 40px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+.phone button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.phone button.small { padding: 5px 10px; min-height: 0; font-size: 0.8rem; }
+.phone button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+.phone input { font: inherit; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); color: var(--text); }
+.phone input:disabled { color: var(--muted); }
+.phone input.field-fault { border-color: var(--bad); }
+.phone label { display: block; font-size: 0.8rem; color: var(--muted); margin: 10px 0 4px; }
+.phone label:first-of-type { margin-top: 0; }
+.phone p { margin: 0; }
+.muted { color: var(--muted); font-size: 0.88rem; }
+.why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 0 1 auto; }
+.block { width: 100%; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading.title { margin-bottom: 14px; align-items: flex-start; }
+.software { margin-top: 2px; font-size: 0.8rem; }
+.spinner { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 6px; vertical-align: -0.05em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Status rows. */
+.health { list-style: none; margin: 0; padding: 0; }
+.health li { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.health li:first-child { border-top: 0; padding-top: 0; }
+.health .mark { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1; }
+.health .mark.good { background: #e8f5ec; color: var(--good); }
+.health .body { flex: 1 1 auto; min-width: 0; }
+.health .name { display: block; font-weight: 600; }
+.health .detail { display: block; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+.health .sep { margin: 0 5px; opacity: 0.5; }
+.health button { flex: 0 0 auto; align-self: center; min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
+.health .mark.good::before { content: "\2713"; }
+
+/* Set-up task rows. */
+.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tasks button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.tasks .ico { flex: 0 0 auto; width: 22px; text-align: center; color: var(--muted); }
+.tasks .body { flex: 1 1 auto; min-width: 0; }
+.tasks .name { display: block; font-weight: 600; }
+.tasks .now { color: var(--muted); font-size: 0.85rem; }
+.chevron { flex: 0 0 auto; color: var(--muted); }
+.advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
+.advanced .summary { display: flex; align-items: center; justify-content: space-between; padding: 14px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.advanced .summary::after { content: ""; width: 7px; height: 7px; margin: -4px 4px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+
+/* The three-way choice. Each option is a card: a plain-language line about what it means, and the
+   state it is in now. The one in force is marked. */
+.choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.choice { display: flex; gap: 12px; width: 100%; text-align: left; background: var(--surface); color: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 14px; align-items: flex-start; }
+.choice .ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 6px; background: #eef2f7; color: var(--accent); display: grid; place-items: center; font-size: 0.95rem; }
+.choice .body { flex: 1 1 auto; min-width: 0; }
+.choice .name { display: block; font-weight: 600; }
+.choice .what { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+.choice .now { display: inline-block; margin-top: 6px; font-size: 0.8rem; color: var(--good); font-weight: 600; }
+.choice .now::before { content: "\2713"; margin-right: 4px; }
+.choice.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice .pick { flex: 0 0 auto; align-self: center; }
+
+/* Variant B: the three modes as segments of one screen, the active one open. */
+.modes { list-style: none; margin: 0; padding: 0; }
+.modes > li { border-top: 1px solid var(--line); }
+.modes > li:first-child { border-top: 0; }
+.mode-head { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: transparent; color: inherit; border: 0; border-radius: 0; padding: 14px 0; min-height: 0; }
+.mode-head .ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 6px; background: #eef2f7; color: var(--accent); display: grid; place-items: center; font-size: 0.95rem; }
+.mode-head .body { flex: 1 1 auto; min-width: 0; }
+.mode-head .name { display: block; font-weight: 600; }
+.mode-head .what { display: block; color: var(--muted); font-size: 0.82rem; }
+.radio { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); }
+.radio.on { border-color: var(--accent); background: radial-gradient(var(--accent) 0 5px, transparent 6px); }
+.mode-body { padding: 0 0 14px 38px; }
+
+/* Hotspot-style sharing credentials: fixed name, password viewed and edited in place, QR on a tap. */
+.cred { margin: 0; }
+.cred .field { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.cred .field:first-child { border-top: 0; }
+.cred .k { flex: 0 0 7.5rem; color: var(--muted); font-size: 0.85rem; }
+.cred .v { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.cred .v.secret { font-family: ui-monospace, monospace; }
+.cred .v.fixed { color: var(--text); }
+.cred .act { flex: 0 0 auto; }
+.cred .lock { color: var(--muted); font-size: 0.78rem; }
+.qrwrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 12px; }
+.qr { width: 8.5rem; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 8px; background:
+	repeating-conic-gradient(var(--text) 0% 25%, var(--surface) 0% 50%) 0 0 / 14px 14px; position: relative; }
+.qr::before, .qr::after { content: ""; position: absolute; width: 30px; height: 30px; border: 6px solid var(--text); background: var(--surface); }
+.qr::before { top: 10px; left: 10px; }
+.qr::after { top: 10px; right: 10px; }
+.qr .b { position: absolute; bottom: 10px; left: 10px; width: 30px; height: 30px; border: 6px solid var(--text); background: var(--surface); }
+.qr-caption { font-size: 0.8rem; color: var(--muted); }
+
+.toggle { display: flex; align-items: center; gap: 12px; }
+.toggle .body { flex: 1 1 auto; }
+.toggle .name { display: block; font-weight: 600; }
+.toggle .sub { color: var(--muted); font-size: 0.85rem; }
+.switch { flex: 0 0 auto; position: relative; width: 48px; height: 28px; border-radius: 999px; background: #cbd5e1; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
+.switch.on { background: var(--good); }
+.switch.on::after { left: 23px; }
+
+/* The instruction a mode carries, when it is a thing to do rather than a thing to set. */
+.lead { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.lead + .muted { margin-bottom: 12px; }
+.done-line { color: var(--good); font-size: 0.85rem; font-weight: 600; margin: 0 0 8px; }
+.done-line::before { content: "\2713"; margin-right: 6px; }
+.port { width: 100%; aspect-ratio: 16/9; border: 1px dashed var(--line); border-radius: 8px; margin: 10px 0; display: grid; place-items: center; color: var(--muted); font-size: 0.85rem; background: var(--page); }
+
+/* A caution shown inline before a switch that costs the Iti's own connection. */
+.caution { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 6px; padding: 10px 12px; margin: 12px 0 0; font-size: 0.85rem; }
+.caution strong { display: block; margin-bottom: 2px; }
+
+/* The Undo toast: what just happened, and a way back, for a short window. It is the whole of the
+   "save" story now, in place of a confirm step. Pinned near the foot of the screen. */
+.toast { position: absolute; left: 12px; right: 12px; bottom: 24px; background: #1c1917; color: #fff; border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.toast .msg { flex: 1 1 auto; font-size: 0.9rem; }
+.toast .msg .sub { display: block; color: #d6d3cf; font-size: 0.78rem; }
+.toast button.undo { flex: 0 0 auto; background: transparent; color: #fbbf72; border: 0; padding: 4px 6px; min-height: 0; font-weight: 600; }
+.toast .timer { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: conic-gradient(#fbbf72 220deg, #4b4641 0); }
+
+.networks { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.networks button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.networks .name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.networks .signal { flex: 0 0 auto; color: var(--muted); font-size: 0.8rem; }
+.links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
+.input-show { position: relative; }
+.input-show .link { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+</style>
+</head>
+<body>
+
+<h1 class="canvas-title">Tamanu Iti network setup</h1>
+<p class="canvas-sub">Three changes to the networking flow. One instructional three-way choice, cable or join a wifi network or share the Iti's own wifi, presented as one-at-a-time even though the Iti can do more at once under Advanced. Sharing drawn like a phone hotspot. And no separate save: a change takes effect and is kept, with an Undo offered for a short window instead of a confirm step. Lanes A and B are two homes for the choice, to compare.</p>
+
+<!-- ============================================================ -->
+<div class="lane">
+<h2 class="lane-title">A. One "Network" entry on the Status screen, opening a chooser</h2>
+<p class="lane-sub">The two task rows (Wifi, Share wifi) become one "Network" row that shows the mode in force. Tapping it opens a chooser: a short decision screen that switches the Iti to the mode picked, then shows that mode's detail. Reads as a setup step.</p>
+<div class="flow">
+
+<div class="step">
+<p class="step-label"><b>Status</b>. One Network row, showing the mode in force.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div><button class="secondary small">Disconnect</button></div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by cable</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><span class="ico">&#9783;</span><div class="body"><span class="name">Network</span><span class="now">Connected by cable</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+
+<div class="arrow">Tap Network<span class="glyph">&rarr;</span></div>
+
+<div class="step">
+<p class="step-label"><b>Chooser</b>. One plain line each. The mode in force is marked.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Network</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="muted" style="margin-bottom:12px">How do the clinic's phones and laptops reach the Iti? Pick one.</p>
+<ul class="choices">
+<li class="choice current">
+<span class="ico">&#9783;</span>
+<div class="body"><span class="name">Use a cable</span><span class="what">Plug the Iti into the clinic network with a cable. The most reliable way.</span><span class="now">In use now</span></div>
+</li>
+<li class="choice">
+<span class="ico">&#128246;</span>
+<div class="body"><span class="name">Join a wifi network</span><span class="what">The Iti joins the clinic's wifi, the same one the phones and laptops use.</span></div>
+<button class="secondary small pick">Choose</button>
+</li>
+<li class="choice">
+<span class="ico">&#128225;</span>
+<div class="body"><span class="name">Share the Iti's wifi</span><span class="what">The Iti makes its own wifi for nearby phones and laptops to join.</span></div>
+<button class="secondary small pick">Choose</button>
+</li>
+</ul>
+</section>
+</div>
+</div>
+
+<div class="arrow">Tap Choose on Share<span class="glyph">&rarr;</span></div>
+
+<div class="step">
+<p class="step-label"><b>Switching</b>. Share needs the one radio, so it warns before taking the wifi uplink. (Here the Iti is on cable, so it stays online.)</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Share the Iti's wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="lead">Turn on the Iti's wifi?</p>
+<p class="muted">Phones and laptops nearby will be able to join it.</p>
+<div class="caution"><strong>The Iti stops joining other wifi</strong>It has one wifi radio, so it can share its own or join another, not both. The Iti stays online by cable.</div>
+<button class="block" style="margin-top:12px">Turn on sharing</button>
+</section>
+</div>
+</div>
+
+<div class="arrow">Tap Turn on sharing<span class="glyph">&rarr;</span></div>
+
+<div class="step">
+<p class="step-label"><b>Shared, kept, with Undo</b>. It is on and already kept. The toast is the only "save": it offers a way back for a short window, then goes.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Share the Iti's wifi</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Share the Iti's wifi</span><span class="sub">On &middot; 3 devices connected</span></div>
+<span class="switch on"></span>
+</div>
+<p class="muted" style="margin-top:10px">The Iti is still online by cable.</p>
+</section>
+<section>
+<h2>How others connect</h2>
+<div class="cred">
+<div class="field"><span class="k">Network</span><span class="v fixed">Clinic-Iti</span><span class="lock act">Fixed</span></div>
+<div class="field"><span class="k">Password</span><span class="v secret">reef-otter-9471</span><button class="link act">Hide</button></div>
+</div>
+<div class="row" style="margin-top:12px"><button class="secondary small">Show QR code</button><button class="link" style="align-self:center">Change password</button></div>
+</section>
+<div class="toast">
+<span class="timer"></span>
+<span class="msg">Sharing turned on<span class="sub">The Iti left Clinic-Staff</span></span>
+<button class="undo">Undo</button>
+</div>
+</div>
+</div>
+
+<div class="gap"></div>
+<div class="arrow dashed">Or, from the chooser, pick Use a cable<span class="glyph">&#8618;</span></div>
+
+<div class="step branch">
+<p class="step-label"><b>Cable</b>. A thing to do, not to set: it just tells you where to plug in.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Use a cable</h1><button class="secondary small">Back</button></div>
+<section>
+<p class="lead">Plug the Iti into the network</p>
+<p class="muted">Run a network cable from a wall port or the clinic's router to the ethernet port on the Iti.</p>
+<div class="port">Ethernet port, on the back of the Iti</div>
+<p class="done-line">Online by cable</p>
+<p class="muted">The Iti found the network as soon as you plugged in. Nothing else to do.</p>
+</section>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="lane">
+<h2 class="lane-title">B. The "Network" screen is the choice</h2>
+<p class="lane-sub">Tapping Network opens a screen whose body is the three modes, the one in force open and showing its detail in place. Switching is picking another. Reads as a settings screen with one active section rather than a wizard.</p>
+<div class="flow">
+
+<div class="step">
+<p class="step-label"><b>Status</b>. Same single Network row.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 &middot; Ubuntu 26.04</p></div><button class="secondary small">Disconnect</button></div>
+<section>
+<h2>Status</h2>
+<ul class="health">
+<li><span class="mark good"></span><div class="body"><span class="name">Online</span><span class="detail">Connected to the internet by wifi</span></div></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul>
+</section>
+<section>
+<h2>Set up</h2>
+<ul class="tasks">
+<li><button><span class="ico">&#9783;</span><div class="body"><span class="name">Network</span><span class="now">On wifi &middot; Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+</ul>
+</section>
+<div class="advanced"><div class="summary">Advanced</div></div>
+</div>
+</div>
+
+<div class="arrow">Tap Network<span class="glyph">&rarr;</span></div>
+
+<div class="step">
+<p class="step-label"><b>Network</b>. Three modes, the one in force open. Join is active, showing the network it is on.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Network</h1><button class="secondary small">Back</button></div>
+<section>
+<ul class="modes">
+<li>
+<button class="mode-head"><span class="ico">&#9783;</span><div class="body"><span class="name">Use a cable</span><span class="what">Plug into the clinic network.</span></div><span class="radio"></span></button>
+</li>
+<li>
+<button class="mode-head"><span class="ico">&#128246;</span><div class="body"><span class="name">Join a wifi network</span><span class="what">On Clinic-Staff.</span></div><span class="radio on"></span></button>
+<div class="mode-body">
+<p class="done-line">Connected to Clinic-Staff</p>
+<button class="secondary small">Change network</button>
+</div>
+</li>
+<li>
+<button class="mode-head"><span class="ico">&#128225;</span><div class="body"><span class="name">Share the Iti's wifi</span><span class="what">Make its own wifi for others.</span></div><span class="radio"></span></button>
+</li>
+</ul>
+</section>
+</div>
+</div>
+
+<div class="arrow">Tap Share the Iti's wifi<span class="glyph">&rarr;</span></div>
+
+<div class="step">
+<p class="step-label"><b>Switched, inline</b>. Share opens, becomes active, and the uplink note sits in its body. Here on wifi with no cable, so it warns of going offline.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Network</h1><button class="secondary small">Back</button></div>
+<section>
+<ul class="modes">
+<li><button class="mode-head"><span class="ico">&#9783;</span><div class="body"><span class="name">Use a cable</span><span class="what">Plug into the clinic network.</span></div><span class="radio"></span></button></li>
+<li><button class="mode-head"><span class="ico">&#128246;</span><div class="body"><span class="name">Join a wifi network</span><span class="what">Off while sharing.</span></div><span class="radio"></span></button></li>
+<li>
+<button class="mode-head"><span class="ico">&#128225;</span><div class="body"><span class="name">Share the Iti's wifi</span><span class="what">On &middot; 3 devices</span></div><span class="radio on"></span></button>
+<div class="mode-body">
+<p class="muted" style="margin-bottom:10px">Phones and laptops nearby can join the Iti's own wifi.</p>
+<div class="cred">
+<div class="field"><span class="k">Network</span><span class="v fixed">Clinic-Iti</span><span class="lock act">Fixed</span></div>
+<div class="field"><span class="k">Password</span><span class="v secret">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span><button class="link act">Show</button></div>
+</div>
+<div class="row" style="margin-top:12px"><button class="secondary small">Show QR code</button><button class="link" style="align-self:center">Change password</button></div>
+</div>
+</li>
+</ul>
+</section>
+<div class="toast">
+<span class="timer"></span>
+<span class="msg">Now sharing the Iti's wifi<span class="sub">It went offline &middot; Clinic-Staff dropped</span></span>
+<button class="undo">Undo</button>
+</div>
+</div>
+</div>
+
+<div class="gap"></div>
+<div class="arrow dashed">The QR code, after tapping Show QR code<span class="glyph">&#8618;</span></div>
+
+<div class="step branch">
+<p class="step-label"><b>QR on a tap</b>. Hidden by default, since most join from a desktop. Name stays fixed; password edits in place.</p>
+<div class="phone">
+<div class="statusbar"><span>9:41</span><span class="island"></span><span class="dots">&#9679;&#9679;&#9679;</span></div>
+<div class="heading title"><h1>Network</h1><button class="secondary small">Back</button></div>
+<section>
+<div class="toggle">
+<div class="body"><span class="name">Share the Iti's wifi</span><span class="sub">On &middot; 3 devices connected</span></div>
+<span class="switch on"></span>
+</div>
+</section>
+<section>
+<h2>How others connect</h2>
+<div class="cred">
+<div class="field"><span class="k">Network</span><span class="v fixed">Clinic-Iti</span><span class="lock act">Fixed</span></div>
+<div class="field"><span class="k">Password</span><span class="v secret">reef-otter-9471</span><button class="link act">Edit</button></div>
+</div>
+<div class="qrwrap">
+<div class="qr"><span class="b"></span></div>
+<span class="qr-caption">Scan to join Clinic-Iti</span>
+<button class="link">Hide QR code</button>
+</div>
+<p class="muted" style="margin-top:10px">Change the name under Advanced &rarr; Network settings.</p>
+</section>
+</div>
+</div>
+
+</div>
+</div>
+
+</body>
+</html>
