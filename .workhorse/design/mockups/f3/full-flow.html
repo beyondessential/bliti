@@ -108,6 +108,11 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .health .detail { display: block; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
 .health .detail.reason { color: var(--bad); }
 .health .sep { margin: 0 5px; opacity: 0.5; }
+.health .fact { display: flex; align-items: center; gap: 6px; }
+.health .fact .sep { margin: 0; }
+.health .way { flex: 0 0 auto; width: 16px; height: 16px; color: var(--accent); }
+.health .way svg { display: block; width: 100%; height: 100%; }
+.health .k { margin-right: 6px; opacity: 0.75; }
 .health button { flex: 0 0 auto; align-self: center; min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
 .health .busy { flex: 0 0 auto; align-self: center; color: var(--accent); font-size: 0.85rem; white-space: nowrap; }
 .health .bar-state { margin: 10px 0 0; }
@@ -121,7 +126,11 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .tasks .name { display: block; font-weight: 600; }
 .tasks .now { color: var(--muted); font-size: 0.85rem; }
 .chevron { flex: 0 0 auto; color: var(--muted); }
-.tasks .now.in-use { color: var(--good); }
+.tasks button.in-use { border: 2px solid var(--good); background: #f0f9f3; padding: 11px 13px; }
+.tasks button.in-use .now { color: var(--text); }
+.tasks .sep { margin: 0 5px; opacity: 0.5; }
+.tasks .tick { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--good); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.tasks .tick::before { content: "\2713"; }
 .tasks .ico { flex: 0 0 auto; width: 20px; height: 20px; color: var(--accent); }
 .tasks .ico svg { display: block; width: 100%; height: 100%; }
 .intro { margin-bottom: 12px; }
@@ -396,8 +405,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -533,8 +542,8 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail">Try restarting it.</span></div><button class="secondary">Restart</button></li>
 					</ul>
 				</section>
@@ -555,8 +564,8 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li class="asking">
 							<div class="top"><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail">Try restarting it.</span></div></div>
 							<div class="bar-state" role="alertdialog">
@@ -584,8 +593,8 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail">Please wait.</span></div><span class="busy"><span class="spinner"></span>Restarting&hellip;</span></li>
 					</ul>
 				</section>
@@ -606,8 +615,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark bad"></span><div class="body"><span class="name">Tamanu not running</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail reason">Restart refused: an update is being installed.</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -627,8 +636,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark bad"></span><div class="body"><span class="name">Network not connected</span><span class="detail">No cable, wifi or hotspot.</span></div><button class="secondary">Set up</button></li>
-<li><span class="mark bad"></span><div class="body"><span class="name">Tailscale not connected</span><span class="detail">Support can&#39;t reach it.</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Network not connected</span></div><button class="secondary">Set up</button></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Tailscale not connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -648,8 +657,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">backup-agent</span><span class="detail">1.4.0</span></div></li>
 </ul>
@@ -676,8 +685,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by wifi to Clinic-Staff</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 20h.01" /><path d="M2 8.82a15 15 0 0 1 20 0" /><path d="M5 12.859a10 10 0 0 1 14 0" /><path d="M8.5 16.429a5 5 0 0 1 7 0" /></svg></span>Wifi<span class="sep">&middot;</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -694,7 +703,7 @@ dd .link { margin-left: 8px; }
 <p class="muted intro">Phones and laptops must be on the same network as the Iti.</p>
 <ul class="tasks">
 <li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span><div class="body"><span class="name">Plug in a cable</span><span class="now">No cable</span></div><span class="chevron">&rsaquo;</span></button></li>
-<li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 20h.01" /><path d="M2 8.82a15 15 0 0 1 20 0" /><path d="M5 12.859a10 10 0 0 1 14 0" /><path d="M8.5 16.429a5 5 0 0 1 7 0" /></svg></span><div class="body"><span class="name">Join the clinic&#39;s wifi</span><span class="now in-use">In use: Clinic-Staff</span></div><span class="chevron">&rsaquo;</span></button></li>
+<li><button class="in-use"><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 20h.01" /><path d="M2 8.82a15 15 0 0 1 20 0" /><path d="M5 12.859a10 10 0 0 1 14 0" /><path d="M8.5 16.429a5 5 0 0 1 7 0" /></svg></span><div class="body"><span class="name">Join the clinic&#39;s wifi</span><span class="now">Connected<span class="sep">&middot;</span>Clinic-Staff</span></div><span class="tick" role="img" aria-label="In use"></span><span class="chevron">&rsaquo;</span></button></li>
 <li><button><span class="ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9" /><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5" /><circle cx="12" cy="9" r="2" /><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47" /><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1" /><path d="M9.5 18h5" /><path d="m8 22 4-11 4 11" /></svg></span><div class="body"><span class="name">Share the Iti&#39;s hotspot</span><span class="now">Off</span></div><span class="chevron">&rsaquo;</span></button></li>
 </ul>
 </section>
@@ -725,8 +734,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -746,8 +755,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark bad"></span><div class="body"><span class="name">Network not connected</span><span class="detail">No cable, wifi or hotspot.</span></div><button class="secondary">Set up</button></li>
-<li><span class="mark bad"></span><div class="body"><span class="name">Tailscale not connected</span><span class="detail">Support can&#39;t reach it.</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Network not connected</span></div><button class="secondary">Set up</button></li>
+<li><span class="mark bad"></span><div class="body"><span class="name">Tailscale not connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -836,8 +845,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by wifi to Clinic-Staff</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 20h.01" /><path d="M2 8.82a15 15 0 0 1 20 0" /><path d="M5 12.859a10 10 0 0 1 14 0" /><path d="M8.5 16.429a5 5 0 0 1 7 0" /></svg></span>Wifi<span class="sep">&middot;</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>
@@ -1102,8 +1111,8 @@ dd .link { margin-left: 8px; }
 				<section>
 					<h2>Status</h2>
 					<ul class="health">
-						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+						<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 						<li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 					</ul>
 				</section>
@@ -1253,8 +1262,8 @@ dd .link { margin-left: 8px; }
 <section>
 <h2>Status</h2>
 <ul class="health">
-<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail">Connected by cable</span></div><button class="secondary">Change</button></li>
-<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail">Support can reach it as clinic-iti-07</span></div><button class="secondary">Restart</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M10 8v1" /><path d="M14 8v1" /><path d="M18 8v1" /><path d="M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z" /><path d="M6 8v1" /></svg></span>Cable</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Restart</button></li>
 <li><span class="mark good"></span><div class="body"><span class="name">Tamanu running</span><span class="detail">Web 2.34.1<span class="sep">&middot;</span>Facility server 2.34.0</span></div><button class="secondary">Restart</button></li>
 </ul>
 </section>

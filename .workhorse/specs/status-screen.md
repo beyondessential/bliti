@@ -39,14 +39,16 @@ The application MUST show the rows in this order:
 
 The application MUST show the network row well while [NSET](network/setup.md) marks a way as in use, and not well otherwise, so a device sharing its hotspot with no other connection reads as on a network.
 
-The application MUST say on the network row how the device is connected, by the way in use: by cable, by wifi naming the network joined from `wireless-network`, or by its hotspot.
-Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`.
+The application MUST show on the network row the way in use, by its icon and its short name: cable; wifi, with the name of the network joined from `wireless-network`; or hotspot, with how many clients are joined from `hotspot-clients`.
+The application MUST show no detail on the network row while no way is in use.
 
-The application MUST render the overlay client the device reports under the name `tailscale` as the overlay row, well while its `service` is `passed`, and MUST show the name the device is reached by from that entry's value.
+The application MUST render the overlay client the device reports under the name `tailscale` as the overlay row, well while its `service` is `passed`, and MUST show the name the device is reached by from that entry's value, labelled as the device name, whether the row is well or not.
 
 The application MUST render the two Tamanu services the device reports, under the names `tamanu-web` and `tamanu-facility-server`, as one Tamanu row, well only while both are `passed`, and MUST show each service's version from its value.
 
 The application MUST render a `service` it does not recognise as a row of its own, named and valued as [VIEW](device-view.md) renders an unrecognised fact, well while it is `passed`.
+
+The application MUST give the detail of every row it recognises as short labelled values, leaving whole sentences to the device's `reason`.
 
 The application MUST supply its own wording for every row it recognises, and MUST NOT put a service's reported name in front of an operator where it recognises it.
 

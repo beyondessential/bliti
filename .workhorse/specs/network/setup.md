@@ -29,6 +29,8 @@ The application MUST show against each way the state it is in now: against the c
 The application MUST mark one way as in use, taking the first of these that holds: the hotspot, where it is on; wifi, where the device is joined to a wireless network; the cable, where a wired interface carries the `default` route.
 Where none holds, the application MUST mark none.
 
+The application MUST set the way in use apart from the other two with a check and a highlight, and MUST show against it that it is connected, beside the network joined where it is wifi.
+
 ## Using one turns the others off
 
 The application MUST, where the operator puts one way into use, turn off the others that the configuration in force has on, in the same proposal:
