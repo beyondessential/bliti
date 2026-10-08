@@ -30,7 +30,7 @@ The application MUST show the network name as text, leaving it to be changed in 
 
 The application MUST hide the password until the operator asks to see it, and MUST let them hide it again.
 
-The application MUST let the operator change the password in place, and MUST propose it when they save it, saying beneath the field that devices already joined will need the new one.
+The application MUST let the operator change the password in place, and MUST propose it when they save it, saying beneath the field that devices already joined will need to reconnect with the new password.
 
 The application MUST check that a new password has at least eight characters before proposing it, and MUST say beneath the field where it does not.
 
