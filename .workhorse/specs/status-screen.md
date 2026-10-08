@@ -61,6 +61,8 @@ The application MUST open a service stream of [SVC](control/services.md) when th
 
 The application MUST offer to restart a row whose service or services the device lists as restartable, and MUST offer no restart on a row whose services it does not.
 
+The application MUST place a row's action beneath the row's name and detail, spanning the row's width.
+
 The application MUST restart the overlay on its own, and MUST restart the two Tamanu services together as one act, asking the device to restart each.
 
 The application MUST ask the operator to confirm a restart before asking the device for it, naming what is restarted.
