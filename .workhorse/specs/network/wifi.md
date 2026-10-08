@@ -39,7 +39,7 @@ The application MUST let the operator join a hidden network by naming it.
 
 The application MUST tell the operator, while the device verifies the join, that it is connecting, and MUST let them cancel, discarding the proposal of [CFG](session.md).
 
-On a join applied, the application MUST tell the operator the device is connected to the network.
+On a join applied, the application MUST return the operator to the Status screen of [STAT](../status-screen.md) on its own, where the network row says the device is connected by wifi to the network joined.
 
 On a join that fails, the application MUST say why in a facility operator's terms, drawn from the failure of [CFG](session.md): a wrong passphrase where the failure is at the passphrase, out of range where the network was not reached, and the device's `reason` otherwise.
 

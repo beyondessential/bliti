@@ -59,7 +59,7 @@ The application MUST close the session once a change is confirmed or has failed.
 
 The application MUST ask the operator, on the cable screen, to plug a network cable into the device's network port from the clinic's router or a wall socket, and MUST say it is waiting for one until a wired interface has carrier.
 
-The application MUST say once a wired attachment carries the `default` route that the device is connected by cable and online.
+The application MUST return the operator to the Status screen of [STAT](../status-screen.md) on its own once a wired attachment carries the `default` route, where the network row says the device is connected by cable.
 
 The application MUST put the cable into use, as above, only once a wired interface has carrier, and MUST NOT do so while the operator is waiting for a cable.
 Where every wired attachment is already on, the application MUST wait further, until a wired attachment carries the `default` route, so a cable that gives no connection never turns the others off.
