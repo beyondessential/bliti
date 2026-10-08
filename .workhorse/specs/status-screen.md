@@ -7,7 +7,7 @@ id: STAT
 The Status screen is the screen an operator meets when a channel to a device opens: whether the things the device must be running are running, the way into the tasks an operator comes to do, and the way into everything else.
 
 [VIEW](device-view.md) renders the whole catalogue of [NFO](device-info.md).
-This screen renders the few entries that answer "is it working", drives the restarts of [SVC](control/services.md), and sends an operator to the tasks of [WIFI](network/wifi.md) and [SHARE](network/share.md) and to [VIEW](device-view.md) for the rest.
+This screen renders the few entries that answer "is it working", drives the restarts of [SVC](control/services.md), and sends an operator to the network setup of [NSET](network/setup.md) and to [VIEW](device-view.md) for the rest.
 
 ## The landing
 
@@ -69,12 +69,9 @@ The application MUST render a `restart-refused` reason as the device wrote it.
 
 ## The tasks
 
-The application MUST offer, beneath the status, the way to join a wireless network of [WIFI](network/wifi.md) and the way to share the device's connection of [SHARE](network/share.md).
+The application MUST offer, beneath the status, a single Network task opening the Network screen of [NSET](network/setup.md).
 
-The application MUST show against each the state it is in now, so the screen says whether wifi is joined and whether sharing is on without either being opened:
-
-- against wifi, the wireless network the device is joined to from `wireless-network`; where it is joined to none, that it is using the wired network where a wired interface carries the `default` route, and that it is not connected otherwise;
-- against sharing, whether the hotspot is on and how many clients are joined, from `hotspot` and `hotspot-clients`.
+The application MUST show against the Network task the way [NSET](network/setup.md) marks as in use, so the screen says how the device is connected without it being opened: the hotspot with how many clients are joined, from `hotspot-clients`; wifi with the network joined, from `wireless-network`; the cable; or that it is not connected where none is in use.
 
 ## Advanced
 

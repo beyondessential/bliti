@@ -2,38 +2,42 @@
 id: SHARE
 ---
 
-# Sharing wifi
+# Sharing the hotspot
 
-The Share screen is where an operator turns the device's hotspot on and off and reads or changes the credentials other devices join it by: the hotspot of [HOT](hotspot.md) presented for a facility operator.
+The Share hotspot screen is where an operator turns the device's hotspot on and off and reads or changes the password other devices join it with: the hotspot of [HOT](hotspot.md), presented as a phone presents its own.
 
-This screen edits the hotspot through the session of [CFG](session.md), as [NSCR](screen.md) does, and leaves the attachments as they are but for the one case below where sharing and the device's own wifi cannot both run.
+It is one of the three ways of [NSET](setup.md), reached from the Network screen, and its changes are proposed and kept as [NSET](setup.md) has it.
+[NSCR](screen.md), reached under Advanced, holds the rest of the hotspot's settings, its network name among them.
 
-## Turning sharing on and off
+## Turning the hotspot on and off
 
-The application MUST present whether the hotspot is on, from whether the configuration in force carries a hotspot whose `enabled` is true, and MUST let the operator turn it on and off.
+The application MUST title the screen Share hotspot, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Network screen beside it.
 
-Turning sharing on MUST set the hotspot `enabled` true, and turning it off MUST set it false, each proposed through the session of [CFG](session.md) and kept on confirm as a join of [WIFI](wifi.md) is kept.
+The application MUST present the hotspot as a single switch letting other devices join, on where the configuration in force carries a hotspot whose `enabled` is true, and MUST let the operator turn it on and off by the switch alone.
 
-The application MUST show, while sharing is on, how many devices are joined, from `hotspot-clients`.
+The application MUST show beneath the switch, while it is on, how many devices are joined, from `hotspot-clients`.
 
-The application MUST require a network name and a passphrase before sharing can be turned on, and MUST NOT supply either itself, as [HOT](hotspot.md) forbids a device deriving them.
+Turning the hotspot on MUST set it `enabled` true and turn the wireless candidates off, as [NSET](setup.md) has it.
+Turning it off MUST set it `enabled` false and set the wireless candidate [WIFI](wifi.md) presents `enabled` true, where there is one.
 
-## Sharing and the device's own wifi
+The application MUST say beneath the switch, while it is off and turning it on would turn a wireless connection off, the network the device would leave, and that the device would go offline where no wired attachment carries the `default` route.
 
-Where the device cannot run the hotspot beside the wireless network it is joined to, as [HOT](hotspot.md) has it for a radio that runs an access point and a wireless client only one at a time or only on one channel, the application MUST, on turning sharing on, also turn that wireless connection off in the same proposal.
+## The details
 
-The application MUST tell the operator, before it does so, that sharing turns the device's own wifi connection off, and whether the device stays online through the wired network or goes offline, drawn from whether a wired attachment carries the default route.
+The application MUST show the hotspot's network name and password beneath the switch, whether the switch is on or off.
 
-Where the device is online through the wired network, or its radio runs the hotspot and its wireless client at once, the application MUST turn sharing on without taking the wifi connection off.
+The application MUST show the network name as text, leaving it to be changed in [NSCR](screen.md).
 
-> [!NOTE]
-> The device has one radio, and one radio cannot both join a network and be the network. An operator sharing from a clinic on a wired uplink loses nothing; one sharing from a device on wifi loses its uplink, and is told which before it happens rather than after.
+The application MUST hide the password until the operator asks to see it, and MUST let them hide it again.
 
-## The credentials
+The application MUST let the operator change the password in place, and MUST propose it when they save it, saying beneath the field that devices already joined will need the new one.
 
-The application MUST show the hotspot's network name and passphrase, revealing the passphrase on request, and MUST show a QR code a phone joins the hotspot by, as [VIEW](../device-view.md) draws the same code.
+The application MUST check that a new password has at least eight characters before proposing it, and MUST say beneath the field where it does not.
 
-The application MUST let the operator change the network name and the passphrase, proposed through the session of [CFG](session.md) and kept on confirm.
+The application MUST show, on request and not otherwise, the QR code a phone joins the hotspot by, as [VIEW](../device-view.md) draws the same code, and MUST let the operator hide it again.
 
-> [!NOTE]
-> The passphrase is the one credential on the device meant to be read aloud and handed to a stranger, as [HOT](hotspot.md) has it, so the screen an operator shares from is where it is shown, rather than won from the readings under Advanced.
+## A hotspot not yet set up
+
+Where the configuration in force carries no hotspot, the application MUST show as its network name the device's `hostname`, and as its password one the application generates, and MUST propose both when the operator first turns the hotspot on.
+
+The application MUST generate a password of at least eight characters, from words and digits easy to read aloud.
