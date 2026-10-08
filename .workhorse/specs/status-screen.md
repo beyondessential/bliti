@@ -37,7 +37,10 @@ The application MUST show the rows in this order:
 | Tamanu | the Tamanu services' `service` entries |
 | anything else | every other `service` |
 
-The application MUST show the device as online while it holds a `network-address` on the interface carrying the `default` route, and not online otherwise, naming on the online row whether the route is wired or wireless from that interface.
+The application MUST show the device as online while it holds a `network-address` on the interface carrying the `default` route, and not online otherwise.
+
+The application MUST say on the online row how the device is connected, by the way [NSET](network/setup.md) marks as in use: by cable, by wifi naming the network joined from `wireless-network`, or by its hotspot.
+Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`, beside how the device reaches the internet.
 
 The application MUST render the overlay client the device reports under the name `tailscale` as the overlay row, well while its `service` is `passed`, and MUST show the name the device is reached by from that entry's value.
 
@@ -67,11 +70,9 @@ The application MUST render a `restart-refused` reason as the device wrote it.
 > [!NOTE]
 > A restart does not end the channel, as [SVC](control/services.md) has it, so the operator stays on the Status screen and watches the row leave its well state and return. This is why a restart is offered here and a reboot is not: a reboot takes the device away, and belongs with the acts of [CTL](control/power.md) under Advanced.
 
-## The tasks
+## Changing the network
 
-The application MUST offer, beneath the status, a single Network task opening the Network screen of [NSET](network/setup.md).
-
-The application MUST show against the Network task the way [NSET](network/setup.md) marks as in use, so the screen says how the device is connected without it being opened: the hotspot with how many clients are joined, from `hotspot-clients`; wifi with the network joined, from `wireless-network`; the cable; or that it is not connected where none is in use.
+The application MUST offer on the online row to open the Network screen of [NSET](network/setup.md), in the place a restart is offered on the other rows, worded as changing the network while the device is online and as setting it up while it is not.
 
 ## Advanced
 
