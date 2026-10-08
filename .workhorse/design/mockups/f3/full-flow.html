@@ -114,8 +114,10 @@ body { margin: 0; padding: 32px; background: #efeee9; color: var(--text); font: 
 .health .way svg { display: block; width: 100%; height: 100%; }
 .health .k { margin-right: 6px; opacity: 0.75; }
 .health li > button, .health li > .busy { flex: 1 0 calc(100% - 1.5rem - 10px); margin-left: calc(1.5rem + 10px); }
-.health .busy { padding: 10px 0; text-align: center; color: var(--accent); font-size: 0.85rem; }
+.health li > button { min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
+.health .busy { padding: 6px 0; text-align: center; color: var(--accent); font-size: 0.85rem; }
 .health .bar-state { margin: 10px 0 0; }
+.health .bar-state button { min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
 .health li.asking { display: block; }
 .health li.asking .top { display: flex; gap: 10px; align-items: flex-start; }
 
@@ -192,7 +194,7 @@ dd .link { margin-left: 8px; }
 .acts li:first-child { border-top: 0; padding-top: 0; }
 .acts li > div { flex: 1 1 100%; }
 .acts .name { display: block; }
-.acts button { flex: 1 0 100%; }
+.acts button { flex: 1 0 100%; min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
 
 /* The shipped screen for reading a code and finding the device. */
 .code { font-family: ui-monospace, monospace; font-size: 0.8rem; word-break: break-all; }
