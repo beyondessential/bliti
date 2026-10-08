@@ -34,7 +34,7 @@ The application MUST let the operator change the password in place, and MUST pro
 
 The application MUST check that a new password has at least eight characters before proposing it, and MUST say beneath the field where it does not.
 
-The application MUST show, on request and not otherwise, the QR code a phone joins the hotspot by, as [VIEW](../device-view.md) draws the same code, and MUST let the operator hide it again.
+The application MUST show beneath the network name and password, whether the switch is on or off, the QR code a phone joins the hotspot by, as [VIEW](../device-view.md) draws the same code.
 
 ## A hotspot not yet set up
 
