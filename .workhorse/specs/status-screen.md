@@ -32,15 +32,15 @@ The application MUST show the rows in this order:
 
 | row | drawn from |
 | --- | --- |
-| whether the device is online | `network-address` and `network-configuration` |
+| whether the device is on a network | `network-address`, `network-configuration`, `wireless-network` and `hotspot` |
 | the overlay | the overlay client's `service` |
 | Tamanu | the Tamanu services' `service` entries |
 | anything else | every other `service` |
 
-The application MUST show the device as online while it holds a `network-address` on the interface carrying the `default` route, and not online otherwise.
+The application MUST show the network row well while [NSET](network/setup.md) marks a way as in use, and not well otherwise, so a device sharing its hotspot with no other connection reads as on a network.
 
-The application MUST say on the online row how the device is connected, by the way [NSET](network/setup.md) marks as in use: by cable, by wifi naming the network joined from `wireless-network`, or by its hotspot.
-Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`, beside how the device reaches the internet.
+The application MUST say on the network row how the device is connected, by the way in use: by cable, by wifi naming the network joined from `wireless-network`, or by its hotspot.
+Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`, beside any connection the device holds besides it.
 
 The application MUST render the overlay client the device reports under the name `tailscale` as the overlay row, well while its `service` is `passed`, and MUST show the name the device is reached by from that entry's value.
 
@@ -72,7 +72,7 @@ The application MUST render a `restart-refused` reason as the device wrote it.
 
 ## Changing the network
 
-The application MUST offer on the online row to open the Network screen of [NSET](network/setup.md), in the place a restart is offered on the other rows, worded as changing the network while the device is online and as setting it up while it is not.
+The application MUST offer on the network row to open the Network screen of [NSET](network/setup.md), in the place a restart is offered on the other rows, worded as changing the network while the row is well and as setting it up while it is not.
 
 ## Advanced
 
