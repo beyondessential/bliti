@@ -34,12 +34,14 @@ Where none holds, the application MUST mark none.
 The application MUST, where the operator puts one way into use, turn off the others that the configuration in force has on, in the same proposal:
 
 - joining a wireless network turns the hotspot off;
-- turning the hotspot on turns off every wireless candidate whose `enabled` is true;
-- using the cable turns the hotspot off and turns off every wireless candidate whose `enabled` is true.
+- turning the hotspot on turns off every wireless candidate and every wired attachment whose `enabled` is true;
+- using the cable turns every wired attachment on, and turns off the hotspot and every wireless candidate whose `enabled` is true.
 
 The application MUST turn things off by setting `enabled` false, as [LINK](attachment.md) and [HOT](hotspot.md) keep a candidate or hotspot that is off with its settings, and MUST NOT remove them.
 
-The application MUST leave every wired attachment as the configuration in force holds it.
+The application MUST NOT propose from these screens a configuration whose hotspot is on beside a wired attachment whose `enabled` is true.
+
+The application MUST otherwise leave every wired attachment as the configuration in force holds it.
 
 ## Changes are kept
 
@@ -50,7 +52,7 @@ The application MUST NOT ask the operator to keep a change.
 The application MUST close the session once a change is confirmed or has failed.
 
 > [!NOTE]
-> Each change here is undone by making the opposite one: turning the hotspot off brings back the wireless connection it took the place of, and a network joined is left by choosing another way.
+> Each change here is undone by making the opposite one: turning the hotspot off brings back the connections it took the place of, and a network joined is left by choosing another way.
 > The channel is Bluetooth, which no network change drops, so a change that leaves the device offline can be undone from where the operator stands.
 
 ## The cable
@@ -59,6 +61,8 @@ The application MUST ask the operator, on the cable screen, to plug a network ca
 
 The application MUST say once a wired attachment carries the `default` route that the device is connected by cable and online.
 
-The application MUST turn the hotspot and wireless candidates off, as above, only once a wired attachment carries the `default` route, and MUST NOT do so while the operator is waiting for a cable.
+The application MUST put the cable into use, as above, only once a wired interface has carrier, and MUST NOT do so while the operator is waiting for a cable.
+Where every wired attachment is already on, the application MUST wait further, until a wired attachment carries the `default` route, so a cable that gives no connection never turns the others off.
+Where the hotspot has turned the wired attachments off, the proposal turns them on, and the device verifies the cable as [CFG](session.md) verifies any candidate a proposal changes.
 
 Where a wired interface has carrier and no wired attachment carries the `default` route, the application MUST say that the cable is plugged in and the network it reaches did not give the device a connection.

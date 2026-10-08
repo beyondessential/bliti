@@ -17,10 +17,10 @@ The application MUST present the hotspot as a single switch letting other device
 
 The application MUST show beneath the switch, while it is on, how many devices are joined, from `hotspot-clients`.
 
-Turning the hotspot on MUST set it `enabled` true and turn the wireless candidates off, as [NSET](setup.md) has it.
-Turning it off MUST set it `enabled` false and set the wireless candidate [WIFI](wifi.md) presents `enabled` true, where there is one.
+Turning the hotspot on MUST set it `enabled` true and turn the wireless candidates and wired attachments off, as [NSET](setup.md) has it, so the hotspot never runs beside a cable.
+Turning it off MUST set it `enabled` false, set every wired attachment `enabled` true, and set the wireless candidate [WIFI](wifi.md) presents `enabled` true, where there is one.
 
-The application MUST say beneath the switch, while it is off and turning it on would turn a wireless connection off, the network the device would leave, and that the device would go offline where no wired attachment carries the `default` route.
+The application MUST say beneath the switch, while it is off and the device is connected, what turning it on stops using, the wireless network by name or the cable, and that the device would go offline.
 
 ## The details
 

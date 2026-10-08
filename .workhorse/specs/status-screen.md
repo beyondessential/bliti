@@ -40,7 +40,7 @@ The application MUST show the rows in this order:
 The application MUST show the network row well while [NSET](network/setup.md) marks a way as in use, and not well otherwise, so a device sharing its hotspot with no other connection reads as on a network.
 
 The application MUST say on the network row how the device is connected, by the way in use: by cable, by wifi naming the network joined from `wireless-network`, or by its hotspot.
-Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`, beside any connection the device holds besides it.
+Where the hotspot is on, the application MUST also say how many clients are joined, from `hotspot-clients`.
 
 The application MUST render the overlay client the device reports under the name `tailscale` as the overlay row, well while its `service` is `passed`, and MUST show the name the device is reached by from that entry's value.
 
