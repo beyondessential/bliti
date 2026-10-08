@@ -16,13 +16,13 @@ The application MUST title the screen Network, and MUST carry that title where t
 
 The application MUST say, above the three ways, that phones and laptops must be on the same network as the device.
 
-The application MUST offer the three ways in this order, each opening a screen of its own:
+The application MUST offer the three ways in this order, each titled by what it is and opening a screen of its own:
 
-| way | opens |
-| --- | --- |
-| plug in a cable | the cable screen below |
-| join the clinic's wifi | the screen of [WIFI](wifi.md) |
-| share the device's hotspot | the screen of [SHARE](share.md) |
+| way | titled | opens |
+| --- | --- | --- |
+| the cable | Cable | the cable screen below |
+| a wireless network the device joins | Wifi | the screen of [WIFI](wifi.md) |
+| the device's own hotspot | Iti hotspot | the screen of [SHARE](share.md) |
 
 The application MUST show against each way the state it is in now: against the cable, whether a wired interface has carrier; against wifi, the wireless network the device is joined to, from `wireless-network`; against the hotspot, whether it is on.
 
