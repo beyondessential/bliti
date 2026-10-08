@@ -85,8 +85,6 @@ The application MUST gather, under a disclosure closed by default and headed Adv
 > [!NOTE]
 > A facility operator never needs the disclosure and never meets it by accident; a field technician finds the full depth under Advanced, where they look for it.
 
-## While a session or an act is open
-
-The application MUST show on the Status screen the kept configuration session's bar of [NSCR](network/screen.md), where a session is kept open, offering to return to the screen it belongs to and to confirm or discard what it holds.
+## While an act is under way
 
 The application MUST show on the Status screen a device carrying out an act, as [WEB](web-app.md) specifies, in place of the status, the tasks and Advanced while the act is under way.

@@ -34,8 +34,6 @@ The application MUST show the confirmation beneath the act's row, in place of it
 
 Where the device reports `network-configuration` as `provisional`, as in [NFO](../device-info.md), the confirmation MUST also say that the network settings the device is trying are not saved and will be lost.
 
-Where the application holds a configuration session open with edits not applied, as [NSCR](../network/screen.md) has it, the confirmation MUST also say that those edits will be lost.
-
 The confirmation of a power off MUST say that the device stays off until it is turned on at the device.
 
 The application MUST render a `refused` reason as the device wrote it.
