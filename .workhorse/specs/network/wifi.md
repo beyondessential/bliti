@@ -17,7 +17,10 @@ The application MUST present a single wireless candidate: the first wireless att
 
 The application MUST leave every wired attachment and the ordering of [LINK](attachment.md) as the configuration in force holds them, changing only the one wireless candidate and, as [NSET](setup.md) has it, the hotspot.
 
-The application MUST show the network the device is joined to from `wireless-network`, and, where it reports no wireless network joined, that the device is online by cable where a wired interface carries the `default` route.
+The application MUST open the screen on the network step, whether or not the device is joined to a wireless network.
+
+The application MUST mark in the list the network the device is joined to, from `wireless-network`, with a check and a highlight as [NSET](setup.md) marks the way in use, saying it is connected.
+Where the device reports no wireless network joined, the application MUST say that the device is online by cable where a wired interface carries the `default` route.
 
 The application MUST send a network the operator joins to the top of the attachment ordering, so the device prefers it, and MUST give it `enabled` and `verify` true.
 
