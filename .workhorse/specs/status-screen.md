@@ -65,7 +65,7 @@ The application MUST place a row's action beneath the row's name and detail, spa
 
 The application MUST restart the overlay on its own, and MUST restart the two Tamanu services together as one act, asking the device to restart each.
 
-The application MUST ask the operator to confirm a restart before asking the device for it, naming what is restarted.
+The application MUST ask the operator to confirm a restart before asking the device for it, naming what is restarted, beneath the row in place of its restart control.
 
 From asking until the feed shows the service running again, the application MUST say the service is restarting in place of its row's restart control, and MUST NOT say of its own account that the restart has completed.
 

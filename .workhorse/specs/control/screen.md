@@ -28,7 +28,9 @@ The application MUST leave out the power section until the device has listed its
 
 The application MUST ask the operator to confirm every act, each time, before asking the device for it.
 
-The confirmation MUST name the act.
+The confirmation MUST name the act in the words of the act's button.
+
+The application MUST show the confirmation beneath the act's row, in place of its button, leaving the other acts and sections in view, as the Status screen of [STAT](../status-screen.md) shows the confirmation of a restart.
 
 Where the device reports `network-configuration` as `provisional`, as in [NFO](../device-info.md), the confirmation MUST also say that the network settings the device is trying are not saved and will be lost.
 
