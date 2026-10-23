@@ -226,9 +226,6 @@ An end asked to act, or to take a document, MUST answer on the asking stream wit
 
 `at` MUST be an RFC 9535 Normalized Path, rooted at the message asking for the act for `cannot-act` and at the document for `cannot-configure`, naming `$` where no narrower part is at fault.
 
-> [!NOTE]
-> An act and a document fail differently: an act is asked for and does not happen, and a document names the member that would not do. Two types keep that apart on every stream rather than each stream wording its own.
-
 ## Message types
 
 | type | sent by | on |
