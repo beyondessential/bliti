@@ -201,5 +201,3 @@ A device MUST state among its capabilities which of its radios can scan and whic
 | `networks` | number | yes | how many access points the radio heard on it |
 | `busy` | number | yes | the fraction of time the radio found it occupied, from 0 to 1 |
 
-> [!NOTE]
-> These are acts rather than settings: a document describes the state a device is to be in, and none of these is a state a device could be left in.
