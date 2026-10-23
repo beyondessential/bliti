@@ -17,24 +17,22 @@ Reviewed against main at the same base, which hasn't moved since F3 branched.
 
 The Status screen's Tailscale and Tamanu rows need device work that doesn't exist yet: the `service` facts (today the device only knows the overlay's interface name), finding Tamanu's two versions, and the whole SVC stream with its restarts.
 That's a protocol addition plus sampler work on `bliti`, beside the client work.
+It goes to a follow-up card (see Follow-ups); this card builds the rows' UI with every service shown as work in progress.
 
 ### Gaps and contradictions to fix
 
-- **No carrier fact.** NSET shows "whether a wired interface has carrier" and the cable screen waits on carrier, but NFO reports no carrier. CFG's `state` only covers enabled candidates, and on wifi the wired attachments are off, so carrier can't be observed from wifi, which is exactly where the cable flow starts. Needs a carrier fact in NFO, or the cable flow turning wired on first.
+- **No carrier fact.** NSET shows "whether a wired interface has carrier" and the cable screen waits on carrier, but NFO reports no carrier. CFG's `state` only covers enabled candidates, and on wifi the wired attachments are off, so carrier can't be observed from wifi, which is exactly where the cable flow starts. Settled: NFO gains a carrier fact per wired interface, reported whether or not its attachment is enabled.
 - **WIFI's ordering rule contradicts itself.** It says to leave the ordering as it is, and also to send the joined network to the top. It also doesn't say whether joining another network replaces the one candidate it presents or adds one beside it; adding accumulates candidates, while replacing loses the old network's credentials.
-- **When the simple screens hold a session is unsaid.** SHARE renders the hotspot's name and password from the configuration, so it needs a session open just to show the screen. With one-step apply nothing outlives a screen, but nothing says when a session opens or closes, nor handles `busy` when another client holds the one session.
-- **A failed restart reads "restarting" forever.** STAT says restarting until the feed shows the service running again. SVC lets a device accept a restart and then fail it, and tells the client nothing. Needs a timeout, or a terminal message on the service stream.
-- **"Leaving" its running state is ambiguous.** NFO's note has the restart seen as the entry "leaving and returning", which reads like `ended`. SVC means `failed` and then `passed`. Say which.
-- **The overlay row can't always show the device name.** STAT shows it "whether the row is well or not", but NFO carries no value on a `broken` entry.
-- **Restarting Tamanu can half-succeed.** STAT restarts both Tamanu services as one act through two `restart`s. One refused and the other accepted isn't covered.
+- **When the simple screens hold a session is unsaid.** Settled below under Sessions.
+- **Service findings, for the follow-up card:** a restart accepted then failed reads "restarting" forever; NFO's "leaving and returning" reads like `ended` where SVC means `failed` then `passed`; the overlay row can't show the device name on a `broken` entry; restarting Tamanu's two services can half-succeed.
 - **Stale reference.** WEB:105 still returns to "the device view" after a reconnect; it should be the Status screen.
-- **Provisional is lost from the landing.** VIEW's provisional notice now sits under Advanced, and STAT never renders `network-configuration`. A second client watching while someone else's proposal is applied gets no sign of it.
-- **Turning the hotspot off doesn't bring back what it replaced.** SHARE's note says it restores the connections the hotspot took the place of, but the rule enables every wired attachment and the WIFI candidate, whatever they were before.
 - **NFO wording.** "MUST NOT rely on the name's meaning being understood to report the service" doesn't parse.
 
 ### Decisions to confirm
 
-- [ ] Whether the device-side work (`service` facts, SVC) belongs on H3, on F3, or on a card of its own. Deferred to when the card is split.
+- [x] Device-side service work goes to a follow-up card.
+- [x] Cable screen: a new carrier fact tells it a cable is in.
+- [x] Another client holding the session is found out on tap (see Sessions).
 
 ## Behaviour
 
@@ -72,9 +70,25 @@ Editing then applying stays (no autosave), so a half-typed gateway is never prop
 A configuration that fails is still saved: the device keeps what was applied and reports the errors, and stays on it until someone changes it.
 
 This reaches past the UI: CFG's `confirm`, the recorded/provisional split, the `network-configuration` fact, VIEW's provisional notice and CSCR's provisional confirmation wording all go or change.
-Recovering a previous working configuration would come from a history the device keeps, offered as undo once the operator reconnects. No history is specced today.
+There is no undo on this card: the operator remembers the settings they changed and puts them back. A configuration history with undo is a follow-up card.
+
+### Sessions
+
+The configuration session of CFG is the only exclusive one: power and service streams take any number of clients at once.
+
+- Change on the Status screen's network row opens a session, held across the simple network screens (Network, Cable, Join wifi, Share hotspot); returning to the Status screen closes it.
+- The full network settings editor, reached under Advanced, opens and closes its own session the same way.
+- Change and the Advanced network settings entry stay enabled. Tapping either tries to open a session; where the device answers `busy`, the application stays on the Status screen and says "Someone else is making changes" in the row, in place of opening the screen.
+- No device change for this: `busy` is already in CFG.
 
 ### Branding
 
 The product is Tamanu Iti, and the client is branded as a Tamanu Iti setup tool, not a generic device tool. `bliti` stays the repository's codename.
 Mockup lane 1's copy ("Tamanu Iti", "Find my Iti", "Save code for reprinting", "Recently used") follows from that, and needs a spec behind it.
+
+## Follow-ups
+
+Cards to split out, not built here:
+
+- **Service facts and restarts:** the `service` facts for Tailscale and Tamanu, the SVC stream, and the service findings above.
+- **Network configuration history:** design how a device keeps past configurations and offers undo back to one that worked.
