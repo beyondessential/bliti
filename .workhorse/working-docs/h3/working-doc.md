@@ -33,6 +33,7 @@ It goes to a follow-up card (see Follow-ups); this card builds the rows' UI with
 - [x] Device-side service work goes to a follow-up card.
 - [x] Cable screen: a new carrier fact tells it a cable is in.
 - [x] Another client holding the session is found out on tap (see Sessions).
+- [ ] With one-step apply, what does leaving mid-verification do (closing the session, a back gesture, a dropped channel)? And what does Join wifi's Cancel mean when there is no recorded configuration to return to?
 
 ## Behaviour
 
@@ -85,6 +86,49 @@ The configuration session of CFG is the only exclusive one: power and service st
 
 The product is Tamanu Iti, and the client is branded as a Tamanu Iti setup tool, not a generic device tool. `bliti` stays the repository's codename.
 Mockup lane 1's copy ("Tamanu Iti", "Find my Iti", "Save code for reprinting", "Recently used") follows from that, and needs a spec behind it.
+
+## Implementation options
+
+### What's there
+
+The client (`crates/bliti-web/app`) is React 19 with no router or state library.
+`App.jsx` holds everything for a connected device and switches on a `screen` string (`device`, `control`, `network`), each screen built by `screenOf(title, actions, body)`.
+`Network.jsx` is NSCR: its session lives exactly as long as it is mounted, and `network.js` holds the stage reducer (editing, applying, errored, applied) and the document edits as pure functions.
+`App.jsx` also carries the kept-session machinery (`keep`, `held`, `HeldBar`, `unapplied`, `provisional`), which one-step apply removes.
+Tests are Playwright against `tests/fake-client.js`, a fake device at the message layer; pure modules are tested in Playwright without a page (`capabilities.spec.js`).
+
+### Screens
+
+New screens: Status (the landing), Network, Cable, Join wifi, Share hotspot.
+Renamed and re-parented: Info becomes All readings, Control becomes Power and battery (its network section goes), NSCR becomes Network settings, all three under Advanced.
+
+### The simple screens' session
+
+Change has to learn about `busy` before leaving the Status screen, so the session can't be scoped to the simple screens' mount the way NSCR's is.
+Proposed: lift session opening into a hook App owns. Change calls it, waits for the first `configuration` or `busy`, and only then switches to the Network screen or shows "Someone else is making changes". The simple screens share that one handle, and returning to Status closes it.
+NSCR's entry under Advanced goes through the same hook, so both entries handle `busy` the same way.
+
+### The simple screens' logic
+
+A pure module beside `network.js`, holding:
+- the classifier for the four simple states, which sends anything else to Advanced;
+- the transitions as document edits (join wifi, use the cable, hotspot on and off), each returning the document to propose;
+- the way marked in use.
+
+The screens stay thin renderers over it, and the module is tested without a page like `capabilities.spec.js`.
+
+### Navigation
+
+Each screen change pushes a browser history entry, so the phone's back gesture goes up one level, as the on-screen Back does. Back from the Status screen leaves the app as now. No router library: the History API and a `popstate` handler in App.
+Going back out of the simple network screens closes the session, as returning to Status does.
+
+### Device dependencies
+
+One-step apply and the carrier fact are device, protocol and client changes the simple screens are built on. Whether they land on H3 or on a card before it is decided at the split.
+
+### Service rows
+
+Tailscale and Tamanu rows render from the layout of the mockup with every service shown as work in progress; no `service` facts or SVC yet.
 
 ## Follow-ups
 
