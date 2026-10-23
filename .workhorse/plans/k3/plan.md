@@ -59,10 +59,10 @@ The prototype's saved network is lost once on deploy.
 
 ### Core (`bliti-core`)
 
-- [ ] `channel/messages.rs`: remove `Applied`, `Invalid`, `Confirm`, `Discard`, `Busy`, `Wps`, `Pin` and `Refused`. Add `CannotAct` and `CannotConfigure`. Give `State` `busy`, `outcome` and `failure`. Update `to_map`, the visitor and `known_types`.
-- [ ] `channel/config.rs`: reshape `Invalid` into the failure carried on `state` (`at`, `reason`, `reached`) and a refusal (`at`, `reason`), with an `Outcome` enum for `verifying`, `applied` and `failed`.
-- [ ] `channel/generate.rs`: update the strategy and `the_configuration_optional_members_are_reached` (drop `Invalid.reached`, `Applied.capabilities`, `Wps.*`; add `failure` and `failure.reached`).
-- [ ] `messages/tests.rs`: update the round-trip list, drop `wps_carries_its_ssid_where_it_names_one`, and add round trips for `cannot-act`, `cannot-configure` and the new `state`.
+- [x] `channel/messages.rs`: remove `Applied`, `Invalid`, `Confirm`, `Discard`, `Busy`, `Wps`, `Pin` and `Refused`. Add `CannotAct` and `CannotConfigure`. Give `State` `busy`, `outcome` and `failure`. Update `to_map`, the visitor and `known_types`.
+- [x] `channel/config.rs`: reshape `Invalid` into the failure carried on `state` (`at`, `reason`, `reached`) and a refusal (`at`, `reason`), with an `Outcome` enum for `verifying`, `applied` and `failed`.
+- [x] `channel/generate.rs`: update the strategy and `the_configuration_optional_members_are_reached` (drop `Invalid.reached`, `Applied.capabilities`, `Wps.*`; add `failure` and `failure.reached`).
+- [x] `messages/tests.rs`: update the round-trip list, drop `wps_carries_its_ssid_where_it_names_one`, and add round trips for `cannot-act`, `cannot-configure` and the new `state`.
 
 ### Device (`bliti`): configuration
 

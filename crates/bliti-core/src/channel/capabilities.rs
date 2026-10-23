@@ -361,7 +361,6 @@ fn invalid(at: &[Owned], reason: impl Into<String>) -> Invalid {
 	Invalid {
 		at: path(&segments),
 		reason: reason.into(),
-		reached: None,
 	}
 }
 
