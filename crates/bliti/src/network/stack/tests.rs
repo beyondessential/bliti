@@ -35,9 +35,17 @@ struct Rig {
 	iwd: Arc<FakeIwd>,
 	gateway: Arc<FakeGateway>,
 	scratch: Scratch,
+	/// The configuration the next proposal replaces.
+	replaces: Document,
 }
 
 impl Rig {
+	/// Put `document` in force as a settled configuration, which the next proposal replaces.
+	async fn restore(&mut self, document: Document) {
+		self.stack.restore(&document).await.unwrap();
+		self.replaces = document;
+	}
+
 	async fn new(air: FakeAir) -> Self {
 		let scratch = Scratch::new();
 		let config = Config {
@@ -74,6 +82,7 @@ impl Rig {
 			iwd,
 			gateway,
 			scratch,
+			replaces: document(json!({"attachments": []})),
 		}
 	}
 
@@ -229,7 +238,8 @@ fn joined(ssid: &str, frequency: u32) -> Joined {
 
 /// Apply `document` on a task, so the test can observe for it while it is verified.
 fn applying(rig: &mut Rig, proposal: Document) -> oneshot::Receiver<Result<(), Failure>> {
-	applying_over(rig, proposal, document(json!({"attachments": []})))
+	let replacing = std::mem::replace(&mut rig.replaces, proposal.clone());
+	applying_over(rig, proposal, replacing)
 }
 
 /// Apply `document` on a task, judging it against `replacing`.
@@ -463,12 +473,10 @@ async fn a_probe_after_the_country_changes_asks_no_survey() {
 	};
 	let probed = air.probed.clone();
 	let mut rig = Rig::new(air).await;
-	rig.stack
-		.restore(&document(
-			json!({"attachments": [dynamic()], "regulatory-domain": "NZ"}),
-		))
-		.await
-		.unwrap();
+	rig.restore(document(
+		json!({"attachments": [dynamic()], "regulatory-domain": "NZ"}),
+	))
+	.await;
 	idle().await;
 	assert_eq!(
 		*probed.lock().unwrap(),
@@ -484,7 +492,7 @@ async fn restore_returns_to_the_recorded_document() {
 	rig.answers("198.51.100.1");
 	rig.see([carrier(true)]).await;
 	let recorded = document(json!({"attachments": [dynamic()]}));
-	rig.stack.restore(&recorded).await.unwrap();
+	rig.restore(recorded.clone()).await;
 	rig.see([
 		leased("eth0", "198.51.100.10"),
 		routed("eth0", "198.51.100.1"),
@@ -502,7 +510,7 @@ async fn restore_returns_to_the_recorded_document() {
 			.contains("Address=192.0.2.10/24")
 	);
 
-	rig.stack.restore(&recorded).await.unwrap();
+	rig.restore(recorded).await;
 	let network = rig.read("network/50-bliti-eth0.network");
 	assert!(network.contains("DHCP=ipv4"), "{network}");
 	assert!(!network.contains("Address="), "{network}");
@@ -528,10 +536,8 @@ async fn renaming_a_candidate_keeps_what_its_link_holds() {
 	rig.answers("198.51.100.1");
 	rig.answers("198.51.100.1");
 	rig.see([carrier(true)]).await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	rig.see([
 		leased("eth0", "198.51.100.10"),
 		routed("eth0", "198.51.100.1"),
@@ -553,10 +559,8 @@ async fn states_are_published_as_candidates_change() {
 	let mut states = rig.stack.states();
 	assert_eq!(*states.borrow_and_update(), None, "nothing configured yet");
 
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	assert_eq!(
 		states.borrow_and_update().clone().unwrap()[0]["reached"],
 		"carrier",
@@ -588,7 +592,7 @@ async fn a_scan_answers_each_access_point_but_the_devices_own() {
 		elements.extend_from_slice(ssid);
 		AccessPoint::read(bssid, 2437, -4800, 0, &elements)
 	};
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		heard: vec![
 			heard([2, 0, 0, 0, 0, 1], b"clinic"),
@@ -628,7 +632,7 @@ async fn a_scan_gathers_what_every_part_heard() {
 		elements.extend_from_slice(ssid);
 		AccessPoint::read([2, 0, 0, 0, 0, bssid], frequency, -4800, 0, &elements)
 	};
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		parts: Mutex::new(VecDeque::from([
 			vec![heard(1, 2412, b"clinic")],
@@ -657,7 +661,7 @@ async fn a_scan_gathers_what_every_part_heard() {
 
 #[tokio::test(start_paused = true)]
 async fn a_survey_counts_networks_and_busy_time_per_usable_channel() {
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		heard: vec![AccessPoint::read([2, 0, 0, 0, 0, 1], 2412, -6000, 0, &[])],
 		surveyed: vec![Surveyed {
@@ -725,10 +729,8 @@ async fn a_failed_candidate_is_tried_again_where_nothing_else_is_up() {
 	let mut rig = Rig::wired().await;
 	rig.answers("192.0.2.1");
 	rig.see([carrier(true)]).await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	tokio::time::sleep(driver::LEASE).await;
 	idle().await;
 	assert_eq!(rig.states()[0]["reached"], "addressing");

@@ -484,7 +484,6 @@ impl Iwd {
 		}
 		self.ordered(&path).await
 	}
-
 }
 
 impl super::Iwd for Iwd {

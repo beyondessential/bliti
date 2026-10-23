@@ -19,11 +19,7 @@ pub use self::{
 	backend::{Backend, Inert, entry},
 	store::{Store, default_path},
 };
-use self::{
-	held::State,
-	holders::Holders,
-	task::Command,
-};
+use self::{held::State, holders::Holders, task::Command};
 
 mod backend;
 mod held;
@@ -63,10 +59,11 @@ impl Configurator {
 			state.cannot_run(failure);
 		}
 
-		let initial = task::snapshot(&backend, &state, &backend.states());
+		let states = backend.states();
+		let initial = task::snapshot(&backend, &state, &states);
 		let (published, snapshot) = watch::channel(initial);
 		let (commands, receiver) = mpsc::unbounded_channel();
-		tokio::spawn(task::run(backend, state, receiver, published));
+		tokio::spawn(task::run(backend, state, states, receiver, published));
 		Ok(Self {
 			commands,
 			snapshot,

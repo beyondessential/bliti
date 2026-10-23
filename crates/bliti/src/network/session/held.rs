@@ -161,8 +161,8 @@ impl State {
 			.map_err(|refused| refused.invalid)?;
 		backend.check(&proposal.document)?;
 
-		let replaced = match (self.outcome, self.replaced.take()) {
-			(Outcome::Verifying, Some(replaced)) => replaced,
+		let replaced = match (self.outcome, &self.replaced) {
+			(Outcome::Verifying, Some(replaced)) => replaced.clone(),
 			_ => self.held.clone(),
 		};
 		let next = Stored {
@@ -173,7 +173,6 @@ impl State {
 		};
 		if let Err(err) = self.store.record(&next).await {
 			tracing::error!(%err, "could not record the network configuration");
-			self.replaced = Some(replaced);
 			return Err(Invalid::at(
 				path(&[]),
 				format!("could not record the configuration: {err}"),

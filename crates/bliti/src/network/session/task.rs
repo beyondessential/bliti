@@ -99,11 +99,11 @@ fn verifying<'a>(
 pub(super) async fn run<B: Backend>(
 	backend: B,
 	mut state: State,
+	mut states: watch::Receiver<Option<Vec<Json>>>,
 	mut commands: mpsc::UnboundedReceiver<Command>,
 	published: watch::Sender<Snapshot>,
 ) {
 	let backend = &backend;
-	let mut states = backend.states();
 	let mut observing = true;
 	let publish = |state: &State, states: &watch::Receiver<Option<Vec<Json>>>| {
 		let next = snapshot(backend, state, states);

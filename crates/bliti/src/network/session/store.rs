@@ -225,8 +225,7 @@ pub(super) mod tests {
 	async fn a_record_is_read_back_raw_and_leaves_no_temporary_behind() {
 		let scratch = Scratch::new();
 		let store = scratch.store();
-		let held =
-			stored(json!({"attachments": [], "x-from-a-newer-client": {"kept": true}}));
+		let held = stored(json!({"attachments": [], "x-from-a-newer-client": {"kept": true}}));
 		store.record(&held).await.unwrap();
 		assert_eq!(store.load().unwrap(), Some(held));
 
@@ -278,7 +277,10 @@ pub(super) mod tests {
 	async fn a_settled_record_names_neither_failure_nor_replaced_unless_it_has_them() {
 		let scratch = Scratch::new();
 		let store = scratch.store();
-		store.record(&stored(json!({"attachments": []}))).await.unwrap();
+		store
+			.record(&stored(json!({"attachments": []})))
+			.await
+			.unwrap();
 		let file: Json =
 			serde_json::from_slice(&fs::read(scratch.0.join("network.json")).unwrap()).unwrap();
 		assert_eq!(

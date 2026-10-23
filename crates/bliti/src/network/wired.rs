@@ -1,4 +1,5 @@
-//! The wired interfaces a device has, and the configuration it holds before any is recorded (CFG).
+//! The wired interfaces a device has, and the configuration it holds before it saves any proposal
+//! (CFG).
 
 use std::{fs, path::Path};
 
@@ -34,7 +35,7 @@ pub fn interfaces(root: &Path) -> Vec<String> {
 	wired
 }
 
-/// What a device that has never recorded a configuration holds as its recorded one: a `wired-dynamic`
+/// What a device that has never saved a proposal holds as its configuration: a `wired-dynamic`
 /// candidate on each wired interface, labelled by the interface, and no hotspot (CFG).
 pub fn unconfigured(root: &Path) -> Map<String, Json> {
 	let attachments = interfaces(root)

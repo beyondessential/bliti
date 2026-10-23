@@ -5,32 +5,29 @@ use std::{
 	time::Duration,
 };
 
-use bliti_core::channel::config::{Document, Invalid, path};
+use bliti_core::channel::config::{Document, Failure, Invalid};
 use serde_json::{Map, Value as Json, json};
-use tokio::sync::{oneshot, watch};
+use tokio::sync::watch;
 
-use super::{
-	super::{Backend, Wps},
-	object,
-};
+use super::{super::Backend, object};
 
 /// What the fake backend was asked to do, in order.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
-	Apply(Document),
+	/// A document to verify, and the one it replaces.
+	Apply(Document, Document),
 	/// An apply whose future was dropped before it finished.
 	Aborted,
 	Restore(Document),
-	Wps(Wps),
 }
 
 /// How the fake answers `apply`.
 #[derive(Debug, Clone)]
 pub enum Applying {
 	Succeed,
-	Fail(Invalid),
-	/// Never finishes, as a verification still under way.
-	Hang,
+	Fail(Failure),
+	/// Does not finish until [`Log::release`] says how, as a verification still under way.
+	Held,
 }
 
 pub struct Shared {
@@ -38,15 +35,16 @@ pub struct Shared {
 	applying: Applying,
 	refuse: Option<Invalid>,
 	survey: Option<Map<String, Json>>,
-	joined: Result<Map<String, Json>, Invalid>,
+	/// What putting a settled configuration in force fails with.
+	restoring: Option<Failure>,
+	/// How a verification [`Applying::Held`] ends, once it does.
+	release: watch::Sender<Option<Result<(), Failure>>>,
 	capabilities: Map<String, Json>,
 	/// What the capabilities become once an apply succeeds, as a new regulatory domain changes them.
 	after_apply: Option<Map<String, Json>>,
 	/// Whether the fake publishes the state of its candidates.
 	observing: bool,
 	states: watch::Sender<Option<Vec<Json>>>,
-	/// The PIN a join by PIN generates.
-	pin: Option<String>,
 }
 
 impl Shared {
@@ -90,7 +88,6 @@ pub fn capabilities() -> Map<String, Json> {
 		"acts": {
 			"scan": {"interface": {"wlan0": {}, "wlx00c0caa1b2c3": {}}},
 			"survey": {"interface": {"wlan0": {}}},
-			"wps": {"interface": {"wlan0": {"method": ["push-button", "pin"], "ssid": true}}},
 		},
 	}))
 }
@@ -123,8 +120,14 @@ impl Log {
 		self.0.lock().unwrap().survey = Some(spectrum);
 	}
 
-	pub fn joins(&self, joined: Result<Map<String, Json>, Invalid>) {
-		self.0.lock().unwrap().joined = joined;
+	/// Fail putting a settled configuration in force.
+	pub fn cannot_restore(&self, failure: Failure) {
+		self.0.lock().unwrap().restoring = Some(failure);
+	}
+
+	/// End a verification held by [`Applying::Held`].
+	pub fn release(&self, verdict: Result<(), Failure>) {
+		self.0.lock().unwrap().release.send_replace(Some(verdict));
 	}
 
 	pub fn capabilities(&self, capabilities: Map<String, Json>) {
@@ -133,10 +136,6 @@ impl Log {
 
 	pub fn after_apply(&self, capabilities: Map<String, Json>) {
 		self.0.lock().unwrap().after_apply = Some(capabilities);
-	}
-
-	pub fn pins(&self, pin: &str) {
-		self.0.lock().unwrap().pin = Some(pin.to_owned());
 	}
 
 	/// Publish a change of state, as the backend observes one.
@@ -167,26 +166,30 @@ pub fn fake_observing(observing: bool) -> (Fake, Log) {
 		applying: Applying::Succeed,
 		refuse: None,
 		survey: None,
-		joined: Err(Invalid {
-			at: path(&[]),
-			reason: "no access point is offering WPS".to_owned(),
-			reached: None,
-		}),
+		restoring: None,
+		release: watch::Sender::new(None),
 		capabilities: capabilities(),
 		after_apply: None,
 		observing,
 		states: watch::Sender::new(None),
-		pin: None,
 	}));
 	(Fake(shared.clone()), Log(shared))
 }
 
 /// Records that an apply was dropped before it finished.
-struct OnAbort(Arc<SyncMutex<Shared>>);
+struct OnAbort(Option<Arc<SyncMutex<Shared>>>);
+
+impl OnAbort {
+	fn finished(mut self) {
+		self.0 = None;
+	}
+}
 
 impl Drop for OnAbort {
 	fn drop(&mut self) {
-		self.0.lock().unwrap().calls.push(Call::Aborted);
+		if let Some(shared) = &self.0 {
+			shared.lock().unwrap().calls.push(Call::Aborted);
+		}
 	}
 }
 
@@ -206,12 +209,15 @@ impl Backend for Fake {
 		}
 	}
 
-	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
-		let applying = {
+	async fn apply(&self, document: &Document, replacing: &Document) -> Result<(), Failure> {
+		let (applying, mut release) = {
 			let mut shared = self.0.lock().unwrap();
-			shared.calls.push(Call::Apply(document.clone()));
+			shared
+				.calls
+				.push(Call::Apply(document.clone(), replacing.clone()));
 			shared.running(document);
-			shared.applying.clone()
+			shared.release.send_replace(None);
+			(shared.applying.clone(), shared.release.subscribe())
 		};
 		match applying {
 			Applying::Succeed => {
@@ -221,57 +227,44 @@ impl Backend for Fake {
 				}
 				Ok(())
 			}
-			Applying::Fail(invalid) => Err(invalid),
-			Applying::Hang => {
-				let _abort = OnAbort(self.0.clone());
-				std::future::pending().await
+			Applying::Fail(failure) => Err(failure),
+			Applying::Held => {
+				let abort = OnAbort(Some(self.0.clone()));
+				let verdict = release
+					.wait_for(Option::is_some)
+					.await
+					.expect("the fake outlives its verification")
+					.clone()
+					.expect("waited for a verdict");
+				if verdict.is_ok() {
+					let mut shared = self.0.lock().unwrap();
+					if let Some(capabilities) = shared.after_apply.take() {
+						shared.capabilities = capabilities;
+					}
+				}
+				abort.finished();
+				verdict
 			}
 		}
 	}
 
-	async fn restore(&mut self, document: &Document) -> anyhow::Result<()> {
+	async fn restore(&self, document: &Document) -> Result<(), Failure> {
 		let mut shared = self.0.lock().unwrap();
 		shared.calls.push(Call::Restore(document.clone()));
 		shared.running(document);
-		Ok(())
+		match shared.restoring.clone() {
+			Some(failure) => Err(failure),
+			None => Ok(()),
+		}
 	}
 
-	async fn scan(&mut self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
+	async fn scan(&self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 		Ok(vec![
 			json!({"interface": interface.unwrap_or("wlan0"), "ssid": "Clinic", "signal": -61}),
 		])
 	}
 
-	async fn survey(
-		&mut self,
-		_interface: Option<&str>,
-	) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(&self, _interface: Option<&str>) -> Result<Option<Map<String, Json>>, Invalid> {
 		Ok(self.0.lock().unwrap().survey.clone())
-	}
-
-	async fn wps(
-		&mut self,
-		asked: &Wps,
-		_base: &Map<String, Json>,
-		pin: oneshot::Sender<String>,
-	) -> Result<Map<String, Json>, Invalid> {
-		let (joined, hang) = {
-			let mut shared = self.0.lock().unwrap();
-			shared.calls.push(Call::Wps(asked.clone()));
-			if asked.method == "pin"
-				&& let Some(generated) = shared.pin.clone()
-			{
-				let _ = pin.send(generated);
-			}
-			(
-				shared.joined.clone(),
-				matches!(shared.applying, Applying::Hang),
-			)
-		};
-		if hang {
-			let _abort = OnAbort(self.0.clone());
-			std::future::pending::<()>().await;
-		}
-		joined
 	}
 }

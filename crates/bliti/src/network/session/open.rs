@@ -18,8 +18,8 @@ use serde_json::{Map, Value as Json};
 use tokio::sync::{mpsc, oneshot, watch};
 
 use super::{
-	holders::Registration,
 	held::Snapshot,
+	holders::Registration,
 	task::{Act, Command},
 };
 use crate::session::SessionError;
@@ -231,7 +231,10 @@ impl Open {
 		writer: &mut W,
 	) -> Result<(), SessionError> {
 		match message {
-			Message::Configure => self.sync(writer, true).await?,
+			Message::Configure => {
+				self.told = None;
+				self.sync(writer, true).await?;
+			}
 			Message::Configuration { document, .. } => self.propose(document, writer).await?,
 			Message::Scan { interface } => self.act(Act::Scan(interface), writer).await?,
 			Message::Survey { interface } => self.act(Act::Survey(interface), writer).await?,
@@ -274,7 +277,10 @@ impl Open {
 		} else {
 			let (reply, answer) = oneshot::channel();
 			self.commands
-				.send(Command::Propose { raw: document, reply })
+				.send(Command::Propose {
+					raw: document,
+					reply,
+				})
 				.map_err(|_| stopped())?;
 			self.answered(writer, answer).await?.err()
 		};

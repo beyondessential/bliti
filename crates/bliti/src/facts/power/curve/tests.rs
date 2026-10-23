@@ -264,12 +264,11 @@ fn a_fault_names_the_first_member_at_fault() {
 		"$['discharging']['duration']"
 	);
 	let mut document = document().to_json();
-	document["charging"] = json!({"points": [[3.0, 0.0], [4.0, 1.0]], "learnt-from": 1, "error": 0.1});
+	document["charging"] =
+		json!({"points": [[3.0, 0.0], [4.0, 1.0]], "learnt-from": 1, "error": 0.1});
 	assert_eq!(at(document), "$['charging']['duration']");
 
-	let rejected = |points: &[(f64, f64)]| {
-		Document::new(curve(points), None).unwrap_err().at
-	};
+	let rejected = |points: &[(f64, f64)]| Document::new(curve(points), None).unwrap_err().at;
 	assert_eq!(rejected(&[(2.6, 0.0)]), "$['discharging']['points']");
 	assert_eq!(
 		rejected(&[(2.6, 0.0), (3.4, 0.8), (3.0, 1.0)]),

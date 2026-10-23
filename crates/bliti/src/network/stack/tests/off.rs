@@ -12,7 +12,7 @@ fn off(mut candidate: Json) -> Json {
 async fn on_the_wall(rig: &mut Rig, running: Json) {
 	rig.answers("192.0.2.1");
 	rig.see([carrier(true)]).await;
-	rig.stack.restore(&document(running)).await.unwrap();
+	rig.restore(document(running)).await;
 	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])
 		.await;
 }
@@ -99,10 +99,8 @@ async fn a_candidate_turned_on_again_is_brought_up_anew() {
 	assert_eq!(rig.states(), [json!({"is": "off"})]);
 
 	rig.answers("192.0.2.1");
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	idle().await;
 	assert_eq!(rig.states(), [json!({"is": "verifying"})]);
 	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])

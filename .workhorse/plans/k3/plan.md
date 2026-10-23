@@ -66,40 +66,40 @@ The prototype's saved network is lost once on deploy.
 
 ### Device (`bliti`): configuration
 
-- [ ] `network/session/store.rs`: the `{document, outcome, failure?, replaced?}` shape, a record of the outcome, and store tests for each shape and for a missing file.
-- [ ] `network/stack/driver.rs` and `driver/verdict.rs`: `Command::Apply` carries the replaced document; `running` becomes the proposal whatever the verdict; the post-save apply error becomes a verdict.
-- [ ] `network/session/backend.rs` and `stack.rs`: `apply(document, replacing)`. Drop `wps`, the `Wps` struct and `Inert`'s WPS refusal.
-- [ ] `network/session.rs`: the `Configurator` task per the design notes.
+- [x] `network/session/store.rs`: the `{document, outcome, failure?, replaced?}` shape, a record of the outcome, and store tests for each shape and for a missing file.
+- [x] `network/stack/driver.rs` and `driver/verdict.rs`: `Command::Apply` carries the replaced document; the driver's own `running` goes, as `replacing` is all `changed()` reads, and it keeps selecting on the proposal whatever the verdict; the post-save apply error becomes a verdict.
+- [x] `network/session/backend.rs` and `stack.rs`: `apply(document, replacing)`. Drop `wps`, the `Wps` struct and `Inert`'s WPS refusal.
+- [x] `network/session.rs`: the `Configurator` task per the design notes.
   - On start: load, then `restore` a settled configuration, or `apply` an unsettled one against `replaced`.
   - Propose: `parse`, `within` and `check`, then either `cannot-configure` or record, publish, then apply. On the verdict, record the outcome and publish.
   - Drop `confirm`, `discard`, `revert`, the `Drop` restore task and the `provisional` watch.
-- [ ] `network/session.rs`: the session side.
+- [x] `network/session.rs`: the session side.
   - Register in open order and send the opening `configuration` and `state`.
   - Send `configuration` and `state` on every change of the held configuration, holder, capabilities or backend states.
   - Send `cannot-configure` then `configuration` on a refusal.
   - Answer a busy session's proposal or act at `$`.
   - Answer scan and survey through the task, with `cannot-act` naming the act.
-- [ ] Split `network/session.rs` into submodules (task, session, holder) to keep each under 1000 lines.
-- [ ] `session.rs` (dispatcher): drop the `network-configuration` fact from `facts_now` and the 2s provisional poll in `serve_default`; drop the removed types' no-op arms.
-- [ ] WPS removal on the device:
+- [x] Split `network/session.rs` into submodules (task, session, holder) to keep each under 1000 lines.
+- [x] `session.rs` (dispatcher): drop the `network-configuration` fact from `facts_now` and the `configurator` it was read from in `serve_default`; drop the removed types' no-op arms. The 2s poll itself stays: network addresses are facts that change.
+- [x] WPS removal on the device:
   - `network/stack/acts.rs`: `wps`, `Hold`, `joined_document`, PIN generation.
   - Driver `Command::Hold` and the held-station skips.
   - `observe.rs` and `observe/iwd.rs`: the `Iwd` WPS methods, `WpsFailed`, `WALK`, `NO_CREDENTIALS`; keep `passphrase` and `forget` only if anything else uses them.
   - `probe/capabilities.rs`: the `wps` act in `acts()`.
-  - `render.rs` and `render/iwd.rs`: the `known_psk` / `known_passphrase` path a WPS join leaves, if nothing else needs it.
+  - `render.rs` and `render/iwd.rs`: the `known_psk` / `known_passphrase` path a WPS join leaves, if nothing else needs it. The iwd credentials agent reads them, so they stay.
   - Keep `wps_state=0` in `render/hostapd.rs`: the hotspot still never offers WPS.
-- [ ] `client.rs` (CLI): the new message set; print `cannot-act` and `cannot-configure`.
+- [x] `client.rs` (CLI): the new message set; print `cannot-act` and `cannot-configure`.
 
 ### Device (`bliti`): power and curve
 
-- [ ] `power.rs`: answer `act` with `cannot-act`, at `$['act']` for an act not listed and at `$` otherwise.
-- [ ] `battery.rs`: answer `load` with `cannot-configure` (at the first member at fault, else `$`) and `reset` with `cannot-act`; keep the command line printing the reason on standard error.
+- [x] `power.rs`: answer `act` with `cannot-act`, at `$['act']` for an act not listed and at `$` otherwise.
+- [x] `battery.rs`: answer `load` with `cannot-configure` (at the first member at fault, else `$`) and `reset` with `cannot-act`; keep the command line printing the reason on standard error.
 
 ### Device tests
 
-- [ ] `network/session/tests/fake.rs`: drop `Call::Wps`, `pins` and `joins`; `Applying::Hang` stays for verifications that outlive a session.
-- [ ] Delete `network/session/tests/wps.rs` and the WPS tests in `tests/capabilities.rs`, `stack/tests.rs` and `stack/tests/fake.rs`.
-- [ ] Rewrite `network/session/tests.rs` for the new exchange:
+- [x] `network/session/tests/fake.rs`: drop `Call::Wps`, `pins` and `joins`; `Applying::Hang` becomes `Applying::Held`, which a test ends with `Log::release`, for verifications that outlive a session.
+- [x] Delete `network/session/tests/wps.rs` and the WPS tests in `tests/capabilities.rs`, `stack/tests.rs` and `stack/tests/fake.rs`.
+- [x] Rewrite `network/session/tests.rs` for the new exchange:
   - opening sends `configuration` then `state`
   - a saved proposal is echoed, then `state` with `verifying`, then the outcome
   - a refused one gets `cannot-configure` then the unchanged `configuration`
@@ -108,10 +108,10 @@ The prototype's saved network is lost once on deploy.
   - a newer proposal abandons the previous verification
   - a second session is busy, gets every change, and has its proposals and acts refused at `$`
   - the second session holds once the first closes
-- [ ] Store and start: a restart with `replaced` present verifies again against it; with the outcome settled, it restores without verifying.
-- [ ] `stack/tests.rs`: a failed verdict leaves the proposal running, and selection continues on it.
-- [ ] `session/tests.rs` (dispatcher): replace `configure_opens_a_session_and_a_second_is_busy` with two sessions open at once; drop the `network-configuration` fact assertions.
-- [ ] Power and curve tests for `cannot-act` and `cannot-configure`.
+- [x] Store and start: a restart with `replaced` present verifies again against it; with the outcome settled, it restores without verifying.
+- [x] `stack/tests.rs`: a failed verdict leaves the proposal running, and selection continues on it.
+- [x] `session/tests.rs` (dispatcher): replace `configure_opens_a_session_and_a_second_is_busy` with two sessions open at once; drop the `network-configuration` fact assertions.
+- [x] Power and curve tests for `cannot-act` and `cannot-configure`.
 
 ### Web client: bridge
 
@@ -162,8 +162,8 @@ The prototype's saved network is lost once on deploy.
 
 ### Finish
 
-- [ ] `cargo fmt`, `cargo clippy --all-targets`, `cargo test` (with `-p bliti-core --features generate`), `cargo test -p bliti-wire-compat`.
-- [ ] `just test-web`.
+- [x] `cargo fmt`, `cargo clippy --all-targets`, `cargo test` (with `-p bliti-core --features generate`), `cargo test -p bliti-wire-compat`.
+- [x] `just test-web`.
 - [ ] On the prototype (bliti-prototype skill):
   - apply a working change and a failing one
   - leave mid-verification and come back

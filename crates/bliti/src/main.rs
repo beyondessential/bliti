@@ -54,7 +54,7 @@ enum Command {
 		#[arg(long)]
 		adapter: Option<String>,
 
-		/// Where the recorded network configuration is kept.
+		/// Where the held network configuration is kept.
 		#[arg(long, default_value_os_t = network::session::default_path())]
 		network: PathBuf,
 
