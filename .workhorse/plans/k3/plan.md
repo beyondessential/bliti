@@ -164,7 +164,7 @@ The prototype's saved network is lost once on deploy.
 
 - [x] `cargo fmt`, `cargo clippy --all-targets`, `cargo test` (with `-p bliti-core --features generate`), `cargo test -p bliti-wire-compat`.
 - [x] `just test-web`.
-- [ ] On the prototype (bliti-prototype skill):
+- [x] On the prototype (bliti-prototype skill):
   - apply a working change and a failing one
   - leave mid-verification and come back
   - reboot mid-verification
