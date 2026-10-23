@@ -145,12 +145,12 @@ At that point we decide whether the UI change is done here in one go or split fu
 
 Proposed split. Each card is independent of this one.
 
-Create now, device-side and protocol, worked and merged before this card resumes:
+Created, device-side and protocol. This card resumes once K3 and L3 have merged:
 
-1. **One-step network apply.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. The largest of the four.
-2. **Wired carrier fact.** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled. The shipped client shows it as All readings would. Small, and parallel with 1.
-3. **Tailscale status and restart.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
-4. **Tamanu status and restart.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
+1. **One-step network apply · K3.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. The largest of the four.
+2. **Wired carrier fact · L3.** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled. The shipped client shows it as All readings would. Small, and parallel with 1.
+3. **Tailscale status and restart · M3.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
+4. **Tamanu status and restart · N3.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
 
 Later, once 1 has merged, since both rework CFG after it:
 
