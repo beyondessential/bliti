@@ -20,12 +20,15 @@ The application MUST move through three stages:
 | editing | writable | apply, reset |
 | applying | read-only | nothing |
 | errored | writable | apply, reset |
+| watching | read-only | nothing |
 
-The application MUST take its stage from the outcome the device reports when a session opens and whenever that outcome changes: applying while it is `verifying`, errored where it is `failed`, and editing where it is `applied`.
+The application MUST be watching while the device reports the session busy, and MUST say there that someone else is configuring the device.
+
+Otherwise, the application MUST take its stage from the outcome the device reports when a session opens, when it stops being busy, and whenever that outcome changes: applying while it is `verifying`, errored where it is `failed`, and editing where it is `applied`.
 
 The application MUST enter applying on apply, MUST take its stage from the `state` that follows the device sending the proposal back, and MUST enter errored where the device refuses the proposal.
 
-The application MUST fill the fields with the configuration the device holds when a session opens and on reset, and MUST keep the document it proposed in them after apply.
+The application MUST fill the fields with the configuration the device holds when a session opens, on reset, and with each configuration the device sends while watching, and MUST keep the document it proposed in them after apply.
 
 The application MUST NOT let the operator edit a field while a proposal is being verified.
 
@@ -38,6 +41,7 @@ The application MUST close the session when the operator leaves the screen, and 
 > Keeping a failed proposal in the fields lets an operator correct the one field that was wrong. A device that saved it holds it too, as [CFG](session.md) requires, so the next session opens on it and on its failure.
 > Taking the stage from the device rather than from the conversation lets an operator apply, leave while the device verifies, and come back to find it still verifying or to see how it went.
 > A field edited part way through verification belongs to neither the attempt being verified nor the next one.
+> A second operator watching sees the first one's changes and failures as the device reports them, and can take over once the first leaves without opening the screen again.
 
 ## Validating before proposing
 

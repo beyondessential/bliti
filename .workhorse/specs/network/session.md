@@ -14,9 +14,9 @@ A client MUST open a configuration session by opening a stream whose first messa
 
 A device MUST answer `configure` with `configuration`, carrying the configuration it holds and the capabilities of [NET](overview.md), then with `state`.
 
-A device MUST send `configuration` again after every proposal, whether or not it saved it, and whenever the configuration it holds changes.
+A device MUST send `configuration` on every open session whenever the configuration it holds changes, and on the session that proposed it after every proposal it refuses.
 
-A device MUST send `state` after every `configuration` it sends, and again whenever the outcome of the configuration it holds, the state of one of its candidates, or its capabilities change.
+A device MUST send `state` after every `configuration` it sends, and again whenever the outcome of the configuration it holds, the state of one of its candidates, its capabilities, or whether the session is busy change.
 
 A client MUST propose a change by sending `configuration` carrying the document it wants the device to hold.
 
@@ -26,12 +26,18 @@ A device MUST carry `capabilities` on the next `configuration` or `state` it sen
 
 A client MUST check its next proposal against the capabilities it was last sent.
 
-A device MUST serve at most one configuration session at a time across all its channels, and MUST answer `configure` on any other stream, on the same channel or another, with `busy` while one is open.
+A device MUST serve a configuration session on every stream that asks for one, on any of its channels.
+
+The session a device has served longest among those open MUST hold the configuration, and every other MUST be busy.
+
+A device MUST refuse at `$` a proposal from a busy session.
+
+A device MUST serve acts on any session, busy or not.
 
 > [!NOTE]
 > The session reports the device rather than pairing requests with answers. A client that opens one is told what a client that never left would know by then, so leaving part way through a change and coming back loses nothing.
 > The channel already offers a bidirectional stream, so nothing is gained by pretending otherwise.
-> Two operators able to configure one device at once could undo each other silently. Both are standing at the device, so telling the second that the device is busy is enough for them to resolve it between themselves.
+> Two operators able to configure one device at once could undo each other silently. Letting one hold the configuration while others watch it change keeps every operator's view current without either undoing the other. Both are standing at the device, so they can settle between themselves who holds it.
 
 ## Message types
 
@@ -39,9 +45,8 @@ A device MUST serve at most one configuration session at a time across all its c
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
 | `configuration` | either end | `document`, and from a device `capabilities` on the first and where they changed |
-| `state` | device | `outcome`, `failure` where the outcome is `failed`, `attachments`, and `capabilities` where they changed |
+| `state` | device | `busy`, `outcome`, `failure` where the outcome is `failed`, `attachments`, and `capabilities` where they changed |
 | `refused` | device | `of`, `at` and `reason` |
-| `busy` | device | nothing beyond `type` |
 
 `configuration` MUST carry `DOCUMENT` as a critical member, so that an end which cannot read the document does not act on the message carrying it.
 
@@ -131,6 +136,7 @@ A failure MUST carry:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
+| `busy` | boolean | yes | whether another session holds the configuration |
 | `outcome` | string | yes | `verifying`, `applied` or `failed`, for the configuration the device holds |
 | `failure` | object | where `outcome` is `failed` | the failure, as [What a failure says](#what-a-failure-says) has it |
 | `attachments` | array | yes | the state of each candidate, matching position for position the attachments of the configuration the device holds |
