@@ -29,11 +29,9 @@ A device MUST answer `power` with `acts`, carrying as `acts` an array of the act
 
 A client MUST ask for an act by sending `act` on the power stream, carrying as `ACT` a critical member naming the act.
 
-A device MUST answer every `act` exactly once, with `accepted` where it will carry the act out, and otherwise with `refused`.
+A device MUST answer every `act` exactly once, with `accepted` where it will carry the act out, and otherwise with `cannot-act` of [MSG](../messages.md).
 
-A device MUST refuse an act it did not list, and every act asked for once it has accepted one or begun a shutdown under [LOW](../battery/shutdown.md), until it has failed to carry that one out.
-
-`refused` MUST carry `reason`, in the device's own words, saying why.
+A device MUST refuse an act it did not list, at `$['act']`, and every act asked for once it has accepted one or begun a shutdown under [LOW](../battery/shutdown.md), until it has failed to carry that one out, at `$`.
 
 A device MUST serve any number of power streams at once, on one channel or across several.
 
@@ -76,5 +74,5 @@ A device MUST log an act it accepted and then failed to carry out, with the reas
 | `acts` | device | the power stream | `acts` |
 | `act` | client | the power stream | `ACT` |
 | `accepted` | device | the power stream | nothing beyond `type` |
-| `refused` | device | the power stream | `reason` |
+| `cannot-act` | device | the power stream | as [MSG](../messages.md) has it |
 | `going-away` | device | the `default` feed | `act`, `cause` |

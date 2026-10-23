@@ -546,20 +546,18 @@ test.describe('wireless', () => {
 		await expect(tile).not.toContainText('harbour-kettle-47')
 	})
 
-	// A proposal being tried shows as such on the network tiles, and gets no tile of its own (VIEW).
-	test('settings being tried mark the network tiles and say they revert', async ({ page }) => {
+	// A device no longer reports whether its network is provisional, so a fact of that name is any
+	// other unrecognised one: a tile of its own, appended, with no mark on the network tiles (VIEW).
+	test('a network-configuration fact is an unrecognised fact like any other', async ({ page }) => {
 		await openChannel(page)
 		await emit(page, reading('cpu-usage', fraction(0.12)))
 		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
 		await emit(page, fact('network-configuration', { kind: 'text', value: 'provisional' }))
-		await expect(page.getByText('They revert unless confirmed')).toBeVisible()
-		await expect(page.locator('.tile.provisional')).toHaveCount(1)
-		await expect(page.locator('.tile.provisional')).toContainText('Hotspot')
-		await expect(page.locator('.tile .label')).toHaveText(['Hotspottrial', 'Processor'])
-
-		await emit(page, fact('network-configuration', { kind: 'text', value: 'recorded' }))
-		await expect(page.getByText('They revert unless confirmed')).toHaveCount(0)
+		await expect(page.locator('.tile .label')).toHaveText(['Hotspot', 'Processor', 'Network Configuration'])
 		await expect(page.locator('.tile.provisional')).toHaveCount(0)
+		await expect(page.locator('.tile .trial')).toHaveCount(0)
+		await expect(page.getByText('They revert unless confirmed')).toHaveCount(0)
+		await expect(page.locator('.notice')).toHaveCount(0)
 	})
 })
 

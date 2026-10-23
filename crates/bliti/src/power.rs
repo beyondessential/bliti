@@ -14,6 +14,7 @@ use std::{
 };
 
 use bliti_core::channel::{
+	config::{Segment, path},
 	envelope::{Reading, read},
 	messages::Message,
 	stream::{read_message, write_message},
@@ -140,6 +141,13 @@ impl fmt::Display for NotBegun {
 	}
 }
 
+/// Why an act asked for is not taken: the part of the `act` at fault, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CannotAct {
+	at: String,
+	reason: String,
+}
+
 /// What carries an act out once every client has been told and let go.
 pub trait System: Send + Sync + 'static {
 	/// Carry `act` out. Blocking, and run off the runtime's worker threads.
@@ -234,7 +242,7 @@ impl Controller {
 	}
 
 	/// Settle what to answer an `act`, logging it with the client that asked (CTL, "Going away").
-	fn ask(&self, name: &str, peer: &Peer) -> Result<Act, String> {
+	fn ask(&self, name: &str, peer: &Peer) -> Result<Act, CannotAct> {
 		let (client, client_version) = peer.named();
 		let answer = self.decide(name);
 		match &answer {
@@ -242,22 +250,28 @@ impl Controller {
 				let cause = Cause::ManualControl;
 				tracing::info!(%act, %cause, %client, %client_version, "act asked for and accepted");
 			}
-			Err(reason) => {
-				tracing::info!(act = %name, %client, %client_version, %reason, "act asked for and refused");
+			Err(CannotAct { at, reason }) => {
+				tracing::info!(act = %name, %client, %client_version, %at, %reason, "act asked for and refused");
 			}
 		}
 		answer
 	}
 
-	fn decide(&self, name: &str) -> Result<Act, String> {
+	fn decide(&self, name: &str) -> Result<Act, CannotAct> {
 		let Some(act) = Act::from_name(name).filter(|act| self.inner.acts.contains(act)) else {
-			return Err(format!("this device cannot {name}"));
+			return Err(CannotAct {
+				at: path(&[Segment::Name("act")]),
+				reason: format!("this device cannot {name}"),
+			});
 		};
 		self.take(Going {
 			act,
 			cause: Cause::ManualControl,
 		})
-		.map_err(|already| format!("the device is already {}", already.doing()))?;
+		.map_err(|already| CannotAct {
+			at: path(&[]),
+			reason: format!("the device is already {}", already.doing()),
+		})?;
 		Ok(act)
 	}
 
@@ -437,7 +451,14 @@ where
 						cause: Cause::ManualControl,
 					});
 				}
-				Err(reason) => send(stream, &Message::Refused { reason }).await?,
+				Err(CannotAct { at, reason }) => {
+					let refusal = Message::CannotAct {
+						act: act.clone(),
+						at,
+						reason,
+					};
+					send(stream, &refusal).await?;
+				}
 			},
 			Ok(Reading::Message(Message::Hello { name, version })) => {
 				tracing::info!(client = %name, client_version = %version, "client named itself");

@@ -5,13 +5,11 @@
 // renders bespoke, in the order and wording it prefers; what it does not it renders generically, from
 // the entry's own name, kind and traits, appended after everything recognised (VIEW).
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
 	HEADER,
 	IN_REVEAL,
-	NETWORK_CONFIGURATION,
-	PROVISIONAL_TILES,
 	TILE_ORDER,
 	formatMargin,
 	formatOutOf,
@@ -32,10 +30,7 @@ import { loadProtocol } from './protocol.js'
 import { hotspot_qr as hotspotQr } from './wasm/bliti_web.js'
 import { channelText, securityName } from './wireless.js'
 
-// Set around the network tiles while the device is trying settings it has not recorded (VIEW).
-const Provisional = createContext(false)
-
-export default function Readings({ entries, history, showProvisional = true }) {
+export default function Readings({ entries, history }) {
 	if (entries.length === 0) {
 		return <p className="muted">Nothing reported yet.</p>
 	}
@@ -47,38 +42,23 @@ export default function Readings({ entries, history, showProvisional = true }) {
 	}
 	const single = (name) => byName.get(name)?.[0]
 
-	const provisional = single(NETWORK_CONFIGURATION)?.value === 'provisional'
-
 	// The recognised tiles, in our fixed order, skipping any the device did not send.
 	const tiles = []
 	for (const name of TILE_ORDER) {
 		if (!byName.has(name)) continue
-		const tile = renderTile(name, byName, history)
-		tiles.push(
-			provisional && PROVISIONAL_TILES.has(name) ? (
-				<Provisional.Provider key={name} value={true}>
-					{tile}
-				</Provisional.Provider>
-			) : (
-				tile
-			),
-		)
+		tiles.push(renderTile(name, byName, history))
 	}
 
 	// Everything else it does not recognise, appended after the recognised. Header facts and
-	// in-reveal entries are not tiles of their own, and nor is the network configuration.
+	// in-reveal entries are not tiles of their own.
 	for (const [name, group] of byName) {
 		if (HEADER.includes(name) || TILE_ORDER.includes(name) || IN_REVEAL.has(name)) continue
-		if (name === NETWORK_CONFIGURATION) continue
 		tiles.push(<GenericTile key={name} label={labelOf(name)} entries={group} history={history} />)
 	}
 
 	return (
 		<>
 			<Header single={single} />
-			{provisional && showProvisional && (
-				<p className="notice">Trying new network settings. They revert unless confirmed.</p>
-			)}
 			<div className="tiles">{tiles}</div>
 		</>
 	)
@@ -189,14 +169,10 @@ function renderTile(name, byName, history) {
 // tapping, and an opened tile takes the whole row. A tile with nothing to reveal is not a tap target.
 function Tile({ label, wide, more, tone, children, face }) {
 	const [open, setOpen] = useState(false)
-	const provisional = useContext(Provisional)
-	const className = `tile${wide || open ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}${provisional ? ' provisional' : ''}`
+	const className = `tile${wide || open ? ' wide' : ''}${open ? ' expanded' : ''}${more ? '' : ' flat'}`
 	const body = (
 		<>
-			<div className="label">
-				{label}
-				{provisional && <span className="trial">trial</span>}
-			</div>
+			<div className="label">{label}</div>
 			<div className={`value${tone ? ` ${tone}` : ''}`}>{face}</div>
 			{open && <div className="detail">{children}</div>}
 		</>

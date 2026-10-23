@@ -15,8 +15,6 @@ use crate::network::{render, select::Alongside};
 /// What the stack above the radios offers, whatever radio it runs on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Backend {
-	/// The WPS methods the wireless client offers on every radio it runs on.
-	pub wps: Vec<&'static str>,
 	/// The enterprise EAP methods the wireless client authenticates by.
 	pub eap: Vec<&'static str>,
 	/// The bands the hotspot can be put on, each with the widths it can be run at.
@@ -28,7 +26,6 @@ impl Backend {
 	/// 2.4 GHz, up to 80 MHz on 5 GHz, and nothing on 6 GHz.
 	pub fn stack() -> Self {
 		Self {
-			wps: vec!["push-button", "pin"],
 			eap: vec!["peap", "ttls", "tls", "pwd"],
 			hotspot: BTreeMap::from([
 				(Band::TwoPointFour, vec![20, 40]),
@@ -53,7 +50,7 @@ pub fn capabilities(
 			.collect::<Map<_, _>>();
 		out.insert("radios".into(), described.into());
 	}
-	out.insert("acts".into(), acts(radios, backend).into());
+	out.insert("acts".into(), acts(radios).into());
 	out
 }
 
@@ -174,7 +171,6 @@ pub fn hotspot_fits(radios: &[RadioInfo], hotspot: &Hotspot) -> Result<(), Inval
 	let refused = |reason: String| Invalid {
 		at: path(&[Segment::Name("hotspot"), Segment::Name("channel-width")]),
 		reason,
-		reached: None,
 	};
 	let band = hotspot
 		.band
@@ -232,7 +228,7 @@ fn describe(radio: &RadioInfo) -> Map<String, Json> {
 	out
 }
 
-fn acts(radios: &[RadioInfo], backend: &Backend) -> Map<String, Json> {
+fn acts(radios: &[RadioInfo]) -> Map<String, Json> {
 	let keyed = |under: &dyn Fn(&RadioInfo) -> Option<Json>| {
 		let interfaces = radios
 			.iter()
@@ -243,11 +239,7 @@ fn acts(radios: &[RadioInfo], backend: &Backend) -> Map<String, Json> {
 	let mut acts = Map::new();
 	let scan = keyed(&|radio| radio.scan.then(|| json!({})));
 	let survey = keyed(&|radio| radio.survey.then(|| json!({})));
-	// Any network may be named: the device holds the join to it on what the exchange yields (WLAN).
-	let wps = keyed(&|_| {
-		(!backend.wps.is_empty()).then(|| json!({ "method": backend.wps, "ssid": true }))
-	});
-	for (act, value) in [("scan", scan), ("survey", survey), ("wps", wps)] {
+	for (act, value) in [("scan", scan), ("survey", survey)] {
 		if let Some(value) = value {
 			acts.insert(act.into(), value);
 		}

@@ -4,7 +4,7 @@ id: CFG
 
 # Configuration session
 
-A client reads and changes a device's network configuration through a session: one stream, carrying the configuration in force, each change, its outcome, and the confirmation.
+A client reads and changes a device's network configuration through a session: one stream on which the device reports the configuration it holds and how it is faring, and on which the client proposes another.
 
 The session is a stream role beyond those of [MSG](../messages.md), established as [MSG](../messages.md) requires by which end opened the stream and by its first message.
 
@@ -12,84 +12,116 @@ The session is a stream role beyond those of [MSG](../messages.md), established 
 
 A client MUST open a configuration session by opening a stream whose first message is `configure`.
 
-A device MUST answer `configure` with `configuration`, carrying the configuration in force and the capabilities of [NET](overview.md).
+A device MUST answer `configure` with `configuration`, carrying the configuration it holds and the capabilities of [NET](overview.md), then with `state`.
 
-A client MUST propose a change by sending `configuration` carrying the document it wants in force.
+A device MUST send `configuration` on every open session whenever the configuration it holds changes, and on the session that proposed it after every proposal it refuses.
 
-A device MUST answer a proposal with `applied` or with `invalid`.
+A device MUST send `state` after every `configuration` it sends, and again whenever the outcome of the configuration it holds, the state of one of its candidates, its capabilities, or whether the session is busy change.
 
-A client MUST make a proposal durable by sending `confirm`, which a device MUST answer with `configuration` carrying the configuration now in force.
+A client MUST propose a change by sending `configuration` carrying the document it wants the device to hold.
 
-A client MUST abandon a proposal by sending `discard`.
+A client MAY propose again at any time.
 
-A client MAY propose again on the same stream after any answer.
-
-A device MUST answer every proposal exactly once, counting a `wps` as a proposal from when it is sent, and MUST answer one interrupted by `discard` or by a newer proposal before its answer with `invalid` at `$`, carrying no `reached`.
-
-A device MUST NOT answer `discard`.
-
-A device MUST carry `capabilities` on the next `applied` or `state` it sends whenever they differ from those it last sent in the session, as a new regulatory domain changes the usable channels, whether a proposal, a return to the recorded configuration, or an access point joined under [NET](overview.md) brought that domain into force.
+A device MUST carry `capabilities` on the next `configuration` or `state` it sends whenever they differ from those it last sent in the session, as a new regulatory domain changes the usable channels, whether a proposal or an access point joined under [NET](overview.md) brought that domain into force.
 
 A client MUST check its next proposal against the capabilities it was last sent.
 
-A device MUST serve at most one configuration session at a time across all its channels, and MUST answer `configure` on any other stream, on the same channel or another, with `busy` while one is open.
+A device MUST serve a configuration session on every stream that asks for one, on any of its channels.
+
+The session a device has served longest among those open MUST hold the configuration, and every other MUST be busy.
+
+A device MUST answer a proposal from a busy session with `cannot-configure` at `$`, and an act from one with `cannot-act` at `$`.
 
 > [!NOTE]
-> A configuration is a conversation with state rather than a request and its answer, which is why it holds one stream open rather than pairing messages. The channel already offers a bidirectional stream, so nothing is gained by pretending otherwise.
-> Two operators able to configure one device at once could undo each other silently. Both are standing at the device, so telling the second that the device is busy is enough for them to resolve it between themselves.
+> The session reports the device rather than pairing requests with answers. A client that opens one is told what a client that never left would know by then, so leaving part way through a change and coming back loses nothing.
+> The channel already offers a bidirectional stream, so nothing is gained by pretending otherwise.
+> Two operators able to configure one device at once could undo each other silently. Letting one hold the configuration while others watch it change keeps every operator's view current without either undoing the other. Both are standing at the device, so they can settle between themselves who holds it.
 
 ## Message types
 
 | type | sent by | carries |
 | --- | --- | --- |
 | `configure` | client | nothing beyond `type` |
-| `configuration` | either end | `document`, and `capabilities` on the first from a device |
-| `state` | device | `attachments`, and `capabilities` where they changed |
-| `applied` | device | `capabilities` where they changed |
-| `invalid` | device | `at`, `reason`, and `reached` where a proposal was applied and then failed |
-| `confirm` | client | nothing beyond `type` |
-| `discard` | client | nothing beyond `type` |
-| `busy` | device | nothing beyond `type` |
+| `configuration` | either end | `document`, and from a device `capabilities` on the first and where they changed |
+| `state` | device | `busy`, `outcome`, `failure` where the outcome is `failed`, `attachments`, and `capabilities` where they changed |
+| `cannot-configure` | device | as [MSG](../messages.md) has it |
+| `cannot-act` | device | as [MSG](../messages.md) has it |
 
 `configuration` MUST carry `DOCUMENT` as a critical member, so that an end which cannot read the document does not act on the message carrying it.
 
 > [!NOTE]
 > A device acting on a partial reading of a configuration would apply a configuration other than the one asked for, which is the case [MSG](../messages.md) reserves critical members for.
 
-## When a proposal fails
+## The configuration a device holds
 
-A device MUST judge a proposal on the candidates it adds or changes against the configuration running that carry `enabled` and `verify` true, and on no others.
+A device MUST hold exactly one configuration.
 
-A candidate differing from one of the configuration running only in `enabled` is one the proposal changes.
+A device that has never saved a proposal MUST hold one `wired-dynamic` candidate for each wired interface, labelled by the interface and carrying `enabled` and `verify` true, and no hotspot.
 
-A device MUST answer a proposal with `applied` where, on every interface carrying a candidate it is judged on, some candidate is established.
+A device MUST refuse a proposal asking for anything it did not state under [NET](overview.md), and one [LINK](attachment.md), [WLAN](wireless.md) or [HOT](hotspot.md) requires it to treat as invalid or to refuse.
 
-A device MUST otherwise answer it with `invalid` at the candidate, among those it is judged on that sit on an interface where none is established, that passed the most stages of [LINK](attachment.md), the first in the ordering among equals.
+A device refusing a proposal MUST send `cannot-configure` of [MSG](../messages.md), then `configuration` carrying the configuration it holds, unchanged.
 
-Where the device can tell which member of that candidate is at fault, `at` MUST name that member rather than the candidate: the `passphrase` of a key-based network whose access point it still hears refusing the join.
+A device MUST otherwise save the proposal: record it as the configuration it holds before applying any of it, send `configuration` carrying it, then apply it.
 
-A device MUST answer with `invalid` a proposal it cannot apply, whatever its candidates carry.
+The `configuration` a device sends on saving a proposal MUST carry the proposed document unchanged.
+
+A client MUST take a proposal as saved where the next `configuration` the device sends after it carries a document equal to it, member for member and value for value, and as not saved otherwise.
+
+A device MUST run the configuration it holds from when it saves it, and from when it starts.
+
+A loss of power while a device records a configuration MUST leave it holding either the configuration it held or the one it was recording, whole.
+
+A session ending MUST NOT change the configuration a device holds or runs, nor interrupt its verification.
+
+> [!NOTE]
+> Sending the configuration back is the device saying it saved the proposal, so a client needs no answer of its own for that: it compares what it sent with what came back.
+> A network change cannot break the channel the operator holds, so a device has no reason to hold a change at arm's length until someone vouches for it: the operator who applied it is still connected and can apply another.
+> Keeping a configuration that fails verification keeps the operator's work. A network that is not up yet, or out of range for now, is selected under [LINK](attachment.md) once it can be, with nobody needing to come back and apply it again.
+
+## Verifying it
+
+A device MUST verify each configuration it saves, judging it on the candidates it adds or changes against the configuration it replaces that carry `enabled` and `verify` true, and on no others.
+
+A candidate differing from one of the configuration it replaces only in `enabled` is one the proposal changes.
+
+The outcome of the configuration a device holds MUST be `verifying` from when it is saved until its verification ends, then `applied` or `failed`.
+
+A device MUST make the outcome `applied` where, on every interface carrying a candidate it is judged on, some candidate is established.
+
+A device MUST otherwise make it `failed`, with the failure at the candidate, among those it is judged on that sit on an interface where none is established, that passed the most stages of [LINK](attachment.md), the first in the ordering among equals.
+
+Where the device can tell which member of that candidate is at fault, the failure's `at` MUST name that member rather than the candidate: the `passphrase` of a key-based network whose access point it still hears refusing the join.
+
+A device MUST make the outcome `failed` where it cannot run some part of the configuration it saved, whatever its candidates carry.
 
 A device MUST verify and select a candidate carrying `verify` false as it does any other, and report it through `state`.
+
+A device saving a proposal while it verifies another MUST abandon that verification.
+
+The configuration a device holds before it has saved any proposal is judged on no candidate.
+
+A device MUST keep the outcome of the configuration it holds until it saves another, across restarts, and MUST verify again, on the same candidates, a configuration whose verification a restart interrupted.
 
 > [!NOTE]
 > Judging each interface rather than each candidate lets one document carry a static candidate for each of two sites on one port: at either site the other's fails, and the port is still established.
 > A candidate the proposal leaves as it was has already been judged, so a network that is out of range today does not stop an operator changing something else.
-> A candidate that is not verified is for the operator who knows better than the device, as with a network that is not up yet. It only stops that candidate failing a proposal: the device still brings it up only as far as it can observe.
+> A candidate that is not verified is for the operator who knows better than the device, as with a network that is not up yet. It only stops that candidate failing the change: the device still brings it up only as far as it can observe.
+> The outcome is the verdict on the change and stands until the next one, while `attachments` report each candidate as it is now: a network out of range when it was applied can come up later without the failure being forgotten.
 
 ## What a failure says
 
-`invalid` MUST carry:
+A failure MUST carry:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `at` | string | yes | which part is at fault |
 | `reason` | string | yes | the device's account of the failure, in its own words |
-| `reached` | string | no | the verification stage of [LINK](attachment.md) at which the attempt stopped |
+| `reached` | string | where a candidate's verification stopped | the verification stage of [LINK](attachment.md) at which the attempt stopped |
 
-`at` MUST be an RFC 9535 Normalized Path, rooted at the proposed document for a proposal and at the message asking for an act for an act.
+A failure's `at` MUST be an RFC 9535 Normalized Path, rooted at the configuration the device holds.
 
-`reached` MUST name a stage of [LINK](attachment.md) by its wire name, every stage before it having passed, and MUST be absent where nothing was applied or where the failure is not a candidate's verification, as a hotspot that does not start.
+`reached` MUST name a stage of [LINK](attachment.md) by its wire name, every stage before it having passed, and MUST be absent where the failure is not a candidate's verification, as a hotspot that does not start.
 
 > [!NOTE]
 > The three do different work. `at` puts an operator's cursor in the field that was wrong, `reached` says how far the attempt got, and `reason` carries the part nobody anticipated: a path, a permission, an errno.
@@ -97,16 +129,21 @@ A device MUST verify and select a candidate carrying `verify` false as it does a
 
 ## The state of each candidate
 
-A device MUST send `state` after the first `configuration` it sends in a session, and again whenever the state of a candidate or its capabilities change.
+`state` MUST carry:
 
-A device MUST NOT send `state` while a proposal is being verified, and MUST send it once the proposal is answered.
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `busy` | boolean | yes | whether another session holds the configuration |
+| `outcome` | string | yes | `verifying`, `applied` or `failed`, for the configuration the device holds |
+| `failure` | object | where `outcome` is `failed` | the failure, as [What a failure says](#what-a-failure-says) has it |
+| `attachments` | array | yes | the state of each candidate, matching position for position the attachments of the configuration the device holds |
 
-`state` MUST carry `attachments`, an array matching position for position the attachments of the configuration running, which is a proposal once one is applied, each entry carrying:
+Each entry of `attachments` MUST carry:
 
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `is` | string | yes | `default-route`, `up`, `verifying`, `standby`, `off` or `unavailable` |
-| `reached` | string | where `is` is `unavailable` | the stage of [LINK](attachment.md) at which it stopped, as `invalid` carries it |
+| `reached` | string | where `is` is `unavailable` | the stage of [LINK](attachment.md) at which it stopped, as a failure carries it |
 | `reason` | string | where `is` is `unavailable` | the device's observation, in its own words |
 
 `standby` MUST mean a candidate not tried because every interface it could be brought up on carries a candidate above it, or is kept for the hotspot.
@@ -116,27 +153,6 @@ A device MUST NOT send `state` while a proposal is being verified, and MUST send
 > [!NOTE]
 > The stage gives the device's observation of a candidate that is not up, and a client words it: stopping at `addressing` is no lease, and a wireless candidate stopping at `carrier` is out of range.
 
-## Provisional and confirmed
-
-A device that has never recorded a configuration MUST hold as its recorded configuration one `wired-dynamic` candidate for each wired interface, labelled by the interface and carrying `enabled` and `verify` true, and no hotspot.
-
-A device MUST apply a proposal to its running system without recording it.
-
-A device MUST hold exactly one recorded configuration, and MUST replace it only on `confirm`.
-
-A device MUST return to its recorded configuration when a session ends, however it ends.
-
-A device MUST return to its recorded configuration on `discard`, whether the proposal is still being verified or already applied.
-
-A device MUST NOT impose a deadline on a proposal.
-
-A device MUST NOT retain the contents of a proposal after returning to its recorded configuration.
-
-> [!NOTE]
-> Never recording a proposal makes every way a session can end (a discard, the stream closing, the channel dropping, a power cut, a reboot) restore the recorded configuration as a consequence rather than as a rule each has to implement separately.
-> A network change cannot break the channel the operator holds, so nothing is racing a deadline, and a deadline would only take a working configuration away from an operator who was still looking at it.
-> The client holds its proposal, so a device that keeps nothing costs nobody the ability to correct a failed change. Keeping nothing also stops a device walking into a corner one unconfirmed step at a time.
-
 ## Acting now
 
 A client MAY ask a device to act rather than to hold a setting, by sending on the session stream:
@@ -145,15 +161,10 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 | --- | --- | --- | --- |
 | `scan` | client | `interface` where the client names one wireless interface | report the wireless networks it can see |
 | `survey` | client | `interface` where the client names one wireless interface | report the occupied and usable spectrum its radios can see |
-| `wps` | client | `method`, `interface` where the client names the wireless interface to join on, and `ssid` where it names the network to join | join by WPS, as [WLAN](wireless.md) specifies |
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
-A device MUST answer `wps` as it answers a proposal: with `configuration` carrying the configuration in force with the joined network added first among its attachments, then with `applied` or `invalid`, after which it is a proposal like any other.
-
-A device asked to join by WPS for a named `ssid` whose exchange yields credentials for another network MUST discard them as [WLAN](wireless.md) requires, and MUST answer with `invalid` at `$['ssid']`, carrying no `reached` and a `reason` naming the network the access point handed over.
-
-A device joining by PIN MUST first send `pin`, carrying as `pin` the PIN it generated for the operator to enter at the access point.
+A device MUST answer an act it cannot perform with `cannot-act` of [MSG](../messages.md), naming as `act` the act's message type.
 
 `networks` MUST carry `access-points`, from a fresh scan, one entry for each access point each radio scanned heard, leaving out the device's own hotspot:
 
@@ -190,5 +201,3 @@ A device MUST state among its capabilities which of its radios can scan and whic
 | `networks` | number | yes | how many access points the radio heard on it |
 | `busy` | number | yes | the fraction of time the radio found it occupied, from 0 to 1 |
 
-> [!NOTE]
-> These are acts rather than settings: a document describes the state a device is to be in, and none of these is a state a device could be left in.

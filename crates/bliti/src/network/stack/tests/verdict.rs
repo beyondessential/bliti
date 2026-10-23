@@ -14,7 +14,7 @@ fn wall() -> Observation {
 async fn on_the_wall(rig: &mut Rig, running: Json) {
 	rig.answers("192.0.2.1");
 	rig.see([wall()]).await;
-	rig.stack.restore(&document(running)).await.unwrap();
+	rig.restore(document(running)).await;
 	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])
 		.await;
 }
@@ -226,6 +226,80 @@ async fn a_join_waits_for_the_proposals_scan() {
 		!rig.asked().iter().any(|call| call.starts_with("connect")),
 		"nothing out of range is joined: {:?}",
 		rig.asked()
+	);
+}
+
+/// What a proposal is judged against is what the command names, not what this driver ran, which a
+/// restart has lost (CFG).
+#[tokio::test(start_paused = true)]
+async fn a_proposal_is_judged_against_the_configuration_it_names_as_replaced() {
+	let mut rig = Rig::wireless().await;
+	rig.answers("192.0.2.1");
+	rig.see([wall()]).await;
+	let both = document(json!({"attachments": [clinic(), dynamic()]}));
+
+	let answer = applying_over(&mut rig, both.clone(), both.clone());
+	idle().await;
+	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])
+		.await;
+	assert_eq!(
+		answer.await.unwrap(),
+		Ok(()),
+		"the out-of-range clinic is carried over, so already judged"
+	);
+
+	let mut rig = Rig::wireless().await;
+	rig.answers("192.0.2.1");
+	rig.see([wall()]).await;
+	let answer = applying_over(
+		&mut rig,
+		both,
+		document(json!({"attachments": [dynamic()]})),
+	);
+	let failed = answer.await.unwrap().unwrap_err();
+	assert_eq!(failed.at, "$['attachments'][0]", "added, so judged");
+}
+
+/// A failed verdict is no reason to go back: what failed stays the configuration running, and the
+/// selector goes on working it, trying its failed candidate again once it can (CFG, LINK).
+#[tokio::test(start_paused = true)]
+async fn a_proposal_that_failed_stays_running_and_selection_goes_on_with_it() {
+	let mut rig = Rig::wireless().await;
+	on_the_wall(&mut rig, json!({"attachments": [dynamic()]})).await;
+	rig.answers("198.51.100.1");
+	rig.hears(
+		"clinic",
+		Err("Operation failed (net.connman.iwd.Failed)".into()),
+	);
+	let answer = applying(
+		&mut rig,
+		document(json!({"attachments": [clinic(), dynamic()]})),
+	);
+	let failed = answer.await.unwrap().unwrap_err();
+	assert_eq!(failed.reached.as_deref(), Some("association"));
+	assert_eq!(rig.states()[0]["reached"], "association");
+	assert_eq!(
+		rig.states()[1],
+		json!({"is": "default-route"}),
+		"the wall port carries on beneath the failed candidate"
+	);
+
+	rig.hears("clinic", Ok(joined("clinic", 2412)));
+	tokio::time::sleep(driver::RETRY).await;
+	idle().await;
+	rig.see([
+		Observation::Station {
+			interface: "wld0".into(),
+			station: Station::Connected(joined("clinic", 2412)),
+		},
+		leased("wld0", "198.51.100.10"),
+		routed("wld0", "198.51.100.1"),
+	])
+	.await;
+	assert_eq!(
+		rig.states(),
+		[json!({"is": "default-route"}), json!({"is": "up"})],
+		"the failed proposal's own ordering, with no restore asked for"
 	);
 }
 

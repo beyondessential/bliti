@@ -14,7 +14,7 @@ fn scans(rig: &Rig) -> usize {
 async fn on_the_wall(rig: &mut Rig, running: Json) {
 	rig.answers("192.0.2.1");
 	rig.see([carrier(true)]).await;
-	rig.stack.restore(&document(running)).await.unwrap();
+	rig.restore(document(running)).await;
 	rig.see([leased("eth0", "192.0.2.10"), routed("eth0", "192.0.2.1")])
 		.await;
 }
@@ -65,10 +65,8 @@ async fn scans_back_off() {
 #[tokio::test(start_paused = true)]
 async fn with_nothing_carrying_the_default_route_every_network_out_of_range_is_looked_for() {
 	let mut rig = Rig::wireless().await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic(), clinic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic(), clinic()]})))
+		.await;
 	tokio::time::sleep(driver::RETRY).await;
 	idle().await;
 	assert_eq!(scans(&rig), 1);
@@ -89,10 +87,8 @@ async fn a_device_on_its_best_candidate_does_not_scan() {
 		scanned: true,
 	}])
 	.await;
-	rig.stack
-		.restore(&document(json!({"attachments": [clinic(), dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [clinic(), dynamic()]})))
+		.await;
 	idle().await;
 	rig.see([
 		leased("wld0", "198.51.100.10"),

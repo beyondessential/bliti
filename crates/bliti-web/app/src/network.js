@@ -2,8 +2,8 @@
 // the checks and the wording can be read and tested without a page.
 //
 // The operator's edits are held here and nowhere else until they ask for them to be applied. The
-// session a device serves (BLI-CFG) sees a proposal, its answer, and a confirm or a discard; it never
-// sees the typing that came before.
+// session a device serves (BLI-CFG) sees a proposal and what the device then reports of the
+// configuration it holds; it never sees the typing that came before.
 
 import { pathOf, within } from './path.js'
 import { securityName } from './wireless.js'
@@ -146,15 +146,22 @@ export function opening() {
 		inForceKeys: [],
 		capabilities: null,
 		edit: fromDocument(null),
+		// The document last proposed, or the held one while its failure is shown, which a failure may
+		// be applied again from (NSCR).
 		proposed: null,
+		// Whether a proposal is sent and the device has not yet sent a configuration after it.
+		awaiting: false,
 		runningKeys: [],
+		busy: false,
+		// What the device reports of the configuration it holds: how it is faring, and why not where it
+		// failed.
+		outcome: null,
+		held: null,
+		// What the screen renders as a failure, and whether the device refused the proposal rather than
+		// saving it.
 		failure: null,
+		refused: false,
 		problem: null,
-		confirming: false,
-		awaiting: 0,
-		wps: null,
-		wpsNetwork: null,
-		pin: null,
 		states: null,
 		networks: null,
 		spectrum: null,
@@ -165,9 +172,15 @@ export function opening() {
 	}
 }
 
-/// Whether the operator may edit. Never while a proposal is being verified or is running unconfirmed.
+/// Whether the operator may edit. Never while a proposal is being verified, nor while another session
+/// holds the configuration.
 export function writable(state) {
 	return state.status === 'open' && (state.stage === 'editing' || state.stage === 'errored')
+}
+
+/// Whether the fields hold edits the device does not hold, which leaving the screen loses (NSCR).
+export function unapplied(state) {
+	return writable(state) && changes(state.edit, state.inForce, state.inForceKeys) > 0
 }
 
 /// The key of the candidate whose checking failed the last proposal, which the operator may apply
@@ -183,24 +196,40 @@ export function unedited(state) {
 	return !!state.proposed && same(state.edit.document, state.proposed.document)
 }
 
-/// Enter editing, filled from the configuration in force.
+/// The stage the device's outcome puts the operator in: applying while it verifies, errored where it
+/// failed, editing once it applied, and watching whatever the outcome while another session holds it.
+function settled(state) {
+	if (state.busy) return { ...state, stage: 'watching', failure: null, refused: false, proposed: null }
+	switch (state.outcome) {
+		case 'verifying':
+			return { ...state, stage: 'applying', failure: null, refused: false }
+		case 'failed':
+			return {
+				...state,
+				stage: 'errored',
+				failure: state.held,
+				refused: false,
+				proposed: state.proposed ?? clone(state.edit),
+				selected: candidateAt(state.held?.at, state.edit.keys) ?? state.selected,
+			}
+		default:
+			return { ...state, stage: 'editing', failure: null, refused: false, proposed: null }
+	}
+}
+
+/// Fill the fields from the configuration the device holds, and take the stage from its outcome.
 function editing(state) {
 	const edit = fromDocument(state.inForce)
-	return {
+	return settled({
 		...state,
-		stage: 'editing',
 		edit,
 		inForceKeys: edit.keys,
 		runningKeys: edit.keys,
+		awaiting: false,
 		proposed: null,
-		failure: null,
 		problem: null,
-		confirming: false,
-		wps: null,
-		wpsNetwork: null,
-		pin: null,
 		selected: null,
-	}
+	})
 }
 
 /// The key of the candidate a path falls within, where it falls within one.
@@ -233,35 +262,19 @@ export function reduce(state, action) {
 				stage: 'applying',
 				edit: action.edit,
 				proposed: clone(action.edit),
-				awaiting: state.awaiting + 1,
+				awaiting: true,
 				failure: null,
+				refused: false,
 				problem: null,
-				// What a scan, survey or WPS join failed with belongs to before this attempt.
+				// What a scan or survey failed with belongs to before this attempt.
 				act: null,
 			}
-		case 'wps':
-			return {
-				...state,
-				stage: 'applying',
-				proposed: null,
-				awaiting: state.awaiting + 1,
-				failure: null,
-				problem: null,
-				wps: action.method,
-				wpsNetwork: action.ssid ?? null,
-				pin: null,
-				act: null,
-			}
-		case 'cancelled':
-			return editing(state)
-		case 'confirming':
-			return state.stage === 'applied' ? { ...state, confirming: true } : state
 		case 'act':
 			return { ...state, act: { type: action.act, interface: action.interface ?? null, failure: null } }
 		case 'closed':
 			return {
 				...state,
-				status: state.status === 'busy' ? 'busy' : 'closed',
+				status: 'closed',
 				why: action.why ?? null,
 				// Starting again that fails before a session opens says the channel under it is gone.
 				unreachable: state.status === 'opening' && !!state.retried,
@@ -285,44 +298,18 @@ function fromDevice(state, event) {
 	switch (message.type) {
 		case 'configuration':
 			return configuration(state, message)
-		case 'applied':
-		case 'invalid':
-			return answer(state, message)
-		case 'busy':
-			return { ...state, status: 'busy' }
-		case 'pin':
-			return state.stage === 'applying' && state.wps === 'pin' ? { ...state, pin: String(message.pin) } : state
+		case 'state':
+			return reported(state, message)
+		case 'cannot-configure':
+			return refusal(state, message)
+		case 'cannot-act':
+			return actFailed(state, message)
 		case 'networks':
 			return { ...state, networks: Array.isArray(message['access-points']) ? message['access-points'] : [], act: null }
 		case 'spectrum':
 			return { ...state, spectrum: message.spectrum ?? null, act: null }
-		// Returning to the recorded configuration can change what the device supports back, and the state
-		// after it says so (BLI-CFG).
-		case 'state':
-			return { ...state, states: readState(message), capabilities: message.capabilities ?? state.capabilities }
 		default:
 			return state
-	}
-}
-
-/// An `applied` or an `invalid`. A device answers every proposal exactly once and in order, one
-/// interrupted by a discard or a newer proposal with `invalid` at `$` (BLI-CFG), so answers are paired
-/// with proposals by counting, and only the answer to the latest counts, and only while it is still
-/// wanted. An `invalid` with no proposal awaiting answers an act.
-///
-/// Whatever it answers, capabilities an `applied` carries are the latest the device sent, and the next
-/// proposal is checked against those.
-function answer(received, message) {
-	const state = { ...received, capabilities: message.capabilities ?? received.capabilities }
-	if (state.awaiting === 0) return message.type === 'invalid' ? actFailed(state, message) : state
-	const awaiting = state.awaiting - 1
-	if (awaiting > 0 || state.stage !== 'applying') return { ...state, awaiting }
-	if (message.type === 'invalid') return invalid({ ...state, awaiting }, message)
-	return {
-		...state,
-		awaiting,
-		stage: 'applied',
-		runningKeys: state.proposed?.keys ?? state.edit.keys,
 	}
 }
 
@@ -330,47 +317,81 @@ function failureOf(message) {
 	return { at: message.at, reason: message.reason, reached: message.reached ?? null }
 }
 
-/// An act refused outside a proposal: a survey or a scan the device could not carry out.
+/// An act the device could not carry out: a survey or a scan, named by `act` (CFG).
 function actFailed(state, message) {
-	return state.act ? { ...state, act: { ...state.act, failure: failureOf(message) } } : state
+	return state.act?.type === message.act ? { ...state, act: { ...state.act, failure: failureOf(message) } } : state
 }
 
-function configuration(state, message) {
-	// The first answer opens the session, and the answer to a confirm is what is now in force. Either
-	// way the operator starts again from the configuration in force, and what the device supports is
-	// what it said of the configuration it runs.
-	const capabilities = message.capabilities ?? state.capabilities
-	if (state.status === 'opening' || state.confirming) {
-		return editing({ ...state, status: 'open', inForce: message.document, capabilities, states: null })
-	}
-	// Joining by WPS learns a network, which the device proposes on the operator's behalf.
-	if (state.stage === 'applying' && state.wps && !state.proposed) {
-		const proposed = fromDocument(message.document, 'w')
-		return { ...state, proposed, edit: clone(proposed), capabilities }
-	}
-	// Anything else is the device telling us what is in force now. An operator with no edits in hand is
-	// moved onto it; one with edits keeps them, and they are compared against the new configuration.
-	if (state.stage === 'editing' && changes(state.edit, state.inForce, state.inForceKeys) === 0) {
-		return editing({ ...state, inForce: message.document, capabilities })
-	}
-	return { ...state, inForce: message.document, capabilities }
-}
-
-function invalid(state, message) {
-	const failure = failureOf(message)
-	if (!state.proposed) {
-		// Joining by WPS failed before the device had a network to propose.
-		return { ...editing(state), act: { type: 'wps', network: state.wpsNetwork, failure } }
-	}
-	const edit = clone(state.proposed)
+/// A proposal the device did not take. It is kept in the fields, with the reason beside what is at
+/// fault, and the device sends the configuration it holds, unchanged, after it (CFG).
+function refusal(state, message) {
+	if (!state.awaiting) return state
 	return {
 		...state,
 		stage: 'errored',
-		edit,
-		failure,
-		runningKeys: state.inForceKeys,
-		selected: candidateAt(failure.at, edit.keys) ?? state.selected,
+		edit: clone(state.proposed),
+		awaiting: false,
+		failure: failureOf(message),
+		refused: true,
+		selected: candidateAt(message.at, state.proposed.keys) ?? state.selected,
 	}
+}
+
+/// A `configuration` the device sent: what it holds, on opening and whenever that changes. A proposal
+/// is saved where the first one after it carries the same document, and not saved otherwise (CFG).
+function configuration(state, message) {
+	const capabilities = message.capabilities ?? state.capabilities
+	const held = { ...state, inForce: message.document, capabilities }
+	if (state.status === 'opening') return { ...held, edit: fromDocument(message.document) }
+	if (state.awaiting) {
+		if (!same(message.document, state.proposed.document)) {
+			return {
+				...held,
+				stage: 'errored',
+				awaiting: false,
+				failure: { at: '$', reason: 'The device did not keep these settings.', reached: null },
+				refused: true,
+			}
+		}
+		// What the device holds is what was proposed, so its candidates are the fields', in their order.
+		return {
+			...held,
+			awaiting: false,
+			inForceKeys: state.proposed.keys,
+			runningKeys: state.proposed.keys,
+			states: null,
+			outcome: null,
+		}
+	}
+	// Anything else is the device telling us what it holds now. One watching follows it; an operator
+	// with no edits in hand is moved onto it; one with edits keeps them, and they are compared
+	// against the new configuration.
+	if (state.stage === 'watching' || (state.stage === 'editing' && changes(state.edit, state.inForce, state.inForceKeys) === 0)) {
+		return editing(held)
+	}
+	return held
+}
+
+/// A `state` the device sent: whether the session is busy, how the configuration it holds is faring,
+/// and the state of each candidate.
+function reported(received, message) {
+	const outcome = ['verifying', 'applied', 'failed'].includes(message.outcome) ? message.outcome : null
+	const failure = outcome === 'failed' && message.failure ? failureOf(message.failure) : null
+	const state = {
+		...received,
+		busy: message.busy === true,
+		outcome,
+		held: failure,
+		states: readState(message),
+		capabilities: message.capabilities ?? received.capabilities,
+	}
+	if (state.status === 'opening') return state.inForce ? editing({ ...state, status: 'open' }) : state
+	// A state before the configuration after a proposal speaks of the one before it.
+	if (state.awaiting) return state
+	if (state.busy !== received.busy) return editing(state)
+	// The stage follows the outcome as it changes, so a refusal stands through the state that follows
+	// the configuration the device sends back after it (CFG).
+	return outcome === received.outcome ? state : settled(state)
 }
 
 const STATES = new Set(['default-route', 'up', 'verifying', 'standby', 'off', 'unavailable'])
@@ -458,22 +479,24 @@ export function stagesOf(kind, reached) {
 	}))
 }
 
-/// The line heading a failure, by how far it got.
-export function failureHeadline(reached, kind) {
+/// The line heading a failure, by how far it got. A refusal is a proposal the device did not take,
+/// so nothing was changed; any other failure is of settings the device holds.
+export function failureHeadline(reached, kind, refused = false) {
+	if (refused) return 'Not accepted. Nothing was changed.'
 	switch (reached) {
 		case null:
 		case undefined:
-			return 'Not accepted. Nothing was changed.'
+			return 'Applied, but part of it could not run.'
 		case 'carrier':
-			return kind === 'wireless' ? 'Out of range. Reverted.' : 'No link. Reverted.'
+			return kind === 'wireless' ? 'Out of range.' : 'No link.'
 		case 'association':
-			return 'Could not join. Reverted.'
+			return 'Could not join.'
 		case 'addressing':
-			return kind === 'wired-static' ? 'No address. Reverted.' : 'No lease. Reverted.'
+			return kind === 'wired-static' ? 'No address.' : 'No lease.'
 		case 'gateway':
-			return 'Applied, then could not be reached. Reverted.'
+			return 'Applied, then could not be reached.'
 		default:
-			return 'Applied, then failed. Reverted.'
+			return 'Applied, then failed.'
 	}
 }
 

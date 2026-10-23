@@ -1,10 +1,10 @@
 // The network configuration screen of NSCR: the ordering, one candidate's fields, the hotspot and
 // the country, edited here and proposed only when the operator applies, with the state of the session
-// pinned in view.
+// pinned in view. The session closes when the screen does.
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, hotspotOn, wpsMethods, wpsRadios } from './capabilities.js'
+import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, hotspotOn } from './capabilities.js'
 import {
 	candidateAt,
 	changes,
@@ -23,6 +23,7 @@ import {
 	stateWording,
 	turning,
 	turningHotspot,
+	unapplied,
 	uncheckable,
 	unedited,
 	updateCandidate,
@@ -33,8 +34,6 @@ import {
 	CandidateFields,
 	CountryField,
 	HotspotFields,
-	SelectField,
-	adapterOptions,
 	blankCandidate,
 	blankHotspot,
 	fitted,
@@ -44,15 +43,15 @@ import { pathOf, within } from './path.js'
 import { bandName } from './wireless.js'
 import { loadProtocol } from './protocol.js'
 
-export default function Network({ client, onActivity, onEvent, onBack, onStage, onDisconnect, joined }) {
+export default function Network({ client, onActivity, onEvent, onBack, onDisconnect, joined }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
+	const [leaving, setLeaving] = useState(false)
 	const session = useRef(null)
 
-	// The session lasts as long as this is mounted: unmounting closes the stream, which the device
-	// reads as abandoning whatever was not confirmed (CFG). The application keeps it mounted while a
-	// proposal runs, so the operator can leave the screen and come back to it (NSCR). It opens once the
-	// checker a document is held to before it is proposed is loaded, so nothing can be applied unchecked.
+	// The session lasts as long as this is mounted: unmounting closes the stream, which changes nothing
+	// the device holds (CFG), and drops the edits (NSCR). It opens once the checker a document is held
+	// to before it is proposed is loaded, so nothing can be applied unchecked.
 	useEffect(() => {
 		let live = true
 		let opened = null
@@ -92,29 +91,18 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 		}
 	}
 
-	// Joining by WPS, for the network `ssid` names where one is picked from a scan, on the adapter
-	// `name` names or on one the device picks.
-	const joinByWps = (method, ssid, name) => {
-		if (send((handle) => handle.wps(method, name, ssid))) dispatch({ type: 'wps', method, ssid })
-	}
-
-	// Where the session stands, and what can be done about it from elsewhere in the application.
-	const edits = state.status === 'open' ? changes(state.edit, state.inForce, state.inForceKeys) : 0
+	// Edits the device does not hold are lost on leaving, so leaving asks, and the browser warns before
+	// the page goes (NSCR).
+	const lost = unapplied(state)
 	useEffect(() => {
-		onStage?.(
-			state.status === 'open'
-				? {
-						stage: state.stage,
-						confirming: !!state.confirming,
-						changes: edits,
-						confirm,
-						cancel,
-						reset: () => dispatch({ type: 'reset' }),
-					}
-				: null,
-		)
-	}, [state.status, state.stage, state.confirming, edits])
-	useEffect(() => () => onStage?.(null), [])
+		if (!lost) return
+		const warn = (event) => {
+			event.preventDefault()
+			event.returnValue = ''
+		}
+		window.addEventListener('beforeunload', warn)
+		return () => window.removeEventListener('beforeunload', warn)
+	}, [lost])
 
 	const change = (edit) => dispatch({ type: 'edit', change: (held) => fitted(edit(held), state.capabilities) })
 	const readOnly = !writable(state)
@@ -137,14 +125,6 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 		if (key && unedited(state)) propose(checking(state.edit, key, false))
 	}
 
-	function cancel() {
-		if (send((handle) => handle.discard())) dispatch({ type: 'cancelled' })
-	}
-
-	function confirm() {
-		if (send((handle) => handle.confirm())) dispatch({ type: 'confirming' })
-	}
-
 	function restart() {
 		dispatch({ type: 'restart' })
 		setAttempt((count) => count + 1)
@@ -153,23 +133,11 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 	const title = (
 		<div className="heading title">
 			<h1>Network</h1>
-			<button className="secondary small" onClick={onBack}>
+			<button className="secondary small" onClick={() => (lost ? setLeaving(true) : onBack())}>
 				Back
 			</button>
 		</div>
 	)
-
-	if (state.status === 'busy') {
-		return (
-			<div className="network">
-				{title}
-				<p className="notice">Someone else is changing this device's network. Try again once they are done.</p>
-				<button className="secondary" onClick={restart}>
-					Try again
-				</button>
-			</div>
-		)
-	}
 
 	if (state.status !== 'open') {
 		return (
@@ -211,13 +179,15 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 		at: state.stage === 'errored' ? state.failure?.at : state.problem?.at,
 		problem: state.stage === 'errored' ? null : state.problem,
 	}
-	const failure = state.stage === 'errored' ? state.failure : null
+	const failure = state.stage === 'errored' && state.failure ? { ...state.failure, refused: state.refused } : null
 	const failedKey = failure ? candidateAt(failure.at, state.edit.keys) : null
 	const hotspotPath = pathOf(['hotspot'])
 	const countryPath = pathOf(['regulatory-domain'])
 	const failureElsewhere =
 		failure && !failedKey && !within(failure.at, hotspotPath) && !within(failure.at, countryPath)
-	const scan = {
+	// A session another holds is read-only, and offers no scan or survey (NSCR).
+	const watching = state.stage === 'watching'
+	const scan = watching ? null : {
 		busy: state.act?.type === 'scan' && !state.act.failure,
 		failure: state.act?.type === 'scan' ? state.act.failure : null,
 		points: state.networks,
@@ -229,6 +199,22 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 	return (
 		<div className="network">
 			{title}
+			{leaving && lost && (
+				<div className="bar-state" role="alertdialog" aria-label="Leave the network settings?">
+					<p>
+						<strong>Leave the network settings?</strong>
+					</p>
+					<p>The changes you have not applied will be lost.</p>
+					<div className="row">
+						<button className="danger-fill" onClick={onBack}>
+							Leave
+						</button>
+						<button className="secondary" onClick={() => setLeaving(false)}>
+							Stay
+						</button>
+					</div>
+				</div>
+			)}
 			{state.notice && <p className="notice fault">{state.notice}</p>}
 
 			<Order
@@ -237,8 +223,6 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 				change={change}
 				select={(key) => dispatch({ type: 'select', key })}
 				failure={failureElsewhere ? failure : null}
-				wpsFailure={state.act?.type === 'wps' ? state.act : null}
-				joinByWps={joinByWps}
 			/>
 
 			{state.selected && state.edit.keys.includes(state.selected) && (
@@ -253,7 +237,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 					unchecked={
 						uncheckable(state) === state.selected ? { enabled: unedited(state), apply: applyUnchecked } : null
 					}
-					scan={{ ...scan, joinByWps }}
+					scan={scan}
 					onRemove={() => change((edit) => removeCandidate(edit, state.selected))}
 				/>
 			)}
@@ -266,7 +250,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 				marks={marks}
 				failure={failure && within(failure.at, hotspotPath) ? failure : null}
 				survey={
-					acts(caps).survey
+					acts(caps).survey && !watching
 						? {
 								busy: state.act?.type === 'survey' && !state.act.failure,
 								failure: state.act?.type === 'survey' ? state.act.failure : null,
@@ -300,74 +284,45 @@ export default function Network({ client, onActivity, onEvent, onBack, onStage, 
 				count={changes(state.edit, state.inForce, state.inForceKeys)}
 				onApply={() => propose(state.edit)}
 				onReset={() => dispatch({ type: 'reset' })}
-				onCancel={cancel}
-				onConfirm={confirm}
 			/>
 		</div>
 	)
 }
 
 /// The state of the session, pinned to the bottom of the viewport: which stage the operator is in,
-/// whether what the device runs is saved, what leaving would cost, and only the actions the stage
-/// allows (NSCR).
-function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
+/// what the device is on, and only the actions the stage allows (NSCR).
+function SessionBar({ state, count, onApply, onReset }) {
 	const { stage } = state
 	let tone = ''
 	let said
-	let actions
+	let actions = null
 
 	if (stage === 'applying') {
 		tone = 'working'
-		said = state.wps ? (
-			<>
-				<strong>{state.wpsNetwork ? `Joining ${state.wpsNetwork} by WPS.` : 'Joining by WPS.'}</strong>{' '}
-				{state.wps !== 'pin' ? (
-					'Press the WPS button on the access point.'
-				) : state.pin ? (
-					<>
-						Enter <span className="pin">{state.pin}</span> on the access point.
-					</>
-				) : (
-					'Waiting for the PIN.'
-				)}
-			</>
-		) : (
+		said = (
 			<>
 				<span className="spinner" aria-hidden="true" />
-				<strong>Applying.</strong> Checking the new settings.
+				<strong>Applying…</strong> Checking the new settings.
 			</>
 		)
-		actions = (
-			<button className="secondary" onClick={onCancel}>
-				Cancel
-			</button>
-		)
-	} else if (stage === 'applied') {
-		said = state.confirming ? (
+	} else if (stage === 'watching') {
+		said = (
 			<>
-				<strong>Saving.</strong>
-			</>
-		) : (
-			<>
-				<strong>Applied, not saved.</strong> Running now. Discarded if you disconnect.
-			</>
-		)
-		actions = (
-			<>
-				<button onClick={onConfirm} disabled={state.confirming}>
-					Confirm
-				</button>
-				<button className="secondary" onClick={onCancel} disabled={state.confirming}>
-					Cancel
-				</button>
+				<strong>Someone else is changing this device's network.</strong> You can see what they apply, but not change
+				anything until they are done.
 			</>
 		)
 	} else {
 		if (stage === 'errored') {
 			tone = 'failed'
-			said = (
+			said = state.refused ? (
 				<>
-					<strong>Could not apply.</strong> The device is back on the last saved configuration.
+					<strong>Not applied.</strong> The device did not take these settings, and is still on its last ones.
+				</>
+			) : (
+				<>
+					<strong>Could not apply.</strong>{' '}
+					{count === 0 ? 'The device is on these settings.' : 'The device is on the settings that failed, not on your changes.'}
 				</>
 			)
 		} else if (state.problem) {
@@ -380,7 +335,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 		} else if (count === 0) {
 			said = (
 				<>
-					<strong>Saved.</strong> The device is on its saved configuration.
+					<strong>Applied.</strong> The device is on these settings.
 				</>
 			)
 		} else {
@@ -389,7 +344,7 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 					<strong>
 						{count} {count === 1 ? 'change' : 'changes'} not applied.
 					</strong>{' '}
-					The device is still on its saved configuration.
+					The device is still on its current settings.
 				</>
 			)
 		}
@@ -414,91 +369,15 @@ function SessionBar({ state, count, onApply, onReset, onCancel, onConfirm }) {
 	)
 }
 
-/// The session's state on the device view, while the operator is away from the screen with edits not
-/// applied, a proposal being applied or applied, or one that failed there (NSCR).
-export function HeldBar({ held, onReview }) {
-	const discard = (
-		<button className="secondary" onClick={held.reset}>
-			Discard
-		</button>
-	)
-	const review = (
-		<button className="secondary" onClick={onReview}>
-			Review
-		</button>
-	)
-	if (held.stage === 'applying') {
-		return (
-			<section className="bar-state working" role="status">
-				<p>
-					<span className="spinner" aria-hidden="true" />
-					<strong>Applying network settings.</strong>
-				</p>
-				<div className="row">{review}</div>
-			</section>
-		)
-	}
-	if (held.stage === 'applied') {
-		return (
-			<section className="bar-state" role="status">
-				<p>
-					<strong>{held.confirming ? 'Saving network settings.' : 'Network settings applied, not saved.'}</strong>
-					{!held.confirming && ' Discarded if you disconnect.'}
-				</p>
-				<div className="row">
-					<button onClick={held.confirm} disabled={held.confirming}>
-						Confirm
-					</button>
-					<button className="secondary" onClick={held.cancel} disabled={held.confirming}>
-						Discard
-					</button>
-					{review}
-				</div>
-			</section>
-		)
-	}
-	if (held.stage === 'errored') {
-		return (
-			<section className="bar-state failed" role="status">
-				<p>
-					<strong>Could not apply the network settings.</strong> The device is back on its saved configuration.
-				</p>
-				<div className="row">
-					{review}
-					{discard}
-				</div>
-			</section>
-		)
-	}
-	return (
-		<section className="bar-state" role="status">
-			<p>
-				<strong>
-					{held.changes} network {held.changes === 1 ? 'change' : 'changes'} not applied.
-				</strong>{' '}
-				Nobody else can change the network meanwhile.
-			</p>
-			<div className="row">
-				{review}
-				{discard}
-			</div>
-		</section>
-	)
-}
-
 /// The ordering of LINK as a list the operator rearranges, each candidate with the state the device
 /// reports of it.
-function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps }) {
+function Order({ state, readOnly, change, select, failure }) {
 	const [adding, setAdding] = useState(false)
-	const [picked, setPicked] = useState('')
 	const list = useRef(null)
 	const dragging = useRef(null)
 	const caps = state.capabilities
 	const { keys, document } = state.edit
 	const kinds = attachmentKinds(caps).filter((kind) => kind !== 'wireless' || !absent(caps, 'wireless', document))
-	const joiners = kinds.includes('wireless') && acts(caps).wps.length > 0 ? wpsRadios(caps) : []
-	const wpsWith = joiners.includes(picked) ? picked : ''
-	const wps = joiners.length > 0 ? wpsMethods(caps, wpsWith || undefined) : []
 
 	const move = (from, to) => change((edit) => moveCandidate(edit, from, to))
 
@@ -544,14 +423,6 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 				Tried from the top. The device uses the first one that connects, and moves to another when that changes. Drag to reorder.
 			</p>
 			{failure && <Failure failure={failure} />}
-			{wpsFailure && (
-				<>
-					<p className="notice fault">
-						{wpsFailure.network ? `Could not join ${wpsFailure.network} by WPS.` : 'Could not join by WPS.'}
-					</p>
-					<p className="why reason">{wpsFailure.failure.reason}</p>
-				</>
-			)}
 			{adding && !readOnly && (
 				<div className="row adding">
 					{kinds.map((kind) => (
@@ -559,29 +430,6 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 							{kindName(kind)}
 						</button>
 					))}
-					{wps.map((method) => (
-						<button
-							key={method}
-							className="secondary small"
-							onClick={() => {
-								setAdding(false)
-								joinByWps(method, undefined, wpsWith || undefined)
-							}}
-						>
-							{method === 'pin' ? 'WPS PIN' : 'WPS button'}
-						</button>
-					))}
-				</div>
-			)}
-			{adding && !readOnly && joiners.length > 1 && (
-				<div className="adding">
-					<SelectField
-						label="WPS with"
-						value={wpsWith}
-						options={adapterOptions(caps, joiners, 'Device chooses')}
-						onChange={setPicked}
-						marks={{}}
-					/>
 				</div>
 			)}
 			{adding && absent(caps, 'wireless', document) && (
@@ -591,9 +439,7 @@ function Order({ state, readOnly, change, select, failure, wpsFailure, joinByWps
 			<ul className="order" ref={list}>
 				{keys.map((key, index) => {
 					const candidate = document.attachments[index]
-					// The states held are the last configuration's, and the device holds them back while it
-					// checks a new one, so they are left unsaid until it answers (CFG).
-					const observed = state.stage === 'applying' ? null : stateWording(stateFor(state, key), candidate?.kind)
+					const observed = stateWording(stateFor(state, key), candidate?.kind)
 					const name = candidate?.label || 'Unnamed'
 					return (
 						<li key={key} className={state.selected === key ? 'selected' : undefined}>
@@ -748,12 +594,12 @@ function Hotspot({ state, readOnly, change, marks, failure, survey, joined }) {
 	)
 }
 
-/// A failed proposal: how far it got, as ticks and a cross, and the device's reason as it wrote it.
+/// A failure or a refusal: how far it got, as ticks and a cross, and the device's reason as it wrote it.
 function Failure({ failure, kind }) {
 	const stages = stagesOf(kind, failure.reached)
 	return (
 		<>
-			<p className="notice fault">{failureHeadline(failure.reached, kind)}</p>
+			<p className="notice fault">{failureHeadline(failure.reached, kind, failure.refused)}</p>
 			{stages.length > 0 && (
 				<p className="stages">
 					{stages.map((stage) => (

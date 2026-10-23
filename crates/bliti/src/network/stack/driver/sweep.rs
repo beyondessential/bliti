@@ -3,7 +3,7 @@
 //! off is not looked for.
 //!
 //! A radio is swept while it is free to carry such a candidate: it carries nothing ranked above it,
-//! WPS is not running on it, and it can scan. Where nothing carries the default route, every
+//! and it can scan. Where nothing carries the default route, every
 //! wireless candidate out of range counts. The first scan waits as long as a retry does, and each
 //! after it waits twice as long, up to the longest; a radio with nothing left to look for stops at
 //! once, and starts again from the first wait. What a sweep hears is taken in as any scan's is.
@@ -85,7 +85,6 @@ impl Driver {
 			}
 			let free = could().filter(|radio| {
 				radio.scan
-					&& !self.held.contains(&radio.station)
 					&& decision
 						.links
 						.get(&radio.station)
@@ -117,7 +116,6 @@ impl Driver {
 			.sweeps
 			.get(&radio)
 			.is_some_and(|sweep| sweep.token == token)
-			&& !self.held.contains(&radio)
 		{
 			self.scan(radio, Scanner::Sweep(token));
 		}

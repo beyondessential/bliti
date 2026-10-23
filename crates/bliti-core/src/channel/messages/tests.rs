@@ -1,4 +1,5 @@
 use super::{
+	super::config::{Failure, Outcome},
 	super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
 	*,
 };
@@ -130,10 +131,25 @@ fn every_message_type_survives_the_round_trip() {
 			"fraction",
 			"no answer from the gauge",
 		)),
-		Message::Wps {
-			method: "push-button".to_owned(),
-			interface: Some("wlan0".to_owned()),
-			ssid: Some("clinic".to_owned()),
+		Message::State {
+			busy: false,
+			outcome: Outcome::Failed,
+			failure: Some(Failure {
+				at: "$['attachments'][0]['gateway']".to_owned(),
+				reason: "no answer".to_owned(),
+				reached: Some("addressing".to_owned()),
+			}),
+			attachments: vec![serde_json::json!({"is": "unavailable"})],
+			capabilities: None,
+		},
+		Message::CannotAct {
+			act: "scan".to_owned(),
+			at: "$".to_owned(),
+			reason: "another session holds the configuration".to_owned(),
+		},
+		Message::CannotConfigure {
+			at: "$".to_owned(),
+			reason: "another session holds the configuration".to_owned(),
 		},
 	];
 	for message in &messages {
@@ -157,7 +173,9 @@ fn the_power_messages_round_trip() {
 			act: "reboot".to_owned(),
 		},
 		Message::Accepted,
-		Message::Refused {
+		Message::CannotAct {
+			act: "reboot".to_owned(),
+			at: "$".to_owned(),
 			reason: "already going".to_owned(),
 		},
 		Message::GoingAway {
@@ -367,27 +385,35 @@ fn acts_are_read_whatever_they_name() {
 	assert!(parse(r#"{"type":"acts","acts":["reboot",7]}"#).is_err());
 }
 
-/// `wps` names the network it is for by `ssid`, and leaves it out where it is for any (CFG).
+/// `state` always says whether the session is busy and what the outcome is, and carries a failure
+/// only where it failed (CFG).
 #[test]
-fn wps_carries_its_ssid_where_it_names_one() {
-	let named = Message::Wps {
-		method: "pin".to_owned(),
-		interface: None,
-		ssid: Some("clinic".to_owned()),
+fn state_carries_its_outcome_and_failure() {
+	let verifying = Message::State {
+		busy: true,
+		outcome: Outcome::Verifying,
+		failure: None,
+		attachments: Vec::new(),
+		capabilities: None,
 	};
 	assert_eq!(
-		serde_json::from_slice::<Json>(&named.to_json()).unwrap(),
-		serde_json::json!({"type": "wps", "method": "pin", "ssid": "clinic"})
+		serde_json::from_slice::<Json>(&verifying.to_json()).unwrap(),
+		serde_json::json!({"type": "state", "busy": true, "outcome": "verifying", "attachments": []})
 	);
-	assert!(matches!(
-		parse(r#"{"type":"wps","method":"pin","ssid":"clinic"}"#).unwrap(),
-		Reading::Message(message) if message == named
-	));
-	assert!(matches!(
-		parse(r#"{"type":"wps","method":"pin"}"#).unwrap(),
-		Reading::Message(Message::Wps { ssid: None, .. })
-	));
-	assert!(parse(r#"{"type":"wps","method":"pin","ssid":7}"#).is_err());
+	assert_eq!(
+		parse(r#"{"type":"state","busy":true,"outcome":"verifying","attachments":[]}"#).unwrap(),
+		Reading::Message(verifying)
+	);
+	assert!(parse(r#"{"type":"state","outcome":"applied","attachments":[]}"#).is_err());
+	assert!(
+		parse(r#"{"type":"state","busy":false,"outcome":"unheard-of","attachments":[]}"#).is_err()
+	);
+	assert!(
+		parse(
+			r#"{"type":"state","busy":false,"outcome":"failed","failure":{"at":"$"},"attachments":[]}"#
+		)
+		.is_err()
+	);
 }
 
 /// `subscribe` pins its selector critical: arriving plain is a fault, as is any other critical

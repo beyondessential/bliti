@@ -1,0 +1,255 @@
+use bliti_core::channel::{
+	envelope::{Reading, read},
+	messages::Span,
+};
+
+use super::*;
+
+/// A proposal is a `configuration` carrying the document whole and no capabilities, with the
+/// document critical on the wire so a device that cannot read it does not act on it (CFG).
+#[test]
+fn a_proposal_carries_the_document_critical() {
+	let bytes =
+		proposal(r#"{"attachments":[],"regulatory-domain":"VU","later":{"kept":1}}"#).unwrap();
+	let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+	assert_eq!(wire["type"], "configuration");
+	assert_eq!(wire["DOCUMENT"]["regulatory-domain"], "VU");
+	assert!(wire.get("capabilities").is_none());
+
+	let Ok(Reading::Message(Message::Configuration {
+		document,
+		capabilities,
+	})) = read(&bytes)
+	else {
+		panic!("a proposal reads back as a configuration");
+	};
+	assert_eq!(capabilities, None);
+	// A member this build does not know is sent as the operator's document carried it.
+	assert_eq!(document["later"]["kept"], 1);
+}
+
+/// The power stream's answers and the feed's `going-away` reach the application with their
+/// members as the wire names them, which is what it reads the act and its cause from (CTL).
+#[test]
+fn the_power_messages_are_described_as_the_wire_names_them() {
+	for (message, expected) in [
+		(
+			Message::Acts {
+				acts: vec!["reboot".to_owned()],
+			},
+			serde_json::json!({"type": "acts", "acts": ["reboot"]}),
+		),
+		(Message::Accepted, serde_json::json!({"type": "accepted"})),
+		(
+			Message::CannotAct {
+				act: "reboot".to_owned(),
+				at: "$['act']".to_owned(),
+				reason: "no".to_owned(),
+			},
+			serde_json::json!({"type": "cannot-act", "act": "reboot", "at": "$['act']", "reason": "no"}),
+		),
+		(
+			Message::GoingAway {
+				act: "power-off".to_owned(),
+				cause: "low-battery".to_owned(),
+			},
+			serde_json::json!({"type": "going-away", "act": "power-off", "cause": "low-battery"}),
+		),
+	] {
+		let (described, fault) = describe(&message.to_json());
+		assert_eq!(fault, None);
+		let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+		assert_eq!(
+			described,
+			serde_json::json!({"kind": "message", "message": expected})
+		);
+	}
+}
+
+/// A load carries the document as the file held it, whatever the device will make of it: the
+/// device validates it and refuses with a reason (CRV).
+#[test]
+fn a_load_carries_the_document_as_it_stands() {
+	let bytes =
+		loading(r#"{"discharging":{"points":[[2.5,0],[4.2,1]],"learnt-from":3},"later":1}"#)
+			.unwrap();
+	let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+	assert_eq!(wire["type"], "load");
+	assert_eq!(wire["document"]["discharging"]["learnt-from"], 3);
+	assert_eq!(wire["document"]["later"], 1);
+
+	let Ok(Reading::Message(Message::Load { document })) = read(&bytes) else {
+		panic!("a load reads back as a load");
+	};
+	assert_eq!(document["discharging"]["points"][1][0], 4.2);
+
+	// Not an object is still sent, for the device to refuse.
+	assert!(loading("[]").is_ok());
+	assert!(loading("not json").is_err());
+}
+
+/// The curve stream's messages reach the application with their members as the wire names them,
+/// the figures in seconds and the document whole (CRV).
+#[test]
+fn the_curve_messages_are_described_as_the_wire_names_them() {
+	let document = serde_json::json!({
+		"discharging": {"points": [[2.5, 0], [4.2, 1]], "learnt-from": 2, "error": 0.1, "duration": 26400},
+	});
+	for (message, expected) in [
+		(
+			Message::Curves {
+				document: Some(document.clone()),
+				lasts: Some(Span {
+					duration: 18600.0,
+					margin: 720.0,
+				}),
+				recharge: Some(Span {
+					duration: 13200.0,
+					margin: 1200.0,
+				}),
+			},
+			serde_json::json!({
+				"type": "curves",
+				"document": document,
+				"lasts": {"duration": 18600.0, "margin": 720.0},
+				"recharge": {"duration": 13200.0, "margin": 1200.0},
+			}),
+		),
+		(
+			Message::Curves {
+				document: None,
+				lasts: None,
+				recharge: None,
+			},
+			serde_json::json!({"type": "curves"}),
+		),
+		(Message::Accepted, serde_json::json!({"type": "accepted"})),
+		(
+			Message::CannotConfigure {
+				at: "$['discharging']['points'][0]".to_owned(),
+				reason: "the first point is above the floor".to_owned(),
+			},
+			serde_json::json!({
+				"type": "cannot-configure",
+				"at": "$['discharging']['points'][0]",
+				"reason": "the first point is above the floor",
+			}),
+		),
+	] {
+		let (described, fault) = describe(&message.to_json());
+		assert_eq!(fault, None);
+		let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+		assert_eq!(
+			described,
+			serde_json::json!({"kind": "message", "message": expected})
+		);
+	}
+}
+
+/// The pre-proposal check is the core's, naming the first member capabilities do not cover.
+#[test]
+fn the_capability_check_names_what_is_not_covered() {
+	let capabilities =
+		r#"{"document":{"attachments":{"kind":{"wired-dynamic":{"interface":["eth0"]}}}}}"#;
+	assert_eq!(
+		capability_fault(
+			r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth0"}]}"#,
+			capabilities
+		),
+		Ok(None)
+	);
+	let fault = capability_fault(
+		r#"{"attachments":[{"kind":"wired-dynamic","label":"a","enabled":true,"verify":true,"interface":"eth1"}]}"#,
+		capabilities,
+	)
+	.unwrap()
+	.unwrap();
+	assert_eq!(fault["at"], "$['attachments'][0]['interface']");
+	assert_eq!(fault["rule"], "mirror");
+	assert!(fault["reason"].is_string());
+	assert!(capability_fault("[]", capabilities).is_err());
+}
+
+/// The radio rules of HOT are the core's too, named by the rule they break.
+#[test]
+fn the_capability_check_names_the_radio_rule_broken() {
+	let capabilities = r#"{
+		"document": {
+			"attachments": {"kind": {"wireless": {"security": {"kind": {"psk": {}}}}}},
+			"hotspot": {"interface": {"wlan0": {}}}
+		},
+		"radios": {"wlan0": {"model": "m", "bands": ["2ghz"], "alongside": "one-at-a-time"}}
+	}"#;
+	let document = r#"{
+		"attachments": [{"kind": "wireless", "label": "a", "enabled": true, "verify": true, "ssid": "a",
+		                 "security": {"kind": "psk", "passphrase": "12345678"}}],
+		"hotspot": {"enabled": true, "ssid": "s", "passphrase": "12345678"}
+	}"#;
+	let fault = capability_fault(document, capabilities).unwrap().unwrap();
+	assert_eq!(fault["at"], "$['hotspot']");
+	assert_eq!(fault["rule"], "one-at-a-time");
+	let placed = placement_fault(document, capabilities).unwrap().unwrap();
+	assert_eq!(placed["at"], "$['hotspot']");
+	assert_eq!(
+		placement_fault(r#"{"attachments": []}"#, capabilities),
+		Ok(None)
+	);
+}
+
+/// Where the hotspot chooses its own channel is the core's answer too.
+#[test]
+fn the_channel_choice_is_the_cores() {
+	let capabilities = r#"{
+		"document": {"hotspot": {"interface": {"wlan0": {}}}},
+		"radios": {"wlan0": {"model": "m", "bands": ["5ghz"], "alongside": "shared-channel"}}
+	}"#;
+	let beside = r#"{"attachments": [{"kind": "wireless", "label": "a"}], "hotspot": {}}"#;
+	assert_eq!(
+		channel_choice(beside, capabilities),
+		Ok(Some(serde_json::json!({ "own": [], "follows": ["wlan0"] })))
+	);
+	assert_eq!(
+		channel_choice(r#"{"attachments": []}"#, capabilities),
+		Ok(Some(serde_json::json!({ "own": ["wlan0"], "follows": [] })))
+	);
+}
+
+/// The names a page filters the chooser on are the ones the device may advertise, the first its
+/// own, and it matches.
+#[test]
+fn the_expected_local_names_are_the_devices() {
+	use bliti_core::key_schedule::{KeyFingerprint, PresenceToken};
+	let token = PresenceToken::from_bytes([0x42; 16]);
+	let fingerprint = KeyFingerprint::from_bytes([0x07; 18]);
+	let code = QrCode {
+		payload: QrPayload::new(token.clone(), fingerprint),
+	};
+	let names = code.local_names();
+	assert_eq!(names, vec![Advertised::new(&token).to_local_name()]);
+	let advertisement = code.read_local_name(&names[0]).unwrap();
+	assert!(advertisement.supported());
+	assert!(advertisement.matches());
+
+	let other = QrCode {
+		payload: QrPayload::new(PresenceToken::from_bytes([0x43; 16]), fingerprint),
+	};
+	let heard = other.read_local_name(&names[0]).unwrap();
+	assert!(heard.supported());
+	assert!(!heard.matches());
+
+	// A marker this build does not implement is unsupported, not a different device.
+	let later = Advertised {
+		version: 99,
+		..Advertised::new(&token)
+	};
+	let heard = code.read_local_name(&later.to_local_name()).unwrap();
+	assert_eq!(heard.version(), 99);
+	assert!(!heard.supported());
+	assert!(!heard.matches());
+}
+
+#[test]
+fn a_proposal_is_an_object() {
+	assert!(proposal("[]").is_err());
+	assert!(proposal("not json").is_err());
+}

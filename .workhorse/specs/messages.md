@@ -148,7 +148,7 @@ A receiver MUST pass over and carry on from:
 - an ignorable member it does not recognise, reading the rest of the object
 - a value it does not recognise where a feature spec says an unrecognised one is skipped, of which a `subscribe` for an unknown topic is the one this spec defines
 
-Skipping MUST be silent: the receiver MUST send nothing in reply, MUST leave the stream open, and MUST leave the connection untouched.
+Skipping MUST be silent: the receiver MUST NOT send anything in reply, MUST leave the stream open, and MUST leave the connection untouched.
 A receiver MAY record the messages, members and values it skipped.
 
 A sender that needs a whole message not to be passed over in silence MUST name its `type` member in upper case, making the type itself critical.
@@ -172,7 +172,7 @@ A feed MUST NOT announce the topic it serves.
 
 A peer declines a feed by closing the stream, and MUST NOT be required to send anything to decline it.
 
-On reading end of stream the serving end MUST stop sending that topic, MUST close its side in turn, and MUST keep nothing for that stream.
+On reading end of stream the serving end MUST stop sending that topic, MUST close its side in turn, and MUST NOT keep anything for that stream.
 
 An end MUST go on gathering the data it would have sent after a decline, so that a peer which comes back is served current data rather than the data accumulated since.
 
@@ -205,11 +205,34 @@ Topic names, and the data an end sends on a subscription to each, are defined by
 > The subscription lasting exactly as long as its stream leaves no subscription to time out and no state the two ends can disagree about. A stream closed gracefully, a stream reset, a peer that goes away without a word, a dropped link and a closed connection are each the unsubscribe.
 > An end that does not recognise a topic skips the `subscribe` as it skips anything else, and the subscriber sees a subscription that yields no data.
 
+## When a request cannot be met
+
+An end asked to act, or to take a document, MUST answer on the asking stream with `cannot-act` or `cannot-configure` where it does not, as the feature spec that defines the request requires.
+
+`cannot-act` MUST carry:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `act` | string | yes | the act asked for, as the feature spec names it |
+| `at` | string | yes | which part of the request is at fault |
+| `reason` | string | yes | why, in the answering end's own words |
+
+`cannot-configure` MUST carry:
+
+| member | type | required | meaning |
+| --- | --- | --- | --- |
+| `at` | string | yes | which part of the document is at fault |
+| `reason` | string | yes | why, in the answering end's own words |
+
+`at` MUST be an RFC 9535 Normalized Path, rooted at the message asking for the act for `cannot-act` and at the document for `cannot-configure`, naming `$` where no narrower part is at fault.
+
 ## Message types
 
 | type | sent by | on |
 | --- | --- | --- |
 | `hello` | each end | its hello stream, as the first message |
 | `subscribe` | an end | a subscription stream, as the first message |
+| `cannot-act` | an end | the stream asking for an act |
+| `cannot-configure` | an end | the stream offering a document |
 
 Every other message type belongs to the feature spec that defines it.

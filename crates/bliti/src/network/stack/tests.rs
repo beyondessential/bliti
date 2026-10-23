@@ -5,7 +5,7 @@ use std::{
 	time::Duration,
 };
 
-use bliti_core::channel::config::Document;
+use bliti_core::channel::config::{Document, Failure};
 use serde_json::{Map, Value as Json, json};
 use tokio::sync::{mpsc, oneshot};
 
@@ -35,9 +35,17 @@ struct Rig {
 	iwd: Arc<FakeIwd>,
 	gateway: Arc<FakeGateway>,
 	scratch: Scratch,
+	/// The configuration the next proposal replaces.
+	replaces: Document,
 }
 
 impl Rig {
+	/// Put `document` in force as a settled configuration, which the next proposal replaces.
+	async fn restore(&mut self, document: Document) {
+		self.stack.restore(&document).await.unwrap();
+		self.replaces = document;
+	}
+
 	async fn new(air: FakeAir) -> Self {
 		let scratch = Scratch::new();
 		let config = Config {
@@ -74,6 +82,7 @@ impl Rig {
 			iwd,
 			gateway,
 			scratch,
+			replaces: document(json!({"attachments": []})),
 		}
 	}
 
@@ -228,12 +237,26 @@ fn joined(ssid: &str, frequency: u32) -> Joined {
 }
 
 /// Apply `document` on a task, so the test can observe for it while it is verified.
-fn applying(rig: &mut Rig, document: Document) -> oneshot::Receiver<Result<(), Invalid>> {
+fn applying(rig: &mut Rig, proposal: Document) -> oneshot::Receiver<Result<(), Failure>> {
+	let replacing = std::mem::replace(&mut rig.replaces, proposal.clone());
+	applying_over(rig, proposal, replacing)
+}
+
+/// Apply `document` on a task, judging it against `replacing`.
+fn applying_over(
+	rig: &mut Rig,
+	document: Document,
+	replacing: Document,
+) -> oneshot::Receiver<Result<(), Failure>> {
 	let (tx, rx) = oneshot::channel();
 	let (reply, answer) = oneshot::channel();
 	rig.stack
 		.commands
-		.send(driver::Command::Apply { document, reply })
+		.send(driver::Command::Apply {
+			document,
+			replacing,
+			reply,
+		})
 		.unwrap();
 	tokio::spawn(async move {
 		let _ = tx.send(answer.await.unwrap());
@@ -450,12 +473,10 @@ async fn a_probe_after_the_country_changes_asks_no_survey() {
 	};
 	let probed = air.probed.clone();
 	let mut rig = Rig::new(air).await;
-	rig.stack
-		.restore(&document(
-			json!({"attachments": [dynamic()], "regulatory-domain": "NZ"}),
-		))
-		.await
-		.unwrap();
+	rig.restore(document(
+		json!({"attachments": [dynamic()], "regulatory-domain": "NZ"}),
+	))
+	.await;
 	idle().await;
 	assert_eq!(
 		*probed.lock().unwrap(),
@@ -471,7 +492,7 @@ async fn restore_returns_to_the_recorded_document() {
 	rig.answers("198.51.100.1");
 	rig.see([carrier(true)]).await;
 	let recorded = document(json!({"attachments": [dynamic()]}));
-	rig.stack.restore(&recorded).await.unwrap();
+	rig.restore(recorded.clone()).await;
 	rig.see([
 		leased("eth0", "198.51.100.10"),
 		routed("eth0", "198.51.100.1"),
@@ -489,7 +510,7 @@ async fn restore_returns_to_the_recorded_document() {
 			.contains("Address=192.0.2.10/24")
 	);
 
-	rig.stack.restore(&recorded).await.unwrap();
+	rig.restore(recorded).await;
 	let network = rig.read("network/50-bliti-eth0.network");
 	assert!(network.contains("DHCP=ipv4"), "{network}");
 	assert!(!network.contains("Address="), "{network}");
@@ -515,10 +536,8 @@ async fn renaming_a_candidate_keeps_what_its_link_holds() {
 	rig.answers("198.51.100.1");
 	rig.answers("198.51.100.1");
 	rig.see([carrier(true)]).await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	rig.see([
 		leased("eth0", "198.51.100.10"),
 		routed("eth0", "198.51.100.1"),
@@ -540,10 +559,8 @@ async fn states_are_published_as_candidates_change() {
 	let mut states = rig.stack.states();
 	assert_eq!(*states.borrow_and_update(), None, "nothing configured yet");
 
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	assert_eq!(
 		states.borrow_and_update().clone().unwrap()[0]["reached"],
 		"carrier",
@@ -575,7 +592,7 @@ async fn a_scan_answers_each_access_point_but_the_devices_own() {
 		elements.extend_from_slice(ssid);
 		AccessPoint::read(bssid, 2437, -4800, 0, &elements)
 	};
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		heard: vec![
 			heard([2, 0, 0, 0, 0, 1], b"clinic"),
@@ -615,7 +632,7 @@ async fn a_scan_gathers_what_every_part_heard() {
 		elements.extend_from_slice(ssid);
 		AccessPoint::read([2, 0, 0, 0, 0, bssid], frequency, -4800, 0, &elements)
 	};
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		parts: Mutex::new(VecDeque::from([
 			vec![heard(1, 2412, b"clinic")],
@@ -644,7 +661,7 @@ async fn a_scan_gathers_what_every_part_heard() {
 
 #[tokio::test(start_paused = true)]
 async fn a_survey_counts_networks_and_busy_time_per_usable_channel() {
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		radios: vec![radio()],
 		heard: vec![AccessPoint::read([2, 0, 0, 0, 0, 1], 2412, -6000, 0, &[])],
 		surveyed: vec![Surveyed {
@@ -667,164 +684,6 @@ async fn a_survey_counts_networks_and_busy_time_per_usable_channel() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn wps_passes_on_the_pin_and_answers_the_joined_document() {
-	let mut rig = Rig::wireless().await;
-	rig.answers("192.0.2.1");
-	*rig.iwd.wps.lock().unwrap() = Some(Ok(joined("clinic", 2437)));
-	*rig.iwd.passphrase.lock().unwrap() = Some("correct horse".into());
-	rig.iwd.heard.lock().unwrap().insert("clinic".into(), -50);
-	rig.iwd
-		.joins
-		.lock()
-		.unwrap()
-		.insert("clinic".into(), Ok(joined("clinic", 2437)));
-	rig.see([
-		Observation::Station {
-			interface: "wld0".into(),
-			station: Station::Connected(joined("clinic", 2437)),
-		},
-		leased("wld0", "192.0.2.10"),
-		routed("wld0", "192.0.2.1"),
-	])
-	.await;
-
-	let base = json!({"attachments": [dynamic(), clinic()]});
-	rig.stack.restore(&document(base.clone())).await.unwrap();
-	let Json::Object(base) = base else {
-		unreachable!()
-	};
-	let (pin, generated) = oneshot::channel();
-	let joined = rig
-		.stack
-		.wps(&asked("pin", None, None), &base, pin)
-		.await
-		.unwrap();
-	assert_eq!(generated.await.unwrap(), "12345670");
-	assert_eq!(
-		Json::Object(joined),
-		json!({"attachments": [
-			{
-				"kind": "wireless", "label": "clinic", "enabled": true, "verify": true, "ssid": "clinic",
-				"security": {"kind": "psk", "passphrase": "correct horse"}
-			},
-			dynamic(),
-		]}),
-		"the joined network first, and the candidate it replaces gone"
-	);
-	assert!(
-		rig.iwd
-			.calls
-			.lock()
-			.unwrap()
-			.contains(&"start-pin wld0 12345670".to_owned())
-	);
-	assert_eq!(rig.states()[0], json!({"is": "default-route"}));
-}
-
-fn asked(method: &str, interface: Option<&str>, ssid: Option<&str>) -> Wps {
-	Wps {
-		method: method.to_owned(),
-		interface: interface.map(ToOwned::to_owned),
-		ssid: ssid.map(ToOwned::to_owned),
-	}
-}
-
-/// Have WPS hand over `ssid`'s credentials, and joining it answer as a network in range would.
-async fn wps_yields(rig: &Rig, ssid: &str) {
-	rig.answers("192.0.2.1");
-	*rig.iwd.wps.lock().unwrap() = Some(Ok(joined(ssid, 2437)));
-	*rig.iwd.passphrase.lock().unwrap() = Some("correct horse".into());
-	rig.hears(ssid, Ok(joined(ssid, 2437)));
-	rig.see([
-		Observation::Station {
-			interface: "wld0".into(),
-			station: Station::Connected(joined(ssid, 2437)),
-		},
-		leased("wld0", "192.0.2.10"),
-		routed("wld0", "192.0.2.1"),
-	])
-	.await;
-}
-
-#[tokio::test(start_paused = true)]
-async fn wps_for_a_named_network_joins_it_where_it_is_what_was_handed_over() {
-	let mut rig = Rig::wireless().await;
-	wps_yields(&rig, "clinic").await;
-	let (pin, _) = oneshot::channel();
-	let joined = rig
-		.stack
-		.wps(
-			&asked("push-button", None, Some("clinic")),
-			&Map::new(),
-			pin,
-		)
-		.await
-		.unwrap();
-	assert_eq!(joined["attachments"][0]["ssid"], "clinic");
-	assert!(rig.iwd.known.lock().unwrap().contains("clinic"));
-	assert!(!rig.asked().iter().any(|call| call.starts_with("forget")));
-}
-
-/// iwd's WPS takes no network, so what it hands over for another is forgotten rather than joined
-/// (WLAN), refused at the act's `ssid` with no stage reached (CFG).
-#[tokio::test(start_paused = true)]
-async fn wps_for_a_named_network_forgets_credentials_for_another() {
-	let mut rig = Rig::wireless().await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
-	wps_yields(&rig, "office").await;
-	let before = rig.calls();
-	let Json::Object(base) = json!({"attachments": [dynamic()]}) else {
-		unreachable!()
-	};
-	let (pin, _) = oneshot::channel();
-	let refused = rig
-		.stack
-		.wps(
-			&asked("push-button", Some("wld0"), Some("clinic")),
-			&base,
-			pin,
-		)
-		.await
-		.unwrap_err();
-	assert_eq!(refused.at, "$['ssid']");
-	assert_eq!(refused.reached, None);
-	assert!(
-		refused.reason.contains("\"office\"") && refused.reason.contains("\"clinic\""),
-		"{}",
-		refused.reason
-	);
-	let asked = rig.asked();
-	let wps = asked.iter().position(|call| call == "push-button wld0");
-	let forgot = asked.iter().position(|call| call == "forget office");
-	assert!(wps.is_some() && forgot > wps, "{asked:?}");
-	assert!(
-		rig.iwd.known.lock().unwrap().is_empty(),
-		"nothing of them kept"
-	);
-	assert_eq!(rig.calls(), before, "nothing was applied");
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_wps_join_that_finds_nothing_fails_at_carrier() {
-	let mut rig = Rig::wireless().await;
-	let (pin, _) = oneshot::channel();
-	let failed = rig
-		.stack
-		.wps(&asked("push-button", Some("wld0"), None), &Map::new(), pin)
-		.await
-		.unwrap_err();
-	assert_eq!(failed.reached.as_deref(), Some("carrier"));
-	assert!(
-		failed.reason.contains("push-button mode"),
-		"{}",
-		failed.reason
-	);
-}
-
-#[tokio::test(start_paused = true)]
 async fn check_refuses_what_the_renderer_would() {
 	let rig = Rig::wireless().await;
 	let short = document(json!({"attachments": [{
@@ -832,7 +691,6 @@ async fn check_refuses_what_the_renderer_would() {
 		"security": {"kind": "psk", "passphrase": "short"}
 	}]}));
 	let refused = rig.stack.check(&short).unwrap_err();
-	assert_eq!(refused.reached, None);
 	assert!(refused.at.contains("passphrase"), "{}", refused.at);
 	assert!(
 		rig.stack
@@ -871,10 +729,8 @@ async fn a_failed_candidate_is_tried_again_where_nothing_else_is_up() {
 	let mut rig = Rig::wired().await;
 	rig.answers("192.0.2.1");
 	rig.see([carrier(true)]).await;
-	rig.stack
-		.restore(&document(json!({"attachments": [dynamic()]})))
-		.await
-		.unwrap();
+	rig.restore(document(json!({"attachments": [dynamic()]})))
+		.await;
 	tokio::time::sleep(driver::LEASE).await;
 	idle().await;
 	assert_eq!(rig.states()[0]["reached"], "addressing");

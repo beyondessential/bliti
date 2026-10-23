@@ -26,9 +26,8 @@ mod tests;
 
 /// Why a document, or a part of it, cannot be accepted.
 ///
-/// The shape of the `invalid` answer of CFG. `at` names the part at fault so a client can put an
-/// operator's cursor on it; `reason` is the device's own words; `reached` is the verification stage
-/// of LINK a candidate's verification got to, absent for any other failure.
+/// The shape of the `cannot-configure` answer of MSG. `at` names the part at fault so a client can
+/// put an operator's cursor on it; `reason` is the device's own words.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Invalid {
 	/// Which part of the document is at fault, as an RFC 9535 Normalized Path (e.g.
@@ -36,18 +35,101 @@ pub struct Invalid {
 	pub at: String,
 	/// What was wrong, in words an operator can act on.
 	pub reason: String,
-	/// The verification stage of LINK a candidate's verification stopped at; every stage before it
-	/// passed. Absent where nothing was applied, or where what failed is not a candidate's
-	/// verification, as a hotspot that does not start (CFG).
-	pub reached: Option<String>,
 }
 
 impl Invalid {
-	/// A fault found before anything was applied: an `at` and a `reason`, no stage reached.
-	fn at(at: impl Into<String>, reason: impl Into<String>) -> Self {
+	/// A fault found in a document: an `at` and a `reason`.
+	pub fn at(at: impl Into<String>, reason: impl Into<String>) -> Self {
 		Self {
 			at: at.into(),
 			reason: reason.into(),
+		}
+	}
+}
+
+/// The outcome of the configuration a device holds (CFG).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+	/// Saved, and its verification has not ended.
+	Verifying,
+	/// Verified: every interface it was judged on has a candidate established.
+	Applied,
+	/// Saved, and verification found it wanting, or some part of it could not be run.
+	Failed,
+}
+
+impl Outcome {
+	/// The outcome's name on the wire.
+	pub fn as_str(self) -> &'static str {
+		match self {
+			Self::Verifying => "verifying",
+			Self::Applied => "applied",
+			Self::Failed => "failed",
+		}
+	}
+
+	/// The outcome a wire name stands for.
+	pub fn read(name: &str) -> Result<Self, String> {
+		match name {
+			"verifying" => Ok(Self::Verifying),
+			"applied" => Ok(Self::Applied),
+			"failed" => Ok(Self::Failed),
+			other => Err(format!("unknown outcome {other:?}")),
+		}
+	}
+}
+
+/// Why the configuration a device holds failed (CFG).
+///
+/// `at` names the part at fault so a client can put an operator's cursor on it; `reason` is the
+/// device's own words; `reached` is the verification stage of LINK a candidate's verification got
+/// to, absent for any failure that is not a candidate's verification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Failure {
+	/// Which part of the configuration is at fault, as an RFC 9535 Normalized Path.
+	pub at: String,
+	/// What happened, in the device's own words.
+	pub reason: String,
+	/// The verification stage of LINK a candidate's verification stopped at; every stage before it
+	/// passed.
+	pub reached: Option<String>,
+}
+
+impl Failure {
+	/// The failure as the `failure` member of `state` carries it.
+	pub fn to_map(&self) -> Map<String, Json> {
+		let mut map = Map::new();
+		map.insert("at".to_owned(), self.at.clone().into());
+		map.insert("reason".to_owned(), self.reason.clone().into());
+		if let Some(reached) = &self.reached {
+			map.insert("reached".to_owned(), reached.clone().into());
+		}
+		map
+	}
+
+	/// The failure a `failure` member carries.
+	pub fn read(map: &Map<String, Json>) -> Result<Self, String> {
+		let string = |member: &str| match map.get(member) {
+			Some(Json::String(value)) => Ok(value.clone()),
+			_ => Err(format!("a failure carries a string `{member}`")),
+		};
+		Ok(Self {
+			at: string("at")?,
+			reason: string("reason")?,
+			reached: match map.get("reached") {
+				None | Some(Json::Null) => None,
+				Some(Json::String(reached)) => Some(reached.clone()),
+				Some(_) => return Err("`reached` is a string".to_owned()),
+			},
+		})
+	}
+}
+
+impl From<Invalid> for Failure {
+	fn from(invalid: Invalid) -> Self {
+		Self {
+			at: invalid.at,
+			reason: invalid.reason,
 			reached: None,
 		}
 	}

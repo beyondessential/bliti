@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Control from './Control.jsx'
-import Network, { HeldBar } from './Network.jsx'
+import Network from './Network.jsx'
 import { useOfflineReady } from './offline.js'
 import Readings, { Identity } from './Readings.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
@@ -66,12 +66,6 @@ export default function App() {
 	// disconnecting cancels.
 	const returning = useRef(null)
 	const holding_ = useRef(null)
-	// Where the configuration session stands, as the network screen reports it, and whether to keep
-	// that screen, and its session, while the operator is on the device view: from leaving it with edits
-	// not applied or a proposal applying or applied, until there is nothing left to apply, confirm or
-	// review (NSCR).
-	const [held, setHeld] = useState(null)
-	const [keep, setKeep] = useState(false)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
 	// the device; a graph fills forward from connection.
@@ -261,7 +255,6 @@ export default function App() {
 			setConnected(false)
 			setConnecting(false)
 			setScreen('device')
-			setKeep(false)
 			setEntries(new Map())
 			setHistory(new Map())
 			setConnectStatus(status)
@@ -355,7 +348,6 @@ export default function App() {
 		client.disconnect()
 		setConnected(false)
 		setScreen('device')
-		setKeep(false)
 		setConnecting(false)
 		setConnectStatus('')
 		setEntries(new Map())
@@ -389,11 +381,6 @@ export default function App() {
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
-	// Done with what it was kept for: confirmed or discarded, or the session gone.
-	useEffect(() => {
-		if (screen !== 'network' && keep && (!held || (held.stage === 'editing' && held.changes === 0))) setKeep(false)
-	}, [screen, keep, held])
-
 	if (unsupported) {
 		return (
 			<main>
@@ -404,11 +391,6 @@ export default function App() {
 				</section>
 			</main>
 		)
-	}
-
-	function leaveNetwork() {
-		setScreen('control')
-		setKeep(held?.stage === 'applying' || held?.stage === 'applied' || held?.changes > 0)
 	}
 
 	// What each interface is joined to, from the device's wireless-network facts (NFO).
@@ -422,50 +404,32 @@ export default function App() {
 		}))
 
 	const all = [...entries.values()]
-	const provisional = all.some(
-		(entry) => entry.fact && entry.name === 'network-configuration' && entry.value === 'provisional',
-	)
-	// Edits the network screen holds that no proposal carries yet, which an act would cost (CSCR).
-	const unapplied = held !== null && held.changes > 0 && (held.stage === 'editing' || held.stage === 'errored')
-
-	const network = connected && !going && (screen === 'network' || keep) && (
-		<div hidden={screen !== 'network'}>
-			<Network
-				client={client}
-				onActivity={note}
-				onEvent={noteSession}
-				onBack={leaveNetwork}
-				onStage={setHeld}
-				onDisconnect={disconnect}
-				joined={joined}
-			/>
-		</div>
-	)
 
 	if (connected && !going && screen === 'network') {
 		return (
 			<main>
-				{network}
+				<Network
+					client={client}
+					onActivity={note}
+					onEvent={noteSession}
+					onBack={() => setScreen('control')}
+					onDisconnect={disconnect}
+					joined={joined}
+				/>
 				<Activity log={log} />
 			</main>
 		)
 	}
 
-	const holding = keep && held !== null
-	// The kept configuration session's bar, on every screen but the network screen's own (NSCR).
-	const heldBar = holding && !going && <HeldBar held={held} onReview={() => setScreen('network')} />
-
 	// A screen of a connected device: its title with its actions beside it, where every such screen
-	// carries them, and the kept session's bar beneath (VIEW, CSCR).
+	// carries them (VIEW, CSCR).
 	const screenOf = (title, actions, body) => (
 		<main>
-			{network}
 			<div className="heading title">
 				<h1>{title}</h1>
 				<div className="actions">{actions}</div>
 			</div>
 			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
-			{heldBar}
 			{body}
 			<Activity log={log} />
 		</main>
@@ -518,8 +482,6 @@ export default function App() {
 				onActivity={note}
 				onEvent={noteSession}
 				onAccepted={startGoing}
-				provisional={provisional}
-				unapplied={unapplied}
 			/>,
 		)
 	}
@@ -540,7 +502,7 @@ export default function App() {
 						{each.detail}
 					</p>
 				))}
-				<Readings entries={all} history={history} showProvisional={!holding} />
+				<Readings entries={all} history={history} />
 			</>,
 		)
 	}
@@ -550,7 +512,6 @@ export default function App() {
 
 	return (
 		<main>
-			{network}
 			<div className="heading title">
 				<h1>bliti</h1>
 				{!offlineReady && <span className="offline">Not ready offline</span>}

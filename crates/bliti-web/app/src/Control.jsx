@@ -32,7 +32,7 @@ export const ACTS = [
 	},
 ]
 
-export default function Control({ client, onNetwork, onActivity, onEvent, onAccepted, provisional, unapplied }) {
+export default function Control({ client, onNetwork, onActivity, onEvent, onAccepted }) {
 	// The acts the device listed that this build knows, or null until it has listed them. A device older
 	// than this build never answers, and looks like one offering nothing (CSCR).
 	const [acts, setActs] = useState(null)
@@ -57,7 +57,7 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 						setActs(ACTS.filter((each) => message.acts.includes(each.act)))
 					} else if (message.type === 'accepted' && asked.current) {
 						onAccepted?.(asked.current)
-					} else if (message.type === 'refused') {
+					} else if (message.type === 'cannot-act') {
 						asked.current = null
 						setAsking(null)
 						setRefused(message.reason)
@@ -114,8 +114,6 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 								<strong>{pending.question}</strong>
 							</p>
 							{pending.warning && <p>{pending.warning}</p>}
-							{provisional && <p>The network settings it is trying are not saved, and will be lost.</p>}
-							{unapplied && <p>The network changes not applied will be lost.</p>}
 							<div className="row">
 								<button className={pending.danger ? 'danger-fill' : undefined} onClick={() => ask(pending.act)}>
 									{pending.button}
@@ -183,7 +181,7 @@ function Battery({ client, onActivity, onEvent }) {
 						setCurves(message)
 					} else if (message.type === 'accepted') {
 						setAsking(false)
-					} else if (message.type === 'refused') {
+					} else if (message.type === 'cannot-configure' || message.type === 'cannot-act') {
 						setAsking(false)
 						setRefused(message.reason)
 					}

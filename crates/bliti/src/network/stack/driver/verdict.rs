@@ -1,8 +1,9 @@
-//! What a verified proposal comes to (CFG, "When a proposal fails").
+//! What a verified configuration comes to (CFG, "Verifying it").
 //!
-//! A proposal is judged on the candidates it adds or changes that carry `enabled` and `verify` true.
-//! A candidate is added or changed where it equals no candidate of the configuration running before
-//! it, each of that configuration's candidates matching at most one, as the selector carries a
+//! A configuration is judged on the candidates it adds or changes that carry `enabled` and `verify`
+//! true.
+//! A candidate is added or changed where it equals no candidate of the configuration it
+//! replaces, each of that configuration's candidates matching at most one, as the selector carries a
 //! candidate over, so one turned off or on again is changed.
 //! A candidate that only moved in the ordering is carried over, and so has already been judged.
 //! Each is judged on the interface it goes on: a wired candidate's, the radio a wireless one names,
@@ -10,12 +11,12 @@
 
 use std::cmp::Reverse;
 
-use bliti_core::channel::config::{AttachmentKind, Document, Invalid, Segment, path};
+use bliti_core::channel::config::{AttachmentKind, Document, Failure, Segment, path};
 
 use super::Driver;
 use crate::network::select::{Decision, State};
 
-/// A candidate a proposal adds or changes, and the interfaces it is judged on.
+/// A candidate a configuration adds or changes, and the interfaces it is judged on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::network::stack) struct Judged {
 	pub(in crate::network::stack) candidate: usize,
@@ -23,15 +24,15 @@ pub(in crate::network::stack) struct Judged {
 	pub(in crate::network::stack) interfaces: Vec<String>,
 }
 
-/// The candidates of `proposal` that `running` does not carry.
-pub(in crate::network::stack) fn changed(running: &Document, proposal: &Document) -> Vec<usize> {
-	let mut taken = vec![false; running.attachments.len()];
+/// The candidates of `proposal` that `replaced` does not carry.
+pub(in crate::network::stack) fn changed(replaced: &Document, proposal: &Document) -> Vec<usize> {
+	let mut taken = vec![false; replaced.attachments.len()];
 	proposal
 		.attachments
 		.iter()
 		.enumerate()
 		.filter(|(_, attachment)| {
-			let kept = running
+			let kept = replaced
 				.attachments
 				.iter()
 				.enumerate()
@@ -54,7 +55,7 @@ pub(in crate::network::stack) fn changed(running: &Document, proposal: &Document
 pub(in crate::network::stack) fn verdict(
 	decision: &Decision,
 	judged: &[Judged],
-) -> Result<(), Invalid> {
+) -> Result<(), Failure> {
 	let established = |interface: &String| {
 		decision.links.get(interface).is_some_and(|link| {
 			matches!(
@@ -90,7 +91,7 @@ pub(in crate::network::stack) fn verdict(
 	};
 	Err(match failure {
 		Some((reached, member, reason)) => reached.failed(at(member), reason.clone()),
-		None => Invalid {
+		None => Failure {
 			at: at(&[]),
 			reason: "no interface it could go on was free to bring it up".to_owned(),
 			reached: None,

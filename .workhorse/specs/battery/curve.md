@@ -62,11 +62,11 @@ Alongside `document`, `curves` MUST carry as `lasts` how long a full charge last
 
 A client MUST ask to load a document by sending `load` on the curve stream, carrying the document as `document`, and MUST ask to reset by sending `reset`.
 
-A device MUST answer every `load` and `reset` exactly once, with `accepted` where it has done what was asked, and otherwise with `refused`.
+A device MUST answer every `load` and `reset` exactly once, with `accepted` where it has done what was asked, and otherwise with `cannot-configure` for a `load` and `cannot-act` for a `reset`, as [MSG](../messages.md) has them.
 
 A device that manages no backup supply MUST refuse every `load` and `reset`.
 
-`refused` MUST carry `reason`, in the device's own words, saying why.
+A device refusing a `load` MUST name in `at` the first member of the document at fault where it can tell which, and `$` otherwise.
 
 A device MUST send `curves` on every open curve stream each time its curve document changes, whether by a load, a reset or a refinement.
 
@@ -94,4 +94,5 @@ A device MUST log every load and reset made from its command line, and MUST repo
 | `load` | client | the curve stream | `document` |
 | `reset` | client | the curve stream | nothing beyond `type` |
 | `accepted` | device | the curve stream | nothing beyond `type` |
-| `refused` | device | the curve stream | `reason` |
+| `cannot-configure` | device | the curve stream | as [MSG](../messages.md) has it |
+| `cannot-act` | device | the curve stream | as [MSG](../messages.md) has it |

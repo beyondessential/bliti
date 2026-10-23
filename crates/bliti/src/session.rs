@@ -10,9 +10,10 @@
 //! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
 //! handed to the configuration session of [`crate::network::session`], one whose client sends
 //! `power` to the power stream of [`crate::power`], and one whose client sends `curve` to the curve
-//! stream of [`crate::battery`]. Beyond that it never answers a message on the wire: one it does not recognise is passed over, one carrying something critical it
-//! does not know is refused, one it knows but has nothing to do about is a no-op, and one that breaks
-//! the protocol closes the stream it arrived on.
+//! stream of [`crate::battery`]. Beyond that it never answers a message on the wire: one it does not
+//! recognise is passed over, one carrying something critical it does not know is refused, one it
+//! knows but has nothing to do about is a no-op, and one that breaks the protocol closes the stream
+//! it arrived on.
 
 use std::{
 	collections::HashSet,
@@ -38,10 +39,7 @@ use tracing::Instrument;
 use crate::{
 	battery,
 	facts::{self, Supply},
-	network::{
-		self,
-		session::{Backend, Configurator},
-	},
+	network::{self, session::Configurator},
 	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
 };
@@ -91,17 +89,16 @@ impl Peer {
 type Served = Arc<Mutex<HashSet<String>>>;
 
 /// Run a session to completion over a transport, as the device.
-pub async fn run<S, B>(
+pub async fn run<S>(
 	transport: S,
 	keys: &DeviceKeys,
 	sampler: Sampler,
-	configurator: Configurator<B>,
+	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-	B: Backend,
 {
 	let encrypted = accept_responder(transport, keys)
 		.await
@@ -156,10 +153,10 @@ where
 
 /// The device's half of the conversation: name itself and push the `default` feed, both unprompted,
 /// and serve whatever streams the client opens.
-async fn converse<B: Backend>(
+async fn converse(
 	streams: &mut Streams,
 	sampler: &Sampler,
-	configurator: &Configurator<B>,
+	configurator: &Configurator,
 	controller: &Controller,
 	supply: &Supply,
 	held: &mut SessionGuard,
@@ -167,7 +164,7 @@ async fn converse<B: Backend>(
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
 	let peer = Peer::default();
 	// Every stream this session serves, so that dropping the session ends them all. A configuration
-	// session left running would keep the device's one session busy and its proposal applied (CFG).
+	// session left running would keep holding the configuration against the sessions behind it (CFG).
 	let mut tasks = JoinSet::new();
 
 	// The device names itself on a stream of its own, so declining the feed does not cost the client
@@ -192,14 +189,11 @@ async fn converse<B: Backend>(
 	{
 		let sampler = sampler.clone();
 		let served = served.clone();
-		let configurator = configurator.clone();
 		let controller = controller.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
-				if let Err(err) =
-					serve_default(&mut feed, &sampler, &served, &configurator, &controller).await
-				{
+				if let Err(err) = serve_default(&mut feed, &sampler, &served, &controller).await {
 					tracing::debug!(%err, "the pushed feed ended");
 				}
 			}
@@ -251,10 +245,10 @@ impl Drop for AbortOnDrop {
 }
 
 /// What a stream a client opened is served with.
-struct Context<B> {
+struct Context {
 	sampler: Sampler,
 	served: Served,
-	configurator: Configurator<B>,
+	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
 	peer: Peer,
@@ -262,10 +256,9 @@ struct Context<B> {
 
 /// Serve one stream a client opened, until it ends. Whatever happens here leaves the other streams
 /// and the connection alive.
-async fn serve_stream<S, B>(stream: &mut S, context: &Context<B>) -> Result<(), SessionError>
+async fn serve_stream<S>(stream: &mut S, context: &Context) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
-	B: Backend,
 {
 	let Context {
 		sampler,
@@ -294,7 +287,7 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served, configurator, controller).await;
+				return serve_default(stream, sampler, served, controller).await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -327,28 +320,20 @@ where
 				tracing::debug!("a curve change outside a curve stream; nothing to do");
 			}
 			Ok(Reading::Message(
-				Message::Configuration { .. }
-				| Message::Confirm
-				| Message::Discard
-				| Message::Scan { .. }
-				| Message::Survey { .. }
-				| Message::Wps { .. },
+				Message::Configuration { .. } | Message::Scan { .. } | Message::Survey { .. },
 			)) => {
 				// A configuration-session message on a stream that opened no session. Nothing to act
 				// on, which MSG makes a no-op rather than a fault.
 				tracing::debug!("a configuration-session message outside a session; nothing to do");
 			}
 			Ok(Reading::Message(
-				Message::Applied { .. }
-				| Message::State { .. }
-				| Message::Pin { .. }
-				| Message::Invalid { .. }
-				| Message::Busy
+				Message::State { .. }
+				| Message::CannotAct { .. }
+				| Message::CannotConfigure { .. }
 				| Message::Networks { .. }
 				| Message::Spectrum { .. }
 				| Message::Acts { .. }
 				| Message::Accepted
-				| Message::Refused { .. }
 				| Message::GoingAway { .. }
 				| Message::Curves { .. },
 			)) => {
@@ -374,11 +359,10 @@ where
 /// Claims the topic first. A topic is served on at most one stream, so if it is already being served
 /// this returns without sending anything, which is how a `subscribe` for a feed already pushed is
 /// skipped (MSG).
-async fn serve_default<S, B>(
+async fn serve_default<S>(
 	stream: &mut S,
 	sampler: &Sampler,
 	served: &Served,
-	configurator: &Configurator<B>,
 	controller: &Controller,
 ) -> Result<(), SessionError>
 where
@@ -393,7 +377,7 @@ where
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds.
-	let mut last_facts = facts_now(configurator);
+	let mut last_facts = facts_now();
 	for fact in &last_facts {
 		write_message(stream, &Message::Fact(fact.clone()).to_json())
 			.await
@@ -456,7 +440,7 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts_now(configurator);
+				let current = facts_now();
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					// A fact left out says nothing to a client already showing it (NFO).
@@ -481,17 +465,10 @@ where
 	}
 }
 
-/// The facts the device reports now: what it reads off the system, and whether its network runs the
-/// recorded configuration (NFO).
-fn facts_now<B>(configurator: &Configurator<B>) -> Vec<Entry> {
+/// The facts the device reports now: what it reads off the system (NFO).
+fn facts_now() -> Vec<Entry> {
 	let at = now();
 	let mut facts = facts::facts(at);
-	let network = if configurator.provisional() {
-		"provisional"
-	} else {
-		"recorded"
-	};
-	facts.push(Entry::text(at, "network-configuration", network));
 	facts.push(Entry::quantity(
 		at,
 		"channel-clients-max",

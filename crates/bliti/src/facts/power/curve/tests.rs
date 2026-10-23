@@ -236,6 +236,54 @@ fn a_document_that_is_not_one_is_refused() {
 	assert_eq!(reason(document), "the charging curve is not a JSON object");
 }
 
+/// The path of the first member at fault, where it can be told, rooted at the document (CRV).
+#[test]
+fn a_fault_names_the_first_member_at_fault() {
+	let at = |document: Json| Document::from_json(&document).unwrap_err().at;
+	assert_eq!(at(json!([1, 2])), "$");
+	assert_eq!(at(json!({})), "$['discharging']");
+	assert_eq!(at(json!({"discharging": 3})), "$['discharging']");
+	assert_eq!(
+		at(with_discharging("points", json!("none"))),
+		"$['discharging']['points']"
+	);
+	assert_eq!(
+		at(with_discharging("points", json!([[2.6, 0.0], [3.4]]))),
+		"$['discharging']['points'][1]"
+	);
+	assert_eq!(
+		at(with_discharging("learnt-from", json!(-1))),
+		"$['discharging']['learnt-from']"
+	);
+	assert_eq!(
+		at(with_discharging("error", json!(2))),
+		"$['discharging']['error']"
+	);
+	assert_eq!(
+		at(with_discharging("duration", json!(0))),
+		"$['discharging']['duration']"
+	);
+	let mut document = document().to_json();
+	document["charging"] =
+		json!({"points": [[3.0, 0.0], [4.0, 1.0]], "learnt-from": 1, "error": 0.1});
+	assert_eq!(at(document), "$['charging']['duration']");
+
+	let rejected = |points: &[(f64, f64)]| Document::new(curve(points), None).unwrap_err().at;
+	assert_eq!(rejected(&[(2.6, 0.0)]), "$['discharging']['points']");
+	assert_eq!(
+		rejected(&[(2.6, 0.0), (3.4, 0.8), (3.0, 1.0)]),
+		"$['discharging']['points'][2]"
+	);
+	assert_eq!(
+		rejected(&[(2.6, 0.1), (4.2, 1.0)]),
+		"$['discharging']['points'][0]"
+	);
+	assert_eq!(
+		rejected(&[(2.6, 0.0), (4.2, 0.9)]),
+		"$['discharging']['points'][1]"
+	);
+}
+
 #[test]
 fn every_member_of_a_curve_is_required() {
 	for member in ["points", "learnt-from", "error", "duration"] {

@@ -1,5 +1,8 @@
 use bliti_core::{
-	channel::stream::{Stream, connect_initiator},
+	channel::{
+		config::Outcome,
+		stream::{Stream, connect_initiator},
+	},
 	key_schedule::Root,
 };
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -16,8 +19,8 @@ fn keys(byte: u8) -> DeviceKeys {
 	Root::from_bytes([byte; 32]).device_keys()
 }
 
-/// A configurator that configures nothing, over a recorded configuration nothing here writes.
-async fn inert() -> Configurator<Inert> {
+/// A configurator that configures nothing, over a held configuration nothing here writes.
+async fn inert() -> Configurator {
 	let path = std::env::temp_dir().join("bliti-session-tests-never-written/network.json");
 	let fallback = serde_json::json!({"attachments": []})
 		.as_object()
@@ -333,9 +336,9 @@ async fn the_right_token_with_the_wrong_fingerprint_cannot_open_a_session() {
 		.ok();
 }
 /// A stream opened with `configure` is served a configuration session, and a second one while it
-/// is open is told the device is busy (CFG).
+/// is open is served too, told it is busy and refused whatever it proposes or asks for (CFG).
 #[tokio::test]
-async fn configure_opens_a_session_and_a_second_is_busy() {
+async fn configure_opens_a_session_and_a_second_is_served_busy() {
 	let mut streams = paired(&keys(0x42)).await;
 	let _a = streams.accept().await.unwrap();
 
@@ -343,43 +346,98 @@ async fn configure_opens_a_session_and_a_second_is_busy() {
 	write_message(&mut first, &Message::Configure.to_json())
 		.await
 		.unwrap();
-	let opened = read::<Message>(&read_message(&mut first).await.unwrap().unwrap()).unwrap();
-	let Reading::Message(Message::Configuration {
+	let Message::Configuration {
 		document,
 		capabilities: Some(capabilities),
-		..
-	}) = opened
+	} = next(&mut first).await
 	else {
-		panic!("a session opens with the configuration and capabilities, got {opened:?}");
+		panic!("a session opens with the configuration and capabilities");
 	};
-	assert_eq!(
-		document,
-		serde_json::json!({"attachments": []})
-			.as_object()
-			.cloned()
-			.unwrap()
-	);
+	let held = serde_json::json!({"attachments": []})
+		.as_object()
+		.cloned()
+		.unwrap();
+	assert_eq!(document, held);
 	assert_eq!(
 		serde_json::Value::Object(capabilities),
 		serde_json::json!({"document": {}, "acts": {}}),
 		"this build offers no member and no act"
 	);
+	assert_eq!(
+		next(&mut first).await,
+		Message::State {
+			busy: false,
+			outcome: Outcome::Applied,
+			failure: None,
+			attachments: Vec::new(),
+			capabilities: None,
+		}
+	);
 
+	// Open at once beside it: served, but busy.
 	let mut second = streams.open().await.unwrap();
 	write_message(&mut second, &Message::Configure.to_json())
 		.await
 		.unwrap();
-	let answer = read::<Message>(&read_message(&mut second).await.unwrap().unwrap()).unwrap();
-	assert_eq!(answer, Reading::Message(Message::Busy));
-	assert!(
-		matches!(read_message(&mut second).await, Ok(None) | Err(_)),
-		"the busy stream is closed"
-	);
+	assert!(matches!(
+		next(&mut second).await,
+		Message::Configuration { document, capabilities: Some(_) } if document == held
+	));
+	assert!(matches!(
+		next(&mut second).await,
+		Message::State { busy: true, .. }
+	));
+
+	// Its proposals and acts are refused at the whole message, and its stream stays open.
+	write_message(
+		&mut second,
+		&Message::Configuration {
+			document: serde_json::json!({"attachments": [], "regulatory-domain": "NZ"})
+				.as_object()
+				.cloned()
+				.unwrap(),
+			capabilities: None,
+		}
+		.to_json(),
+	)
+	.await
+	.unwrap();
+	assert!(matches!(
+		next(&mut second).await,
+		Message::CannotConfigure { at, .. } if at == "$"
+	));
+	assert!(matches!(
+		next(&mut second).await,
+		Message::Configuration { document, .. } if document == held
+	));
+	assert!(matches!(
+		next(&mut second).await,
+		Message::State { busy: true, .. }
+	));
+	write_message(&mut second, &Message::Scan { interface: None }.to_json())
+		.await
+		.unwrap();
+	assert!(matches!(
+		next(&mut second).await,
+		Message::CannotAct { act, at, .. } if act == "scan" && at == "$"
+	));
+
+	// The first, which holds it, is neither told nor disturbed by the second.
+	let quiet = tokio::time::timeout(Duration::from_millis(250), read_message(&mut first)).await;
+	assert!(quiet.is_err(), "the holder is told nothing of a watcher");
+
+	// Closing the first leaves the second holding it, and told so.
+	first.close().await.unwrap();
+	drop(first);
+	assert!(matches!(
+		next(&mut second).await,
+		Message::State { busy: false, .. }
+	));
 }
 
 /// A session dropped from outside, as the daemon drops one whose client unsubscribed, takes the
-/// streams it was serving with it, so a configuration session it held ends and the next client is
-/// not told the device is busy (CFG). The transport is left healthy throughout, so nothing but the
+/// streams it was serving with it, so a configuration session it held ends and the next client holds
+/// the configuration rather than watching it (CFG). The transport is left healthy throughout, so nothing but the
 /// drop can end it.
 #[tokio::test]
 async fn dropping_a_session_ends_the_configuration_session_it_held() {
@@ -450,11 +508,11 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 	tokio::spawn(async move {
 		let _ = driver.await;
 	});
-	let mut next = streams.open().await.unwrap();
-	write_message(&mut next, &Message::Configure.to_json())
+	let mut next_stream = streams.open().await.unwrap();
+	write_message(&mut next_stream, &Message::Configure.to_json())
 		.await
 		.unwrap();
-	let answer = tokio::time::timeout(Duration::from_secs(5), read_message(&mut next))
+	let answer = tokio::time::timeout(Duration::from_secs(5), read_message(&mut next_stream))
 		.await
 		.expect("the device answers")
 		.unwrap()
@@ -464,7 +522,14 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 			read::<Message>(&answer).unwrap(),
 			Reading::Message(Message::Configuration { .. })
 		),
-		"the next client opens a session rather than being told the device is busy"
+		"the next client opens a session"
+	);
+	assert!(
+		matches!(
+			next(&mut next_stream).await,
+			Message::State { busy: false, .. }
+		),
+		"and holds the configuration rather than watching it"
 	);
 }
 
@@ -558,8 +623,12 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	.await
 	.unwrap();
 	assert!(
-		matches!(next(&mut power).await, Message::Refused { reason } if reason.contains("power-off")),
-		"an act not listed is refused"
+		matches!(
+			next(&mut power).await,
+			Message::CannotAct { act, at, reason }
+				if act == "power-off" && at == "$['act']" && reason.contains("power-off")
+		),
+		"an act not listed is refused at its `act`"
 	);
 
 	write_message(
@@ -647,7 +716,9 @@ async fn a_low_battery_shutdown_is_announced_and_refuses_every_act() {
 	.unwrap();
 	assert_eq!(
 		next(&mut power).await,
-		Message::Refused {
+		Message::CannotAct {
+			act: "reboot".to_owned(),
+			at: "$".to_owned(),
 			reason: "the device is already powering off for a low battery".to_owned()
 		}
 	);

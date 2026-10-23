@@ -8,7 +8,6 @@ fn invalid(at: &[Segment<'_>], reason: String) -> Invalid {
 	Invalid {
 		at: path(at),
 		reason,
-		reached: None,
 	}
 }
 

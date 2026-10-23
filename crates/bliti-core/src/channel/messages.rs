@@ -19,6 +19,7 @@ use serde_json::{Map, Value as Json};
 use std::fmt;
 
 use super::{
+	config::{Failure, Outcome},
 	envelope::{Criticality, MessageSet},
 	readings::Entry,
 };
@@ -52,59 +53,52 @@ pub enum Message {
 	/// A client opening a configuration session, first on the stream it opens for it (CFG).
 	Configure,
 
-	/// A device's answer to `configure` and to `confirm`, and a client's proposal in between: the
-	/// network configuration document, and — on the first a device sends in a session — the
-	/// capabilities it supports. Its `document` is critical, so an end that cannot read the document
-	/// does not act on the message carrying it (CFG).
+	/// A device's report of the configuration it holds, sent on opening a session and on every change,
+	/// and a client's proposal of another: the network configuration document and, from a device,
+	/// the capabilities it supports where they are new or changed. Its `document` is critical, so an
+	/// end that cannot read the document does not act on the message carrying it (CFG).
 	Configuration {
 		/// The configuration document (NET), kept raw so a member a newer peer added survives the
 		/// envelope round trip and is echoed back unchanged, exactly as [`Entry`] keeps its traits.
 		document: Map<String, Json>,
-		/// What the device supports, on the first `configuration` a device sends. Kept raw for the same
-		/// reason, and because the layer that probes capabilities owns their shape.
+		/// What the device supports, where it is new or changed. Kept raw for the same reason, and because
+		/// the layer that probes capabilities owns their shape.
 		capabilities: Option<Map<String, Json>>,
 	},
 
-	/// A device's answer that a proposal was applied to the running system (CFG).
-	Applied {
-		/// The device's capabilities, where applying the proposal changed them.
-		capabilities: Option<Map<String, Json>>,
-	},
-
-	/// The state of each candidate of the configuration running, position for position (CFG).
+	/// How the device is faring on the configuration it holds: whether another session holds it, the
+	/// outcome of verifying it, and the state of each candidate, position for position (CFG).
 	State {
+		/// Whether another session holds the configuration, so this one only watches.
+		busy: bool,
+		/// The outcome of the configuration the device holds.
+		outcome: Outcome,
+		/// Why the outcome is `failed`; absent otherwise.
+		failure: Option<Failure>,
 		/// One entry per attachment, kept raw as the document is.
 		attachments: Vec<Json>,
-		/// The device's capabilities, where returning to the recorded configuration changed them.
+		/// The device's capabilities, where they changed.
 		capabilities: Option<Map<String, Json>>,
 	},
 
-	/// The PIN a device joining by WPS generated, for the operator to enter at the access point (CFG).
-	Pin {
-		/// The PIN's digits.
-		pin: String,
-	},
-
-	/// A device's answer that a proposal cannot be accepted, naming the part at fault, the device's own
-	/// reason, and the verification stage an apply-time failure reached (CFG).
-	Invalid {
-		/// Which part is at fault, as an RFC 9535 Normalized Path: into the document for a proposal,
-		/// into the act's own message for an act.
+	/// An end's answer that it cannot carry out the act asked for (MSG).
+	CannotAct {
+		/// The act asked for, as the feature spec that defines it names it.
+		act: String,
+		/// Which part of the request is at fault, as an RFC 9535 Normalized Path rooted at the message
+		/// asking for the act.
 		at: String,
-		/// What happened, in the device's own words.
+		/// Why, in the answering end's own words.
 		reason: String,
-		/// The verification stage of LINK a proposal applied and then failed stopped at.
-		reached: Option<String>,
 	},
 
-	/// A client making its proposal durable (CFG).
-	Confirm,
-
-	/// A client abandoning its proposal (CFG).
-	Discard,
-
-	/// A device's answer that a configuration session is already open (CFG).
-	Busy,
+	/// An end's answer that it cannot take the document offered (MSG).
+	CannotConfigure {
+		/// Which part of the document is at fault, as an RFC 9535 Normalized Path rooted at the document.
+		at: String,
+		/// Why, in the answering end's own words.
+		reason: String,
+	},
 
 	/// A client asking a device to report the wireless networks it can see (CFG).
 	Scan {
@@ -116,16 +110,6 @@ pub enum Message {
 	Survey {
 		/// The one wireless interface to survey on; every one able to where absent.
 		interface: Option<String>,
-	},
-
-	/// A client asking a device to join a wireless network by WPS (CFG, WLAN).
-	Wps {
-		/// The WPS method: `push-button` or `pin`.
-		method: String,
-		/// The wireless interface to join on; the device chooses where absent.
-		interface: Option<String>,
-		/// The one network whose credentials the device may accept; any where absent.
-		ssid: Option<String>,
 	},
 
 	/// A device's answer to `scan`: one entry per access point each radio scanned heard (CFG), kept
@@ -163,13 +147,6 @@ pub enum Message {
 	/// A device's answer that it will carry out the act asked for (CTL), or has done the `load` or
 	/// `reset` asked for (CRV).
 	Accepted,
-
-	/// A device's answer that it will not carry out the act asked for (CTL), or has not done the
-	/// `load` or `reset` asked for (CRV).
-	Refused {
-		/// Why, in the device's own words.
-		reason: String,
-	},
 
 	/// A device telling a client on its `default` feed that it is about to carry out an act (CTL).
 	GoingAway {
@@ -273,20 +250,19 @@ impl Message {
 					);
 				}
 			}
-			Self::Applied { capabilities } => {
-				map.insert("type".to_owned(), "applied".into());
-				if let Some(capabilities) = capabilities {
-					map.insert(
-						"capabilities".to_owned(),
-						Json::Object(capabilities.clone()),
-					);
-				}
-			}
 			Self::State {
+				busy,
+				outcome,
+				failure,
 				attachments,
 				capabilities,
 			} => {
 				map.insert("type".to_owned(), "state".into());
+				map.insert("busy".to_owned(), (*busy).into());
+				map.insert("outcome".to_owned(), outcome.as_str().into());
+				if let Some(failure) = failure {
+					map.insert("failure".to_owned(), Json::Object(failure.to_map()));
+				}
 				map.insert("attachments".to_owned(), Json::Array(attachments.clone()));
 				if let Some(capabilities) = capabilities {
 					map.insert(
@@ -295,30 +271,16 @@ impl Message {
 					);
 				}
 			}
-			Self::Pin { pin } => {
-				map.insert("type".to_owned(), "pin".into());
-				map.insert("pin".to_owned(), pin.clone().into());
-			}
-			Self::Invalid {
-				at,
-				reason,
-				reached,
-			} => {
-				map.insert("type".to_owned(), "invalid".into());
+			Self::CannotAct { act, at, reason } => {
+				map.insert("type".to_owned(), "cannot-act".into());
+				map.insert("act".to_owned(), act.clone().into());
 				map.insert("at".to_owned(), at.clone().into());
 				map.insert("reason".to_owned(), reason.clone().into());
-				if let Some(reached) = reached {
-					map.insert("reached".to_owned(), reached.clone().into());
-				}
 			}
-			Self::Confirm => {
-				map.insert("type".to_owned(), "confirm".into());
-			}
-			Self::Discard => {
-				map.insert("type".to_owned(), "discard".into());
-			}
-			Self::Busy => {
-				map.insert("type".to_owned(), "busy".into());
+			Self::CannotConfigure { at, reason } => {
+				map.insert("type".to_owned(), "cannot-configure".into());
+				map.insert("at".to_owned(), at.clone().into());
+				map.insert("reason".to_owned(), reason.clone().into());
 			}
 			Self::Scan { interface } => {
 				map.insert("type".to_owned(), "scan".into());
@@ -327,18 +289,6 @@ impl Message {
 			Self::Survey { interface } => {
 				map.insert("type".to_owned(), "survey".into());
 				insert_interface(&mut map, interface);
-			}
-			Self::Wps {
-				method,
-				interface,
-				ssid,
-			} => {
-				map.insert("type".to_owned(), "wps".into());
-				map.insert("method".to_owned(), method.clone().into());
-				insert_interface(&mut map, interface);
-				if let Some(ssid) = ssid {
-					map.insert("ssid".to_owned(), ssid.clone().into());
-				}
 			}
 			Self::Networks { access_points } => {
 				map.insert("type".to_owned(), "networks".into());
@@ -367,10 +317,6 @@ impl Message {
 			}
 			Self::Accepted => {
 				map.insert("type".to_owned(), "accepted".into());
-			}
-			Self::Refused { reason } => {
-				map.insert("type".to_owned(), "refused".into());
-				map.insert("reason".to_owned(), reason.clone().into());
 			}
 			Self::GoingAway { act, cause } => {
 				map.insert("type".to_owned(), "going-away".into());
@@ -465,34 +411,28 @@ impl<'de> Visitor<'de> for MessageVisitor {
 				document: object(&map, "document")?,
 				capabilities: optional_object(&map, "capabilities")?,
 			}),
-			"applied" => Ok(Message::Applied {
-				capabilities: optional_object(&map, "capabilities")?,
-			}),
 			"state" => Ok(Message::State {
+				busy: boolean(&map, "busy")?,
+				outcome: Outcome::read(&string::<A::Error>(&map, "outcome")?)
+					.map_err(de::Error::custom)?,
+				failure: optional_failure(&map, "failure")?,
 				attachments: array(&map, "attachments")?,
 				capabilities: optional_object(&map, "capabilities")?,
 			}),
-			"pin" => Ok(Message::Pin {
-				pin: string(&map, "pin")?,
-			}),
-			"invalid" => Ok(Message::Invalid {
+			"cannot-act" => Ok(Message::CannotAct {
+				act: string(&map, "act")?,
 				at: string(&map, "at")?,
 				reason: string(&map, "reason")?,
-				reached: optional_string(&map, "reached")?,
 			}),
-			"confirm" => Ok(Message::Confirm),
-			"discard" => Ok(Message::Discard),
-			"busy" => Ok(Message::Busy),
+			"cannot-configure" => Ok(Message::CannotConfigure {
+				at: string(&map, "at")?,
+				reason: string(&map, "reason")?,
+			}),
 			"scan" => Ok(Message::Scan {
 				interface: optional_string(&map, "interface")?,
 			}),
 			"survey" => Ok(Message::Survey {
 				interface: optional_string(&map, "interface")?,
-			}),
-			"wps" => Ok(Message::Wps {
-				method: string(&map, "method")?,
-				interface: optional_string(&map, "interface")?,
-				ssid: optional_string(&map, "ssid")?,
 			}),
 			"networks" => Ok(Message::Networks {
 				access_points: array(&map, "access-points")?,
@@ -508,9 +448,6 @@ impl<'de> Visitor<'de> for MessageVisitor {
 				act: string(&map, "act")?,
 			}),
 			"accepted" => Ok(Message::Accepted),
-			"refused" => Ok(Message::Refused {
-				reason: string(&map, "reason")?,
-			}),
 			"going-away" => Ok(Message::GoingAway {
 				act: string(&map, "act")?,
 				cause: string(&map, "cause")?,
@@ -541,6 +478,21 @@ fn string<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<String,
 		.and_then(Json::as_str)
 		.map(ToOwned::to_owned)
 		.ok_or_else(|| de::Error::custom(format!("this message carries a string `{member}`")))
+}
+
+fn boolean<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<bool, E> {
+	map.get(member)
+		.and_then(Json::as_bool)
+		.ok_or_else(|| de::Error::custom(format!("this message carries a boolean `{member}`")))
+}
+
+fn optional_failure<E: de::Error>(
+	map: &Map<String, Json>,
+	member: &str,
+) -> Result<Option<Failure>, E> {
+	optional_object::<E>(map, member)?
+		.map(|failure| Failure::read(&failure).map_err(de::Error::custom))
+		.transpose()
 }
 
 fn optional_string<E: de::Error>(
@@ -617,23 +569,17 @@ impl MessageSet for Message {
 			"reading",
 			"configure",
 			"configuration",
-			"applied",
 			"state",
-			"pin",
-			"invalid",
-			"confirm",
-			"discard",
-			"busy",
+			"cannot-act",
+			"cannot-configure",
 			"scan",
 			"survey",
-			"wps",
 			"networks",
 			"spectrum",
 			"power",
 			"acts",
 			"act",
 			"accepted",
-			"refused",
 			"going-away",
 			"curve",
 			"curves",

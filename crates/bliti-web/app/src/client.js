@@ -246,10 +246,10 @@ export function createClient() {
 			else feed = wrapped
 		},
 
-		// Open a configuration session (BLI-CFG): one stream carrying the configuration in force, each
-		// proposal, what became of it, and the confirmation. Every message the device sends on it
-		// reaches onEvent as a feed's messages do; onClosed is called once the stream ends. Closing the
-		// returned session ends it, which the device reads as abandoning whatever was not confirmed.
+		// Open a configuration session (BLI-CFG): one stream carrying the configuration the device
+		// holds, how it is faring, and each proposal. Every message the device sends on it reaches
+		// onEvent as a feed's messages do; onClosed is called once the stream ends. Closing the
+		// returned session ends it, which changes nothing the device holds.
 		async configure({ onEvent, onClosed, onActivity }) {
 			if (!channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
@@ -266,14 +266,8 @@ export function createClient() {
 			}
 			return {
 				propose: (document) => sending('configuration  document', () => handle.propose(document)),
-				confirm: () => sending('confirm', () => handle.confirm()),
-				discard: () => sending('discard', () => handle.discard()),
 				scan: (iface) => sending(iface ? `scan  interface ${iface}` : 'scan', () => handle.scan(iface)),
 				survey: (iface) => sending(iface ? `survey  interface ${iface}` : 'survey', () => handle.survey(iface)),
-				wps: (method, iface, ssid) =>
-					sending(`wps  method ${method}${iface ? `  interface ${iface}` : ''}${ssid ? `  ssid ${ssid}` : ''}`, () =>
-						handle.wps(method, iface, ssid),
-					),
 				close: () => {
 					if (closed) return
 					closed = true
@@ -285,7 +279,7 @@ export function createClient() {
 		},
 
 		// Open a power stream (BLI-CTL): the acts the device can carry out, and its answer to each
-		// asked for. Every message the device sends on it reaches onEvent as a feed's messages do;
+		// asked for (`accepted`, or `cannot-act`). Every message the device sends on it reaches onEvent as a feed's messages do;
 		// onClosed is called once the stream ends.
 		async power({ onEvent, onClosed, onActivity }) {
 			if (!channel) throw new Error('Not connected to a device.')

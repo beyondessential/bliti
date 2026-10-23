@@ -2,17 +2,15 @@
 //! do.
 //!
 //! The members used are those of iwd's D-Bus API documents (`doc/station-api.txt`,
-//! `doc/network-api.txt`, `doc/device-api.txt`, `doc/wsc-api.txt` and
-//! `doc/station-diagnostic-api.txt` in iwd's tree): `Station.State`, `Station.Scanning`,
+//! `doc/network-api.txt`, `doc/device-api.txt` and `doc/station-diagnostic-api.txt` in iwd's
+//! tree): `Station.State`, `Station.Scanning`,
 //! `Station.ConnectedNetwork`, `Station.Scan`, `Station.GetOrderedNetworks`, `Station.Disconnect`,
 //! `Station.ConnectHiddenNetwork`, `Network.Connect` with `Name`, `Type` and `Device`, `Device.Name`,
-//! `StationDiagnostic.GetDiagnostics` for `Frequency` and `Security`, `SimpleConfiguration`'s
-//! `PushButton`, `GeneratePin`, `StartPin` and `Cancel`, `KnownNetwork.Forget` with `Name` and
-//! `Type`, and `AgentManager.RegisterAgent` for the [`agent`].
+//! `StationDiagnostic.GetDiagnostics` for `Frequency` and `Security`, and
+//! `AgentManager.RegisterAgent` for the [`agent`].
 
 use std::{
 	collections::{BTreeMap, HashMap},
-	path::PathBuf,
 	sync::Arc,
 	time::Duration,
 };
@@ -29,7 +27,7 @@ use dbus::{
 use futures::{StreamExt as _, future::BoxFuture};
 use tokio::sync::mpsc;
 
-use super::{Joined, Observation, Station, Target, WpsFailed};
+use super::{Joined, Observation, Station, Target};
 use crate::network::render;
 
 mod agent;
@@ -39,8 +37,6 @@ const STATION: &str = "net.connman.iwd.Station";
 const NETWORK: &str = "net.connman.iwd.Network";
 const DEVICE: &str = "net.connman.iwd.Device";
 const DIAGNOSTIC: &str = "net.connman.iwd.StationDiagnostic";
-const WPS: &str = "net.connman.iwd.SimpleConfiguration";
-const KNOWN_NETWORK: &str = "net.connman.iwd.KnownNetwork";
 const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
 const OBJECT_MANAGER: &str = "org.freedesktop.DBus.ObjectManager";
 
@@ -53,9 +49,6 @@ const CONNECT: Duration = Duration::from_secs(90);
 /// How long a scan may take.
 const SCAN: Duration = Duration::from_secs(30);
 
-/// How long a WPS join may take: its walk time is two minutes.
-const WALK: Duration = Duration::from_secs(150);
-
 /// How long to wait for a station iwd has not brought up yet, as it has not just after starting,
 /// and how often to look again meanwhile.
 const STATION_APPEARS: Duration = Duration::from_secs(10);
@@ -65,8 +58,6 @@ const STATION_POLL: Duration = Duration::from_millis(250);
 #[derive(Clone)]
 pub(super) struct Iwd {
 	bus: Arc<SyncConnection>,
-	/// iwd's state directory, where it keeps what a WPS join yielded.
-	paths: render::Paths,
 }
 
 type Objects = HashMap<ObjectPath<'static>, HashMap<String, PropMap>>;
@@ -78,31 +69,6 @@ fn failed(error: dbus::Error) -> String {
 		(None, Some(message)) => message.to_owned(),
 		(None, None) => "iwd did not say why".to_owned(),
 	}
-}
-
-/// What iwd answers a WPS join with where the exchange stopped short of credentials it could use.
-const NO_CREDENTIALS: &str = "net.connman.iwd.SimpleConfiguration.NoCredentials";
-
-/// The reason for [`NO_CREDENTIALS`], which iwd gives alike for an access point's message it could
-/// not read and for credentials it cannot join with. Its own "No usable credentials obtained" reads
-/// as the second when, against a MikroTik access point whose M4 carries its WFA vendor extension
-/// before the encrypted settings, it was the first: iwd reads M4 in a fixed order and drops it.
-fn no_credentials(name: &str) -> String {
-	format!(
-		"the exchange with the access point did not finish, or gave no credentials this device can \
-		 use ({name})"
-	)
-}
-
-/// Whether iwd ended a WPS join having found no access point running it, as it names that on the bus.
-fn unfound(error: Option<&str>) -> bool {
-	matches!(
-		error,
-		Some(
-			"net.connman.iwd.SimpleConfiguration.NotReachable"
-				| "net.connman.iwd.SimpleConfiguration.WalkTimeExpired"
-		)
-	)
 }
 
 fn string(props: &PropMap, key: &str) -> Option<String> {
@@ -123,8 +89,8 @@ impl Iwd {
 			let error = resource.await;
 			tracing::error!(%error, "lost the system bus; iwd is no longer observed");
 		});
-		agent::serve(&bus, paths.clone());
-		let iwd = Self { bus, paths };
+		agent::serve(&bus, paths);
+		let iwd = Self { bus };
 		iwd.clone().watch(observations).await?;
 		Ok(iwd)
 	}
@@ -518,34 +484,6 @@ impl Iwd {
 		}
 		self.ordered(&path).await
 	}
-
-	async fn wps(
-		&self,
-		station: &str,
-		method: &'static str,
-		pin: Option<String>,
-	) -> Result<Joined, WpsFailed> {
-		let path = self.station(station).await.map_err(|reason| WpsFailed {
-			found: false,
-			reason,
-		})?;
-		let proxy = self.proxy(path.clone(), WALK);
-		let joined = match pin {
-			Some(pin) => proxy.method_call::<(), _, _, _>(WPS, method, (pin,)).await,
-			None => proxy.method_call::<(), _, _, _>(WPS, method, ()).await,
-		};
-		joined.map_err(|error| WpsFailed {
-			found: !unfound(error.name()),
-			reason: match error.name() {
-				Some(name @ NO_CREDENTIALS) => no_credentials(name),
-				_ => failed(error),
-			},
-		})?;
-		self.joined(&path).await.map_err(|reason| WpsFailed {
-			found: true,
-			reason,
-		})
-	}
 }
 
 impl super::Iwd for Iwd {
@@ -578,108 +516,5 @@ impl super::Iwd for Iwd {
 	fn scan(&self, station: &str) -> BoxFuture<'static, Result<BTreeMap<String, i32>, String>> {
 		let (iwd, station) = (self.clone(), station.to_owned());
 		Box::pin(async move { iwd.scan_on(&station).await })
-	}
-
-	fn push_button(&self, station: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		let (iwd, station) = (self.clone(), station.to_owned());
-		Box::pin(async move { iwd.wps(&station, "PushButton", None).await })
-	}
-
-	fn generate_pin(&self, station: &str) -> BoxFuture<'static, Result<String, String>> {
-		let (iwd, station) = (self.clone(), station.to_owned());
-		Box::pin(async move {
-			let path = iwd.station(&station).await?;
-			let (pin,): (String,) = iwd
-				.proxy(path, CALL)
-				.method_call(WPS, "GeneratePin", ())
-				.await
-				.map_err(failed)?;
-			Ok(pin)
-		})
-	}
-
-	fn start_pin(&self, station: &str, pin: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		let (iwd, station, pin) = (self.clone(), station.to_owned(), pin.to_owned());
-		Box::pin(async move { iwd.wps(&station, "StartPin", Some(pin)).await })
-	}
-
-	fn cancel_wps(&self, station: &str) -> BoxFuture<'static, ()> {
-		let (iwd, station) = (self.clone(), station.to_owned());
-		Box::pin(async move {
-			if let Ok(path) = iwd.station(&station).await {
-				let _ = iwd
-					.proxy(path, CALL)
-					.method_call::<(), _, _, _>(WPS, "Cancel", ())
-					.await;
-			}
-		})
-	}
-
-	fn forget(&self, ssid: &str) -> BoxFuture<'static, Result<(), String>> {
-		let (iwd, ssid) = (self.clone(), ssid.to_owned());
-		let file: PathBuf = render::known_psk(&self.paths, &ssid);
-		Box::pin(async move {
-			let known = iwd.objects().await?.into_iter().find(|(_, interfaces)| {
-				interfaces.get(KNOWN_NETWORK).is_some_and(|known| {
-					string(known, "Name").as_deref() == Some(ssid.as_str())
-						&& string(known, "Type").as_deref() == Some("psk")
-				})
-			});
-			let forgotten = match known {
-				Some((path, _)) => iwd
-					.proxy(path, CALL)
-					.method_call::<(), _, _, _>(KNOWN_NETWORK, "Forget", ())
-					.await
-					.map_err(failed),
-				None => Ok(()),
-			};
-			// iwd removes the file as it forgets; one it left, or never loaded, goes here, and iwd,
-			// which watches its directory, drops what it held of it.
-			match std::fs::remove_file(&file) {
-				Ok(()) => Ok(()),
-				Err(error) if error.kind() == std::io::ErrorKind::NotFound => forgotten,
-				Err(error) => Err(format!("{} could not be removed: {error}", file.display())),
-			}
-		})
-	}
-
-	fn passphrase(&self, ssid: &str) -> BoxFuture<'static, Result<String, String>> {
-		let file: PathBuf = render::known_psk(&self.paths, ssid);
-		Box::pin(async move {
-			let contents = std::fs::read_to_string(&file).map_err(|error| {
-				format!("iwd left nothing readable at {}: {error}", file.display())
-			})?;
-			render::known_passphrase(&contents).ok_or_else(|| {
-				"the access point handed over a raw key rather than a passphrase, which a candidate \
-				 cannot carry"
-					.to_owned()
-			})
-		})
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::{NO_CREDENTIALS, no_credentials, unfound};
-
-	/// iwd 3.10 names the walk time running out `WalkTimeExpired`, which a join that found nothing
-	/// ends with.
-	#[test]
-	fn a_wps_join_that_found_nothing_is_told_apart() {
-		assert!(unfound(Some(
-			"net.connman.iwd.SimpleConfiguration.WalkTimeExpired"
-		)));
-		assert!(unfound(Some(
-			"net.connman.iwd.SimpleConfiguration.NotReachable"
-		)));
-		assert!(!unfound(Some(
-			"net.connman.iwd.SimpleConfiguration.NoCredentials"
-		)));
-		assert!(!unfound(None));
-	}
-
-	#[test]
-	fn a_wps_join_without_credentials_does_not_blame_the_credentials_alone() {
-		assert!(no_credentials(NO_CREDENTIALS).contains("did not finish"));
 	}
 }

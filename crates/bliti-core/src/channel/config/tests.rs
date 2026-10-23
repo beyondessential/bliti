@@ -84,7 +84,6 @@ fn a_static_candidate_without_a_gateway_is_invalid() {
 	}))
 	.unwrap_err();
 	assert_eq!(err.at, "$['attachments'][0]['gateway']");
-	assert!(err.reached.is_none());
 }
 
 /// Several statics on one interface are the site-switching case and stay legal (LINK).

@@ -223,7 +223,9 @@ mod daemon {
 		loop {
 			match next(incoming.as_mut()).await? {
 				Message::Accepted => return Ok(Answer::Accepted),
-				Message::Refused { reason } => return Ok(Answer::Refused(reason)),
+				Message::CannotConfigure { reason, .. } | Message::CannotAct { reason, .. } => {
+					return Ok(Answer::Refused(reason));
+				}
 				// What the curves were or have become, which the answer settles.
 				Message::Curves { .. } => {}
 				other => bail!("the daemon answered with {other:?}"),

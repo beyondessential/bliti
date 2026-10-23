@@ -24,6 +24,7 @@ use proptest::prelude::*;
 use serde_json::{Map, Value as Json};
 
 use super::{
+	config::{Failure, Outcome},
 	messages::{Message, Span},
 	readings::Entry,
 };
@@ -128,6 +129,25 @@ pub fn entry() -> impl Strategy<Value = Entry> {
 		})
 }
 
+/// An outcome of the configuration a device holds.
+fn outcome() -> impl Strategy<Value = Outcome> {
+	prop::sample::select(vec![Outcome::Verifying, Outcome::Applied, Outcome::Failed])
+}
+
+/// A failure, with and without the stage a candidate's verification reached.
+fn failure() -> impl Strategy<Value = Failure> {
+	(
+		"[a-z][a-z.0-9-]{0,16}",
+		"[a-z ]{1,20}",
+		prop::option::of("[a-z ]{1,16}"),
+	)
+		.prop_map(|(at, reason, reached)| Failure {
+			at,
+			reason,
+			reached,
+		})
+}
+
 /// One application message, over every type this build knows.
 ///
 /// A type added to [`Message`] belongs here too. The oracle's reach is exactly this strategy's
@@ -151,42 +171,28 @@ pub fn message() -> impl Strategy<Value = Message> {
 				capabilities,
 			}
 		),
-		1 => prop::option::of(object_of(json()))
-			.prop_map(|capabilities| Message::Applied { capabilities }),
 		1 => (
+			any::<bool>(),
+			outcome(),
+			prop::option::of(failure()),
 			prop::collection::vec(json(), 0..3),
 			prop::option::of(object_of(json()))
 		)
-			.prop_map(|(attachments, capabilities)| Message::State {
-				attachments,
-				capabilities
-			}),
-		1 => "[0-9]{4,8}".prop_map(|pin| Message::Pin { pin }),
-		1 => (
-			"[a-z][a-z.0-9-]{0,16}",
-			"[a-z ]{1,20}",
-			prop::option::of("[a-z ]{1,16}"),
-		)
-			.prop_map(|(at, reason, reached)| Message::Invalid {
-				at,
-				reason,
-				reached
-			}),
-		1 => Just(Message::Confirm),
-		1 => Just(Message::Discard),
-		1 => Just(Message::Busy),
+			.prop_map(
+				|(busy, outcome, failure, attachments, capabilities)| Message::State {
+					busy,
+					outcome,
+					failure,
+					attachments,
+					capabilities
+				}
+			),
+		1 => ("[a-z-]{1,10}", "[a-z][a-z.0-9-]{0,16}", "[a-z ]{1,20}")
+			.prop_map(|(act, at, reason)| Message::CannotAct { act, at, reason }),
+		1 => ("[a-z][a-z.0-9-]{0,16}", "[a-z ]{1,20}")
+			.prop_map(|(at, reason)| Message::CannotConfigure { at, reason }),
 		1 => prop::option::of("[a-z0-9]{1,15}").prop_map(|interface| Message::Scan { interface }),
 		1 => prop::option::of("[a-z0-9]{1,15}").prop_map(|interface| Message::Survey { interface }),
-		1 => (
-			prop::sample::select(vec!["push-button", "pin"]),
-			prop::option::of("[a-z0-9]{1,15}"),
-			prop::option::of("[a-zA-Z0-9 -]{1,32}"),
-		)
-			.prop_map(|(method, interface, ssid)| Message::Wps {
-				method: method.to_owned(),
-				interface,
-				ssid,
-			}),
 		1 => prop::collection::vec(json(), 0..3)
 			.prop_map(|access_points| Message::Networks { access_points }),
 		1 => object_of(json()).prop_map(|spectrum| Message::Spectrum { spectrum }),
@@ -195,7 +201,6 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => prop::collection::vec("[a-z-]{1,10}", 0..4).prop_map(|acts| Message::Acts { acts }),
 		1 => "[a-z-]{1,10}".prop_map(|act| Message::Act { act }),
 		1 => Just(Message::Accepted),
-		1 => "[a-z ]{1,20}".prop_map(|reason| Message::Refused { reason }),
 		1 => ("[a-z-]{1,10}", "[a-z-]{1,14}")
 			.prop_map(|(act, cause)| Message::GoingAway { act, cause }),
 		// The curve stream of CRV. The document rides raw, so any conforming JSON is generated for it:
@@ -291,34 +296,30 @@ mod tests {
 	/// The configuration session's optional members are reached too, each both present and absent.
 	#[test]
 	fn the_configuration_optional_members_are_reached() {
-		let (mut capabilities, mut reached, mut addressed, mut unaddressed) = (0, 0, 0, 0);
-		let (mut named, mut unnamed) = (0, 0);
+		let (mut capabilities, mut failed, mut reached, mut addressed, mut unaddressed) =
+			(0, 0, 0, 0, 0);
 		for message in sample(4000) {
 			match &message {
 				Message::Configuration {
 					capabilities: Some(_),
 					..
-				} => capabilities += 1,
-				Message::Invalid {
-					reached: Some(_), ..
-				} => reached += 1,
-				Message::Applied {
+				}
+				| Message::State {
 					capabilities: Some(_),
+					..
 				} => capabilities += 1,
-				Message::Scan { interface }
-				| Message::Survey { interface }
-				| Message::Wps { interface, .. } => {
+				Message::State {
+					failure: Some(failure),
+					..
+				} => {
+					failed += 1;
+					reached += usize::from(failure.reached.is_some());
+				}
+				Message::Scan { interface } | Message::Survey { interface } => {
 					if interface.is_some() {
 						addressed += 1;
 					} else {
 						unaddressed += 1;
-					}
-					if let Message::Wps { ssid, .. } = &message {
-						if ssid.is_some() {
-							named += 1;
-						} else {
-							unnamed += 1;
-						}
 					}
 				}
 				_ => {}
@@ -328,11 +329,10 @@ mod tests {
 			capabilities > 20,
 			"configurations carrying capabilities: {capabilities}"
 		);
-		assert!(reached > 20, "failures carrying a stage: {reached}");
+		assert!(failed > 10, "states carrying a failure: {failed}");
+		assert!(reached > 5, "failures carrying a stage: {reached}");
 		assert!(addressed > 20, "acts naming an interface: {addressed}");
 		assert!(unaddressed > 20, "acts naming none: {unaddressed}");
-		assert!(named > 20, "joins by WPS naming a network: {named}");
-		assert!(unnamed > 20, "joins by WPS naming none: {unnamed}");
 	}
 
 	/// The optional members of `curves` are reached too, each both present and absent.

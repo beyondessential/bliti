@@ -159,7 +159,6 @@ async fn a_hotspot_cannot_follow_its_station_onto_a_radar_channel() {
 	assert_eq!(refused.at, "$['hotspot']");
 	assert!(refused.reason.contains("channel 140"), "{}", refused.reason);
 	assert!(refused.reason.contains("radar"), "{}", refused.reason);
-	assert_eq!(refused.reached, None);
 	assert!(!rig.calls().iter().any(|call| call.starts_with("hostapd")));
 }
 

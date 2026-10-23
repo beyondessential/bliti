@@ -76,12 +76,20 @@ const MANUAL: fn(Act) -> Going = |act| Going {
 	cause: Cause::ManualControl,
 };
 
+fn cannot(at: &str, reason: &str) -> CannotAct {
+	CannotAct {
+		at: at.to_owned(),
+		reason: reason.to_owned(),
+	}
+}
+
 const LOW_BATTERY: Going = Going {
 	act: Act::PowerOff,
 	cause: Cause::LowBattery,
 };
 
-/// An act the device did not list is refused, and so is every act once one has been accepted (CTL).
+/// An act the device did not list is refused at the `act` asked for, and so is every act once one has
+/// been accepted, at the whole message (CTL).
 #[tokio::test]
 async fn only_the_first_listed_act_is_accepted() {
 	let (controller, _) = controller(vec![Act::Reboot, Act::PowerOff], false);
@@ -91,16 +99,16 @@ async fn only_the_first_listed_act_is_accepted() {
 
 	assert_eq!(
 		controller.ask("restart", &peer),
-		Err("this device cannot restart".to_owned())
+		Err(cannot("$['act']", "this device cannot restart"))
 	);
 	assert_eq!(
 		controller.ask("hibernate", &peer),
-		Err("this device cannot hibernate".to_owned())
+		Err(cannot("$['act']", "this device cannot hibernate"))
 	);
 	assert_eq!(controller.ask("reboot", &peer), Ok(Act::Reboot));
 	assert_eq!(
 		controller.ask("power-off", &peer),
-		Err("the device is already rebooting".to_owned())
+		Err(cannot("$", "the device is already rebooting"))
 	);
 }
 
@@ -211,7 +219,10 @@ async fn an_act_after_a_low_battery_shutdown_is_refused() {
 	for act in ["reboot", "power-off"] {
 		assert_eq!(
 			controller.ask(act, &Peer::default()),
-			Err("the device is already powering off for a low battery".to_owned())
+			Err(cannot(
+				"$",
+				"the device is already powering off for a low battery"
+			))
 		);
 	}
 	assert_eq!(

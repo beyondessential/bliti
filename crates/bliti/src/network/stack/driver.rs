@@ -20,7 +20,9 @@ use std::{
 	time::Duration,
 };
 
-use bliti_core::channel::config::{Attachment, AttachmentKind, Document, Invalid, Segment, path};
+use bliti_core::channel::config::{
+	Attachment, AttachmentKind, Document, Failure, Invalid, Segment, path,
+};
 use serde_json::Value as Json;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -68,21 +70,17 @@ pub(super) const RETRY_MAX: Duration = Duration::from_secs(15 * 60);
 
 /// What the backend asks of the task.
 pub(super) enum Command {
-	/// Configure a proposal and answer once it is verified.
+	/// Configure a proposal and answer once it is verified, judging the candidates it adds or changes
+	/// against `replacing`.
 	Apply {
 		document: Document,
-		reply: oneshot::Sender<Result<(), Invalid>>,
+		replacing: Document,
+		reply: oneshot::Sender<Result<(), Failure>>,
 	},
-	/// Configure the recorded document and answer once it is applied.
+	/// Configure a settled document and answer once it is applied.
 	Restore {
 		document: Document,
-		reply: oneshot::Sender<anyhow::Result<()>>,
-	},
-	/// Leave a radio's wireless client alone while WPS runs on it, or take it back.
-	Hold {
-		station: String,
-		held: bool,
-		reply: oneshot::Sender<()>,
+		reply: oneshot::Sender<Result<(), Failure>>,
 	},
 }
 
@@ -151,19 +149,17 @@ enum Scanner {
 /// A command waiting on its answer, and the render it waits to see applied.
 enum Pending {
 	Apply {
-		reply: oneshot::Sender<Result<(), Invalid>>,
-		/// The candidates it adds or changes against the configuration running before it.
+		reply: oneshot::Sender<Result<(), Failure>>,
+		/// The candidates it adds or changes against the configuration it replaces.
 		changed: Vec<usize>,
 	},
-	Restore(oneshot::Sender<anyhow::Result<()>>),
+	Restore(oneshot::Sender<Result<(), Failure>>),
 }
 
 pub(super) struct Driver {
 	shared: Arc<Shared>,
 	selector: Selector,
 	document: Document,
-	/// The configuration running: the last restored, or the last proposal answered as applied.
-	running: Document,
 	/// Whether a document has been configured, before which nothing is rendered.
 	configured: bool,
 	/// Taken while an apply runs.
@@ -197,8 +193,6 @@ pub(super) struct Driver {
 	/// The candidate each interface last brought up, or `None` where the document has since stopped
 	/// bringing it up, so that what the interface holds is not taken as that candidate's.
 	last: BTreeMap<String, Option<Attachment>>,
-	/// Stations WPS is running on.
-	held: BTreeSet<String>,
 	/// How many times in a row each candidate has been retried.
 	backoff: BTreeMap<usize, u32>,
 	/// Candidates that failed and are to be tried again once nothing is pending.
@@ -236,7 +230,6 @@ impl Driver {
 		Self {
 			shared,
 			selector,
-			running: document.clone(),
 			document,
 			configured: false,
 			system: Some(system),
@@ -259,7 +252,6 @@ impl Driver {
 			stations: BTreeMap::new(),
 			checks: BTreeMap::new(),
 			last: BTreeMap::new(),
-			held: BTreeSet::new(),
 			backoff: BTreeMap::new(),
 			failed: BTreeSet::new(),
 			placed: BTreeMap::new(),
@@ -298,43 +290,28 @@ impl Driver {
 
 	fn command(&mut self, command: Command) {
 		match command {
-			Command::Apply { document, reply } => {
-				let changed = changed(&self.running, &document);
+			Command::Apply {
+				document,
+				replacing,
+				reply,
+			} => {
+				let changed = changed(&replacing, &document);
 				match self.configure(document) {
 					Ok(()) => {
 						self.pending = Some((Pending::Apply { reply, changed }, self.wanted));
 						self.scan_for_pending();
 					}
 					Err(invalid) => {
-						let _ = reply.send(Err(invalid));
+						let _ = reply.send(Err(invalid.into()));
 					}
 				}
 			}
 			Command::Restore { document, reply } => match self.configure(document) {
-				Ok(()) => {
-					self.running = self.document.clone();
-					self.pending = Some((Pending::Restore(reply), self.wanted));
-				}
+				Ok(()) => self.pending = Some((Pending::Restore(reply), self.wanted)),
 				Err(invalid) => {
-					let _ = reply.send(Err(anyhow::anyhow!(
-						"{} (at {})",
-						invalid.reason,
-						invalid.at
-					)));
+					let _ = reply.send(Err(invalid.into()));
 				}
 			},
-			Command::Hold {
-				station,
-				held,
-				reply,
-			} => {
-				if held {
-					self.held.insert(station);
-				} else {
-					self.held.remove(&station);
-				}
-				let _ = reply.send(());
-			}
 		}
 	}
 
@@ -386,7 +363,7 @@ impl Driver {
 			return;
 		}
 		for radio in self.shared.radios() {
-			if !radio.scan || self.held.contains(&radio.station) {
+			if !radio.scan {
 				continue;
 			}
 			*self.scanning.entry(radio.station.clone()).or_default() += 1;
@@ -480,9 +457,6 @@ impl Driver {
 			Station::Disconnected => self.shared.report.station(&interface, None),
 			Station::Busy => {}
 		}
-		if self.held.contains(&interface) {
-			return;
-		}
 		// The attempt on this radio that has associated; one still associating is decided by its
 		// connect call, since iwd passes through several states on the way.
 		let Some(check) = self.checks.values().find(|check| {
@@ -550,7 +524,7 @@ impl Driver {
 					Err(error) => {
 						tracing::error!(%error, "applying the network configuration failed");
 						let at = self.at_fault(&error);
-						self.failed(Invalid {
+						self.failed(Failure {
 							at,
 							reason: error.to_string(),
 							reached: None,
@@ -643,9 +617,7 @@ impl Driver {
 							self.begin(interface, link);
 						}
 						Some(_) => {}
-						None if self.is_radio(&interface) && !self.held.contains(&interface) => {
-							self.disconnect(interface);
-						}
+						None if self.is_radio(&interface) => self.disconnect(interface),
 						None => {}
 					}
 				}
@@ -824,8 +796,8 @@ impl Driver {
 				self.done = self.taken;
 				tracing::error!(%error, "the network configuration does not render");
 				self.failed(match error {
-					render::Error::Invalid(invalid) => invalid,
-					render::Error::Selection(reason) => Invalid {
+					render::Error::Invalid(invalid) => invalid.into(),
+					render::Error::Selection(reason) => Failure {
 						at: path(&[]),
 						reason,
 						reached: None,
@@ -836,7 +808,7 @@ impl Driver {
 		};
 		if let Some(reason) = barred {
 			tracing::warn!(reason, "the hotspot cannot run");
-			self.failed(Invalid {
+			self.failed(Failure {
 				at: path(&[Segment::Name("hotspot")]),
 				reason,
 				reached: None,
@@ -922,12 +894,9 @@ impl Driver {
 				let answer = verdict(self.selector.decision(), &self.judged(&changed));
 				match &answer {
 					Ok(()) => tracing::info!("proposal verified"),
-					Err(invalid) => {
-						tracing::info!(at = invalid.at, reason = invalid.reason, reached = ?invalid.reached, "proposal failed")
+					Err(failure) => {
+						tracing::info!(at = failure.at, reason = failure.reason, reached = ?failure.reached, "proposal failed")
 					}
-				}
-				if answer.is_ok() {
-					self.running = self.document.clone();
 				}
 				let _ = reply.send(answer);
 			}
@@ -939,13 +908,10 @@ impl Driver {
 	}
 
 	/// Fail the command waiting, where one is.
-	fn failed(&mut self, invalid: Invalid) {
+	fn failed(&mut self, failure: Failure) {
 		match self.pending.take() {
-			Some((Pending::Apply { reply, .. }, _)) => {
-				let _ = reply.send(Err(invalid));
-			}
-			Some((Pending::Restore(reply), _)) => {
-				let _ = reply.send(Err(anyhow::anyhow!(invalid.reason)));
+			Some((Pending::Apply { reply, .. }, _) | (Pending::Restore(reply), _)) => {
+				let _ = reply.send(Err(failure));
 			}
 			None => {}
 		}

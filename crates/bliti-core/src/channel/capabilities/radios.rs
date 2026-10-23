@@ -53,7 +53,6 @@ pub fn placement(
 					"the hotspot and {:?} could only run on {}, which cannot run both at once",
 					candidate.label, access_points[0]
 				),
-				reached: None,
 			});
 		}
 	}
@@ -123,7 +122,6 @@ pub fn own_channel(
 	let fault = |reason| Invalid {
 		at: path(&[Segment::Name("hotspot"), Segment::Name(member)]),
 		reason,
-		reached: None,
 	};
 	if choice.own.is_empty() {
 		return Err(fault(format!(

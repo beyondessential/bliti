@@ -63,23 +63,9 @@ A device MUST offer `sae` only on a radio able to hold a connection to SAE.
 > WPA2-PSK and WPA3-SAE authenticate by proving possession of the key, and 802.1X by certificate.
 > The requirement is not that traffic be encrypted. A link encrypted without authentication leaves an adversary free to impersonate the access point and to inspect, modify and forge everything crossing it, and the traffic at risk is the application's: the overlay of [NFO](../device-info.md) carries management rather than the work a device is deployed to do.
 
-## Joining by WPS
-
-A device MUST join by WPS on request, by push-button and by PIN.
-
-A device MUST report which WPS methods each of its radios offers among its capabilities.
-
-A device asked to join by WPS naming no `interface` MUST join on a radio offering the method asked for.
-
-A device asked to join by WPS for a named network MUST add only that network, and MUST NOT keep credentials the exchange yields for any other, nor stay joined to it.
-
-> [!NOTE]
-> A device with no keyboard is one an operator cannot type a passphrase into, and WPS is the mechanism a site's existing access point already offers for that.
-> Which mechanisms a site runs is the site's to decide. A device that refused one because the mechanism is weak would be imposing a judgement on a network it is a guest of, and would leave the operator holding a device that will not join.
-
 ## Where the device is the access point
 
 A device MUST NOT offer WPS to clients of its own hotspot.
 
 > [!NOTE]
-> Joining by the mechanism a site offers is working with the infrastructure that exists. Offering an onboarding mechanism of our own is a choice about putting something new into the world, and that one is ours to decline.
+> Offering an onboarding mechanism on the device's own hotspot is a choice about putting something new into the world, and that one is ours to decline.

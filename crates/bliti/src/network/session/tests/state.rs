@@ -1,119 +1,100 @@
 //! The state of each candidate (CFG, "The state of each candidate").
 
+use super::fake::observed;
 use super::*;
 
-async fn state(client: &mut Client) -> Vec<Json> {
-	match recv(client).await {
-		Message::State { attachments, .. } => attachments,
-		other => panic!("expected the state of each candidate, got {other:?}"),
-	}
+/// The `state` of an observing device whose configuration has `candidates`.
+fn observing(outcome: Outcome, candidates: usize) -> Message {
+	state(outcome).entries(observed(candidates))
 }
 
 #[tokio::test]
 async fn state_follows_the_opening_configuration_and_each_change() {
 	let device = Device::observing().await;
-	let (mut client, _task, opened) = device.opened().await;
+	let (mut client, _task) = device.open().await;
+	let (opened, reported) = recv_held(&mut client).await;
 	assert_eq!(opened, recorded());
 	assert_eq!(
-		state(&mut client).await,
-		[json!({"is": "default-route"})],
-		"one entry per candidate of the recorded configuration"
+		reported,
+		observing(Outcome::Applied, 1),
+		"one entry per candidate of the configuration held"
 	);
 
 	let lost = vec![json!({"is": "unavailable", "reached": "carrier", "reason": "no carrier"})];
 	device.log.publish(lost.clone());
-	assert_eq!(state(&mut client).await, lost);
+	assert_eq!(
+		recv(&mut client).await,
+		state(Outcome::Applied).entries(lost.clone())
+	);
 
 	device.log.publish(lost);
 	assert!(quiet(&mut client).await, "nothing changed");
 }
 
 #[tokio::test]
-async fn state_follows_the_proposal_once_applied_and_the_recorded_configuration_after_a_revert() {
+async fn state_follows_the_proposal_and_waits_for_the_states_of_the_configuration_held() {
 	let device = Device::observing().await;
+	device.log.set(Applying::Held);
 	let (mut client, _task, _) = device.opened().await;
-	assert_eq!(state(&mut client).await, observed(1));
 
 	propose(&mut client, proposal()).await;
+	let (held, reported) = recv_held(&mut client).await;
+	assert_eq!(held, proposal());
 	assert_eq!(
-		recv(&mut client).await,
-		Message::Applied { capabilities: None }
-	);
-	assert_eq!(
-		state(&mut client).await,
-		observed(2),
-		"the proposal's two candidates"
+		reported,
+		observing(Outcome::Verifying, 2),
+		"the proposal's two candidates, not the one before it left"
 	);
 
-	// Published for a configuration no longer running: held back.
+	// Published for a configuration no longer held: held back.
 	device.log.publish(observed(1));
 	assert!(quiet(&mut client).await);
 
-	send(&mut client, Message::Discard).await;
-	assert_eq!(
-		state(&mut client).await,
-		observed(1),
-		"the recorded configuration's one candidate, though it was the last published"
-	);
+	device.log.publish(observed(2));
+	assert!(quiet(&mut client).await, "back to what was told");
 
-	// A failed proposal is answered, then the recorded configuration's states follow.
-	device.log.set(Applying::Fail(
-		Stage::Association.failed(passphrase(), "the key was refused"),
-	));
-	propose(&mut client, proposal()).await;
-	assert!(matches!(recv(&mut client).await, Message::Invalid { .. }));
-	assert_eq!(state(&mut client).await, observed(1));
+	device.log.release(Ok(()));
+	assert_eq!(recv(&mut client).await, observing(Outcome::Applied, 2));
 }
 
 #[tokio::test]
-async fn a_backend_observing_nothing_sends_no_state() {
+async fn a_backend_observing_nothing_sends_no_entries_but_still_sends_state() {
 	let device = Device::new().await;
+	device.log.set(Applying::Held);
 	let (mut client, _task, _) = device.opened().await;
-	assert!(quiet(&mut client).await);
-	propose(&mut client, proposal()).await;
-	assert_eq!(
-		recv(&mut client).await,
-		Message::Applied { capabilities: None }
-	);
-	assert!(quiet(&mut client).await);
+	proposed(&mut client, proposal()).await;
+	device.log.release(Ok(()));
+	assert_eq!(recv(&mut client).await, state(Outcome::Applied));
 }
 
-/// Returning to the recorded configuration can change the capabilities back, and the next `state`
-/// carries them where no answer would (CFG).
+/// What applying changed of the capabilities is told in the next `state`, once (CFG).
 #[tokio::test]
-async fn state_carries_the_capabilities_a_revert_changed_back() {
+async fn state_carries_the_capabilities_a_proposal_changed() {
 	let device = Device::observing().await;
+	device.log.set(Applying::Held);
 	let (mut client, _task, _) = device.opened().await;
-	assert_eq!(state(&mut client).await, observed(1));
 
-	let original = capabilities();
-	let mut widened = original.clone();
+	let mut widened = capabilities();
 	widened["document"]
 		.as_object_mut()
 		.unwrap()
 		.insert("hotspot".to_owned(), json!(true));
 	device.log.after_apply(widened.clone());
-	propose(&mut client, proposal()).await;
-	assert_eq!(
-		recv(&mut client).await,
-		Message::Applied {
-			capabilities: Some(widened)
-		}
-	);
-	let Message::State { capabilities, .. } = recv(&mut client).await else {
-		panic!("expected the state of each candidate")
-	};
-	assert_eq!(capabilities, None, "applied already said so");
+	proposed_observing(&mut client, proposal()).await;
 
-	device.log.capabilities(original.clone());
-	send(&mut client, Message::Discard).await;
+	device.log.release(Ok(()));
 	assert_eq!(
 		recv(&mut client).await,
-		Message::State {
-			attachments: observed(1),
-			capabilities: Some(original),
-		}
+		observing(Outcome::Applied, 2).told(widened)
 	);
+	assert!(quiet(&mut client).await, "said once");
+}
+
+async fn proposed_observing(client: &mut Client, document: Map<String, Json>) {
+	propose(client, document.clone()).await;
+	let (echoed, reported) = recv_held(client).await;
+	assert_eq!(echoed, document);
+	assert_eq!(reported, observing(Outcome::Verifying, 2));
 }
 
 /// A regulatory domain the kernel takes from an access point joined changes the capabilities with no
@@ -123,7 +104,6 @@ async fn state_carries_the_capabilities_a_revert_changed_back() {
 async fn state_carries_capabilities_changed_with_no_proposal() {
 	let device = Device::observing().await;
 	let (mut client, _task, _) = device.opened().await;
-	assert_eq!(state(&mut client).await, observed(1));
 
 	let mut widened = capabilities();
 	widened["document"]
@@ -134,12 +114,32 @@ async fn state_carries_capabilities_changed_with_no_proposal() {
 	device.log.publish(observed(1));
 	assert_eq!(
 		recv(&mut client).await,
-		Message::State {
-			attachments: observed(1),
-			capabilities: Some(widened),
-		}
+		observing(Outcome::Applied, 1).told(widened)
 	);
 
 	device.log.publish(observed(1));
 	assert!(quiet(&mut client).await, "said once");
+}
+
+/// Each session is told the capabilities it has not been told, whenever it opened.
+#[tokio::test]
+async fn a_session_opened_after_the_capabilities_changed_is_told_them_whole() {
+	let device = Device::observing().await;
+	let mut widened = capabilities();
+	widened["document"]
+		.as_object_mut()
+		.unwrap()
+		.insert("hotspot".to_owned(), json!(true));
+	device.log.capabilities(widened.clone());
+	device.log.publish(observed(1));
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	let (mut client, _task) = device.open().await;
+	assert_eq!(
+		recv(&mut client).await,
+		Message::Configuration {
+			document: recorded(),
+			capabilities: Some(widened),
+		}
+	);
 }

@@ -228,7 +228,7 @@ async fn a_scan_and_a_survey_run_on_each_radio() {
 		elements.extend_from_slice(ssid);
 		AccessPoint::read(bssid, 2412, -5000, 0, &elements)
 	};
-	let mut rig = Rig::new(FakeAir {
+	let rig = Rig::new(FakeAir {
 		heard: vec![
 			heard([2, 0, 0, 0, 0, 1], b"clinic"),
 			heard([2, 0, 0, 0, 0, 3], b"bliti"),
