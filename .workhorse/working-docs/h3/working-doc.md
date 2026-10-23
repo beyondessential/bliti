@@ -17,7 +17,7 @@ Reviewed against main at the same base, which hasn't moved since F3 branched.
 
 The Status screen's Tailscale and Tamanu rows need device work that doesn't exist yet: the `service` facts (today the device only knows the overlay's interface name), finding Tamanu's two versions, and the whole SVC stream with its restarts.
 That's a protocol addition plus sampler work on `bliti`, beside the client work.
-It goes to a follow-up card (see Follow-ups); this card builds the rows' UI with every service shown as work in progress.
+It goes to two follow-up cards, one for Tailscale and one for Tamanu (see Follow-ups); this card builds the rows' UI with every service shown as work in progress.
 
 ### Gaps and contradictions to fix
 
@@ -30,7 +30,7 @@ It goes to a follow-up card (see Follow-ups); this card builds the rows' UI with
 
 ### Decisions to confirm
 
-- [x] Device-side service work goes to a follow-up card.
+- [x] Device-side work for Tailscale and Tamanu goes to a follow-up card each.
 - [x] Cable screen: a new carrier fact tells it a cable is in.
 - [x] Another client holding the session is found out on tap (see Sessions).
 - [ ] With one-step apply, what does leaving mid-verification do (closing the session, a back gesture, a dropped channel)? And what does Join wifi's Cancel mean when there is no recorded configuration to return to?
@@ -124,16 +124,25 @@ Going back out of the simple network screens closes the session, as returning to
 
 ### Device dependencies
 
-One-step apply and the carrier fact are device, protocol and client changes the simple screens are built on. Whether they land on H3 or on a card before it is decided at the split.
+One-step apply and the carrier fact are device, protocol and client changes the simple screens are built on. They go to cards of their own, per the split below.
 
 ### Service rows
 
 Tailscale and Tamanu rows render from the layout of the mockup with every service shown as work in progress; no `service` facts or SVC yet.
 
+## Splitting
+
+Device-side and protocol work is created as cards of its own, independent of this one, worked and merged first.
+This card then comes back to evaluate what they landed, rebases on main, and splits out more where needed, until all that's left is changing the UI.
+At that point we decide whether the UI change is done here in one go or split further.
+
 ## Follow-ups
 
-Cards to split out, not built here:
+Device-side and protocol cards to create (which ones now is still to decide):
 
-- **Service facts and restarts:** the `service` facts for Tailscale and Tamanu, the SVC stream, and the service findings above.
-- **Network configuration history:** design how a device keeps past configurations and offers undo back to one that worked.
-- **Take over a busy session:** a "Take over" button beside "Someone else is making changes", ending the other client's network session so this one can open. Needs a way in CFG for one client to end another's session.
+- **One-step apply:** Apply saves at once; CFG loses `confirm` and the recorded/provisional split, NFO loses `network-configuration`. Also updates the shipped client's NSCR, Control and readings screens so they keep working.
+- **Carrier fact:** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled.
+- **Tailscale:** the device reports Tailscale's state and the name it's reached by, and can restart it. Carries the overlay findings above (no device name on a `broken` entry, a restart accepted then failed).
+- **Tamanu:** the device reports Tamanu's web and facility server, with their versions, and can restart them. Carries the half-succeeded restart of the two.
+- **Network configuration history:** how a device keeps past configurations and offers undo back to one that worked.
+- **Take over a busy session:** a "Take over" button beside "Someone else is making changes", ending the other client's network session. Needs a way in CFG for one client to end another's session.
