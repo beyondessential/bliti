@@ -24,7 +24,7 @@ It goes to two follow-up cards, one for Tailscale and one for Tamanu (see Follow
 - **No carrier fact.** NSET shows "whether a wired interface has carrier" and the cable screen waits on carrier, but NFO reports no carrier. CFG's `state` only covers enabled candidates, and on wifi the wired attachments are off, so carrier can't be observed from wifi, which is exactly where the cable flow starts. Settled: NFO gains a carrier fact per wired interface, reported whether or not its attachment is enabled.
 - **WIFI's ordering rule contradicts itself.** It says to leave the ordering as it is, and also to send the joined network to the top, without saying whether joining replaces the one candidate it presents or adds one. Settled: joining replaces that candidate in place, keeping the ordering; the old network's credentials are not kept, which keeps the configuration within the simple states.
 - **When the simple screens hold a session is unsaid.** Settled below under Sessions.
-- **Service findings, for the follow-up card:** a restart accepted then failed reads "restarting" forever; NFO's "leaving and returning" reads like `ended` where SVC means `failed` then `passed`; the overlay row can't show the device name on a `broken` entry; restarting Tamanu's two services can half-succeed.
+- **Service findings, for the Tailscale and Tamanu cards:** a restart accepted then failed reads "restarting" forever; NFO's "leaving and returning" reads like `ended` where SVC means `failed` then `passed`; the overlay row can't show the device name on a `broken` entry; restarting Tamanu's two services can half-succeed.
 - **Stale reference.** WEB:105 still returns to "the device view" after a reconnect; it should be the Status screen.
 - **NFO wording.** "MUST NOT rely on the name's meaning being understood to report the service" doesn't parse.
 
@@ -138,11 +138,18 @@ At that point we decide whether the UI change is done here in one go or split fu
 
 ## Follow-ups
 
-Device-side and protocol cards to create (which ones now is still to decide):
+Proposed split. Each card is independent of this one.
 
-- **One-step apply:** Apply saves at once; CFG loses `confirm` and the recorded/provisional split, NFO loses `network-configuration`. Also updates the shipped client's NSCR, Control and readings screens so they keep working.
-- **Carrier fact:** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled.
-- **Tailscale:** the device reports Tailscale's state and the name it's reached by, and can restart it. Carries the overlay findings above (no device name on a `broken` entry, a restart accepted then failed).
-- **Tamanu:** the device reports Tamanu's web and facility server, with their versions, and can restart them. Carries the half-succeeded restart of the two.
-- **Network configuration history:** how a device keeps past configurations and offers undo back to one that worked.
-- **Take over a busy session:** a "Take over" button beside "Someone else is making changes", ending the other client's network session. Needs a way in CFG for one client to end another's session.
+Create now, device-side and protocol, worked and merged before this card resumes:
+
+1. **One-step network apply.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. Carries the open question of leaving mid-verification. The largest of the four.
+2. **Wired carrier fact.** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled. The shipped client shows it as All readings would. Small, and parallel with 1.
+3. **Tailscale status and restart.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
+4. **Tamanu status and restart.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
+
+Later, once 1 has merged, since both rework CFG after it:
+
+5. **Network configuration history.** How a device keeps past configurations and offers undo back to one that worked.
+6. **Take over a busy session.** A "Take over" button beside "Someone else is making changes", ending the other client's network session.
+
+Stays on H3: adopting F3's UI specs with the review's fixes, the Tamanu Iti branding, and every screen of the redesign.
