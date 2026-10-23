@@ -107,6 +107,8 @@ function renderTile(name, byName, history) {
 	switch (name) {
 		case 'network-address':
 			return <AddressTile key={name} addresses={group} />
+		case 'wired-carrier':
+			return <CarrierTile key={name} ports={group} />
 		case 'filesystem-usage':
 			return (
 				<StorageTile key={name} filesystems={group} totals={byName.get('filesystem-total') ?? []} />
@@ -372,6 +374,43 @@ function AddressTile({ addresses }) {
 						<Line key={interfaceName(entry) + entry.value} label={qualifierOf(entry)} value={String(entry.value)} />
 					))}
 				</dl>
+			</div>
+		</Tile>
+	)
+}
+
+/// Cable: headline one line for each wired interface, naming it and saying whether a cable is plugged
+/// in, and show the same in the reveal, with the reason of any port whose carrier could not be read
+/// (VIEW).
+function CarrierTile({ ports }) {
+	const ordered = [...ports].sort((a, b) => interfaceName(a).localeCompare(interfaceName(b)))
+	const lineOf = (entry) => `${interfaceName(entry)} · ${headline(entry)}`
+
+	return (
+		<Tile
+			label={labelOf('wired-carrier')}
+			more
+			face={
+				<span className="addresses">
+					{ordered.map((entry) => (
+						<span key={interfaceName(entry)} className={tone(entry)}>
+							{lineOf(entry)}
+						</span>
+					))}
+				</span>
+			}
+		>
+			<div className="revealed">
+				<dl>
+					{ordered.map((entry) => (
+						<Line key={interfaceName(entry)} label={interfaceName(entry)} value={headline(entry)} />
+					))}
+				</dl>
+				{ordered.filter(reasonOf).map((entry) => (
+					<p key={interfaceName(entry)} className={statusOf(entry) === 'broken' ? 'bad' : 'note'}>
+						{interfaceName(entry)}: {reasonOf(entry)}
+					</p>
+				))}
 			</div>
 		</Tile>
 	)

@@ -48,6 +48,7 @@ export const HEADER = ['hostname', 'board', 'board-revision', 'os', 'kernel']
 
 export const TILE_ORDER = [
 	'network-address',
+	'wired-carrier',
 	'wireless-network',
 	'hotspot',
 	'hotspot-clients',
@@ -79,6 +80,7 @@ export const IN_REVEAL = new Set([
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
 const LABELS = {
 	'network-address': 'Address',
+	'wired-carrier': 'Cable',
 	'wireless-network': 'Wireless',
 	hotspot: 'Hotspot',
 	'hotspot-clients': 'Hotspot clients',
@@ -102,6 +104,11 @@ const LABELS = {
 const VALUES = {
 	'power-source': { 'via-backup': 'On backup', battery: 'On battery', 'bypassing-backup': 'Backup bypassed' },
 	'battery-direction': { charging: 'Charging', discharging: 'Discharging', idle: 'Idle' },
+}
+
+// Our wording for the two values of the catalogue's boolean readings; a boolean not here is yes or no.
+const BOOLEANS = {
+	'wired-carrier': { true: 'Plugged in', false: 'No cable' },
 }
 
 export function labelOf(name) {
@@ -137,6 +144,8 @@ export function formatValue(entry) {
 			return name === 'last-boot' ? elapsedSince(value) : String(value)
 		case 'text':
 			return VALUES[name]?.[value] ?? String(value)
+		case 'boolean':
+			return typeof value === 'boolean' ? (BOOLEANS[name]?.[value] ?? (value ? 'Yes' : 'No')) : stringify(value)
 		case 'ipv4':
 		case 'ipv6':
 			return String(value)

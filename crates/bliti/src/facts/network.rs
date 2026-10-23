@@ -4,12 +4,13 @@
 //! over. Loopback and other virtual interfaces are left out: they say nothing about whether the
 //! device an operator is standing at can be reached (NFO).
 
-use std::{collections::BTreeMap, fs, net::IpAddr, time::Duration};
+use std::{collections::BTreeMap, fs, net::IpAddr, path::Path, time::Duration};
 
 use bliti_core::channel::readings::{Entry, kind};
 use serde_json::Value as Json;
 
 use super::is_reportable;
+use crate::network::wired;
 
 /// The cumulative byte counts one read of `/proc/net/dev` yields for an interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +65,41 @@ pub fn addresses(at: u64) -> Vec<Entry> {
 		}
 	}
 	entries
+}
+
+/// One `wired-carrier` fact per wired interface, whether or not any candidate brings it up (NFO).
+pub fn carrier(at: u64) -> Vec<Entry> {
+	carrier_in(
+		Path::new(wired::SYS_CLASS_NET),
+		at,
+		default_route().as_deref(),
+	)
+}
+
+/// The carrier of each wired interface under `root`, laid out as `/sys/class/net`. A port whose
+/// carrier cannot be read is `broken` with the error as its reason: an administratively down
+/// interface refuses the read, and that is a fault in what this reports rather than the absence of a
+/// cable.
+fn carrier_in(root: &Path, at: u64, route: Option<&str>) -> Vec<Entry> {
+	wired::interfaces(root)
+		.into_iter()
+		.map(|name| {
+			let entry = match fs::read_to_string(root.join(&name).join("carrier")) {
+				Ok(raw) => match raw.trim() {
+					"1" => Entry::boolean(at, "wired-carrier", true),
+					"0" => Entry::boolean(at, "wired-carrier", false),
+					other => Entry::broken(
+						at,
+						"wired-carrier",
+						kind::BOOLEAN,
+						format!("carrier reads {other:?}, not 0 or 1"),
+					),
+				},
+				Err(error) => Entry::broken(at, "wired-carrier", kind::BOOLEAN, error.to_string()),
+			};
+			entry.with_trait("interface", interface_trait(&name, route))
+		})
+		.collect()
 }
 
 /// Every address worth reporting, by the interface holding it, in a stable order.
@@ -236,6 +272,7 @@ fn counters() -> BTreeMap<String, Counters> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::sampler::identity_key;
 
 	fn direction(entry: &Entry) -> &str {
 		entry
@@ -252,6 +289,136 @@ mod tests {
 			.and_then(|i| i.get("name"))
 			.and_then(Json::as_str)
 			.unwrap()
+	}
+
+	/// A fake `/sys/class/net`, removed when dropped.
+	struct Sys(std::path::PathBuf);
+
+	impl Sys {
+		fn new(tag: &str) -> Self {
+			let root =
+				std::env::temp_dir().join(format!("bliti-carrier-{}-{tag}", std::process::id()));
+			let _ = fs::remove_dir_all(&root);
+			fs::create_dir_all(&root).unwrap();
+			Self(root)
+		}
+
+		/// A wired port, with `carrier` as the file reads where it is given.
+		fn wired(&self, name: &str, carrier: Option<&str>) -> &Self {
+			self.port(name, carrier, &[])
+		}
+
+		fn port(&self, name: &str, carrier: Option<&str>, extra: &[&str]) -> &Self {
+			let dir = self.0.join(name);
+			fs::create_dir_all(dir.join("device")).unwrap();
+			fs::write(dir.join("type"), "1\n").unwrap();
+			if let Some(carrier) = carrier {
+				fs::write(dir.join("carrier"), carrier).unwrap();
+			}
+			for entry in extra {
+				fs::create_dir_all(dir.join(entry)).unwrap();
+			}
+			self
+		}
+	}
+
+	impl Drop for Sys {
+		fn drop(&mut self) {
+			let _ = fs::remove_dir_all(&self.0);
+		}
+	}
+
+	fn carrier_of<'a>(entries: &'a [Entry], name: &str) -> &'a Entry {
+		entries
+			.iter()
+			.find(|entry| interface_name(entry) == name)
+			.unwrap()
+	}
+
+	#[test]
+	fn a_port_with_a_cable_in_is_true_and_one_without_is_false_and_both_passed() {
+		let sys = Sys::new("values");
+		sys.wired("end0", Some("1\n")).wired("end1", Some("0\n"));
+		let entries = carrier_in(&sys.0, 7, None);
+		assert_eq!(entries.len(), 2);
+
+		let plugged = carrier_of(&entries, "end0");
+		assert_eq!(plugged.name, "wired-carrier");
+		assert_eq!(plugged.kind, kind::BOOLEAN);
+		assert_eq!(plugged.value, Some(Json::Bool(true)));
+		assert_eq!(plugged.status(), Some("passed"));
+
+		let unplugged = carrier_of(&entries, "end1");
+		assert_eq!(unplugged.value, Some(Json::Bool(false)));
+		assert_eq!(unplugged.status(), Some("passed"));
+	}
+
+	/// Loopback and virtual interfaces have no device behind them, and a wireless interface is not wired.
+	#[test]
+	fn only_wired_interfaces_report_carrier() {
+		let sys = Sys::new("which");
+		sys.wired("end0", Some("1\n"))
+			.port("wlan0", Some("1\n"), &["wireless"])
+			.port("wlan1", Some("1\n"), &["phy80211"]);
+		let virtual_dir = sys.0.join("br0");
+		fs::create_dir_all(&virtual_dir).unwrap();
+		fs::write(virtual_dir.join("type"), "1\n").unwrap();
+		fs::write(virtual_dir.join("carrier"), "1\n").unwrap();
+		let loopback = sys.0.join("lo");
+		fs::create_dir_all(&loopback).unwrap();
+		fs::write(loopback.join("type"), "772\n").unwrap();
+		fs::write(loopback.join("carrier"), "1\n").unwrap();
+
+		let entries = carrier_in(&sys.0, 1, None);
+		let names: Vec<_> = entries.iter().map(interface_name).collect();
+		assert_eq!(names, ["end0"]);
+	}
+
+	/// An administratively down interface errors on the carrier read, and a file holding something
+	/// else is no better: neither is "no cable".
+	#[test]
+	fn a_carrier_that_cannot_be_read_is_broken_with_a_reason_and_no_value() {
+		let sys = Sys::new("broken");
+		sys.wired("end0", None).wired("end1", Some("maybe\n"));
+		let entries = carrier_in(&sys.0, 1, None);
+		assert_eq!(entries.len(), 2);
+		for name in ["end0", "end1"] {
+			let entry = carrier_of(&entries, name);
+			assert_eq!(entry.status(), Some("broken"));
+			assert_eq!(entry.value, None);
+			assert!(entry.reason().is_some_and(|reason| !reason.is_empty()));
+		}
+	}
+
+	#[test]
+	fn ports_are_told_apart_by_interface_and_by_nothing_else() {
+		let sys = Sys::new("identity");
+		sys.wired("end0", Some("1\n")).wired("end1", Some("1\n"));
+		let entries = carrier_in(&sys.0, 1, None);
+		assert_ne!(
+			identity_key(carrier_of(&entries, "end0")),
+			identity_key(carrier_of(&entries, "end1"))
+		);
+	}
+
+	/// The default route moves between ports as candidates come up, which says nothing about which
+	/// port is being reported.
+	#[test]
+	fn the_default_route_moving_does_not_change_a_ports_identity() {
+		let sys = Sys::new("route");
+		sys.wired("end0", Some("1\n")).wired("end1", Some("0\n"));
+		let on_end0 = carrier_in(&sys.0, 1, Some("end0"));
+		let on_end1 = carrier_in(&sys.0, 1, Some("end1"));
+		for name in ["end0", "end1"] {
+			assert_eq!(
+				identity_key(carrier_of(&on_end0, name)),
+				identity_key(carrier_of(&on_end1, name))
+			);
+		}
+		assert_eq!(
+			carrier_of(&on_end0, "end0").traits["interface"]["route"],
+			"default"
+		);
 	}
 
 	#[test]

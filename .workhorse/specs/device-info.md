@@ -119,6 +119,7 @@ This catalogue uses:
 | `kind` | value | unit |
 | --- | --- | --- |
 | `text` | a string with no numeric meaning | none |
+| `boolean` | `true` or `false` | none |
 | `fraction` | a number from 0 to 1 inclusive, a proportion of a whole | none |
 | `quantity` | a measurement | required |
 | `duration` | an elapsed time | `seconds` |
@@ -167,6 +168,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
+| `wired-carrier` | `boolean` | `interface` | whether a wired interface has carrier, as [LINK](network/attachment.md) has it: `true` where a cable is plugged in and the link is up |
 | `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
 | `hotspot` | `text` | `channel`, `passphrase` | the network the device's hotspot advertises |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
@@ -236,6 +238,16 @@ A device MUST NOT report loopback or other virtual interfaces.
 
 A device MUST report throughput as one reading per interface and direction, and MUST NOT aggregate across either.
 
+A device MUST report `wired-carrier` once for each wired interface, wired meaning a physical interface that is not wireless.
+
+A device MUST report `wired-carrier` for a wired interface whether or not any candidate of [LINK](network/attachment.md) brings it up, and whether or not that candidate's `enabled` is true.
+
+A device MUST report `wired-carrier` as `passed` whether the value is `true` or `false`.
+
+A device MUST report a change in a wired interface's carrier as soon as it observes the change.
+
+A device MUST NOT report `wired-carrier` for a wireless interface.
+
 A device MUST report the wireless network each of its wireless interfaces is joined to, and MUST omit the entry for an interface joined to none.
 
 A device MUST report its hotspot and the clients joined to it, and MUST omit both entries where it runs no hotspot.
@@ -248,6 +260,8 @@ The networks a device joins, and the hotspot it runs, are configured under [NET]
 
 > [!NOTE]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.
+> A device on wireless has its wired candidates off, and the configuration session of [CFG](network/session.md) says nothing of a candidate that is off. `wired-carrier` is how a reader learns a cable is plugged in before switching over to it.
+> No cable is an ordinary state of a port rather than difficulty, so a `false` value is `passed`: it is the fact, not a fault.
 
 ## Power source and battery
 

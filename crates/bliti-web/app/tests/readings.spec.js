@@ -274,6 +274,16 @@ test.describe('history', () => {
 		await expect(page.locator('.tile .spark polyline').first()).toBeVisible()
 	})
 
+	// A boolean has no number to draw, however often it is reported.
+	test('a boolean reading never draws a graph', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, msg({ type: 'reading', at: 1000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: false }))
+		await emit(page, msg({ type: 'reading', at: 2000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: true }))
+		await expect(page.getByText('Yes')).toBeVisible()
+		await expect(page.locator('.tile .spark')).toHaveCount(0)
+		await expect(page.locator('.tile button, button.tile')).toHaveCount(0)
+	})
+
 	// A later reading replaces the headline (VIEW).
 	test('a later reading replaces the headline', async ({ page }) => {
 		await openChannel(page)
@@ -569,5 +579,97 @@ test.describe('connected clients', () => {
 		await emit(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 2 }))
 		await expect(page.locator('.tile', { hasText: 'Connected' })).toContainText('2/8 clients')
 		await expect(page.locator('.tile', { hasText: 'Room for' })).toHaveCount(0)
+	})
+})
+
+test.describe('wired carrier', () => {
+	const port = (name, plugged, extra = {}) =>
+		fact('wired-carrier', {
+			kind: 'boolean',
+			value: plugged,
+			traits: { status: { is: 'passed' }, interface: { name } },
+			...extra,
+		})
+	const cable = (page) => page.locator('.tile').filter({ has: page.locator('.label', { hasText: 'Cable' }) })
+
+	// One line a port, naming it, with the cable in words (VIEW).
+	test('is headlined as a line for each port, naming it', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, port('end1', false))
+		await emit(page, port('end0', true))
+
+		await expect(page.locator('.tile')).toHaveCount(1)
+		const lines = cable(page).locator('.addresses span')
+		await expect(lines).toHaveText(['end0 · Plugged in', 'end1 · No cable'])
+	})
+
+	test('sits directly after the address tile', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await emit(page, port('end0', true))
+		await emit(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'end0' } } }))
+		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Cable', 'Processor'])
+	})
+
+	test('the reveal repeats each port', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, port('end0', true))
+		await emit(page, port('end1', false))
+		await cable(page).click()
+		const detail = cable(page).locator('.detail')
+		await expect(detail.locator('dt')).toHaveText(['end0', 'end1'])
+		await expect(detail.locator('dd')).toHaveText(['Plugged in', 'No cable'])
+	})
+
+	test('a later value for a port replaces its line', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, port('end0', false))
+		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · No cable'])
+		await emit(page, port('end0', true))
+		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · Plugged in'])
+	})
+
+	test('a port sent as ended loses its line and leaves the other', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, port('end0', true))
+		await emit(page, port('end1', false))
+		await emit(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end1' } } }))
+		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · Plugged in'])
+
+		await emit(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end0' } } }))
+		await expect(page.locator('.tile')).toHaveCount(0)
+	})
+
+	// No cable is an ordinary state, not a fault (NFO).
+	test('a passed face is not coloured, for either value', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, port('end0', true))
+		await emit(page, port('end1', false))
+		await expect(cable(page).locator('.value .warn, .value .bad')).toHaveCount(0)
+		await expect(cable(page).locator('.value.warn, .value.bad')).toHaveCount(0)
+	})
+
+	test('a broken port shows no value, with its reason', async ({ page }) => {
+		await openChannel(page)
+		await emit(
+			page,
+			fact('wired-carrier', {
+				kind: 'boolean',
+				traits: { status: { is: 'broken', reason: 'Invalid argument (os error 22)' }, interface: { name: 'end0' } },
+			}),
+		)
+		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · unavailable'])
+		await expect(cable(page).locator('.addresses .bad')).toHaveCount(1)
+		await cable(page).click()
+		await expect(cable(page).locator('.detail')).toContainText('Invalid argument (os error 22)')
+	})
+
+	// The generic path: a boolean this build does not recognise renders from its name (VIEW).
+	test('a boolean of an unrecognised name renders as yes or no under its own name', async ({ page }) => {
+		await openChannel(page)
+		await emit(page, fact('lid-open', { kind: 'boolean', value: true }))
+		await emit(page, fact('door-open', { kind: 'boolean', value: false }))
+		await expect(page.locator('.tile').filter({ hasText: 'Lid Open' })).toContainText('Yes')
+		await expect(page.locator('.tile').filter({ hasText: 'Door Open' })).toContainText('No')
 	})
 })
