@@ -33,7 +33,7 @@ It goes to two follow-up cards, one for Tailscale and one for Tamanu (see Follow
 - [x] Device-side work for Tailscale and Tamanu goes to a follow-up card each.
 - [x] Cable screen: a new carrier fact tells it a cable is in.
 - [x] Another client holding the session is found out on tap (see Sessions).
-- [ ] With one-step apply, what does leaving mid-verification do (closing the session, a back gesture, a dropped channel)? And what does Join wifi's Cancel mean when there is no recorded configuration to return to?
+- [x] Leaving after Apply changes nothing: the configuration is already saved. Join wifi has no Cancel.
 
 ## Behaviour
 
@@ -69,6 +69,11 @@ Apply saves immediately, in the simple screens and the full editor alike.
 There is no applied-but-unconfirmed state and no Confirm step: the operator edits, applies, and the device saves and reports whether it works. Errors come back and the operator iterates.
 Editing then applying stays (no autosave), so a half-typed gateway is never proposed.
 A configuration that fails is still saved: the device keeps what was applied and reports the errors, and stays on it until someone changes it.
+
+The sequence: Apply sends the document; the device saves it, applies it, and reports whether it worked.
+- Leaving before Apply (Back, the back gesture, the channel dropping) loses the edits, as any unsubmitted form does.
+- After Apply the app shows it is applying, with a spinner and without saying "confirmed", until the device answers, then shows any errors. There is no Cancel, on Join wifi or anywhere else.
+- Where no answer comes (the channel dropped, the device crashed or lost power), the app drops the attempt and shows the device as disconnected, as after any closed channel. The operator walked away or the device needs fixing in person, and the app can't tell which.
 
 This reaches past the UI: CFG's `confirm`, the recorded/provisional split, the `network-configuration` fact, VIEW's provisional notice and CSCR's provisional confirmation wording all go or change.
 There is no undo on this card: the operator remembers the settings they changed and puts them back. A configuration history with undo is a follow-up card.
@@ -142,7 +147,7 @@ Proposed split. Each card is independent of this one.
 
 Create now, device-side and protocol, worked and merged before this card resumes:
 
-1. **One-step network apply.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. Carries the open question of leaving mid-verification. The largest of the four.
+1. **One-step network apply.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. The largest of the four.
 2. **Wired carrier fact.** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled. The shipped client shows it as All readings would. Small, and parallel with 1.
 3. **Tailscale status and restart.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
 4. **Tamanu status and restart.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
