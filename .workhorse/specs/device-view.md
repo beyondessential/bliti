@@ -39,7 +39,7 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
-| tiles | `network-address`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
+| tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max` |
 | appended | everything it does not recognise |
 
@@ -48,6 +48,8 @@ The application MUST NOT give an entry it renders within another's reveal a tile
 The application MUST NOT reorder by the `status` trait.
 
 The application MUST supply its own wording for every catalogue name, trait, distinguishing trait value and unit it recognises, and MUST choose for itself how to write a unit and the magnitude to show a value at.
+
+The application MUST render a `boolean` as words of its own for `true` and for `false`.
 
 The application MUST render a `reason` as the sender wrote it.
 
@@ -103,6 +105,8 @@ The application MUST headline `network-address` with at most two addresses, each
 - on an interface naming an overlay, where one does, the first it holds of an IPv4 address and a global IPv6 address.
 
 The application MUST show every address in the reveal, each with its interface.
+
+The application MUST headline `wired-carrier` with one line for each wired interface, naming the interface and saying whether a cable is plugged in, and MUST show the same in the reveal.
 
 The application MUST draw `cpu-frequency` against `cpu-frequency-max`.
 
