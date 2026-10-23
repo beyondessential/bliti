@@ -30,7 +30,7 @@ A device MUST treat a hotspot whose `enabled` is false as it would an absent one
 | `channel` | number | no | the channel it operates on |
 | `channel-width` | number | no | the width of that channel, in megahertz |
 
-A device MUST derive neither `ssid` nor `passphrase` from anything it holds, and MUST NOT supply a default for either.
+A device MUST NOT derive `ssid` or `passphrase` from anything it holds, and MUST NOT supply a default for either.
 
 `dhcp-range` MUST be one IPv4 subnet in CIDR notation.
 A device MUST hold the subnet's first host address itself, and MUST hand out the rest to clients.

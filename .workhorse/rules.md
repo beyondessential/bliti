@@ -14,6 +14,7 @@ Specs are written in markdown prose with each sentence on its own line and no ha
 This balances ease of writing and diff parseability.
 Use a standards/RFC spec voice, as in RFC 2119.
 Do not include justifications unless the justification is critical to a spec.
+Write a prohibition as MUST NOT, SHOULD NOT and so on, rather than as a positive keyword with a negated object ("MUST NOT offer a scan", not "MUST offer no scan").
 
 ## Cross-references
 

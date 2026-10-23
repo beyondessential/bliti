@@ -48,11 +48,11 @@ The protocol these specifications describe MUST be advertised as version marker 
 ## Acting on the versions
 
 A client holding a QR code MUST consider every version marker it implements that reads the code's payload version.
-Where there is none, it MUST go no further, and MUST report the QR code as being at a payload version it does not support.
+Where there is none, it MUST NOT go further, and MUST report the QR code as being at a payload version it does not support.
 
 A client MUST read the advertised marker before it compares a handle, and MUST compare a handle only for a marker it is considering.
 
-Where the client does not implement the advertised marker it MUST go no further, and SHOULD report a device present at a version it does not support.
+Where the client does not implement the advertised marker it MUST NOT go further, and SHOULD report a device present at a version it does not support.
 
 > [!NOTE]
 > No shared secret could be computed under a version the client does not implement, and nothing it said afterwards would be understood.

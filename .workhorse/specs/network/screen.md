@@ -22,7 +22,7 @@ The application MUST move through three stages:
 | errored | writable | apply, reset |
 | watching | read-only | nothing |
 
-The application MUST be watching while the device reports the session busy, MUST say there that someone else is configuring the device, and MUST offer no scan or survey there.
+The application MUST be watching while the device reports the session busy, MUST say there that someone else is configuring the device, and MUST NOT offer a scan or survey there.
 
 Otherwise, the application MUST take its stage from the outcome the device reports when a session opens, when it stops being busy, and whenever that outcome changes: applying while it is `verifying`, errored where it is `failed`, and editing where it is `applied`.
 
@@ -116,7 +116,7 @@ The application MUST offer to set the country to each country it suggests or off
 
 While the country is unset, the application MUST make setting a suggested country the section's primary action.
 While the country is set to one it does not suggest, the application MUST say in a line beneath the field which country the access points name.
-While the country is set to one it suggests, the application MUST show none of this.
+While the country is set to one it suggests, the application MUST NOT show any of this.
 
 The application MUST say where the last scan heard no access point naming a country the device offers.
 

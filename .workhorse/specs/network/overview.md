@@ -16,7 +16,7 @@ A device's network configuration MUST be one declarative document covering the w
 
 A client MUST configure a device by sending that document whole, and a device MUST make its running configuration match the configuration the document describes.
 
-Applying a document a device is already running MUST change nothing.
+Applying a document a device is already running MUST NOT change anything.
 
 > [!NOTE]
 > One document for the device rather than one per interface lets the ordering of [LINK](attachment.md) span links, which an ordering held inside any one of them could not express.
