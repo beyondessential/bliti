@@ -22,7 +22,7 @@ The application MUST move through three stages:
 | errored | writable | apply, reset |
 | watching | read-only | nothing |
 
-The application MUST be watching while the device reports the session busy, and MUST say there that someone else is configuring the device.
+The application MUST be watching while the device reports the session busy, MUST say there that someone else is configuring the device, and MUST offer no scan or survey there.
 
 Otherwise, the application MUST take its stage from the outcome the device reports when a session opens, when it stops being busy, and whenever that outcome changes: applying while it is `verifying`, errored where it is `failed`, and editing where it is `applied`.
 

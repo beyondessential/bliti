@@ -30,9 +30,7 @@ A device MUST serve a configuration session on every stream that asks for one, o
 
 The session a device has served longest among those open MUST hold the configuration, and every other MUST be busy.
 
-A device MUST refuse at `$` a proposal from a busy session.
-
-A device MUST serve acts on any session, busy or not.
+A device MUST refuse at `$` a proposal or an act from a busy session.
 
 > [!NOTE]
 > The session reports the device rather than pairing requests with answers. A client that opens one is told what a client that never left would know by then, so leaving part way through a change and coming back loses nothing.
