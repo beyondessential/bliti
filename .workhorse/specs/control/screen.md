@@ -32,18 +32,11 @@ The application MUST ask the operator to confirm every act, each time, before as
 
 The confirmation MUST name the act.
 
-Where the device reports `network-configuration` as `provisional`, as in [NFO](../device-info.md), the confirmation MUST also say that the network settings the device is trying are not saved and will be lost.
-
-Where the application holds a configuration session open with edits not applied, as [NSCR](../network/screen.md) has it, the confirmation MUST also say that those edits will be lost.
-
 The confirmation of a power off MUST say that the device stays off until it is turned on at the device.
 
 The application MUST render a `refused` reason as the device wrote it.
 
 [WEB](../web-app.md) specifies how the application behaves once an act is accepted.
-
-> [!NOTE]
-> Every act ends every session, so a proposal being tried reverts under [CFG](../network/session.md) whoever proposed it. The device reports that a proposal is running to every operator, which lets the one asking for the act be warned about another's.
 
 ## Battery
 

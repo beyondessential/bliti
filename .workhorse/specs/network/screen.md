@@ -13,31 +13,27 @@ This spec covers how ours handles them, and binds nothing else that configures a
 
 The application MUST hold the operator's edits itself, and MUST NOT propose a document until the operator asks it to.
 
-The application MUST move through four stages:
+The application MUST move through three stages:
 
 | stage | fields | offers |
 | --- | --- | --- |
 | editing | writable | apply, reset |
-| applying | read-only | cancel |
+| applying | read-only | nothing |
 | errored | writable | apply, reset |
-| applied | read-only | confirm, cancel |
 
-The application MUST enter editing when a session opens, and MUST return to it on reset.
+The application MUST enter editing when a session opens, MUST enter applying on apply, and MUST leave applying for editing on `applied` and for errored on `invalid`.
 
-The application MUST fill the fields on entering editing with the configuration in force, and on entering errored with the document it proposed.
+The application MUST fill the fields with the configuration the device holds when a session opens, with the document it proposed on leaving applying, and with the configuration the device holds on reset.
 
 The application MUST NOT let the operator edit a field while a proposal is being verified.
 
 The application MUST show that it is waiting on the device while a proposal is being verified, a scan or survey is running, or a session is opening.
 
-The application MUST keep the configuration session open, and the operator's edits with it, when the operator leaves the screen with edits not applied, a proposal being applied, or one applied.
-While it keeps a session open this way, the application MUST say so on every other screen it shows while connected, and MUST offer there to return to the screen, and to confirm or discard an applied proposal or discard the edits.
-Where a proposal kept open this way fails, the application MUST keep the proposal it sent until the operator returns to the screen or discards it.
-The application MUST close the session when the operator leaves the screen with nothing changed, and once nothing is left to apply, confirm or discard.
+The application MUST close the session when the operator leaves the screen, and MUST drop the operator's edits with it.
 
 > [!NOTE]
 > An application that proposed as the operator typed would hand the device a gateway half entered, and the device would fail it for a reason that is not real.
-> Filling the errored stage from the proposal rather than from the configuration the device returned to lets an operator correct the one field that was wrong. The device keeps no record of the attempt, as [CFG](session.md) requires, so the application is the only end that can offer it back.
+> Keeping a failed proposal in the fields lets an operator correct the one field that was wrong. A device that began applying it holds it too, as [CFG](session.md) requires, so the next session opens on it.
 > A field edited part way through verification belongs to neither the attempt being verified nor the next one.
 
 ## Validating before proposing
@@ -129,16 +125,14 @@ The application MUST give a candidate the operator adds `verify` true, MUST show
 > The reason is the device's own words about something the application did not anticipate, so there is no wording of its own to supply.
 > Offering to skip verification only on the candidate that failed keeps it for the operator who has seen why the device refused and knows better, as with a network that is not up yet, and leaves every other candidate held to it.
 
-## The state of the session
-
-The application MUST show whether the configuration the device is running has been made durable, and MUST keep that in view while the operator scrolls.
-
-The application MUST name the cost of ending the session while a proposal is unconfirmed.
+## When the session ends
 
 The application MUST say where the session has ended and offer to open it again, and where it cannot be opened again, MUST say so and offer to disconnect from the device so the operator can connect again.
 
+Where the channel closes while a proposal is being verified, the application MUST drop the proposal and the session, and MUST treat the device as disconnected, as after any closed channel of [CHN](../channel.md).
+
 > [!NOTE]
-> A proposal that has been applied is invisible otherwise: the device is working, and nothing about it has been written down.
+> The device holds a proposal from the moment it begins applying it, as [CFG](session.md) requires, so an operator who leaves or loses the channel part way through verification loses nothing they applied. Reconnecting shows how it went.
 
 ## Wording
 
