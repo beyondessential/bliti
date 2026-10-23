@@ -92,3 +92,4 @@ Cards to split out, not built here:
 
 - **Service facts and restarts:** the `service` facts for Tailscale and Tamanu, the SVC stream, and the service findings above.
 - **Network configuration history:** design how a device keeps past configurations and offers undo back to one that worked.
+- **Take over a busy session:** a "Take over" button beside "Someone else is making changes", ending the other client's network session so this one can open. Needs a way in CFG for one client to end another's session.
