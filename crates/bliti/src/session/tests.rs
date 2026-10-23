@@ -736,3 +736,22 @@ async fn a_low_battery_shutdown_is_announced_and_refuses_every_act() {
 	.expect("the device powers off");
 	assert_eq!(carried, Act::PowerOff);
 }
+
+fn carrier(at: u64, interface: &str, plugged: bool) -> Entry {
+	Entry::boolean(at, "wired-carrier", plugged)
+		.with_trait("interface", serde_json::json!({ "name": interface }))
+}
+
+/// A cable plugged in or pulled is sent; a port that has settled is not sent again for being
+/// sampled later.
+#[test]
+fn a_carrier_that_flips_is_a_change_and_one_that_settled_is_not() {
+	assert!(!same_facts(
+		&[carrier(1, "end0", false)],
+		&[carrier(3, "end0", true)]
+	));
+	assert!(same_facts(
+		&[carrier(1, "end0", true)],
+		&[carrier(3, "end0", true)]
+	));
+}

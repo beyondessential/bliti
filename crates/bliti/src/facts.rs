@@ -44,6 +44,7 @@ pub fn facts(at: u64) -> Vec<Entry> {
 	entries.extend(board::os(at));
 	entries.extend(board::last_boot(at));
 	entries.extend(network::addresses(at));
+	entries.extend(network::carrier(at));
 	entries.extend(compute::memory_total(at));
 	entries.extend(compute::cpu_frequency_max(at));
 	entries.extend(storage::totals(at));

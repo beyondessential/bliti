@@ -19,6 +19,8 @@ use serde_json::{Map, Value as Json};
 pub mod kind {
 	/// A string with no numeric meaning.
 	pub const TEXT: &str = "text";
+	/// `true` or `false`.
+	pub const BOOLEAN: &str = "boolean";
 	/// A number from 0 to 1 inclusive, a proportion of a whole.
 	pub const FRACTION: &str = "fraction";
 	/// A measurement, carrying a unit.
@@ -138,6 +140,11 @@ impl Entry {
 	/// Text with no numeric meaning.
 	pub fn text(at: u64, name: impl Into<String>, text: impl Into<String>) -> Self {
 		Self::new(at, name, kind::TEXT, Json::String(text.into()))
+	}
+
+	/// A yes or no, carried as a JSON boolean.
+	pub fn boolean(at: u64, name: impl Into<String>, value: bool) -> Self {
+		Self::new(at, name, kind::BOOLEAN, Json::Bool(value))
 	}
 
 	/// An instant, as RFC 3339.
@@ -349,6 +356,17 @@ mod tests {
 		assert_eq!(entry.status(), Some("passed"));
 		assert!(entry.reason().is_none(), "passed carries no reason");
 		assert_eq!(entry.value, Some(json_number(0.1234)));
+	}
+
+	#[test]
+	fn a_boolean_carries_its_kind_a_json_bool_and_passed_for_either_value() {
+		for value in [true, false] {
+			let entry = Entry::boolean(1, "wired-carrier", value);
+			assert_eq!(entry.kind, kind::BOOLEAN);
+			assert_eq!(entry.value, Some(Json::Bool(value)));
+			assert_eq!(entry.status(), Some("passed"));
+			assert_eq!(entry.unit, None);
+		}
 	}
 
 	/// An address that goes keeps its value, the only thing telling it from the interface's others,
