@@ -21,9 +21,11 @@ The application MUST move through three stages:
 | applying | read-only | nothing |
 | errored | writable | apply, reset |
 
-The application MUST enter editing when a session opens, MUST enter applying on apply, and MUST leave applying for editing on `applied` and for errored on `invalid`.
+The application MUST take its stage from the outcome the device reports when a session opens and whenever that outcome changes: applying while it is `verifying`, errored where it is `failed`, and editing where it is `applied`.
 
-The application MUST fill the fields with the configuration the device holds when a session opens, with the document it proposed on leaving applying, and with the configuration the device holds on reset.
+The application MUST enter applying on apply, MUST take its stage from the `state` that follows the device sending the proposal back, and MUST enter errored where the device refuses the proposal.
+
+The application MUST fill the fields with the configuration the device holds when a session opens and on reset, and MUST keep the document it proposed in them after apply.
 
 The application MUST NOT let the operator edit a field while a proposal is being verified.
 
@@ -33,7 +35,8 @@ The application MUST close the session when the operator leaves the screen, and 
 
 > [!NOTE]
 > An application that proposed as the operator typed would hand the device a gateway half entered, and the device would fail it for a reason that is not real.
-> Keeping a failed proposal in the fields lets an operator correct the one field that was wrong. A device that began applying it holds it too, as [CFG](session.md) requires, so the next session opens on it.
+> Keeping a failed proposal in the fields lets an operator correct the one field that was wrong. A device that saved it holds it too, as [CFG](session.md) requires, so the next session opens on it and on its failure.
+> Taking the stage from the device rather than from the conversation lets an operator apply, leave while the device verifies, and come back to find it still verifying or to see how it went.
 > A field edited part way through verification belongs to neither the attempt being verified nor the next one.
 
 ## Validating before proposing
@@ -84,9 +87,7 @@ The application MUST NOT let the operator change whether a network is hidden whe
 
 The application MUST offer, from a scan, a view for siting an access point: every access point heard, by signal, with its channel and the adapter that heard it, and the channels taken on each band the device's radios can use, counting every channel a wide access point spans.
 
-The application MUST let the operator scan or survey one adapter rather than every one, and join by WPS on a chosen adapter or on one the device picks.
-
-The application MUST offer to join by WPS from a network the scan lists by SSID, asking the device to join that network alone.
+The application MUST let the operator scan or survey one adapter rather than every one.
 
 > [!NOTE]
 > Joining asks which network to add. Siting asks where the device's signal comes from and which channel a new access point should take, and it is the same scan read differently.
@@ -110,11 +111,11 @@ The application MUST say where the last scan heard no access point naming a coun
 
 ## Rendering a failure
 
-The application MUST mark the field named by the failure's `at`.
+The application MUST mark the field named by the `at` of a failure or a refusal.
 
 The application MUST render the verification stages of [LINK](attachment.md), showing which the proposal passed and which it failed.
 
-The application MUST render the failure's `reason` as the device wrote it.
+The application MUST render the `reason` of a failure or a refusal as the device wrote it.
 
 The application MUST offer, on the candidate a failure's `at` names or names a member of, to propose the document again with that candidate's `verify` false.
 
@@ -132,7 +133,7 @@ The application MUST say where the session has ended and offer to open it again,
 Where the channel closes while a proposal is being verified, the application MUST drop the proposal and the session, and MUST treat the device as disconnected, as after any closed channel of [CHN](../channel.md).
 
 > [!NOTE]
-> The device holds a proposal from the moment it begins applying it, as [CFG](session.md) requires, so an operator who leaves or loses the channel part way through verification loses nothing they applied. Reconnecting shows how it went.
+> The device holds a proposal from when it saves it and goes on verifying it whatever becomes of the session, as [CFG](session.md) requires, so an operator who leaves or loses the channel part way through verification loses nothing they applied.
 
 ## Wording
 

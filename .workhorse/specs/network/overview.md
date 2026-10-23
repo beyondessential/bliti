@@ -50,9 +50,9 @@ A device whose `regulatory-domain` is unset MUST restrict its radio to the opera
 
 A device MUST state its capabilities when a configuration session opens, as [CFG](session.md) specifies.
 
-A device MUST treat a document asking for anything it did not state as invalid, and MUST NOT apply any part of such a document.
+A device MUST refuse a document asking for anything it did not state, as [CFG](session.md) specifies, and MUST NOT apply any part of it.
 
-A device MUST NOT apply a document in part, MUST NOT report a setting as accepted but not in force, and MUST NOT run a configuration that differs from the document it accepted.
+A device MUST apply the whole of the configuration it holds, and MUST NOT run a configuration that differs from it.
 
 A device MUST omit from its capabilities anything the platform beneath it cannot carry out.
 
@@ -95,7 +95,7 @@ Each entry of `radios` MUST carry:
 | `bands` | array | yes | the bands the radio can use, as [HOT](hotspot.md) names bands |
 | `alongside` | string | where the radio can run an access point | `independent`, `shared-channel` or `one-at-a-time`, as [HOT](hotspot.md) requires it be reported |
 
-`acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each, and `wps` keyed by `interface` with the `method` values each radio offers and `ssid` where it joins by WPS for a named network.
+`acts` MUST mirror each act's message as `document` mirrors the document: `scan` and `survey` keyed by `interface` with the radios able to do each.
 
 > [!NOTE]
 > A client that has been told a device's capabilities has no reason to ask for more, which removes partial application and the unhonoured setting as outcomes, and makes the document's declarative reading true rather than aspirational.
