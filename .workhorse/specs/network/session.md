@@ -30,7 +30,7 @@ A device MUST serve a configuration session on every stream that asks for one, o
 
 The session a device has served longest among those open MUST hold the configuration, and every other MUST be busy.
 
-A device MUST refuse at `$` a proposal or an act from a busy session.
+A device MUST answer a proposal from a busy session with `cannot-configure` at `$`, and an act from one with `cannot-act` at `$`.
 
 > [!NOTE]
 > The session reports the device rather than pairing requests with answers. A client that opens one is told what a client that never left would know by then, so leaving part way through a change and coming back loses nothing.
@@ -44,7 +44,8 @@ A device MUST refuse at `$` a proposal or an act from a busy session.
 | `configure` | client | nothing beyond `type` |
 | `configuration` | either end | `document`, and from a device `capabilities` on the first and where they changed |
 | `state` | device | `busy`, `outcome`, `failure` where the outcome is `failed`, `attachments`, and `capabilities` where they changed |
-| `refused` | device | `of`, `at` and `reason` |
+| `cannot-configure` | device | as [MSG](../messages.md) has it |
+| `cannot-act` | device | as [MSG](../messages.md) has it |
 
 `configuration` MUST carry `DOCUMENT` as a critical member, so that an end which cannot read the document does not act on the message carrying it.
 
@@ -59,7 +60,7 @@ A device that has never saved a proposal MUST hold one `wired-dynamic` candidate
 
 A device MUST refuse a proposal asking for anything it did not state under [NET](overview.md), and one [LINK](attachment.md), [WLAN](wireless.md) or [HOT](hotspot.md) requires it to treat as invalid or to refuse.
 
-A device refusing a proposal MUST send `refused`, then `configuration` carrying the configuration it holds, unchanged.
+A device refusing a proposal MUST send `cannot-configure` of [MSG](../messages.md), then `configuration` carrying the configuration it holds, unchanged.
 
 A device MUST otherwise save the proposal: record it as the configuration it holds before applying any of it, send `configuration` carrying it, then apply it.
 
@@ -118,9 +119,7 @@ A failure MUST carry:
 | `reason` | string | yes | the device's account of the failure, in its own words |
 | `reached` | string | where a candidate's verification stopped | the verification stage of [LINK](attachment.md) at which the attempt stopped |
 
-`refused` MUST carry `at` and `reason` as a failure does, and as `of` the type of the message it refuses: `configuration` for a proposal, or the type of an act.
-
-`at` MUST be an RFC 9535 Normalized Path, rooted at the configuration the device holds for a failure, at the proposed document for a refused proposal, and at the message asking for an act for a refused act.
+A failure's `at` MUST be an RFC 9535 Normalized Path, rooted at the configuration the device holds.
 
 `reached` MUST name a stage of [LINK](attachment.md) by its wire name, every stage before it having passed, and MUST be absent where the failure is not a candidate's verification, as a hotspot that does not start.
 
@@ -165,7 +164,7 @@ A client MAY ask a device to act rather than to hold a setting, by sending on th
 
 A device MUST answer `scan` with `networks`, and `survey` with `spectrum`.
 
-A device MUST answer an act it cannot perform with `refused`.
+A device MUST answer an act it cannot perform with `cannot-act` of [MSG](../messages.md), naming as `act` the act's message type.
 
 `networks` MUST carry `access-points`, from a fresh scan, one entry for each access point each radio scanned heard, leaving out the device's own hotspot:
 

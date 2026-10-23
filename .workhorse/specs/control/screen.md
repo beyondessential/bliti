@@ -34,7 +34,7 @@ The confirmation MUST name the act.
 
 The confirmation of a power off MUST say that the device stays off until it is turned on at the device.
 
-The application MUST render a `refused` reason as the device wrote it.
+The application MUST render the reason of a `cannot-act` as the device wrote it.
 
 [WEB](../web-app.md) specifies how the application behaves once an act is accepted.
 
@@ -54,7 +54,7 @@ The confirmation of an import MUST say that what the device has learnt is replac
 
 The application MUST show the figures from the latest `curves` the device sent.
 
-The application MUST render a `refused` reason as the device wrote it.
+The application MUST render the reason of a `cannot-act` or `cannot-configure` as the device wrote it.
 
 ## Wording
 
