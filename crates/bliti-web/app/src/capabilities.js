@@ -24,7 +24,6 @@ import { bandName, widthName } from './wireless.js'
 
 const KINDS = ['wireless', 'wired-dynamic', 'wired-static']
 const SECURITY_KINDS = ['psk-sae', 'sae', 'psk', 'enterprise']
-const WPS_METHODS = ['push-button', 'pin']
 const BANDS = ['2ghz', '5ghz', '6ghz']
 const SELECTORS = ['kind', 'interface', 'band']
 
@@ -316,13 +315,11 @@ function actRadios(capabilities, act) {
 	return keys ?? radios(capabilities).map((each) => each.interface)
 }
 
-/// What the device will do on request: whether it scans and surveys, and the WPS methods any of its
-/// radios offers.
+/// What the device will do on request: whether it scans and surveys.
 export function acts(capabilities) {
 	return {
 		scan: views(actOf(capabilities, 'scan')).length > 0,
 		survey: views(actOf(capabilities, 'survey')).length > 0,
-		wps: wpsMethods(capabilities),
 	}
 }
 
@@ -336,32 +333,6 @@ export function surveyors(capabilities) {
 	return actRadios(capabilities, 'survey')
 }
 
-/// The radios a WPS join may be addressed to.
-export function wpsRadios(capabilities) {
-	return actRadios(capabilities, 'wps')
-}
-
-/// The WPS methods offered on the radio named, or on any where none is.
-export function wpsMethods(capabilities, name) {
-	return methodsIn(views(actOf(capabilities, 'wps'), { interface: name }))
-}
-
-/// The WPS methods that may join the network `ssid` names, on the radio named or on any where none
-/// is: none where the device joins only whichever network the access point hands over (BLI-CFG).
-export function wpsMethodsFor(capabilities, ssid, name) {
-	const found = views(actOf(capabilities, 'wps'), { interface: name }).filter(
-		(view) =>
-			view.caps === true || view.caps.ssid === true || (Array.isArray(view.caps.ssid) && view.caps.ssid.includes(ssid)),
-	)
-	return methodsIn(found)
-}
-
-function methodsIn(found) {
-	if (found.length === 0) return []
-	const methods = valuesAcross(found, 'method')
-	return methods === null ? WPS_METHODS : WPS_METHODS.filter((method) => methods.includes(method))
-}
-
 // What is not offered, and why
 
 const SENTENCES = {
@@ -371,7 +342,7 @@ const SENTENCES = {
 	unreported: 'Not offered by this device.',
 }
 
-const RADIO_SETTINGS = new Set(['wireless', 'hotspot', 'regulatory-domain', 'scan', 'survey', 'wps'])
+const RADIO_SETTINGS = new Set(['wireless', 'hotspot', 'regulatory-domain', 'scan', 'survey'])
 const CHANNEL_SETTINGS = new Set(['hotspot.band', 'hotspot.channel', 'hotspot.channel-width'])
 
 /// Whether the hotspot and a wireless candidate of `document` could be carried only by one radio
@@ -381,7 +352,7 @@ function clashes(capabilities, document) {
 }
 
 /// Why a setting is not offered, or null where it is. `setting` is one of `wireless`, `hotspot`,
-/// `hotspot.<member>`, `regulatory-domain`, `scan`, `survey` or `wps`. The document being edited
+/// `hotspot.<member>`, `regulatory-domain`, `scan` or `survey`. The document being edited
 /// decides a conflict and which adapter the hotspot is on: a radio that runs one thing at a time rules
 /// out a hotspot only while a wireless network needs that radio, and a shared-channel one rules out
 /// the hotspot's band, channel and width only while a wireless network could share it.
@@ -418,7 +389,6 @@ function offered(capabilities, setting, hotspot, document = null) {
 	if (setting === 'hotspot') return offersHotspot(capabilities)
 	if (setting === 'regulatory-domain') return countries(capabilities) !== null
 	if (setting === 'scan' || setting === 'survey') return acts(capabilities)[setting]
-	if (setting === 'wps') return acts(capabilities).wps.length > 0
 	if (setting.startsWith('hotspot.')) return offersHotspotSetting(capabilities, setting.slice(8), hotspot, document)
 	return false
 }

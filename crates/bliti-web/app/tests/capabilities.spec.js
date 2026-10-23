@@ -22,9 +22,6 @@ import {
 	securityKinds,
 	surveyors,
 	widths,
-	wpsMethods,
-	wpsMethodsFor,
-	wpsRadios,
 } from '../src/capabilities.js'
 import { stagesOf, validate } from '../src/network.js'
 import { pathOf, segmentsOf } from '../src/path.js'
@@ -61,7 +58,6 @@ const PI = {
 	radios: { wlan0: { model: 'Cypress CYW43455', bands: ['2ghz', '5ghz'], alongside: 'shared-channel' } },
 	acts: {
 		scan: { interface: { wlan0: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'] } } },
 	},
 }
 
@@ -101,7 +97,6 @@ const TWO_RADIOS = {
 	acts: {
 		scan: { interface: { wlan0: {}, wlx00c0caa1b2c3: {} } },
 		survey: { interface: { wlx00c0caa1b2c3: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'] }, wlx00c0caa1b2c3: { method: ['push-button'] } } },
 	},
 }
 
@@ -284,25 +279,11 @@ test.describe('reading capabilities', () => {
 		expect(channels(TWO_RADIOS, { interface: 'wlan0' }, { attachments: [wireless] })).toEqual([])
 	})
 
-	test('acts name the radios that do each, and the WPS methods each offers', () => {
-		expect(acts(TWO_RADIOS)).toEqual({ scan: true, survey: true, wps: ['push-button', 'pin'] })
+	test('acts name the radios that do each', () => {
+		expect(acts(TWO_RADIOS)).toEqual({ scan: true, survey: true })
 		expect(acts(PI).survey).toBe(false)
 		expect(scanners(TWO_RADIOS)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
 		expect(surveyors(TWO_RADIOS)).toEqual(['wlx00c0caa1b2c3'])
-		expect(wpsRadios(TWO_RADIOS)).toEqual(['wlan0', 'wlx00c0caa1b2c3'])
-		expect(wpsMethods(TWO_RADIOS, 'wlx00c0caa1b2c3')).toEqual(['push-button'])
-	})
-
-	test('WPS for a named network is offered only where the device takes one, on the radio it may name', () => {
-		expect(wpsMethodsFor(PI, 'Clinic')).toEqual([])
-		const named = structuredClone(TWO_RADIOS)
-		named.acts.wps.interface.wlan0.ssid = true
-		expect(wpsMethodsFor(named, 'Clinic')).toEqual(['push-button', 'pin'])
-		expect(wpsMethodsFor(named, 'Clinic', 'wlan0')).toEqual(['push-button', 'pin'])
-		expect(wpsMethodsFor(named, 'Clinic', 'wlx00c0caa1b2c3')).toEqual([])
-		named.acts.wps.interface.wlan0.ssid = ['Office']
-		expect(wpsMethodsFor(named, 'Clinic')).toEqual([])
-		expect(wpsMethodsFor(named, 'Office')).toEqual(['push-button', 'pin'])
 	})
 })
 

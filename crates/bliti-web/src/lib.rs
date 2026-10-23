@@ -37,6 +37,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
 mod scan;
+#[cfg(test)]
+mod tests;
 mod transport;
 
 use transport::WebTransport;
@@ -454,8 +456,8 @@ impl Channel {
 	///
 	/// Everything the device sends on the session is passed to `on_message` exactly as a subscription's
 	/// messages are, and `on_closed` is called once the stream ends. The handle this resolves to sends
-	/// the client's half of the exchange on the same stream, and closing it ends the session, which a
-	/// device reads as abandoning any proposal not confirmed.
+	/// the client's half of the exchange on the same stream, and closing it ends the session, which
+	/// changes nothing the device holds.
 	pub fn configure(&self, on_message: Function, on_closed: Function) -> Promise {
 		let inner = self.inner.clone();
 		future_to_promise(async move {
@@ -605,16 +607,6 @@ impl ConfigurationHandle {
 		self.send(message)
 	}
 
-	/// Make the applied proposal durable.
-	pub fn confirm(&self) -> Result<(), JsError> {
-		self.send(Message::Confirm.to_json())
-	}
-
-	/// Abandon the proposal, whether it is still being verified or already applied.
-	pub fn discard(&self) -> Result<(), JsError> {
-		self.send(Message::Discard.to_json())
-	}
-
 	/// Ask for the wireless networks the device can see, on one wireless interface or, where none is
 	/// named, on every one able to.
 	pub fn scan(&self, interface: Option<String>) -> Result<(), JsError> {
@@ -627,26 +619,7 @@ impl ConfigurationHandle {
 		self.send(Message::Survey { interface }.to_json())
 	}
 
-	/// Ask the device to join by WPS, by `push-button` or `pin` (WLAN), on one wireless interface or,
-	/// where none is named, on one the device chooses, for the network `ssid` names or, where none is
-	/// named, for whichever the access point hands over.
-	pub fn wps(
-		&self,
-		method: String,
-		interface: Option<String>,
-		ssid: Option<String>,
-	) -> Result<(), JsError> {
-		self.send(
-			Message::Wps {
-				method,
-				interface,
-				ssid,
-			}
-			.to_json(),
-		)
-	}
-
-	/// End the session, which a device reads as abandoning any proposal not confirmed.
+	/// End the session, which changes nothing the device holds (CFG).
 	pub fn close(&self) {
 		self.exchange.close();
 	}
@@ -829,6 +802,3 @@ fn describe(raw: &[u8]) -> (String, Option<String>) {
 		),
 	}
 }
-
-#[cfg(test)]
-mod tests;

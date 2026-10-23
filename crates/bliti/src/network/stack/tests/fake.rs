@@ -13,7 +13,7 @@ use futures::future::BoxFuture;
 
 use crate::network::{
 	apply::{Hostapd, System},
-	observe::{Joined, Operating, Scans, Surveyed, Target, WpsFailed, bss::AccessPoint},
+	observe::{Joined, Operating, Scans, Surveyed, Target, bss::AccessPoint},
 	probe::RadioInfo,
 	render,
 };
@@ -108,29 +108,12 @@ pub struct FakeIwd {
 	pub gone_on_join: Mutex<BTreeSet<String>>,
 	/// How long a scan takes.
 	pub scan_takes: Mutex<Duration>,
-	/// How WPS goes.
-	pub wps: Mutex<Option<Result<Joined, WpsFailed>>>,
-	/// What a WPS join left behind.
-	pub passphrase: Mutex<Option<String>>,
-	/// The networks iwd holds credentials for from a WPS join, until forgotten.
-	pub known: Mutex<BTreeSet<String>>,
 	pub calls: Mutex<Vec<String>>,
 }
 
 impl FakeIwd {
 	fn called(&self, call: String) {
 		self.calls.lock().unwrap().push(call);
-	}
-
-	fn wps_result(&self) -> Result<Joined, WpsFailed> {
-		let result = self.wps.lock().unwrap().clone().unwrap_or(Err(WpsFailed {
-			found: false,
-			reason: "no access point in push-button mode".into(),
-		}));
-		if let Ok(joined) = &result {
-			self.known.lock().unwrap().insert(joined.ssid.clone());
-		}
-		result
 	}
 }
 
@@ -170,38 +153,6 @@ impl crate::network::observe::Iwd for FakeIwd {
 			tokio::time::sleep(takes).await;
 			Ok(heard)
 		})
-	}
-
-	fn push_button(&self, station: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		self.called(format!("push-button {station}"));
-		let result = self.wps_result();
-		Box::pin(async move { result })
-	}
-
-	fn generate_pin(&self, _station: &str) -> BoxFuture<'static, Result<String, String>> {
-		Box::pin(async { Ok("12345670".to_owned()) })
-	}
-
-	fn start_pin(&self, station: &str, pin: &str) -> BoxFuture<'static, Result<Joined, WpsFailed>> {
-		self.called(format!("start-pin {station} {pin}"));
-		let result = self.wps_result();
-		Box::pin(async move { result })
-	}
-
-	fn cancel_wps(&self, station: &str) -> BoxFuture<'static, ()> {
-		self.called(format!("cancel-wps {station}"));
-		Box::pin(async {})
-	}
-
-	fn passphrase(&self, _ssid: &str) -> BoxFuture<'static, Result<String, String>> {
-		let passphrase = self.passphrase.lock().unwrap().clone();
-		Box::pin(async move { passphrase.ok_or_else(|| "a raw key".to_owned()) })
-	}
-
-	fn forget(&self, ssid: &str) -> BoxFuture<'static, Result<(), String>> {
-		self.called(format!("forget {ssid}"));
-		self.known.lock().unwrap().remove(ssid);
-		Box::pin(async { Ok(()) })
 	}
 }
 

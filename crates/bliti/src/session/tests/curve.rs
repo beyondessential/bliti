@@ -112,9 +112,16 @@ async fn an_invalid_document_is_refused_with_its_reason() {
 
 	let mut invalid = learnt();
 	invalid["discharging"]["points"] = json!([[2.6, 0.0]]);
-	let reason = Document::from_json(&invalid).unwrap_err().to_string();
+	let fault = Document::from_json(&invalid).unwrap_err();
+	assert_eq!(fault.at, "$['discharging']['points']");
 	ask(&mut stream, Message::Load { document: invalid }).await;
-	assert_eq!(next(&mut stream).await, Message::Refused { reason });
+	assert_eq!(
+		next(&mut stream).await,
+		Message::CannotConfigure {
+			at: fault.at,
+			reason: fault.reason,
+		}
+	);
 	assert_eq!(supply.document(), Some(Document::shipped()));
 
 	let quiet = tokio::time::timeout(Duration::from_millis(250), read_message(&mut stream)).await;
@@ -157,11 +164,13 @@ async fn with_no_backup_supply_every_change_is_refused() {
 		}
 	);
 
-	let refused = Message::Refused {
-		reason: "this device manages no backup supply".to_owned(),
+	let reason = "this device manages no backup supply".to_owned();
+	let cannot_configure = Message::CannotConfigure {
+		at: "$".to_owned(),
+		reason: reason.clone(),
 	};
 	ask(&mut stream, Message::Load { document: learnt() }).await;
-	assert_eq!(next(&mut stream).await, refused);
+	assert_eq!(next(&mut stream).await, cannot_configure);
 	// Nothing to load into comes before anything wrong with what was sent.
 	ask(
 		&mut stream,
@@ -170,7 +179,14 @@ async fn with_no_backup_supply_every_change_is_refused() {
 		},
 	)
 	.await;
-	assert_eq!(next(&mut stream).await, refused);
+	assert_eq!(next(&mut stream).await, cannot_configure);
 	ask(&mut stream, Message::Reset).await;
-	assert_eq!(next(&mut stream).await, refused);
+	assert_eq!(
+		next(&mut stream).await,
+		Message::CannotAct {
+			act: "reset".to_owned(),
+			at: "$".to_owned(),
+			reason,
+		}
+	);
 }

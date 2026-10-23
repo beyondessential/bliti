@@ -1,10 +1,10 @@
-// Scanning on the network screen (NSCR): networks by SSID, hidden ones on request, joining one by
-// WPS, one adapter or all, and the same scan read for siting an access point.
+// Scanning on the network screen (NSCR): networks by SSID, hidden ones on request, one adapter or
+// all, and the same scan read for siting an access point.
 
 import { expect, test } from '@playwright/test'
 
-import { answer, message, openNetwork, say, sent } from './fake-client.js'
-import { INDEPENDENT, IN_FORCE, PI, TWO_RADIOS, addWireless, ap, bar } from './network-fixtures.js'
+import { answer, message, openNetwork, sent } from './fake-client.js'
+import { IN_FORCE, PI, TWO_RADIOS, addWireless, ap, bar } from './network-fixtures.js'
 import { spanned } from '../src/scan.js'
 
 const USB = 'wlx00c0caa1b2c3'
@@ -127,55 +127,22 @@ test('the siting view lists every access point by signal, and the channels taken
 	await expect(taken('6 GHz')).toHaveText(['None heard.'])
 })
 
-// NSCR: a network the scan lists by name is joined by WPS for that network alone.
-test('a network in the scan list is joined by WPS for it alone', async ({ page }) => {
-	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
-	const clinic = networks(page).filter({ hasText: 'Clinic' })
-	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
-	await clinic.getByRole('button', { name: 'WPS PIN' }).click()
-	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin', ssid: 'Clinic' })
-	await expect(bar(page)).toContainText('Joining Clinic by WPS.')
-})
-
-test('a network the device cannot join is not offered WPS', async ({ page }) => {
+test('a network the device cannot join is listed as one it cannot', async ({ page }) => {
 	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
 	await expect(networks(page).filter({ hasText: 'Guest' })).toContainText('Cannot join')
-	await expect(page.getByRole('button', { name: 'Join Guest by WPS' })).toHaveCount(0)
+	await expect(networks(page).filter({ hasText: 'Guest' }).getByRole('button', { name: 'Guest', exact: true })).toBeDisabled()
 })
 
-// CFG: credentials for another network are refused at the act's `ssid`, and the reason is the
-// device's own.
-test('a WPS join that hands over another network gives the reason the device wrote', async ({ page }) => {
-	await scanned(page, PI, HEARD.filter((each) => each.interface === 'wlan0'))
-	const clinic = networks(page).filter({ hasText: 'Clinic' })
-	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
-	await clinic.getByRole('button', { name: 'WPS button' }).click()
-	const reason = 'the access point handed over credentials for "Office", not "Clinic", and they were discarded'
-	await say(page, message({ type: 'invalid', at: "$['ssid']", reason }))
+// CFG: a scan the device cannot carry out is answered with `cannot-act`, whose reason is its own.
+test('a scan the device cannot carry out gives the reason the device wrote', async ({ page }) => {
+	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+	const reason = 'wlan0 is carrying the uplink and cannot leave its channel'
+	await answer(page, 'scan', message({ type: 'cannot-act', act: 'scan', at: '$', reason }))
+	await addWireless(page)
+	await page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true }).click()
+	await expect(page.locator('.candidate').getByText(reason)).toBeVisible()
+	await expect(page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true })).toBeEnabled()
 	await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
-	await expect(page.getByText('Could not join Clinic by WPS.')).toBeVisible()
-	await expect(page.locator('.network .reason')).toHaveText(reason)
-})
-
-test('WPS is offered from the scan only where the device joins a named network that way', async ({ page }) => {
-	await scanned(page, INDEPENDENT, HEARD.filter((each) => each.interface === 'wlan0'))
-	await expect(networks(page).first()).toContainText('Clinic')
-	await expect(page.getByRole('button', { name: 'Join Clinic by WPS' })).toHaveCount(0)
-})
-
-// The adapter the candidate is pinned to is the one joined on, and one that cannot join a named
-// network by WPS is not offered it.
-test('WPS from the scan joins on the adapter the candidate is pinned to', async ({ page }) => {
-	await scanned(page)
-	const candidate = page.locator('.candidate')
-	await candidate.getByLabel('Adapter').selectOption(USB)
-	await expect(page.getByRole('button', { name: 'Join Clinic by WPS' })).toHaveCount(0)
-
-	await candidate.getByLabel('Adapter').selectOption('wlan0')
-	const clinic = networks(page).filter({ hasText: 'Clinic' })
-	await clinic.getByRole('button', { name: 'Join Clinic by WPS' }).click()
-	await clinic.getByRole('button', { name: 'WPS button' }).click()
-	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'push-button', interface: 'wlan0', ssid: 'Clinic' })
 })
 
 // NSCR: the channels taken count every channel a wide access point spans, not its primary alone.
@@ -256,32 +223,4 @@ test('one adapter able to survey offers no choice', async ({ page }) => {
 	await expect(hotspot.getByLabel('Survey with')).toHaveCount(0)
 	await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
 	expect((await sent(page)).at(-1)).toEqual({ type: 'survey' })
-})
-
-// NSCR: WPS joins on a chosen adapter or on one the device picks, offering what that adapter does.
-test('WPS joins on a chosen adapter, or on one the device picks', async ({ page }) => {
-	await openNetwork(page, { document: IN_FORCE, capabilities: TWO_RADIOS })
-	await page.getByRole('button', { name: 'Add' }).click()
-	const adding = page.locator('.adding')
-	await expect(page.getByLabel('WPS with').locator('option')).toHaveText(['Device chooses', 'Cypress CYW43455', 'MediaTek MT7921AU'])
-	await expect(adding.getByRole('button', { name: /^WPS / })).toHaveText(['WPS button', 'WPS PIN'])
-
-	// The adapter joins by push-button alone.
-	await page.getByLabel('WPS with').selectOption(USB)
-	await expect(adding.getByRole('button', { name: /^WPS / })).toHaveText(['WPS button'])
-	await page.getByRole('button', { name: 'WPS button' }).click()
-	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'push-button', interface: USB })
-	await bar(page).getByRole('button', { name: 'Cancel' }).click()
-
-	await page.getByRole('button', { name: 'Add' }).click()
-	await page.getByLabel('WPS with').selectOption('')
-	await page.getByRole('button', { name: 'WPS PIN' }).click()
-	expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin' })
-})
-
-test('one radio offers no adapter to join by WPS with', async ({ page }) => {
-	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-	await page.getByRole('button', { name: 'Add' }).click()
-	await expect(page.getByRole('button', { name: 'WPS button' })).toBeVisible()
-	await expect(page.getByLabel('WPS with')).toHaveCount(0)
 })

@@ -33,7 +33,6 @@ export const PI = {
 	radios: { wlan0: BUILT_IN },
 	acts: {
 		scan: { interface: { wlan0: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'], ssid: true } } },
 	},
 }
 
@@ -53,7 +52,6 @@ export const INDEPENDENT = {
 	acts: {
 		scan: { interface: { wlan0: {} } },
 		survey: { interface: { wlan0: {} } },
-		wps: { interface: { wlan0: { method: ['push-button'] } } },
 	},
 }
 
@@ -80,7 +78,6 @@ export const TWO_RADIOS = {
 	acts: {
 		scan: { interface: { wlan0: {}, wlx00c0caa1b2c3: {} } },
 		survey: { interface: { wlx00c0caa1b2c3: {} } },
-		wps: { interface: { wlan0: { method: ['push-button', 'pin'], ssid: true }, wlx00c0caa1b2c3: { method: ['push-button'] } } },
 	},
 }
 
@@ -108,6 +105,8 @@ export const IN_FORCE = {
 	'regulatory-domain': 'VU',
 }
 
+// The state of each candidate of IN_FORCE, as `state` carries them; `stateOf` of the fake client adds
+// `busy` and `outcome` to them.
 export const STATES = [
 	{ is: 'default-route' },
 	{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.1 did not answer' },

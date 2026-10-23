@@ -115,30 +115,30 @@ The prototype's saved network is lost once on deploy.
 
 ### Web client: bridge
 
-- [ ] `bliti-web/src/lib.rs`: drop `ConfigurationHandle::{confirm, discard, wps}`.
-- [ ] `app/src/client.js`: drop the same from `configure()`.
-- [ ] `app/src/client.js`: power and curve streams read `cannot-act` and `cannot-configure` in place of `refused`.
+- [x] `bliti-web/src/lib.rs`: drop `ConfigurationHandle::{confirm, discard, wps}`.
+- [x] `app/src/client.js`: drop the same from `configure()`.
+- [x] `app/src/client.js`: power and curve streams read `cannot-act` and `cannot-configure` in place of `refused`.
 
 ### Web client: network screen
 
-- [ ] `app/src/network.js`: rewrite `reduce`, `fromDevice`, `opening`, `editing` and `answer` for the stream.
+- [x] `app/src/network.js`: rewrite `reduce`, `fromDevice`, `opening`, `editing` and `answer` for the stream.
   - Add the `watching` stage from `state.busy`.
   - Take the stage from `outcome` on opening, after the echo, and when it changes.
   - Tell saved from refused by comparing the next `configuration` with `proposed`.
   - Fill `failure` from `state.failure` or `cannot-configure`.
   - Drop `awaiting`, `confirming`, the `applied` stage, the WPS fields, `pin`, and the `invalid` handling of act failures (now `cannot-act`).
-- [ ] `app/src/network.js`: `unapplied(state)`, true in editing or errored where the fields differ from the held configuration.
-- [ ] `app/src/Network.jsx`: `SessionBar` drops applied, Confirm and Cancel.
+- [x] `app/src/network.js`: `unapplied(state)`, true in editing or errored where the fields differ from the held configuration.
+- [x] `app/src/Network.jsx`: `SessionBar` drops applied, Confirm and Cancel.
   - Errored says the device is on these settings, or that it did not take them for a refusal.
   - Watching says someone else is configuring the device.
   - `busy` stops replacing the screen; the fields go read-only through `writable`.
-- [ ] `app/src/Network.jsx`: `failureHeadline` wording no longer says "Reverted" or "Nothing was changed" for a saved failure.
-- [ ] `app/src/Network.jsx`: Back asks to confirm while `unapplied`, with a dialog in the shape of Control's act confirmation.
-- [ ] `app/src/Network.jsx`: a `beforeunload` listener while `unapplied`.
-- [ ] `app/src/App.jsx`: drop `held`, `keep`, `HeldBar`, the hidden kept mount of the network screen, `leaveNetwork`'s keep logic, and the `provisional` and `unapplied` props to Control.
-- [ ] `app/src/Control.jsx`: drop the provisional and unapplied warnings; render `cannot-act` and `cannot-configure` reasons.
-- [ ] `app/src/Readings.jsx`, `readings.js`, `styles.css`: drop the `Provisional` context, `PROVISIONAL_TILES`, the notice, the `trial` label and its CSS, and `showProvisional`.
-- [ ] WPS removal in the client:
+- [x] `app/src/Network.jsx`: `failureHeadline` wording no longer says "Reverted" or "Nothing was changed" for a saved failure.
+- [x] `app/src/Network.jsx`: Back asks to confirm while `unapplied`, with a dialog in the shape of Control's act confirmation.
+- [x] `app/src/Network.jsx`: a `beforeunload` listener while `unapplied`.
+- [x] `app/src/App.jsx`: drop `held`, `keep`, `HeldBar`, the hidden kept mount of the network screen, `leaveNetwork`'s keep logic, and the `provisional` and `unapplied` props to Control.
+- [x] `app/src/Control.jsx`: drop the provisional and unapplied warnings; render `cannot-act` and `cannot-configure` reasons.
+- [x] `app/src/Readings.jsx`, `readings.js`, `styles.css`: drop the `Provisional` context, `PROVISIONAL_TILES`, the notice, the `trial` label and its CSS, and `showProvisional`.
+- [x] WPS removal in the client:
   - `capabilities.js`: `WPS_METHODS`, `wpsRadios`, `wpsMethods`, `wpsMethodsFor`, `wps` in `acts()`, `RADIO_SETTINGS` and `offered()`.
   - `Network.jsx`: `joinByWps`, the Add-row buttons, the "WPS with" select, the failure notice, the PIN.
   - `Scan.jsx`: the per-network WPS link.
@@ -146,9 +146,9 @@ The prototype's saved network is lost once on deploy.
 
 ### Web tests
 
-- [ ] `tests/fake-client.js`: script `state` with `busy` and `outcome`; helpers for a saved echo, a refusal, and `busy` flipping mid-session; drop `wps`, `confirm` and `discard`.
-- [ ] `tests/network-fixtures.js`: drop the WPS acts from `PI`, `INDEPENDENT` and `TWO_RADIOS`; give `STATES` the new members.
-- [ ] `tests/network.spec.js`: rewrite "editing is the application's own" and "the session as the device speaks it".
+- [x] `tests/fake-client.js`: script `state` with `busy` and `outcome`; helpers for a saved echo, a refusal, and `busy` flipping mid-session; drop `wps`, `confirm` and `discard`.
+- [x] `tests/network-fixtures.js`: drop the WPS acts from `PI`, `INDEPENDENT` and `TWO_RADIOS`; give `STATES` the new members.
+- [x] `tests/network.spec.js`: rewrite "editing is the application's own" and "the session as the device speaks it".
   - apply then echo then verifying then applied
   - a refusal keeps the proposal and marks the field
   - a saved failure keeps the fields, and reopening shows the failure
@@ -157,8 +157,8 @@ The prototype's saved network is lost once on deploy.
   - Back with unapplied edits asks first, and Back after a saved failure does not
   - `beforeunload` is armed only while unapplied
   - Drop the WPS cases.
-- [ ] `tests/network-scan.spec.js` and `tests/capabilities.spec.js`: drop the WPS cases.
-- [ ] `tests/readings.spec.js` and `tests/control.spec.js`: drop the provisional cases; add `cannot-act` rendering for power and curve.
+- [x] `tests/network-scan.spec.js` and `tests/capabilities.spec.js`: drop the WPS cases.
+- [x] `tests/readings.spec.js` and `tests/control.spec.js`: drop the provisional cases; add `cannot-act` rendering for power and curve.
 
 ### Finish
 

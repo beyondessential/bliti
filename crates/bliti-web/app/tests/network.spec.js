@@ -5,7 +5,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { answer, message, openChannel, openNetwork, openNetworkScreen, say, sent } from './fake-client.js'
+import { answer, echo, failsAt, message, openNetwork, refusing, say, sent, stateOf } from './fake-client.js'
 import { IN_FORCE, INDEPENDENT, PI, STATES, TWO_RADIOS, UNTUNED, WIRED_ONLY, addWireless, ap, bar, open, proposals, row } from './network-fixtures.js'
 
 test.describe('editing is the application\'s own', () => {
@@ -59,7 +59,7 @@ test.describe('editing is the application\'s own', () => {
 		await page.locator('section.hotspot').getByRole('button', { name: 'Turn off' }).click()
 		await page.getByRole('button', { name: 'Reset' }).click()
 
-		await expect(bar(page)).toContainText('Saved.')
+		await expect(bar(page)).toContainText('Applied.')
 		await open(page, 'North site')
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.1')
 		await expect(page.getByLabel('Resolvers')).toHaveValue('192.168.60.1')
@@ -68,8 +68,9 @@ test.describe('editing is the application\'s own', () => {
 	})
 
 	// A field edited part way through verification belongs to neither attempt (NSCR).
-	test('fields are not editable while a proposal is being verified', async ({ page }) => {
+	test('fields are not editable while a proposal is being verified, and are again once it is applied', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'verifying' })])
 		await open(page, 'North site')
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
@@ -80,155 +81,241 @@ test.describe('editing is the application\'s own', () => {
 		await expect(page.getByLabel('Country')).toBeDisabled()
 		await expect(page.getByRole('button', { name: 'Move BackupLink' })).toBeDisabled()
 		await expect(page.getByRole('button', { name: 'Add' })).toBeDisabled()
-		await expect(bar(page).getByRole('button')).toHaveText(['Cancel'])
+		await expect(bar(page).getByRole('button')).toHaveCount(0)
 
-		// Applied is read-only too, and offers confirm and cancel.
-		await say(page, message({ type: 'applied' }))
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await expect(page.getByLabel('Gateway')).toBeDisabled()
-		await expect(bar(page).getByRole('button')).toHaveText(['Confirm', 'Cancel'])
+		await say(page, stateOf({ outcome: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(page.getByLabel('Gateway')).toBeEditable()
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
 	})
 
-	test('confirming saves, and the configuration in force is what the device answers with', async ({ page }) => {
+	// The device saves a proposal before it applies it, and says so by sending it back (CFG).
+	test('a proposal is saved when the device sends it back, then verified, then applied', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', message({ type: 'applied' }))
-		const saved = { ...IN_FORCE, 'regulatory-domain': 'FJ' }
-		await answer(page, 'confirm', message({ type: 'configuration', document: saved }))
-
+		await answer(page, 'configuration', echo())
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toContainText('Applied, not saved.')
-		await expect(bar(page)).toContainText('Discarded if you disconnect.')
-		await page.getByRole('button', { name: 'Confirm' }).click()
 
-		await expect(bar(page)).toContainText('Saved.')
+		// Entered on apply, before anything is answered, and held through the echo until the state after it.
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(bar(page)).toContainText('Applying…')
+		await expect(bar(page)).not.toContainText('onfirm')
 		await expect(page.getByLabel('Country')).toHaveValue('FJ')
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'confirm'])
+		await say(page, stateOf({ outcome: 'verifying' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(bar(page).locator('.spinner')).toHaveCount(1)
+
+		await say(page, stateOf({ outcome: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(bar(page)).toContainText('Applied.')
+		await expect(bar(page)).not.toContainText('change')
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration'])
 	})
 
-	test('cancelling abandons the proposal and returns to the configuration in force', async ({ page }) => {
+	test('there is nothing to confirm or cancel anywhere', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'verifying' })])
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await bar(page).getByRole('button', { name: 'Cancel' }).click()
-
-		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
-		await expect(page.getByLabel('Country')).toHaveValue('VU')
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard'])
-		// A late answer to the abandoned proposal changes nothing.
-		await say(page, message({ type: 'applied' }))
-		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		for (const name of ['Confirm', 'Cancel', 'Discard', 'Review']) {
+			await expect(page.getByRole('button', { name })).toHaveCount(0)
+		}
 	})
 
 	test('leaving the screen with nothing changed ends the session', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(page.getByRole('alertdialog')).toHaveCount(0)
+		await expect(page.getByRole('button', { name: 'Network settings' })).toBeVisible()
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
 	})
 
-	// Edits not applied are neither lost on leaving nor forgotten about (NSCR).
-	test('leaving with edits not applied keeps them, and the device view says so', async ({ page }) => {
+	// Edits not applied are lost on leaving, so leaving asks first (NSCR).
+	test('leaving with edits not applied asks first, and leaves them behind', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 
-		const held = page.locator('.bar-state:visible')
-		await expect(held).toContainText('1 network change not applied.')
+		const asking = page.getByRole('alertdialog', { name: 'Leave the network settings?' })
+		await expect(asking).toContainText('will be lost')
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
+		await asking.getByRole('button', { name: 'Stay' }).click()
+		await expect(asking).toHaveCount(0)
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
 
-		await held.getByRole('button', { name: 'Review' }).click()
-		await expect(page.getByLabel('Country')).toHaveValue('FJ')
-		await expect(bar(page)).toContainText('1 change not applied.')
-	})
-
-	test('edits left not applied are discarded from the device view', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-
-		await page.locator('.bar-state:visible').getByRole('button', { name: 'Discard' }).click()
-		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
+		await expect(page.getByRole('button', { name: 'Network settings' })).toBeVisible()
 		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
 		expect((await sent(page)).map((each) => each.type)).toEqual(['configure'])
+
+		// What was left behind is gone: the screen opens on the configuration the device holds.
+		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf()])
+		await page.getByRole('button', { name: 'Network settings' }).click()
+		await expect(page.getByLabel('Country')).toHaveValue('VU')
+		await expect(bar(page)).toContainText('Applied.')
 	})
 
-	// A proposal left running goes on running while the operator looks at the device, and is confirmed
-	// or discarded from there (NSCR).
-	test('leaving with a proposal applied keeps the session, and the device view confirms it', async ({ page }) => {
+	// A failed proposal the device saved is the configuration it holds: nothing is lost by leaving (NSCR).
+	test('leaving after a failure the device saved asks nothing, and reopening shows the failure', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', message({ type: 'applied' }))
-		await answer(page, 'confirm', message({ type: 'configuration', document: { ...IN_FORCE, 'regulatory-domain': 'FJ' } }))
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await page.getByRole('button', { name: 'Back', exact: true }).click()
-
-		const held = page.locator('.bar-state:visible')
-		await expect(held).toContainText('Network settings applied, not saved.')
-		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
-		await held.getByRole('button', { name: 'Confirm' }).click()
-
-		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'confirm'])
-		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
-	})
-
-	test('a proposal left applied is discarded from the device view', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', message({ type: 'applied' }))
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await page.getByRole('button', { name: 'Back', exact: true }).click()
-
-		await page.locator('.bar-state:visible').getByRole('button', { name: 'Discard' }).click()
-		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard'])
-		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
-	})
-
-	// A proposal that fails while the operator is elsewhere is not lost: the device view says so, and
-	// the screen still holds what was proposed and why it failed (NSCR).
-	test('a proposal kept open that fails on the device view keeps its failure until the screen is back', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', failsAt("$['attachments'][1]['gateway']", '192.168.60.254 did not answer', 'gateway'))
 		await open(page, 'North site')
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-		await page.getByRole('button', { name: 'Back', exact: true }).click()
-
-		const held = page.locator('.bar-state:visible')
-		await expect(held).toContainText('Applying network settings.')
-		await say(page, message({ type: 'invalid', at: "$['attachments'][1]", reached: 'addressing', reason: '192.168.60.254 did not answer' }))
-		await expect(held).toContainText('Could not apply the network settings.')
-		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
-
-		await held.getByRole('button', { name: 'Review' }).click()
 		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
-		// The candidate the failure names is the one opened, holding what was proposed.
+		await expect(bar(page)).toContainText('Could not apply.')
+		await expect(bar(page)).toContainText('The device is on these settings.')
+		await expect(bar(page)).not.toContainText('back on')
+
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(page.getByRole('alertdialog')).toHaveCount(0)
+		await expect(page.getByRole('button', { name: 'Network settings' })).toBeVisible()
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+
+		// The next session opens on what the device holds and how it fared.
+		const [proposal] = await proposals(page)
+		await answer(page, 'configure', [
+			message({ type: 'configuration', document: proposal.document, capabilities: PI }),
+			stateOf({ outcome: 'failed', failure: { at: "$['attachments'][1]['gateway']", reason: '192.168.60.254 did not answer', reached: 'gateway' } }),
+		])
+		await page.getByRole('button', { name: 'Network settings' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
 		await expect(page.locator('.candidate')).toHaveAttribute('aria-label', 'North site')
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
+		await expect(page.getByLabel('Gateway')).toHaveClass(/field-fault/)
 		await expect(page.locator('.candidate .reason')).toHaveText('192.168.60.254 did not answer')
+		await expect(page.locator('.candidate .stages .failed')).toHaveText(['Gateway'])
 	})
 
-	test('a failure kept on the device view is discarded from there', async ({ page }) => {
+	test('a refused proposal is not held by the device, so leaving asks', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', refusing("$['regulatory-domain']", 'not a country this radio knows', IN_FORCE))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-		await say(page, message({ type: 'invalid', at: "$['regulatory-domain']", reason: 'not a country this radio knows' }))
-		const held = page.locator('.bar-state:visible')
-		await expect(held).toContainText('Could not apply the network settings.')
-		await held.getByRole('button', { name: 'Discard' }).click()
-		await expect(page.locator('.bar-state:visible')).toHaveCount(0)
-		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+		await expect(page.getByRole('alertdialog', { name: 'Leave the network settings?' })).toBeVisible()
 	})
 
-	test('a device already in a session says so', async ({ page }) => {
-		await openChannel(page)
-		await answer(page, 'configure', message({ type: 'busy' }))
-		await openNetworkScreen(page)
-		await expect(page.getByText("Someone else is changing this device's network.")).toBeVisible()
+	// NSCR: the browser warns before the page goes only while edits would be lost.
+	test('the browser warns before the page goes only while edits are not applied', async ({ page }) => {
+		const warns = () =>
+			page.evaluate(() => {
+				const event = new Event('beforeunload', { cancelable: true })
+				window.dispatchEvent(event)
+				return event.defaultPrevented
+			})
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		expect(await warns()).toBe(false)
+
+		await page.getByLabel('Country').selectOption('FJ')
+		expect(await warns()).toBe(true)
+
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'verifying' })])
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		expect(await warns()).toBe(false)
+
+		await say(page, stateOf({ outcome: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		expect(await warns()).toBe(false)
+
+		await page.getByLabel('Country').selectOption('WS')
+		expect(await warns()).toBe(true)
+		await page.getByRole('button', { name: 'Reset' }).click()
+		expect(await warns()).toBe(false)
+
+		// A screen left behind has no listener to leave standing.
+		await page.getByLabel('Country').selectOption('WS')
+		expect(await warns()).toBe(true)
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
+		expect(await warns()).toBe(false)
+	})
+
+	// NSCR: a session opens on how the device is faring, not on a stage of its own.
+	test('opening while the device verifies shows applying, read-only', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI, outcome: 'verifying' })
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
+		await expect(bar(page).locator('.spinner')).toHaveCount(1)
+		await expect(page.getByLabel('Country')).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Add' })).toBeDisabled()
+		await expect(bar(page).getByRole('button')).toHaveCount(0)
+
+		// And it follows the outcome as the device settles it.
+		await say(page, stateOf({ outcome: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(page.getByLabel('Country')).toBeEditable()
+	})
+
+	test('opening on a configuration that failed shows the failure', async ({ page }) => {
+		await openNetwork(page, {
+			document: IN_FORCE,
+			capabilities: PI,
+			outcome: 'failed',
+			failure: { at: "$['attachments'][3]['security']['passphrase']", reason: 'the key was refused', reached: 'association' },
+		})
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(page.locator('.candidate')).toHaveAttribute('aria-label', 'Clinic-Staff')
+		await expect(page.locator('.candidate').getByLabel('Passphrase')).toHaveClass(/field-fault/)
+		await expect(page.locator('.candidate .reason')).toHaveText('the key was refused')
+		await expect(page.getByLabel('Country')).toBeEditable()
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+	})
+
+	// NSCR: another operator's session is watched, never edited.
+	test('a session the device reports busy is watched, read-only, and offers no scan or survey', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: INDEPENDENT, busy: true })
+		await expect(bar(page)).toHaveAttribute('data-stage', 'watching')
+		await expect(bar(page)).toContainText("Someone else is changing this device's network.")
+		await expect(page.getByRole('heading', { name: 'Connections' })).toBeVisible()
+		await expect(bar(page).getByRole('button')).toHaveCount(0)
+		await expect(page.getByLabel('Country')).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Add' })).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Move BackupLink' })).toBeDisabled()
+		await open(page, 'North site')
+		await expect(page.getByLabel('Gateway')).toBeDisabled()
+		await page.locator('.hotspot').getByText('Radio and addressing').click()
+		await expect(page.getByRole('button', { name: /^Scan/ })).toHaveCount(0)
+		await expect(page.getByRole('button', { name: 'Survey the spectrum' })).toHaveCount(0)
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure'])
+	})
+
+	test('a watching session follows what the holder applies, and becomes editable once it is done', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI, busy: true, states: STATES })
+		await expect(page.getByLabel('Country')).toHaveValue('VU')
+
+		// The holder applies a change: the configuration, then the outcome, as the device reports them.
+		const changed = { ...IN_FORCE, 'regulatory-domain': 'FJ' }
+		await say(page, message({ type: 'configuration', document: changed }))
+		await say(page, stateOf({ busy: true, outcome: 'verifying' }))
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
+		await expect(bar(page)).toHaveAttribute('data-stage', 'watching')
+		await say(page, stateOf({ busy: true, outcome: 'failed', failure: { at: "$['regulatory-domain']", reason: 'no' } }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'watching')
+		await expect(page.getByLabel('Country')).toBeDisabled()
+
+		// The holder closes: this one holds, on the configuration the device holds and how it fared.
+		await say(page, stateOf({ busy: false, outcome: 'failed', failure: { at: "$['regulatory-domain']", reason: 'no' } }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(page.getByLabel('Country')).toBeEditable()
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
+		await expect(page.locator('.hotspot')).toBeVisible()
+		await expect(page.locator('.why.reason')).toHaveText('no')
+		await expect(page.getByRole('button', { name: 'Add' })).toBeEnabled()
+	})
+
+	test('a watching session that becomes the holder is editable and offers a scan', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI, busy: true })
+		await say(page, stateOf({ busy: false }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(page.getByRole('button', { name: 'Scan' })).toBeVisible()
+		await page.getByLabel('Country').selectOption('FJ')
+		await expect(bar(page)).toContainText('1 change not applied.')
 	})
 
 	// A session that ends with the channel still up opens again from the screen.
@@ -236,7 +323,7 @@ test.describe('editing is the application\'s own', () => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await page.evaluate(() => window.__blitiSession.close('the stream was reset'))
 		await expect(page.getByText('The device stopped answering: the stream was reset')).toBeVisible()
-		await answer(page, 'configure', message({ type: 'configuration', document: IN_FORCE, capabilities: PI }))
+		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf()])
 		await page.getByRole('button', { name: 'Start again' }).click()
 		await page.getByRole('heading', { name: 'Connections' }).waitFor()
 		expect(await page.evaluate(() => window.__blitiSessions.length)).toBe(2)
@@ -262,17 +349,16 @@ test.describe('editing is the application\'s own', () => {
 })
 
 test.describe('rendering a failure', () => {
-	const failAt = (at, reason, reached) => message({ type: 'invalid', at, reason, reached })
-
 	test('after a failure the fields hold what was proposed, and the named field is marked', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', failAt("$['attachments'][1]['gateway']", '192.168.60.254 did not answer.', 'gateway'))
+		await answer(page, 'configuration', failsAt("$['attachments'][1]['gateway']", '192.168.60.254 did not answer.', 'gateway'))
 		await open(page, 'North site')
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
 
 		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
 		await expect(bar(page)).toContainText('Could not apply.')
+		await expect(page.locator('.candidate .notice.fault')).toHaveText('Applied, then could not be reached.')
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
 		await expect(page.getByLabel('Gateway')).toHaveClass(/field-fault/)
 		await expect(page.getByLabel('Address')).not.toHaveClass(/field-fault/)
@@ -283,7 +369,7 @@ test.describe('rendering a failure', () => {
 
 	test('the verification stages show which passed and which failed', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', failAt("$['attachments'][1]['gateway']", 'no answer', 'gateway'))
+		await answer(page, 'configuration', failsAt("$['attachments'][1]['gateway']", 'no answer', 'gateway'))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 
@@ -296,7 +382,7 @@ test.describe('rendering a failure', () => {
 
 	test('a wireless candidate that did not associate passed only the link', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', failAt("$['attachments'][3]['security']['passphrase']", 'the key was refused', 'association'))
+		await answer(page, 'configuration', failsAt("$['attachments'][3]['security']['passphrase']", 'the key was refused', 'association'))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 
@@ -307,24 +393,73 @@ test.describe('rendering a failure', () => {
 		await expect(page.locator('.candidate').getByLabel('Passphrase')).toHaveClass(/field-fault/)
 	})
 
-	// Absent `reached` is a fault found before anything was applied, so there are no stages to show.
-	test('a failure before anything was applied shows no stages', async ({ page }) => {
+	// A refusal carries no `reached`: nothing was saved, so there are no stages to show.
+	test('a refusal keeps the proposal, marks the field, and says nothing was changed', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', failAt("$['hotspot']['dhcp-range']", 'collides with the upstream subnet'))
+		await answer(page, 'configuration', refusing("$['hotspot']['dhcp-range']", 'collides with the upstream subnet', IN_FORCE))
 		await page.getByText('Radio and addressing').click()
 		await page.getByLabel('DHCP range').fill('10.4.2.0/24')
 		await page.getByRole('button', { name: 'Apply' }).click()
 
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(bar(page)).toContainText('Not applied.')
+		await expect(bar(page)).toContainText('The device did not take these settings')
 		await expect(page.locator('.hotspot')).toContainText('Not accepted. Nothing was changed.')
+		await expect(page.locator('.hotspot .reason')).toHaveText('collides with the upstream subnet')
 		await expect(page.locator('.stages')).toHaveCount(0)
 		await expect(page.getByLabel('DHCP range')).toHaveClass(/field-fault/)
 		await expect(page.getByLabel('DHCP range')).toHaveValue('10.4.2.0/24')
+		await expect(page.getByLabel('DHCP range')).toBeEditable()
+		await expect(bar(page).getByRole('button')).toHaveText(['Apply', 'Reset'])
+
+		// The proposal is still unapplied, so it counts, and applying it again proposes it again.
+		const [first] = await proposals(page)
+		await page.getByLabel('DHCP range').fill('10.4.3.0/24')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		const [, second] = await proposals(page)
+		expect(second.document.hotspot['dhcp-range']).toBe('10.4.3.0/24')
+		expect(first.document.hotspot['dhcp-range']).toBe('10.4.2.0/24')
+	})
+
+	test('reset after a refusal returns the fields to what the device holds', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', refusing("$['regulatory-domain']", 'not a country this radio knows', IN_FORCE))
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await bar(page).getByRole('button', { name: 'Reset' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(page.getByLabel('Country')).toHaveValue('VU')
+		await expect(page.locator('.notice.fault')).toHaveCount(0)
+	})
+
+	// CFG: a proposal is saved only where the device sends back what was proposed.
+	test('a configuration other than the proposal is not taken for it being saved', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', [message({ type: 'configuration', document: IN_FORCE }), stateOf()])
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(page.getByLabel('Country')).toHaveValue('FJ')
+		await expect(bar(page)).toContainText('did not take these settings')
+	})
+
+	// CFG: the outcome stands, so a failure outlasts the state sent after a refusal.
+	test('a refusal stands through the state that follows it', async ({ page }) => {
+		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', refusing("$['regulatory-domain']", 'no', IN_FORCE))
+		await page.getByLabel('Country').selectOption('FJ')
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(page.getByText('no', { exact: true })).toBeVisible()
+		await say(page, stateOf())
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
+		await expect(page.getByText('no', { exact: true })).toBeVisible()
 	})
 
 	test("the device's reason is rendered as the device wrote it", async ({ page }) => {
 		const reason = "iwd: net.connman.iwd.Failed (reason=15) 'Clinic-Staff' <4-way handshake timeout>"
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', failAt("$['attachments'][3]['security']['passphrase']", reason, 'association'))
+		await answer(page, 'configuration', failsAt("$['attachments'][3]['security']['passphrase']", reason, 'association'))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(page.locator('.why.reason')).toHaveText(reason)
@@ -334,7 +469,7 @@ test.describe('rendering a failure', () => {
 // NSCR: every candidate is checked, except one the operator applies without checking after its
 // checking failed a proposal.
 test.describe('applying without checking', () => {
-	const failure = message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: '192.168.60.254 did not answer.', reached: 'gateway' })
+	const failure = failsAt("$['attachments'][1]['gateway']", '192.168.60.254 did not answer.', 'gateway')
 	const unchecked = (page) => page.locator('.candidate').getByRole('button', { name: 'Apply without checking' })
 	const checkedAgain = (page) => page.locator('.candidate').getByRole('button', { name: 'Turn checking on' })
 
@@ -375,21 +510,20 @@ test.describe('applying without checking', () => {
 		await open(page, 'Clinic wall port')
 		await expect(unchecked(page)).toHaveCount(0)
 
-		// Nor once the failure has been reset away.
+		// The failure stands on the device, so reset leaves it offered on the candidate it names.
 		await bar(page).getByRole('button', { name: 'Reset' }).click()
-		await open(page, 'North site')
-		await expect(unchecked(page)).toHaveCount(0)
+		await expect(page.locator('.candidate')).toHaveAttribute('aria-label', 'North site')
+		await expect(unchecked(page)).toBeEnabled()
 	})
 
 	// A refused passphrase names the field beneath its candidate, and the offer is on that candidate.
 	test('a refused passphrase marks its field, and its candidate is offered unchecked', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', message({
-			type: 'invalid',
-			at: "$['attachments'][3]['security']['passphrase']",
-			reason: '"Clinic-Staff" refused the connection; the passphrase is most likely wrong',
-			reached: 'association',
-		}))
+		await answer(page, 'configuration', failsAt(
+			"$['attachments'][3]['security']['passphrase']",
+			'"Clinic-Staff" refused the connection; the passphrase is most likely wrong',
+			'association',
+		))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
 		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
@@ -404,7 +538,7 @@ test.describe('applying without checking', () => {
 
 	test('it is not offered where nothing was checked', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['interface']", reason: 'eth0 is not free.' }))
+		await answer(page, 'configuration', refusing("$['attachments'][1]['interface']", 'eth0 is not free.', IN_FORCE))
 		await open(page, 'North site')
 		await page.getByLabel('Gateway').fill('192.168.60.254')
 		await page.getByRole('button', { name: 'Apply' }).click()
@@ -415,6 +549,7 @@ test.describe('applying without checking', () => {
 
 	test('the document that failed is proposed again with that candidate not checked', async ({ page }) => {
 		await failGateway(page)
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'verifying' })])
 		await unchecked(page).click()
 
 		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
@@ -427,13 +562,12 @@ test.describe('applying without checking', () => {
 		await expect(row(page, 'North site')).toContainText('not checked')
 		await expect(row(page, 'Clinic wall port')).not.toContainText('not checked')
 
-		await say(page, message({ type: 'applied' }))
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await expect(bar(page)).toContainText('Applied, not saved.')
-		await expect(bar(page).getByRole('button')).toHaveText(['Confirm', 'Cancel'])
+		await say(page, stateOf({ outcome: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await expect(bar(page)).toContainText('Applied.')
 		await expect(page.locator('.candidate .notice.fault')).toHaveCount(0)
 		await expect(page.locator('.candidate')).toContainText('Not checked, so')
-		await expect(checkedAgain(page)).toBeDisabled()
+		await expect(checkedAgain(page)).toBeEnabled()
 	})
 
 	test('an edit after the failure is applied with checking', async ({ page }) => {
@@ -451,31 +585,24 @@ test.describe('applying without checking', () => {
 		expect(edited.document.attachments[1]).toMatchObject({ gateway: '192.168.60.1', verify: true })
 	})
 
-	test('a candidate applied without checking is confirmed like any other, and saved not checked', async ({ page }) => {
+	test('a candidate applied without checking is saved not checked', async ({ page }) => {
 		await failGateway(page)
-		const [failed] = await proposals(page)
-		const saved = structuredClone(failed.document)
-		saved.attachments[1].verify = false
-		await answer(page, 'configuration', message({ type: 'applied' }))
-		await answer(page, 'confirm', message({ type: 'configuration', document: saved }))
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'applied' })])
 		await unchecked(page).click()
-		await bar(page).getByRole('button', { name: 'Confirm' }).click()
 
-		await expect(bar(page)).toContainText('Saved.')
+		await expect(bar(page)).toContainText('Applied.')
 		await expect(row(page, 'North site')).toContainText('not checked')
-		await open(page, 'North site')
 		await expect(page.getByLabel('Gateway')).toHaveValue('192.168.60.254')
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'configuration', 'confirm'])
+		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'configuration'])
 	})
 
 	// CFG: a candidate not checked is still brought up, and reported through `state`.
 	test('a candidate not checked is shown by what the device observed', async ({ page }) => {
 		await failGateway(page)
-		await answer(page, 'configuration', message({ type: 'applied' }))
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'applied' })])
 		await unchecked(page).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await say(page, message({
-			type: 'state',
+		await expect(bar(page)).toHaveAttribute('data-stage', 'editing')
+		await say(page, stateOf({
 			attachments: [
 				{ is: 'default-route' },
 				{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.254 did not answer' },
@@ -710,19 +837,20 @@ test.describe('the hotspot beside a connection', () => {
 })
 
 test.describe('the state of the session', () => {
-	test('whether the running configuration is durable stays in view while the operator scrolls', async ({ page }) => {
+	test('how the device is faring stays in view while the operator scrolls', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 640 })
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
+		await answer(page, 'configuration', [echo(), stateOf({ outcome: 'verifying' })])
 		await open(page, 'North site')
 		await page.getByText('Radio and addressing').click()
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
-		await say(page, message({ type: 'applied' }))
+		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
 
 		for (const y of [0, 400, 800]) {
 			await page.evaluate((y) => window.scrollTo(0, y), y)
 			await expect(bar(page)).toBeInViewport({ ratio: 1 })
-			await expect(bar(page)).toContainText('Applied, not saved.')
+			await expect(bar(page)).toContainText('Applying…')
 		}
 		expect(await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)).toBe(true)
 	})
@@ -732,12 +860,13 @@ test.describe('the state of the session', () => {
 		document.attachments[4].verify = false
 		document.attachments[3].enabled = false
 		await openNetwork(page, { document, capabilities: PI, states: STATES })
-		await answer(page, 'configuration', message({ type: 'invalid', at: "$['attachments'][1]['gateway']", reason: 'no answer', reached: 'gateway' }))
+		await answer(page, 'configuration', failsAt("$['attachments'][1]['gateway']", 'no answer', 'gateway'))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'errored')
 		await page.getByText('Radio and addressing').click()
 		const shown = await page.locator('.network').innerText()
-		for (const word of ['invalid', 'configure', 'discard', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', 'enabled', '$[']) {
+		for (const word of ['invalid', 'configure', 'discard', 'refus', 'cannot', 'wired-static', 'wired-dynamic', 'psk', 'sae', 'regulatory', 'default-route', 'unavailable', 'verif', 'enabled', '$[']) {
 			expect(shown.toLowerCase()).not.toContain(word)
 		}
 	})
@@ -804,163 +933,5 @@ test.describe('adapters', () => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await addWireless(page)
 		await expect(page.getByLabel('Adapter')).toHaveCount(0)
-	})
-})
-
-test.describe('the session as the device speaks it', () => {
-	test('the state of each candidate is read as the device sends it, checking included', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await say(page, message({
-			type: 'state',
-			attachments: [
-				{ is: 'verifying' },
-				{ is: 'unavailable', reached: 'gateway', reason: '192.168.60.1 did not answer' },
-				{ is: 'standby' },
-				{ is: 'hibernating' },
-				{ is: 'default-route' },
-			],
-		}))
-		await expect(row(page, 'Clinic wall port').locator('.state')).toHaveText('Checking')
-		await expect(row(page, 'North site').locator('.state')).toHaveText('No gateway')
-		await expect(row(page, 'eth0 automatic').locator('.state')).toHaveText('Standby')
-		// A state this build does not know is left unsaid, and the rest still line up.
-		await expect(row(page, 'Clinic-Staff').locator('.state')).toHaveCount(0)
-		await expect(row(page, 'BackupLink').locator('.state')).toHaveText('Default route')
-	})
-
-	// What went wrong before an apply is not left standing beside it.
-	test('a new apply clears what the last WPS join failed with', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByRole('button', { name: 'Add' }).click()
-		await page.getByRole('button', { name: 'WPS button' }).click()
-		await say(page, message({ type: 'invalid', at: '$', reason: 'No usable credentials obtained' }))
-		await expect(page.getByText('Could not join by WPS.')).toBeVisible()
-
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-		await expect(page.getByText('Could not join by WPS.')).toHaveCount(0)
-		// The activity log keeps it, as the record of what the device said.
-		await expect(page.locator('.network').getByText('No usable credentials obtained')).toHaveCount(0)
-	})
-
-	test('the states of the last configuration are not shown while a new one is checked', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI, states: STATES })
-		await expect(page.locator('.order .state')).toHaveCount(5)
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-		await expect(page.locator('.order .state')).toHaveCount(0)
-
-		await say(page, message({ type: 'applied' }))
-		await say(page, message({ type: 'state', attachments: [{ is: 'up' }, { is: 'default-route' }, { is: 'standby' }, { is: 'up' }, { is: 'up' }] }))
-		await expect(row(page, 'North site').locator('.state')).toHaveText('Default route')
-	})
-
-	test('joining by PIN shows the PIN the device generated', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByRole('button', { name: 'Add' }).click()
-		await page.getByRole('button', { name: 'WPS PIN' }).click()
-		expect((await sent(page)).at(-1)).toEqual({ type: 'wps', method: 'pin' })
-		await expect(bar(page)).toContainText('Waiting for the PIN.')
-		await say(page, message({ type: 'pin', pin: '12345670' }))
-		await expect(bar(page).locator('.pin')).toHaveText('12345670')
-		await expect(bar(page)).toContainText('Enter 12345670 on the access point.')
-	})
-
-	// CFG: capabilities a proposal changed come on `applied`, those a return to the recorded
-	// configuration changed back on the next `state`, and the next proposal is checked against the
-	// latest.
-	test('capabilities are refreshed from applied, and from the state after a revert', async ({ page }) => {
-		const narrowed = structuredClone(INDEPENDENT)
-		narrowed.document.hotspot.interface.wlan0.band['5ghz'].channel = [36, 40]
-		await openNetwork(page, { document: IN_FORCE, capabilities: INDEPENDENT })
-		await answer(page, 'configuration', message({ type: 'applied', capabilities: narrowed }))
-		const hotspot = page.locator('.hotspot')
-		await hotspot.getByText('Radio and addressing').click()
-		await hotspot.getByLabel('Band').selectOption('5ghz')
-		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40', '44', '48'])
-
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40'])
-		await bar(page).getByRole('button', { name: 'Cancel' }).click()
-		// The device said nothing of them since, so the narrowed set still holds.
-		await hotspot.getByLabel('Band').selectOption('5ghz')
-		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40'])
-
-		await say(page, message({ type: 'state', attachments: [], capabilities: INDEPENDENT }))
-		await hotspot.getByLabel('Band').selectOption('5ghz')
-		await expect(hotspot.getByLabel('Channel').locator('option')).toHaveText(['Device picks', '36', '40', '44', '48'])
-	})
-
-	// CFG: every proposal is answered once, an interrupted one with `invalid` at `$`, so the answer to
-	// an abandoned proposal is not read as the answer to the next.
-	test('the answer to an abandoned proposal is not taken for the next one', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await bar(page).getByRole('button', { name: 'Cancel' }).click()
-		await page.getByLabel('Country').selectOption('WS')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-
-		await say(page, message({ type: 'invalid', at: '$', reason: 'discarded before it was verified' }))
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applying')
-		await say(page, message({ type: 'applied' }))
-		await expect(bar(page)).toHaveAttribute('data-stage', 'applied')
-		expect((await sent(page)).map((each) => each.type)).toEqual(['configure', 'configuration', 'discard', 'configuration'])
-	})
-})
-
-// NSCR: whatever waits on the device says so, with the spinner, until the device answers.
-test.describe('waiting on the device', () => {
-	const spinning = (locator) => locator.locator('.spinner')
-
-	test('opening a session shows it is waiting until the device answers', async ({ page }) => {
-		await openChannel(page)
-		await openNetworkScreen(page)
-		const asking = page.getByText('Asking the device for its network settings.')
-		await expect(asking).toBeVisible()
-		await expect(spinning(page.locator('.network'))).toHaveCount(1)
-		await say(page, message({ type: 'configuration', document: IN_FORCE, capabilities: PI }))
-		await expect(page.getByRole('heading', { name: 'Connections' })).toBeVisible()
-		await expect(asking).toHaveCount(0)
-	})
-
-	test('applying shows it is waiting until the device answers', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.getByLabel('Country').selectOption('FJ')
-		await page.getByRole('button', { name: 'Apply' }).click()
-		await expect(bar(page)).toContainText('Applying.')
-		await expect(spinning(bar(page))).toHaveCount(1)
-		await say(page, message({ type: 'applied' }))
-		await expect(spinning(bar(page))).toHaveCount(0)
-	})
-
-	test('scanning shows it is waiting until the device answers', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await addWireless(page)
-		await page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true }).click()
-		const scanning = page.locator('.candidate').getByRole('button', { name: 'Scanning' })
-		await expect(scanning).toBeDisabled()
-		await expect(spinning(scanning)).toHaveCount(1)
-		await say(page, message({ type: 'networks', 'access-points': [ap({ bssid: 'a4:2b:b0:11:2c:40', ssid: 'Clinic', signal: -52 })] }))
-		await expect(page.locator('.candidate').getByRole('button', { name: 'Scan', exact: true })).toBeEnabled()
-		await expect(page.getByRole('button', { name: 'Clinic', exact: true })).toBeVisible()
-	})
-
-	test('surveying shows it is waiting until the device answers', async ({ page }) => {
-		await openNetwork(page, { document: IN_FORCE, capabilities: INDEPENDENT })
-		const hotspot = page.locator('.hotspot')
-		await hotspot.getByText('Radio and addressing').click()
-		await hotspot.getByRole('button', { name: 'Survey the spectrum' }).click()
-		const surveying = hotspot.getByRole('button', { name: 'Surveying' })
-		await expect(surveying).toBeDisabled()
-		await expect(spinning(surveying)).toHaveCount(1)
-		await say(page, message({ type: 'spectrum', spectrum: { channels: [{ interface: 'wlan0', band: '5ghz', channel: 36, networks: 2, busy: 0.4 }] } }))
-		await expect(hotspot.getByRole('button', { name: 'Survey the spectrum' })).toBeEnabled()
-		await expect(hotspot.locator('.spectrum li')).toHaveText(['36 · 5 GHz2 networks, 40% busy'])
 	})
 })

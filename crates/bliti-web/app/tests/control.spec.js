@@ -162,37 +162,35 @@ test.describe('the Control screen', () => {
 		await expect(page.getByRole('alertdialog')).toContainText('It stays off until it is turned on at the device.')
 	})
 
-	test('says unsaved network settings will be lost, only while the device is trying some', async ({ page }) => {
-		await openControl(page)
-		await power(page).getByRole('button', { name: 'Reboot' }).click()
-		await expect(page.getByRole('alertdialog')).not.toContainText('not saved')
-		await page.getByRole('button', { name: 'Cancel' }).click()
-
-		await emit(page, fact('network-configuration', 'provisional'))
-		await power(page).getByRole('button', { name: 'Reboot' }).click()
-		await expect(page.getByRole('alertdialog')).toContainText(
-			'The network settings it is trying are not saved, and will be lost.',
-		)
-	})
-
-	test('says network edits not applied will be lost, and shows them kept', async ({ page }) => {
+	test('says nothing of the network settings in the confirmation of an act', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
 
 		await expect(title(page)).toHaveText('Control')
-		await expect(page.getByText('1 network change not applied.')).toBeVisible()
+		await emit(page, fact('network-configuration', 'provisional'))
 		await power(page).getByRole('button', { name: 'Reboot' }).click()
-		await expect(page.getByRole('alertdialog')).toContainText('The network changes not applied will be lost.')
+		await expect(page.getByRole('alertdialog')).toContainText('Reboot the device?')
+		await expect(page.getByRole('alertdialog')).not.toContainText('network')
+		await expect(page.getByRole('alertdialog')).not.toContainText('lost')
 	})
 
-	test('renders a refusal as the device wrote it', async ({ page }) => {
+	test('renders the reason of a cannot-act as the device wrote it', async ({ page }) => {
 		await openControl(page)
-		await answer(page, 'act', message({ type: 'refused', reason: 'the device is already rebooting' }))
+		await answer(page, 'act', message({ type: 'cannot-act', act: 'power-off', at: '$', reason: 'the device is already rebooting' }))
 		await confirmAct(page, 'Power off')
 		await expect(power(page).getByText('the device is already rebooting')).toBeVisible()
 		await expect(title(page)).toHaveText('Control')
+	})
+
+	test('renders the reason of an act it did not list, refused at its member', async ({ page }) => {
+		await openControl(page)
+		await answer(page, 'act', message({ type: 'cannot-act', act: 'power-off', at: "$['act']", reason: 'power-off is not an act this device carries out' }))
+		await confirmAct(page, 'Power off')
+		await expect(power(page).getByText('power-off is not an act this device carries out')).toBeVisible()
+		await expect(power(page).getByRole('button', { name: 'Power off' })).toBeEnabled()
 	})
 })
 
@@ -289,12 +287,16 @@ test.describe('the battery section', () => {
 		expect(await curveSent(page)).toEqual([{ type: 'curve' }, { type: 'reset' }])
 	})
 
-	test('renders a refused import as the device wrote it', async ({ page }) => {
+	test('renders the reason of a cannot-configure import as the device wrote it', async ({ page }) => {
 		await openBattery(page)
 		await answer(
 			page,
 			'load',
-			message({ type: 'refused', reason: "the discharging curve's first point is at 3.1 V, above the 2.8 V floor" }),
+			message({
+				type: 'cannot-configure',
+				at: "$['discharging']['points'][0]",
+				reason: "the discharging curve's first point is at 3.1 V, above the 2.8 V floor",
+			}),
 		)
 		await pickFile(page, 'battery-curve.json', JSON.stringify({ discharging: { points: [[3.1, 0], [4.2, 1]] } }))
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Import' }).click()
@@ -302,6 +304,15 @@ test.describe('the battery section', () => {
 			battery(page).getByText("the discharging curve's first point is at 3.1 V, above the 2.8 V floor"),
 		).toBeVisible()
 		await expect(battery(page).getByRole('button', { name: 'Import' })).toBeEnabled()
+	})
+
+	test('renders the reason of a cannot-act reset as the device wrote it', async ({ page }) => {
+		await openBattery(page)
+		await answer(page, 'reset', message({ type: 'cannot-act', act: 'reset', at: '$', reason: 'this device manages no backup supply' }))
+		await battery(page).getByRole('button', { name: 'Reset' }).click()
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Reset' }).click()
+		await expect(battery(page).getByText('this device manages no backup supply')).toBeVisible()
+		await expect(battery(page).getByRole('button', { name: 'Reset' })).toBeEnabled()
 	})
 
 	test('asks for nothing with a file that is not JSON', async ({ page }) => {

@@ -473,7 +473,7 @@ pub(super) fn hotspot_channel(band: &str, channel: u32) -> bool {
 	hostapd::band(band).is_ok_and(|band| hostapd::exists(band, channel))
 }
 
-/// Where iwd keeps the pre-shared-key network `ssid`, as a WPS join leaves it.
+/// Where iwd keeps the pre-shared-key network `ssid` bliti rendered.
 pub fn known_psk(paths: &Paths, ssid: &str) -> PathBuf {
 	paths
 		.iwd_state
@@ -491,7 +491,6 @@ fn invalid(at: &[Segment<'_>], reason: impl Into<String>) -> Invalid {
 	Invalid {
 		at: path(at),
 		reason: reason.into(),
-		reached: None,
 	}
 }
 

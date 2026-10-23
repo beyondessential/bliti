@@ -170,8 +170,7 @@ fn escape(value: &str) -> String {
 	out
 }
 
-/// The passphrase in a pre-shared-key network file, as ell reads it back: iwd writes one there
-/// when WPS hands it a passphrase rather than a raw key.
+/// The passphrase in a pre-shared-key network file, as ell reads it back.
 pub(super) fn passphrase(contents: &str) -> Option<String> {
 	let mut section = "";
 	for line in contents.lines() {
@@ -230,7 +229,7 @@ mod tests {
 		assert_eq!(escape("plain"), "plain");
 	}
 
-	/// What iwd wrote after WPS reads back as the passphrase it holds.
+	/// What bliti rendered reads back as the passphrase it holds.
 	#[test]
 	fn a_passphrase_reads_back_unescaped() {
 		let file = "[Settings]\nAutoConnect=true\n\n[Security]\nPreSharedKey=00ff\nPassphrase=\\s\\sa b\\\\c\n";

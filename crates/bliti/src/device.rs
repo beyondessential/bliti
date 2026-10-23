@@ -64,9 +64,8 @@ pub async fn run(
 	}
 	let keys = Arc::new(identity.keys);
 
-	// The recorded network configuration goes in force before anything else, since nothing provisional
-	// survives a restart (CFG). One configurator serves every connection, so at most one configuration
-	// session is open device-wide.
+	// The configuration the device holds goes in force before anything else (CFG). One configurator
+	// serves every connection, so the configuration is the device's, whichever connection reads it.
 	let sys_class_net = Path::new(wired::SYS_CLASS_NET);
 	let backend = match backend {
 		NetworkBackend::Inert => Chosen::Inert(Inert),
@@ -83,7 +82,7 @@ pub async fn run(
 		wired::unconfigured(sys_class_net),
 	)
 	.await
-	.context("putting the recorded network configuration in force")?;
+	.context("putting the held network configuration in force")?;
 
 	let session = bluer::Session::new().await?;
 	let adapter = match adapter_name {
@@ -489,7 +488,7 @@ struct Shared {
 	keys: Arc<DeviceKeys>,
 	readvertise: Arc<tokio::sync::Notify>,
 	sampler: crate::sampler::Sampler,
-	configurator: Configurator<Chosen>,
+	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
 	pacer: Arc<Mutex<Pacer>>,

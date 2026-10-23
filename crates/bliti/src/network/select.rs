@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use bliti_core::channel::config::{
-	Attachment, AttachmentKind, Document, Hotspot, Invalid, Segment,
+	Attachment, AttachmentKind, Document, Failure, Hotspot, Invalid, Segment,
 };
 
 use super::render::{Channel, Selection};
@@ -85,8 +85,8 @@ impl Stage {
 
 	/// A candidate's verification that stopped at this stage, at the part of the document named by `at`,
 	/// a Normalized Path made with [`bliti_core::channel::config::path`].
-	pub fn failed(self, at: impl Into<String>, reason: impl Into<String>) -> Invalid {
-		Invalid {
+	pub fn failed(self, at: impl Into<String>, reason: impl Into<String>) -> Failure {
+		Failure {
 			at: at.into(),
 			reason: reason.into(),
 			reached: Some(self.as_str().to_owned()),

@@ -1,99 +1,74 @@
-//! What a configuration session drives: the running system beneath it.
+//! What the configuration session drives: the running system beneath it.
 //!
-//! The session owns the exchange of CFG and the recorded configuration; a [`Backend`] owns
-//! everything that touches the network, including the capabilities it states and the check against
-//! them (NET).
+//! The session owns the exchange of CFG and the held configuration; a [`Backend`] owns everything
+//! that touches the network, including the capabilities it states and the check against them (NET).
 
 use std::future::Future;
 
-use bliti_core::channel::config::{Document, Invalid, path};
+use bliti_core::channel::config::{Document, Failure, Invalid, path};
 use serde_json::{Map, Value as Json, json};
-use tokio::sync::{oneshot, watch};
+use tokio::sync::watch;
 
 use crate::network::select::State;
 
-/// The running system a configuration session drives.
+/// The running system the configurator drives.
 ///
-/// A session holds its backend exclusively, so every method may take `&mut self`. Futures are `Send`
-/// because a session runs on a spawned task, and a session dropped with a proposal applied restores
-/// on another.
-pub trait Backend: Send + 'static {
+/// Every method takes `&self`, so a scan can be served while a verification runs. Futures are `Send`
+/// because the configurator runs on a spawned task.
+pub trait Backend: Send + Sync + 'static {
 	/// What this device supports now, in the shape of NET: `document`, `acts`, and `radios` where it
-	/// has any. The session checks every proposal against `document` and every act against `acts`
-	/// before the backend sees it, and asks again after each apply, telling the client where it
-	/// changed.
+	/// has any. The configurator checks every proposal against `document` and every act against
+	/// `acts` before the backend sees it, and asks again whenever the backend's states change,
+	/// telling each session where it changed.
 	fn capabilities(&self) -> Map<String, Json>;
 
 	/// Refuse a document for what the mirror of `capabilities.document` cannot express, such as a
 	/// hotspot on a one-at-a-time radio that a candidate also needs, before any of it is applied (NET).
-	/// The session has already applied [`Document::parse`] and the mirror.
+	/// The configurator has already applied [`Document::parse`] and the mirror.
 	fn check(&self, document: &Document) -> Result<(), Invalid>;
 
 	/// The state of each candidate of the configuration running, each entry in the shape `state`
 	/// carries (CFG), as [`entry`] makes one. `None` where the backend cannot observe its candidates.
 	///
 	/// Before [`Self::apply`] or [`Self::restore`] returns, what the receiver holds is for the document
-	/// it was given, and changes after are published as they are observed. The session sends what it
-	/// holds whenever it changes, provided it matches the configuration running position for position.
+	/// it was given, and changes after are published as they are observed. The configurator publishes
+	/// what it holds whenever it changes, provided it matches the configuration held position for
+	/// position.
 	fn states(&self) -> watch::Receiver<Option<Vec<Json>>>;
 
-	/// Make the running system match a document, without recording it anywhere, and verify it through
-	/// the stages of LINK. A failure of a candidate's verification carries the stage it stopped at.
+	/// Make the running system match `document` and verify it through the stages of LINK, judging it
+	/// on the candidates it adds or changes against `replacing`. A failure of a candidate's
+	/// verification carries the stage it stopped at.
 	///
-	/// Dropping the future aborts the attempt; the session restores the recorded configuration after.
-	fn apply(&mut self, document: &Document) -> impl Future<Output = Result<(), Invalid>> + Send;
+	/// Dropping the future abandons the verification. The system keeps running `document`.
+	fn apply(
+		&self,
+		document: &Document,
+		replacing: &Document,
+	) -> impl Future<Output = Result<(), Failure>> + Send;
 
-	/// Return the running system to a recorded configuration.
-	fn restore(&mut self, document: &Document) -> impl Future<Output = anyhow::Result<()>> + Send;
+	/// Make the running system match a document that was settled before, without verifying it.
+	fn restore(&self, document: &Document) -> impl Future<Output = Result<(), Failure>> + Send;
 
 	/// What the radios can see, each entry in the shape the answer to `scan` carries: on `interface`
 	/// alone where one is named, else on every radio able to scan.
 	fn scan(
-		&mut self,
+		&self,
 		interface: Option<&str>,
 	) -> impl Future<Output = Result<Vec<Json>, Invalid>> + Send;
 
 	/// What the radios can see of the spectrum, on `interface` alone where one is named, else on every
 	/// radio able to survey. `None` where none asked can.
 	fn survey(
-		&mut self,
+		&self,
 		interface: Option<&str>,
 	) -> impl Future<Output = Result<Option<Map<String, Json>>, Invalid>> + Send;
-
-	/// Join a wireless network by WPS as `asked`, leaving the result applied and unrecorded like any
-	/// proposal.
-	///
-	/// `base` is the document in force; the answer is that document with the joined network added as a
-	/// candidate carrying the credentials WPS yielded. Dropping the future aborts the attempt.
-	///
-	/// Where `asked` names an `ssid`, credentials for any other network are discarded, leaving nothing
-	/// of them behind, and the join refused at `$['ssid']` (WLAN).
-	///
-	/// Joining by PIN, the backend sends the PIN it generated on `pin` as soon as it has one, for the
-	/// session to pass to the operator while the join goes on. Push-button drops it unsent.
-	fn wps(
-		&mut self,
-		asked: &Wps,
-		base: &Map<String, Json>,
-		pin: oneshot::Sender<String>,
-	) -> impl Future<Output = Result<Map<String, Json>, Invalid>> + Send;
-}
-
-/// A `wps` act, as the session hands it to the backend (CFG).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Wps {
-	/// `push-button` or `pin`.
-	pub method: String,
-	/// The radio to join on; unset, the backend chooses one offering `method`.
-	pub interface: Option<String>,
-	/// The one network whose credentials may be accepted; unset, any.
-	pub ssid: Option<String>,
 }
 
 /// A candidate's state as an entry of `state` (CFG).
 ///
 /// `verifying` carries no stage on the wire: the stage it waits on is the selector's to track. Nor
-/// does `unavailable` carry the member at fault, which only `invalid` names.
+/// does `unavailable` carry the member at fault, which only a failure names.
 pub fn entry(state: &State) -> Json {
 	match state {
 		State::DefaultRoute => json!({"is": "default-route"}),
@@ -116,7 +91,7 @@ pub fn entry(state: &State) -> Json {
 /// it keeps whatever network its image brought up.
 ///
 /// It publishes no states. It brings no candidate up and observes none, so every value `is` can take
-/// would be a claim about the recorded configuration's candidates it has no grounds for: the network
+/// would be a claim about the held configuration's candidates it has no grounds for: the network
 /// the image brought up may or may not be the one a candidate names.
 pub struct Inert;
 
@@ -135,15 +110,18 @@ impl Backend for Inert {
 		Err(Invalid {
 			at: path(&[]),
 			reason: INERT.to_owned(),
+		})
+	}
+
+	async fn apply(&self, _document: &Document, _replacing: &Document) -> Result<(), Failure> {
+		Err(Failure {
+			at: path(&[]),
+			reason: INERT.to_owned(),
 			reached: None,
 		})
 	}
 
-	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
-		self.check(document)
-	}
-
-	async fn restore(&mut self, _document: &Document) -> anyhow::Result<()> {
+	async fn restore(&self, _document: &Document) -> Result<(), Failure> {
 		Ok(())
 	}
 
@@ -151,32 +129,15 @@ impl Backend for Inert {
 		watch::channel(None).1
 	}
 
-	async fn scan(&mut self, _interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
+	async fn scan(&self, _interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 		Err(Invalid {
 			at: path(&[]),
 			reason: "this build of bliti cannot scan for wireless networks".to_owned(),
-			reached: None,
 		})
 	}
 
-	async fn survey(
-		&mut self,
-		_interface: Option<&str>,
-	) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(&self, _interface: Option<&str>) -> Result<Option<Map<String, Json>>, Invalid> {
 		Ok(None)
-	}
-
-	async fn wps(
-		&mut self,
-		_asked: &Wps,
-		_base: &Map<String, Json>,
-		_pin: oneshot::Sender<String>,
-	) -> Result<Map<String, Json>, Invalid> {
-		Err(Invalid {
-			at: path(&[]),
-			reason: "this build of bliti cannot join a network by WPS".to_owned(),
-			reached: None,
-		})
 	}
 }
 
@@ -191,16 +152,15 @@ mod tests {
 			Json::Array(Vec::new()),
 		)]))
 		.unwrap();
-		let mut inert = Inert;
+		let inert = Inert;
 		assert_eq!(
 			Json::Object(inert.capabilities()),
 			json!({"document": {}, "acts": {}}),
 			"offering no member and no act"
 		);
 		assert_eq!(*inert.states().borrow(), None, "observing nothing");
-		let refused = inert.check(&document).unwrap_err();
-		assert_eq!(refused.reached, None);
-		assert!(inert.apply(&document).await.is_err());
+		assert!(inert.check(&document).is_err());
+		assert!(inert.apply(&document, &document).await.is_err());
 		assert!(inert.restore(&document).await.is_ok());
 		assert_eq!(inert.survey(None).await, Ok(None));
 	}

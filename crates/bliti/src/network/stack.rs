@@ -1,7 +1,7 @@
 //! The backend that configures the network: the selector, renderer and applier joined, driven by
 //! what the observers see.
 //!
-//! [`Stack`] is what a configuration session holds. Everything that changes the running system goes
+//! [`Stack`] is what the configurator holds. Everything that changes the running system goes
 //! through one [`driver`] task, which owns the selector and the applier's [`System`] and is fed
 //! observations, commands and its own timers. A proposal is configured on the selector, rendered for
 //! the selector's decision, applied on the blocking pool, and then verified from what is observed
@@ -14,7 +14,9 @@ use std::{
 	sync::{Arc, Mutex, PoisonError},
 };
 
-use bliti_core::channel::config::{AttachmentKind, Document, Hotspot, Invalid, Segment, path};
+use bliti_core::channel::config::{
+	AttachmentKind, Document, Failure, Hotspot, Invalid, Segment, path,
+};
 use serde_json::{Map, Value as Json};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -24,7 +26,7 @@ use super::{
 	probe::{self, RadioInfo},
 	render,
 	select::{self, Alongside},
-	session::{Backend, Inert, Wps},
+	session::{Backend, Inert},
 };
 
 pub use self::report::Report;
@@ -39,7 +41,7 @@ mod verify;
 /// What the backend has the system do beyond applying files.
 #[derive(Clone)]
 pub struct Platform {
-	/// iwd, for joining, scanning and WPS.
+	/// iwd, for joining and scanning.
 	pub iwd: Arc<dyn Iwd>,
 	/// The radios, over nl80211.
 	pub air: Arc<dyn Air>,
@@ -137,11 +139,7 @@ impl Shared {
 			}
 		}
 		match reasons.into_iter().next() {
-			Some(reason) => Err(Invalid {
-				at: path(&[Segment::Name("hotspot")]),
-				reason,
-				reached: None,
-			}),
+			Some(reason) => Err(Invalid::at(path(&[Segment::Name("hotspot")]), reason)),
 			None => Ok(()),
 		}
 	}
@@ -167,7 +165,7 @@ impl Shared {
 impl Stack {
 	/// Probe the radios and start the task driving the running system, fed by `observations`.
 	///
-	/// Nothing is applied until the session restores the recorded configuration.
+	/// Nothing is applied until the configurator restores or applies the configuration it holds.
 	pub async fn start(
 		config: Config,
 		platform: Platform,
@@ -236,8 +234,14 @@ impl Stack {
 	}
 }
 
-/// Why a request to the task went unanswered.
-const STOPPED: &str = "the network backend has stopped";
+/// The failure of a request the task never answered.
+fn stopped() -> Failure {
+	Failure {
+		at: path(&[]),
+		reason: "the network backend has stopped".to_owned(),
+		reached: None,
+	}
+}
 
 impl Backend for Stack {
 	fn capabilities(&self) -> Map<String, Json> {
@@ -262,44 +266,30 @@ impl Backend for Stack {
 		self.states.clone()
 	}
 
-	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
-		let document = document.clone();
-		self.ask(|reply| driver::Command::Apply { document, reply })
-			.await
-			.unwrap_or_else(|| {
-				Err(Invalid {
-					at: path(&[]),
-					reason: STOPPED.to_owned(),
-					reached: None,
-				})
-			})
+	async fn apply(&self, document: &Document, replacing: &Document) -> Result<(), Failure> {
+		let (document, replacing) = (document.clone(), replacing.clone());
+		self.ask(|reply| driver::Command::Apply {
+			document,
+			replacing,
+			reply,
+		})
+		.await
+		.unwrap_or_else(|| Err(stopped()))
 	}
 
-	async fn restore(&mut self, document: &Document) -> anyhow::Result<()> {
+	async fn restore(&self, document: &Document) -> Result<(), Failure> {
 		let document = document.clone();
 		self.ask(|reply| driver::Command::Restore { document, reply })
 			.await
-			.unwrap_or_else(|| Err(anyhow::anyhow!(STOPPED)))
+			.unwrap_or_else(|| Err(stopped()))
 	}
 
-	async fn scan(&mut self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
+	async fn scan(&self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 		acts::scan(&self.shared, interface).await
 	}
 
-	async fn survey(
-		&mut self,
-		interface: Option<&str>,
-	) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(&self, interface: Option<&str>) -> Result<Option<Map<String, Json>>, Invalid> {
 		acts::survey(&self.shared, interface).await
-	}
-
-	async fn wps(
-		&mut self,
-		asked: &Wps,
-		base: &Map<String, Json>,
-		pin: oneshot::Sender<String>,
-	) -> Result<Map<String, Json>, Invalid> {
-		acts::wps(self, asked, base, pin).await
 	}
 }
 
@@ -343,46 +333,31 @@ impl Backend for Chosen {
 		}
 	}
 
-	async fn apply(&mut self, document: &Document) -> Result<(), Invalid> {
+	async fn apply(&self, document: &Document, replacing: &Document) -> Result<(), Failure> {
 		match self {
-			Self::Inert(backend) => backend.apply(document).await,
-			Self::Stack(backend) => backend.apply(document).await,
+			Self::Inert(backend) => backend.apply(document, replacing).await,
+			Self::Stack(backend) => backend.apply(document, replacing).await,
 		}
 	}
 
-	async fn restore(&mut self, document: &Document) -> anyhow::Result<()> {
+	async fn restore(&self, document: &Document) -> Result<(), Failure> {
 		match self {
 			Self::Inert(backend) => backend.restore(document).await,
 			Self::Stack(backend) => backend.restore(document).await,
 		}
 	}
 
-	async fn scan(&mut self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
+	async fn scan(&self, interface: Option<&str>) -> Result<Vec<Json>, Invalid> {
 		match self {
 			Self::Inert(backend) => backend.scan(interface).await,
 			Self::Stack(backend) => backend.scan(interface).await,
 		}
 	}
 
-	async fn survey(
-		&mut self,
-		interface: Option<&str>,
-	) -> Result<Option<Map<String, Json>>, Invalid> {
+	async fn survey(&self, interface: Option<&str>) -> Result<Option<Map<String, Json>>, Invalid> {
 		match self {
 			Self::Inert(backend) => backend.survey(interface).await,
 			Self::Stack(backend) => backend.survey(interface).await,
-		}
-	}
-
-	async fn wps(
-		&mut self,
-		asked: &Wps,
-		base: &Map<String, Json>,
-		pin: oneshot::Sender<String>,
-	) -> Result<Map<String, Json>, Invalid> {
-		match self {
-			Self::Inert(backend) => backend.wps(asked, base, pin).await,
-			Self::Stack(backend) => backend.wps(asked, base, pin).await,
 		}
 	}
 }

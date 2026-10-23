@@ -41,10 +41,12 @@ fn the_power_messages_are_described_as_the_wire_names_them() {
 		),
 		(Message::Accepted, serde_json::json!({"type": "accepted"})),
 		(
-			Message::Refused {
+			Message::CannotAct {
+				act: "reboot".to_owned(),
+				at: "$['act']".to_owned(),
 				reason: "no".to_owned(),
 			},
-			serde_json::json!({"type": "refused", "reason": "no"}),
+			serde_json::json!({"type": "cannot-act", "act": "reboot", "at": "$['act']", "reason": "no"}),
 		),
 		(
 			Message::GoingAway {
@@ -123,10 +125,15 @@ fn the_curve_messages_are_described_as_the_wire_names_them() {
 		),
 		(Message::Accepted, serde_json::json!({"type": "accepted"})),
 		(
-			Message::Refused {
+			Message::CannotConfigure {
+				at: "$['discharging']['points'][0]".to_owned(),
 				reason: "the first point is above the floor".to_owned(),
 			},
-			serde_json::json!({"type": "refused", "reason": "the first point is above the floor"}),
+			serde_json::json!({
+				"type": "cannot-configure",
+				"at": "$['discharging']['points'][0]",
+				"reason": "the first point is above the floor",
+			}),
 		),
 	] {
 		let (described, fault) = describe(&message.to_json());

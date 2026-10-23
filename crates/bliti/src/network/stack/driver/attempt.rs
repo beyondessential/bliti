@@ -53,9 +53,6 @@ impl Driver {
 			return;
 		};
 		let station = check.interface.clone();
-		if self.held.contains(&station) {
-			return;
-		}
 		if let Some(Station::Connected(joined)) = self.stations.get(&station)
 			&& joined.ssid == joining.target.ssid
 		{
@@ -169,7 +166,7 @@ impl Driver {
 					.radios()
 					.iter()
 					.any(|radio| radio.station == interface && radio.scan);
-				if scans && !self.held.contains(&interface) {
+				if scans {
 					self.scan(interface, Scanner::Refused(attempt));
 				} else {
 					self.rescanned(attempt);

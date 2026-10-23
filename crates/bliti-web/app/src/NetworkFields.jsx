@@ -456,7 +456,6 @@ function SsidField({ candidate, at, onChange, change, capabilities, marks, scan,
 					change={change}
 					capabilities={capabilities}
 					onPicked={onPicked}
-					joinByWps={scan.joinByWps}
 				/>
 			)}
 		</>

@@ -558,8 +558,12 @@ async fn an_act_accepted_is_announced_on_every_feed_before_it_is_carried_out() {
 	.await
 	.unwrap();
 	assert!(
-		matches!(next(&mut power).await, Message::Refused { reason } if reason.contains("power-off")),
-		"an act not listed is refused"
+		matches!(
+			next(&mut power).await,
+			Message::CannotAct { act, at, reason }
+				if act == "power-off" && at == "$['act']" && reason.contains("power-off")
+		),
+		"an act not listed is refused at its `act`"
 	);
 
 	write_message(
@@ -647,7 +651,9 @@ async fn a_low_battery_shutdown_is_announced_and_refuses_every_act() {
 	.unwrap();
 	assert_eq!(
 		next(&mut power).await,
-		Message::Refused {
+		Message::CannotAct {
+			act: "reboot".to_owned(),
+			at: "$".to_owned(),
 			reason: "the device is already powering off for a low battery".to_owned()
 		}
 	);

@@ -10,7 +10,9 @@
 // A configuration session (CFG) is a fake device at the same layer. Every message the page sends on it
 // is recorded in window.__blitiSent, in order, and window.__blitiAnswers holds the device's scripted
 // answers: for each message type, a queue whose next entry is sent back when the page sends one. An
-// entry is one outcome or a list of them. Anything else a test wants the device to say it emits.
+// entry is one outcome or a list of them, where `{ echo: true }` stands for the `configuration` that
+// sends back the document the page just proposed (CFG). Anything else a test wants the device to say
+// it emits.
 //
 // A power stream (CTL) is scripted from the same answers, and what the page sends on it is recorded
 // in window.__blitiPowerSent, apart from the configuration session's. A curve stream (CRV) is scripted
@@ -111,8 +113,12 @@ window.__blitiClient = {
 			const queue = window.__blitiAnswers[message.type]
 			const next = Array.isArray(queue) ? queue.shift() : undefined
 			if (next === undefined) return
+			const said = (event) =>
+				event.echo
+					? { kind: 'message', message: { type: 'configuration', document: message.document, ...(event.capabilities ? { capabilities: event.capabilities } : {}) } }
+					: event
 			setTimeout(() => {
-				for (const event of Array.isArray(next) ? next : [next]) if (session.open) onEvent(event)
+				for (const event of Array.isArray(next) ? next : [next]) if (session.open) onEvent(said(event))
 			}, 0)
 		}
 		const send = (message) => {
@@ -131,12 +137,8 @@ window.__blitiClient = {
 		return {
 			// Copied as the wasm half copies it, by writing it out as JSON.
 			propose: (document) => send({ type: 'configuration', document: JSON.parse(JSON.stringify(document)) }),
-			confirm: () => send({ type: 'confirm' }),
-			discard: () => send({ type: 'discard' }),
 			scan: (iface) => send(iface ? { type: 'scan', interface: iface } : { type: 'scan' }),
 			survey: (iface) => send(iface ? { type: 'survey', interface: iface } : { type: 'survey' }),
-			wps: (method, iface, ssid) =>
-				send({ type: 'wps', method, ...(iface ? { interface: iface } : {}), ...(ssid ? { ssid } : {}) }),
 			close: () => {
 				session.open = false
 				session.closedByPage = true
@@ -253,13 +255,47 @@ export async function say(page, event) {
 	await page.evaluate((event) => window.__blitiSession.emit(event), event)
 }
 
+/// A `state` as the device sends it: not busy, its configuration applied, and the state of each
+/// candidate, unless a test says otherwise.
+export const stateOf = ({ busy = false, outcome = 'applied', failure, attachments = [], capabilities } = {}) =>
+	message({
+		type: 'state',
+		busy,
+		outcome,
+		...(failure ? { failure } : {}),
+		attachments,
+		...(capabilities ? { capabilities } : {}),
+	})
+
+/// The `configuration` that sends back the document the page proposed, saying the device saved it,
+/// with `capabilities` where they changed (CFG).
+export const echo = (capabilities) => ({ echo: true, capabilities })
+
+/// What a device sends on saving a proposal that then fails at `at`: the document back, then the
+/// outcome. `reached` is the verification stage where a candidate's verification stopped.
+export const failsAt = (at, reason, reached) => [
+	echo(),
+	stateOf({ outcome: 'verifying' }),
+	stateOf({ outcome: 'failed', failure: { at, reason, ...(reached ? { reached } : {}) } }),
+]
+
+/// What a device sends on refusing a proposal: the refusal, then the configuration it holds,
+/// unchanged, then the state that follows it (CFG).
+export const refusing = (at, reason, held, outcome = 'applied') => [
+	message({ type: 'cannot-configure', at, reason }),
+	message({ type: 'configuration', document: held }),
+	stateOf({ outcome }),
+]
+
 /// Take the application to the network screen of a device answering `configure` with `document` and
-/// `capabilities`, and optionally the state of each candidate.
-export async function openNetwork(page, { document, capabilities, states }) {
+/// `capabilities`, then its `state`: `states` for each candidate, and `busy`, `outcome` and `failure`
+/// where a test wants the device in another state.
+export async function openNetwork(page, { document, capabilities, states, busy, outcome, failure }) {
 	await openChannel(page)
-	const answers = [message({ type: 'configuration', document, capabilities })]
-	if (states) answers.push(message({ type: 'state', attachments: states }))
-	await answer(page, 'configure', answers)
+	await answer(page, 'configure', [
+		message({ type: 'configuration', document, capabilities }),
+		stateOf({ busy, outcome, failure, attachments: states }),
+	])
 	await openNetworkScreen(page)
 	await page.getByRole('heading', { name: 'Connections' }).waitFor()
 }

@@ -47,7 +47,7 @@ test('turning a connection off and on again leaves nothing to apply', async ({ p
 	await open(page, 'North site')
 	await toggle(page, 'Turn off').click()
 	await toggle(page, 'Turn on').click()
-	await expect(bar(page)).toContainText('Saved.')
+	await expect(bar(page)).toContainText('Applied.')
 })
 
 test('a connection the device reports off is shown off', async ({ page }) => {
@@ -112,7 +112,7 @@ test('turning the hotspot off and on again leaves nothing to apply', async ({ pa
 	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 	await hotspotButton(page, 'Turn off').click()
 	await hotspotButton(page, 'Turn on').click()
-	await expect(bar(page)).toContainText('Saved.')
+	await expect(bar(page)).toContainText('Applied.')
 })
 
 test('a hotspot turned off says nothing about the connection it cannot run beside', async ({ page }) => {
@@ -146,7 +146,7 @@ test('a hotspot turned off before it is filled in is removed', async ({ page }) 
 
 	await expect(page.locator('section.hotspot')).toContainText('Off.')
 	await expect(page.locator('section.hotspot').getByLabel('SSID')).toHaveCount(0)
-	await expect(bar(page)).toContainText('Saved.')
+	await expect(bar(page)).toContainText('Applied.')
 })
 
 test('a hotspot turned off with settings that cannot work is removed, and proposed with none', async ({ page }) => {

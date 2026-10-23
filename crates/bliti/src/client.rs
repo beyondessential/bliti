@@ -364,20 +364,20 @@ pub async fn connect(
 					Ok(Reading::Message(
 						Message::Configure
 						| Message::Configuration { .. }
-						| Message::Applied { .. }
 						| Message::State { .. }
-						| Message::Pin { .. }
-						| Message::Invalid { .. }
-						| Message::Confirm
-						| Message::Discard
-						| Message::Busy
 						| Message::Scan { .. }
 						| Message::Survey { .. }
-						| Message::Wps { .. }
 						| Message::Networks { .. }
 						| Message::Spectrum { .. },
 					)) => {
 						println!("config:   a configuration-session message");
+					}
+					// An end saying it cannot do what it was asked (MSG).
+					Ok(Reading::Message(Message::CannotAct { act, at, reason })) => {
+						println!("cannot-act: {act} at {at}: {reason}");
+					}
+					Ok(Reading::Message(Message::CannotConfigure { at, reason })) => {
+						println!("cannot-configure: at {at}: {reason}");
 					}
 					Ok(Reading::Message(Message::GoingAway { act, cause })) => {
 						println!("going:    the device is carrying out {act} ({cause})");
@@ -387,8 +387,7 @@ pub async fn connect(
 						Message::Power
 						| Message::Acts { .. }
 						| Message::Act { .. }
-						| Message::Accepted
-						| Message::Refused { .. },
+						| Message::Accepted,
 					)) => {
 						println!("power:    a power-stream message");
 					}
@@ -422,7 +421,7 @@ pub async fn connect(
 ///
 /// Each line of standard input is sent on the session stream as one message, verbatim, and each
 /// message the device sends there is printed as it arrived, one per line. The session ends when
-/// standard input does, which leaves the recorded configuration in force unless a `confirm` was sent.
+/// standard input does, which changes nothing the device holds (CFG).
 /// Everything the device pushes on streams of its own is read and dropped.
 pub async fn configure(
 	address: Option<bluer::Address>,
