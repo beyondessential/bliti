@@ -78,7 +78,7 @@ Anyone who can read that storage can open a session, just as with a photograph o
 ### A session changes how the device is reached
 
 Anyone who can open a session can ask the device to turn Tailscale off, to log out of it, or to sign in to a tailnet of their choosing, under [TSC](control/tailscale.md).
-They can thereby take the device out of the fleet's reach, or into a tailnet that is not the fleet's.
+They can thereby take the device out of the fleet's reach, or into a tailnet that is not the fleet's, unless the device is configured to accept one tailnet only.
 
 An auth key an operator supplies to sign a device in crosses the channel, which encrypts it as [CHN](channel.md) specifies, and a device does not keep it.
 

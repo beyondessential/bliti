@@ -101,7 +101,11 @@ A device MUST refuse a `METHOD` it does not recognise, at `$['method']`.
 
 A device MUST register under its own hostname where `NAME` is absent.
 
-`sign-in` is carried out when Tailscale reaches `running` or `needs-approval`.
+`sign-in` is carried out when Tailscale reaches `running` or `needs-approval` in a tailnet the device accepts.
+
+A device MAY be configured to accept a single tailnet, by means outside this protocol.
+
+A device so configured MUST sign out of any other tailnet a `sign-in` joins, MUST send `tailscale-failed` with a `reason` saying it accepts only its configured tailnet, and MUST NOT leave Tailscale signed in to the other.
 
 A device signing in by `auth-key` MUST send `tailscale-failed` where Tailscale rejects the key or does not reach either state.
 
@@ -116,6 +120,7 @@ A device MUST NOT persist an auth key or a login link, and MUST NOT put one in a
 > [!NOTE]
 > An auth key suits a fleet, since a tagged key signs a device in without a person present and without a login that lapses.
 > A login link suits a technician with an account who has no key.
+> A key or a link names no tailnet until it is used, so a device learns which tailnet a sign-in reached only once it has reached it, and a device that accepts one tailnet signs out of the others afterwards and not before.
 > `needs-approval` is a sign-in that succeeded and is waiting on an administrator, which is nothing more the operator can do at the device.
 
 ## Turning on and off, and logging out
