@@ -12,12 +12,13 @@ The Tailscale stream is a stream role beyond those of [MSG](../messages.md), est
 
 ## Borrowed terms
 
+[NFO](../device-info.md) defines tailnet.
+
 | term | meaning |
 | --- | --- |
 | auth key | A credential issued by the tailnet's administrator that signs a machine in without anyone approving the sign-in. |
 | login link | A web address Tailscale issues for a sign-in, which a person opens and approves in their own account. |
 | relay | A server Tailscale passes a machine's traffic through where the machines cannot reach each other directly. |
-| tailnet | The network of machines one organisation's Tailscale account holds. |
 | NAT | Network address translation, where a router presents many machines as one address. |
 
 ## The acts
@@ -41,6 +42,8 @@ A device MUST list an act only where it can carry it out now, by the table below
 | `log-out` | `running`, `starting`, `stopped` or `needs-approval` |
 | `netcheck` | any state, and where `tailscale-state` is not reported at all, wherever the device can run the test |
 | `ping` | `running` |
+
+A device MUST list `netcheck` only, where it can run the test, while `tailscale-state` is `broken` or `skipped`.
 
 > [!NOTE]
 > Which acts are listed follows from the state, so a client holds no table of its own saying what each state allows.
@@ -102,11 +105,13 @@ A device MUST register under its own hostname where `NAME` is absent.
 
 A device signing in by `auth-key` MUST send `tailscale-failed` where Tailscale rejects the key or does not reach either state.
 
-A device signing in by `login-link` MUST send `tailscale-login-link`, carrying as `url` the login link, as soon as Tailscale issues one.
+A device signing in by `login-link` MUST send `tailscale-login-link`, carrying as `url` the login link, as soon as Tailscale issues one, and MAY send it again where Tailscale issues another.
+
+A client MUST treat the latest `tailscale-login-link` as the link to open.
 
 A device signing in by `login-link` MUST send `tailscale-failed` where the link lapses or Tailscale does not reach `running` or `needs-approval` once the person who opened the link has approved it.
 
-A device MUST NOT store or log an auth key or a login link.
+A device MUST NOT persist an auth key or a login link, and MUST NOT put one in a log or in the `reason` of a message.
 
 > [!NOTE]
 > An auth key suits a fleet, since a tagged key signs a device in without a person present and without a login that lapses.
@@ -137,7 +142,9 @@ A device MUST run `netcheck` without regard to whether it is signed in, and MUST
 | `nearest-relay` | string or null | the name of the relay with the lowest latency; null where none answered |
 | `relays` | array | each relay that answered, as an object of `name` and `latency` in seconds, ordered by rising latency |
 
-A device MUST send `tailscale-failed` where it could not run the test.
+A device MUST send `tailscale-failed` where it could not run the test, and MUST send `tailscale-result` where it ran the test, whatever the network it found.
+
+A relay has answered where it replied to the device over any transport, and `udp` says whether it did so over UDP.
 
 A device sending `tailscale-result` with no relay in `relays` MUST carry `udp` as false.
 
@@ -148,7 +155,9 @@ A device sending `tailscale-result` with no relay in `relays` MUST carry `udp` a
 
 ## Ping
 
-`ping` MAY carry `PEER`, the machine to test, named as Tailscale names machines on the tailnet.
+`ping` MAY carry `PEER`, the machine to test.
+
+`PEER` MUST be the machine's name on the tailnet, bare or fully qualified, and MUST NOT be an address.
 
 A device MUST test a machine of its own choosing where `PEER` is absent, and MUST send `tailscale-failed` where it has none.
 
@@ -161,6 +170,8 @@ A device MUST send `tailscale-result` carrying as `result` an object with these 
 | `path` | string or null | `direct` where it answered over a direct connection, `relayed` where through a relay; null where it did not answer |
 | `relay` | string or null | the relay that carried it where `path` is `relayed`; null otherwise |
 | `latency` | number or null | the round trip in seconds; null where it did not answer |
+
+A device MUST report `path` as `direct` where the machine answered over a direct connection at any point while the device tests it, and as `relayed` where it answered only through a relay.
 
 A device MUST send `tailscale-failed` where `PEER` names no machine on its tailnet, or where it could not run the test.
 
