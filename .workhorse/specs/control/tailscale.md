@@ -19,6 +19,7 @@ The Tailscale stream is a stream role beyond those of [MSG](../messages.md), est
 | auth key | A credential issued by the tailnet's administrator that signs a machine in without anyone approving the sign-in. |
 | login link | A web address Tailscale issues for a sign-in, which a person opens and approves in their own account. |
 | relay | A server Tailscale passes a machine's traffic through where the machines cannot reach each other directly. |
+| region | One of the places Tailscale runs relays, each with a number and a name. |
 | NAT | Network address translation, where a router presents many machines as one address. |
 
 ## The acts
@@ -134,6 +135,15 @@ Each is carried out when Tailscale reaches `stopped` after `turn-off`, `running`
 
 A device MUST send `tailscale-failed` where Tailscale does not reach it.
 
+## Relays in a result
+
+A result names a relay by an object with these members:
+
+| member | type | meaning |
+| --- | --- | --- |
+| `id` | number | the number Tailscale gives the relay's region |
+| `name` | string or null | the region's name; null where the device does not know it |
+
 ## Network check
 
 `netcheck` carries nothing beyond `ACT`.
@@ -147,8 +157,7 @@ A device MUST run `netcheck` without regard to whether it is signed in, and MUST
 | `ipv6` | boolean | whether the device reaches the internet over IPv6 |
 | `nat-varies` | boolean or null | whether the NAT in front of the device presents it at a different address to each destination; null where the test could not tell |
 | `captive-portal` | boolean or null | whether the network the device is on intercepts web traffic until a person signs in to it; null where the test could not tell |
-| `nearest-relay` | string or null | the name of the relay with the lowest latency; null where none answered |
-| `relays` | array | each relay that answered, as an object of `name` and `latency` in seconds, ordered by rising latency |
+| `relays` | array | each relay that answered, as a relay object with its `latency` in seconds added, ordered by rising latency |
 
 A device MUST send `tailscale-failed` where it could not run the test, and MUST send `tailscale-result` where it ran the test, whatever the network it found.
 
@@ -159,7 +168,8 @@ A device sending `tailscale-result` with no relay in `relays` MUST carry `udp` a
 > [!NOTE]
 > The test measures the network the device is on and not Tailscale, which is why it runs for a device that is not signed in: a device that cannot sign in is usually on a network that blocks Tailscale, and the result says which part.
 > A `nat-varies` of true is the case in which two machines behind such NATs cannot connect directly and Tailscale falls back to a relay.
-> An empty `relays` is a network that reaches no relay at all.
+> An empty `relays` is a network that reaches no relay at all, and the first of `relays` is the nearest.
+> A device that has never been signed in may not know region names, which is why `name` can be null and `id` cannot.
 
 ## Ping
 
@@ -176,7 +186,7 @@ A device MUST send `tailscale-result` carrying as `result` an object with these 
 | `peer` | string | the machine tested, as Tailscale names it |
 | `reachable` | boolean | whether the machine answered |
 | `path` | string or null | `direct` where it answered over a direct connection, `relayed` where through a relay; null where it did not answer |
-| `relay` | string or null | the relay that carried it where `path` is `relayed`; null otherwise |
+| `relay` | object or null | the relay that carried it, as a relay object, where `path` is `relayed`; null otherwise |
 | `latency` | number or null | the round trip in seconds; null where it did not answer |
 
 A device MUST report `path` as `direct` where the machine answered over a direct connection at any point while the device tests it, and as `relayed` where it answered only through a relay.
