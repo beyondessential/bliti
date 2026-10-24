@@ -285,7 +285,7 @@ A device that runs Tailscale MUST report `tailscale-state`, `tailscale-name`, `t
 
 A device MUST report `tailscale-state` as `warning` while `running` where Tailscale reports a problem with its connection, with Tailscale's own words as the reason.
 
-A device MUST report `tailscale-state` as `warning` while `running` where its sign-in lapses within seven days, with a reason saying when.
+A device MUST report a change in `tailscale-state` as soon as it observes the change.
 
 A device MUST report `tailscale-state` as `broken`, with a reason, where it runs Tailscale and Tailscale does not answer.
 
@@ -293,7 +293,9 @@ A device MUST report `expired` where it was signed in and its sign-in has lapsed
 
 A device MUST report `tailscale-name` and `tailnet` as `passed` in every state in which it holds them, `expired`, `stopped` and `needs-approval` included, and as `skipped` where it holds none, with a reason saying it is not signed in.
 
-A device MUST report `tailscale-key-expiry` as `passed` where its sign-in lapses, and as `skipped` otherwise, with a reason saying either that the device is not signed in or that its sign-in does not lapse.
+A device MUST report `tailscale-key-expiry` as `passed` where its sign-in lapses in more than seven days, as `warning` where it lapses within seven days, with a reason saying when, and as `failed` where it has lapsed, with a reason saying so.
+
+A device MUST report `tailscale-key-expiry` as `skipped` where its sign-in does not lapse or it holds none, with a reason saying which.
 
 The acts a client asks of Tailscale are specified under [TSC](control/tailscale.md).
 

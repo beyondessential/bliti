@@ -75,6 +75,16 @@ Anyone who can read that storage can open a session, just as with a photograph o
 > [!NOTE]
 > The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
 
+### A session changes how the device is reached
+
+Anyone who can open a session can ask the device to turn Tailscale off, to log out of it, or to sign in to a tailnet of their choosing, under [TSC](control/tailscale.md).
+They can thereby take the device out of the fleet's reach, or into a tailnet that is not the fleet's.
+
+An auth key an operator supplies to sign a device in crosses the channel, which encrypts it as [CHN](channel.md) specifies, and a device does not keep it.
+
+> [!NOTE]
+> The same session can already restart, reboot or power off the device, under [CTL](control/power.md). What a Tailscale act adds is the device's place on the network the fleet uses to reach it.
+
 ### The board ID yields everything
 
 Anyone who learns a device's board ID can derive that device's root, and so both its presence token and its device static key.
