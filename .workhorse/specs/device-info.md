@@ -291,9 +291,11 @@ A device MUST report `tailscale-state` as `broken`, with a reason, where it runs
 
 A device MUST report `expired` where it was signed in and its sign-in has lapsed, and `needs-login` where it holds none.
 
-A device MUST report `tailscale-name` and `tailnet` as `passed` in every state in which it holds them, `expired`, `stopped` and `needs-approval` included, and as `skipped` where it holds none, with a reason saying it is not signed in.
+A device MUST report `tailscale-name`, `tailnet` and `tailscale-key-expiry` as `broken`, with the reason of `tailscale-state`, where `tailscale-state` is `broken`.
 
-A device MUST report `tailscale-key-expiry` as `passed` where its sign-in lapses in more than seven days, as `warning` where it lapses within seven days, with a reason saying when, and as `failed` where it has lapsed, with a reason saying so.
+A device MUST otherwise report `tailscale-name` and `tailnet` as `passed` in every state in which it holds them, `expired`, `stopped` and `needs-approval` included, and as `skipped` where it holds none, with a reason saying it is not signed in.
+
+A device MUST otherwise report `tailscale-key-expiry` as `passed` where its sign-in lapses in more than seven days, as `warning` where it lapses within seven days, with a reason saying when, and as `failed` where it has lapsed, with a reason saying so.
 
 A device MUST report `tailscale-key-expiry` as `skipped` where its sign-in does not lapse or it holds none, with a reason saying which.
 
