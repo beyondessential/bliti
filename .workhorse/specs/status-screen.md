@@ -62,15 +62,16 @@ The application MUST count a way as in use as follows:
 | hotspot | `hotspot` carries a value |
 
 An interface holds an address where `network-address` reports for it an IPv4 or IPv6 address that is not link-local.
+An interface that meets the cable's condition or wifi's is in use for that way.
 
 The application MUST show the network row well, saying the device is connected, while any way is in use, and not well, saying it is not connected, otherwise.
 
 The application MUST show as the network row's detail, while it is well, each way in use, by its icon and its short name, in this order:
 
-- cable, where the cable is in use, and otherwise wifi, where wifi is in use, with the name of the network joined;
+- one interface in use for the cable or for wifi, and for wifi the name of the network it is joined to;
 - then the hotspot, where it is in use, with how many clients are joined from `hotspot-clients`.
 
-Where more than one interface is joined to a wireless network, the application MUST show the first by interface name.
+The application MUST choose that interface as the one whose `interface` trait carries `route` as `default`, and where none in use for the cable or for wifi does, the first in use for the cable by interface name, and otherwise the first in use for wifi by interface name.
 
 While the network row is not well, the application MUST say as its detail that a cable is plugged in with no address, where `wired-carrier` is `true` on an interface that holds none, and that the device is joined to a network with no address, naming it, where an interface joined by `wireless-network` holds none.
 
@@ -80,6 +81,7 @@ Either MUST open the screen of [NSCR](network/screen.md).
 > [!NOTE]
 > A hotspot with nothing else is a way in use, so a device sharing its hotspot alone reads as connected: phones on the hotspot reach it.
 > Requiring an address is what tells a cable into a dead switch, or a network whose DHCP never answered, from one that works.
+> The default route is the way the device's own traffic leaves by, so it names the uplink where cable and wifi are both up. The fixed order covers a default route on the overlay or on no way at all.
 
 ## The Tailscale row
 
