@@ -14,7 +14,7 @@
  "Health": [],
  "MagicDNSSuffix": "example.com",
  "Peer": {
-  "nodekey:039cc5bc3e4d0d0d38c8b9c7e7d7acdd169f7900294a73c3dbdf848fc2a01868": {
+  "nodekey:REDACTED-PEER": {
    "Active": false,
    "Addrs": "",
    "AllowedIPs": [

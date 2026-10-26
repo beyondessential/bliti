@@ -166,7 +166,7 @@ A relay has answered where it replied to the device over any transport, and `udp
 A device sending `tailscale-result` with no relay in `relays` MUST carry `udp` as false.
 
 > [!NOTE]
-> The test measures the network the device is on and not Tailscale, which is why it runs for a device that is not signed in: a device that cannot sign in is usually on a network that blocks Tailscale, and the result says which part.
+> The test measures the network the device is on and not Tailscale, which is why it runs for a device that is not signed in: a device that cannot sign in is usually on a network that blocks Tailscale, and the result says which part where the test can run at all.
 > A `nat-varies` of true is the case in which two machines behind such NATs cannot connect directly and Tailscale falls back to a relay.
 > An empty `relays` is a network that reaches no relay at all, and the first of `relays` is the nearest.
 > A device that has never been signed in may not know region names, which is why `name` can be null and `id` cannot.
