@@ -147,3 +147,11 @@ fn versions_order_as_versions_and_not_as_text() {
 	assert_eq!(compare("2.10.0", "v2.10.0"), Ordering::Equal);
 	assert_eq!(compare("odd", "stuff"), Ordering::Less);
 }
+
+#[test]
+fn versions_order_totally_where_some_do_not_read_as_versions() {
+	assert_eq!(compare("10.0.0", "1x"), Ordering::Greater);
+	assert_eq!(compare("1x", "10.0.0"), Ordering::Less);
+	assert_eq!(compare("9.0.0", "1x"), Ordering::Greater);
+	assert_eq!(compare("10.0.0", "9.0.0"), Ordering::Greater);
+}

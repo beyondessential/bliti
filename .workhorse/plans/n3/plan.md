@@ -22,7 +22,7 @@ The shape is Tailscale's (M3), minus the daemon watcher and the act parameters:
 - `crates/bliti/src/tamanu.rs` with submodules, in place of `tailscale.rs`: a shared `Tamanu` handle, `serve` for the stream, the one-act `Slot`.
 - `crates/bliti/src/facts/tamanu.rs` for the three entries, as `facts/tailscale.rs`.
 - A `Runner` trait over the `bestool` calls (read status, find, run an act), with a fake for tests, as `tailscale::netcheck::Runner`.
-- State is polled, not watched, since `bestool` has no event feed. One poller task owns the latest observation in a `watch` channel. It polls only while the sampler has a session open, and for the thirty minutes after, as NFO's Sampling has it, so a device nobody is talking to does not inspect containers. It polls again at once when an act ends.
+- State is polled, not watched, since `bestool` has no event feed. One poller task owns the latest observation in a `watch` channel. It polls only while the sampler has a session open, and for the thirty minutes after, as NFO's Sampling has it, so a device nobody is talking to does not inspect containers. It polls again at once when an act ends. Looks are serialised under one lock, so an older look is never published over a newer one. The view starts `Pending`, and returns to it when the poller stops for want of a session, so the first look never delays the daemon starting and no stale state is reported to a session that opens later.
 - The state `starting` or `restarting` is the act under way laid over the observation, not something `bestool` reports, so the published value combines the two and republishes when the slot is taken or released.
 
 ## Checklist
@@ -40,7 +40,7 @@ The shape is Tailscale's (M3), minus the daemon watcher and the act parameters:
 - [x] `tamanu/run.rs`: the `Runner` trait and the command implementation: `bestool tamanu find` (absent when it prints nothing), `bestool tamanu status --json` (parse stdout whatever the exit status), `bestool tamanu start`, `bestool tamanu restart`, each with a timeout and the program looked up on the path
 - [x] `tamanu/status.rs`: serde structs for the status JSON, and the reduction to a snapshot: `Running` when `any_short` is false; `Stopped` when every `up`-expected expectation is `down`; otherwise `Degraded` with a reason naming the short expectations. Ignore `unknown` expectations. Web and facility server versions from the `tamanu-frontend` and `tamanu-facility-api` expectations: the highest `version_actual` across running instances, else `expected_version`, with the mismatch and disagreement cases NFO gives `warning`
 - [x] `tamanu/fixtures/`: `status-running.json`, `status-degraded.json`, `status-stopped.json`, `status-drift.json`, and a README saying they are written from `bestool`'s own serialised structs and not captured from a device, until one is
-- [x] `tamanu/state.rs`: `Observed` (`Absent`, `Standing(Snapshot)`, `Broken(reason)`), and the poller task with its session gating and immediate re-poll
+- [x] `tamanu/state.rs`: `Observed` (`Pending`, `Absent`, `Standing(Snapshot)`, `Broken(reason)`), and the poller task with its session gating and immediate re-poll
 
 ### Facts
 

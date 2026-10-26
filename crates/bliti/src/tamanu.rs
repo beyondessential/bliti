@@ -26,7 +26,7 @@ use crate::{
 };
 use acts::{Act, CannotAct};
 use run::Runner;
-use state::{Observed, View};
+use state::{Looking, Observed, View};
 
 pub mod acts;
 mod run;
@@ -58,14 +58,17 @@ struct Inner {
 	/// What the device reports, which holds the act under way too, so that taking and releasing the
 	/// slot republish the state.
 	view: Arc<watch::Sender<View>>,
+	looking: Looking,
 }
 
 impl Tamanu {
 	/// The Tamanu of this machine, looked at while `sampler` has a session open and for as long after as
 	/// it keeps sampling.
-	pub async fn connect(sampler: Sampler) -> Self {
+	///
+	/// Reports nothing of Tamanu until the first look has been made, which is not waited for.
+	pub fn connect(sampler: Sampler) -> Self {
 		let wanted: Arc<dyn Fn() -> bool + Send + Sync> = Arc::new(move || sampler.has_session());
-		Self::start(Arc::new(run::Command::on_path()), wanted, IDLE_STOP).await
+		Self::start(Arc::new(run::Command::on_path()), wanted, IDLE_STOP)
 	}
 
 	/// A device whose Tamanu is read through `runner`, looked at while `wanted` says so and for
@@ -74,21 +77,41 @@ impl Tamanu {
 	/// # Panics
 	///
 	/// Outside a Tokio runtime, which the poller runs on.
-	pub(crate) async fn start(
+	pub(crate) fn start(
 		runner: Arc<dyn Runner>,
 		wanted: Arc<dyn Fn() -> bool + Send + Sync>,
 		idle_stop: Duration,
 	) -> Self {
-		let first = state::observe(&*runner).await;
 		let (view, _) = watch::channel(View {
-			observed: first,
+			observed: Observed::Pending,
 			acting: None,
 		});
 		let view = Arc::new(view);
-		tokio::spawn(state::poll(runner.clone(), view.clone(), wanted, idle_stop));
+		let looking = Looking::default();
+		tokio::spawn(state::poll(
+			runner.clone(),
+			view.clone(),
+			looking.clone(),
+			wanted,
+			idle_stop,
+		));
 		Self {
-			inner: Arc::new(Inner { runner, view }),
+			inner: Arc::new(Inner {
+				runner,
+				view,
+				looking,
+			}),
 		}
+	}
+
+	/// Resolves once Tamanu has been looked at.
+	#[cfg(test)]
+	pub(crate) async fn looked(&self) {
+		let mut changes = self.inner.view.subscribe();
+		changes
+			.wait_for(|view| view.observed != Observed::Pending)
+			.await
+			.expect("the view outlives its watchers");
 	}
 
 	/// A device with nothing to say of Tamanu, which finds none.
@@ -103,6 +126,7 @@ impl Tamanu {
 			inner: Arc::new(Inner {
 				runner,
 				view: Arc::new(view),
+				looking: Looking::default(),
 			}),
 		}
 	}
@@ -147,12 +171,13 @@ impl Tamanu {
 impl Inner {
 	/// Look at Tamanu now, publishing what is seen.
 	async fn refresh(&self) -> Observed {
+		let _looking = self.looking.lock().await;
 		let observed = state::observe(&*self.runner).await;
 		state::publish(&self.view, observed.clone());
 		observed
 	}
 
-	/// Carry `act` out, and say why where Tamanu does not reach `running`.
+	/// Carry `act` out, and say why where its command fails or Tamanu does not reach `running`.
 	async fn carry_out(&self, act: Act) -> Result<(), String> {
 		let ran = tokio::time::timeout(ACT, self.runner.act(act))
 			.await
@@ -160,7 +185,7 @@ impl Inner {
 		let settles_by = Instant::now() + SETTLE;
 		let observed = loop {
 			let observed = self.refresh().await;
-			if observed.is_running() {
+			if observed.is_running() && ran.is_ok() {
 				return Ok(());
 			}
 			// A command that failed has said so; waiting would only wait for what it gave up on.
@@ -169,10 +194,10 @@ impl Inner {
 			}
 			tokio::time::sleep(SETTLE_POLL).await;
 		};
-		let shortfall = observed.shortfall();
 		Err(match ran {
-			Ok(()) => shortfall,
-			Err(failure) => format!("the {act} failed ({failure}); {shortfall}"),
+			Ok(()) => observed.shortfall(),
+			Err(failure) if observed.is_running() => format!("the {act} failed ({failure})"),
+			Err(failure) => format!("the {act} failed ({failure}); {}", observed.shortfall()),
 		})
 	}
 }

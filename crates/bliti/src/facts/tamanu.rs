@@ -10,11 +10,14 @@ const NAMES: [&str; 3] = [
 	"tamanu-facility-server-version",
 ];
 
-/// The three Tamanu facts.
+/// The three Tamanu facts, or none while Tamanu has not been looked at and no act is under way.
 pub fn entries(at: u64, view: &View) -> Vec<Entry> {
+	if view.observed == Observed::Pending && view.acting.is_none() {
+		return Vec::new();
+	}
 	let (web, facility_server) = match &view.observed {
 		Observed::Standing(snapshot) => (&snapshot.web, &snapshot.facility_server),
-		Observed::Absent | Observed::Broken(_) => {
+		Observed::Pending | Observed::Absent | Observed::Broken(_) => {
 			(&ServiceVersion::default(), &ServiceVersion::default())
 		}
 	};

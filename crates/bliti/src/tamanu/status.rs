@@ -166,12 +166,15 @@ fn service_version(report: &Report, name: &str) -> ServiceVersion {
 	}
 }
 
-/// Order two versions, as versions where both read as one and as text where they do not.
+/// Order two versions: as versions where both read as one, after any that do not, and as text among
+/// those. Total, which sorting needs.
 fn compare(a: &str, b: &str) -> Ordering {
 	let parse = |version: &str| semver::Version::parse(version.trim_start_matches('v')).ok();
 	match (parse(a), parse(b)) {
 		(Some(a), Some(b)) => a.cmp(&b),
-		_ => a.cmp(b),
+		(Some(_), None) => Ordering::Greater,
+		(None, Some(_)) => Ordering::Less,
+		(None, None) => a.cmp(b),
 	}
 }
 

@@ -13,7 +13,9 @@ Scenarios for [TMU](../../specs/control/tamanu.md) and the Tamanu section of [NF
 - [x] A service present that must be absent degrades Tamanu while every required service runs
 - [x] No installation found reads as `absent`, with both versions `skipped` (verifies spec: NFO)
 - [x] A program that cannot be run, an unreadable status on an installation, and a status that fails on one read as `broken`, with all three entries `broken` (verifies spec: NFO)
-- [x] Versions order as versions and not as text
+- [x] Versions order as versions and not as text, and totally where some tags do not read as versions
+- [x] Before the first look has ended, and once looking has stopped for want of a session, no Tamanu fact is reported, no act is listed and every act is refused (verifies spec: NFO)
+- [x] Looks at Tamanu are serialised, so an older look is never published after a newer one
 - [x] Looking at Tamanu stops once no session has been open for the idle period, and resumes at once when one opens
 - [ ] On the prototype device, `bestool tamanu status --json` reads as the fixtures do, or the fixtures are replaced with a capture
 
@@ -32,6 +34,7 @@ Scenarios for [TMU](../../specs/control/tamanu.md) and the Tamanu section of [NF
 - [x] An accepted start is reported as `starting` until carried out (verifies spec: TMU)
 - [x] An act that leaves services short sends `tamanu-failed` naming them, on the asking stream only (verifies spec: TMU)
 - [x] An act whose command ends well but leaves Tamanu short fails once it has waited for it to settle (verifies spec: TMU)
+- [x] A command that fails sends `tamanu-failed` saying how, even where Tamanu is `running` (verifies spec: TMU)
 - [x] An act that never ends is given up on and fails (verifies spec: TMU)
 - [x] An act is carried out after the stream that asked for it has closed (verifies spec: TMU)
 - [x] The list is re-sent when Tamanu changes with no act under way

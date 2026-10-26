@@ -71,8 +71,8 @@ async fn tamanu_with(fake: Fake) -> (Tamanu, Arc<Fake>) {
 		fake.clone(),
 		Arc::new(|| true),
 		Duration::from_secs(30 * 60),
-	)
-	.await;
+	);
+	tamanu.looked().await;
 	(tamanu, fake)
 }
 
@@ -305,4 +305,54 @@ async fn an_act_that_never_ends_is_given_up_on() {
 	};
 	assert!(reason.contains("took too long"), "{reason}");
 	assert_eq!(tamanu.view().acting, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_command_that_fails_is_a_failure_even_where_tamanu_is_running() {
+	let fake =
+		Fake::reporting(RUNNING).on_act(Act::Restart, Err("sudo: a password is required"), RUNNING);
+	let (tamanu, _) = tamanu_with(fake).await;
+	let (mut client, _) = open(&tamanu).await;
+
+	client.act("restart").await;
+	assert_eq!(client.next().await, Message::TamanuAccepted);
+	let Message::TamanuFailed { reason } = client.next_result().await else {
+		panic!("expected a failure");
+	};
+	assert_eq!(reason, "the restart failed (sudo: a password is required)");
+	assert_eq!(tamanu.view().state(), Some(State::Running));
+}
+
+#[tokio::test(start_paused = true)]
+async fn nothing_is_reported_listed_or_accepted_before_tamanu_has_been_looked_at() {
+	let (fake, gate) = Fake::reporting(RUNNING).status_gated();
+	let tamanu = Tamanu::start(
+		Arc::new(fake),
+		Arc::new(|| true),
+		Duration::from_secs(30 * 60),
+	);
+	assert_eq!(tamanu.view().state(), None);
+	assert!(crate::facts::tamanu::entries(0, &tamanu.view()).is_empty());
+
+	let (mut client, acts) = open(&tamanu).await;
+	assert_eq!(acts, strings(&[]));
+	client.act("restart").await;
+	let (_, at, _) = refused(client.next().await);
+	assert_eq!(at, "$['act']");
+
+	gate.add_permits(1);
+	assert_eq!(client.next_acts().await, strings(&["restart"]));
+	assert_eq!(crate::facts::tamanu::entries(0, &tamanu.view()).len(), 3);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_look_that_began_earlier_is_not_published_after_a_later_one() {
+	let (tamanu, _) = tamanu_with(Fake::reporting(RUNNING)).await;
+	let held = tamanu.inner.looking.lock().await;
+	let inner = tamanu.inner.clone();
+	let refreshing = tokio::spawn(async move { inner.refresh().await });
+	tokio::time::sleep(Duration::from_secs(60)).await;
+	assert!(!refreshing.is_finished(), "waits for the look under way");
+	drop(held);
+	assert!(refreshing.await.unwrap().is_running());
 }

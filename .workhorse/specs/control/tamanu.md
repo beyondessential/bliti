@@ -26,6 +26,8 @@ A device MUST list an act only where it can carry it out now, by the table below
 
 A device MUST list no act while `tamanu-state` is any other value, and where it does not report `tamanu-state` at all.
 
+A device MUST refuse every act while it does not report `tamanu-state`.
+
 A client MUST ignore an act in `tamanu-acts` that it does not recognise.
 
 > [!NOTE]
@@ -66,11 +68,11 @@ A device MUST report `tamanu-state` as `starting` from accepting `start`, and as
 
 A device MUST report the state it observes as soon as the act has been carried out or has failed.
 
-An act is carried out when `tamanu-state` reaches `running`.
+An act is carried out when the command that does it has ended without failing and `tamanu-state` has reached `running`.
 
-A device MUST send `tamanu-failed`, carrying `reason`, where it has accepted an act and `tamanu-state` does not reach `running`, and MUST NOT send it otherwise.
+A device MUST send `tamanu-failed`, carrying `reason`, where it has accepted an act and the command that does it fails or `tamanu-state` does not reach `running`, and MUST NOT send it otherwise.
 
-`reason` MUST say which services the act left not running or not as configured, where it left some.
+`reason` MUST say how the command failed, where it did, and which services the act left not running or not as configured, where it left some.
 
 A device MUST send `tamanu-failed` on the stream that asked for the act, and MUST NOT send it on any other.
 
@@ -78,6 +80,7 @@ A device MUST NOT wait indefinitely for an act to be carried out.
 
 > [!NOTE]
 > Tamanu may keep serving while a restart happens, so its state alone does not show one under way. The device says so itself with `starting` and `restarting`, on the `default` feed, where every client watching sees it and not only the one that asked.
+> A restart begins from `running`, so a state of `running` after it says nothing of whether it happened. The command's own failure is what shows that one which never ran, or gave up part way, did not do what was asked.
 > An act that fails part way leaves Tamanu as it stands, which may be some services restarted and some not. The state the device reports once the act ends says which, and `tamanu-failed` says why.
 
 ## Logging

@@ -41,6 +41,8 @@ pub struct Fake {
 	inner: Mutex<Inner>,
 	/// Held by an act until a test lets it end, where a test gates it.
 	gate: Option<Arc<Semaphore>>,
+	/// Held by a status until a test lets it answer, where a test gates it.
+	status_gate: Option<Arc<Semaphore>>,
 }
 
 fn reported(json: &str) -> Result<Output, String> {
@@ -60,6 +62,7 @@ impl Fake {
 				calls: Vec::new(),
 			}),
 			gate: None,
+			status_gate: None,
 		}
 	}
 
@@ -125,6 +128,13 @@ impl Fake {
 		(self, gate)
 	}
 
+	/// Hold every status until a permit is added to the returned semaphore.
+	pub fn status_gated(mut self) -> (Self, Arc<Semaphore>) {
+		let gate = Arc::new(Semaphore::new(0));
+		self.status_gate = Some(gate.clone());
+		(self, gate)
+	}
+
 	/// Change what the status says.
 	pub fn set_status(&self, json: &str) {
 		self.lock().status = reported(json);
@@ -143,6 +153,9 @@ impl Fake {
 #[async_trait]
 impl Runner for Fake {
 	async fn status(&self) -> Result<Output, String> {
+		if let Some(gate) = &self.status_gate {
+			gate.acquire().await.expect("the gate stays open").forget();
+		}
 		let mut inner = self.lock();
 		inner.calls.push("status".to_owned());
 		inner.status.clone()

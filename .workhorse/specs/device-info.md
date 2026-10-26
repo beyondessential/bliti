@@ -313,7 +313,13 @@ The acts a client asks of Tailscale are specified under [TSC](control/tailscale.
 
 ## Tamanu
 
-A device MUST report `tamanu-state`, `tamanu-web-version` and `tamanu-facility-server-version`.
+A device MUST report `tamanu-state`, `tamanu-web-version` and `tamanu-facility-server-version`, except while it holds no current observation of Tamanu, when it MUST report none of them.
+
+A device holds no current observation before its first look at Tamanu has ended, and after it has stopped looking for want of a session, as [Sampling](#sampling) has it.
+
+> [!NOTE]
+> The three are left out and not reported as `broken`, since `broken` says the device could not tell, and here it has not yet tried.
+> A client that connects in that gap shows no Tamanu state, and the facts arrive on the feed once the first look ends.
 
 `tamanu-state` MUST report one of:
 

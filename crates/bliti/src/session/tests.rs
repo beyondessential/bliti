@@ -813,8 +813,8 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 	);
 }
 
-/// A change in Tamanu is a change in the facts, and the three Tamanu facts are always reported (NFO,
-/// "Tamanu").
+/// A change in Tamanu is a change in the facts, and the three Tamanu facts are reported once Tamanu
+/// has been looked at (NFO, "Tamanu").
 #[tokio::test(start_paused = true)]
 async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 	use crate::tamanu::fake::{Fake, RUNNING, STOPPED};
@@ -824,8 +824,8 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 		fake.clone(),
 		std::sync::Arc::new(|| true),
 		Duration::from_secs(30 * 60),
-	)
-	.await;
+	);
+	tamanu.looked().await;
 	let state = |facts: &[Entry]| {
 		facts
 			.iter()

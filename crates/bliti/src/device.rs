@@ -131,7 +131,7 @@ pub async fn run(
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
 	// Looked at while the device is being talked to, which the sampler knows.
-	let tamanu = Tamanu::connect(sampler.clone()).await;
+	let tamanu = Tamanu::connect(sampler.clone());
 	// The command line changes the curves of a running daemon through this, since the daemon holds
 	// them in memory and would otherwise overwrite what it wrote to the curve file (CRV).
 	let socket = Path::new(crate::battery::socket::PATH);

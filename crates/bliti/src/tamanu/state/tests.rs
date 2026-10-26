@@ -45,7 +45,7 @@ async fn the_poller_looks_while_a_session_is_open_and_for_the_idle_period_after(
 
 	let fake = Arc::new(Fake::reporting(RUNNING));
 	let (view, _) = watch::channel(View {
-		observed: Observed::Absent,
+		observed: Observed::Pending,
 		acting: None,
 	});
 	let view = Arc::new(view);
@@ -57,6 +57,7 @@ async fn the_poller_looks_while_a_session_is_open_and_for_the_idle_period_after(
 	let _poller = tokio::spawn(poll(
 		fake.clone(),
 		view.clone(),
+		Looking::default(),
 		wanted,
 		Duration::from_secs(60),
 	));
@@ -70,10 +71,16 @@ async fn the_poller_looks_while_a_session_is_open_and_for_the_idle_period_after(
 	let stopped_at = fake.calls().len();
 	tokio::time::sleep(Duration::from_secs(120)).await;
 	assert_eq!(fake.calls().len(), stopped_at, "stopped once idle");
+	assert_eq!(
+		view.borrow().observed,
+		Observed::Pending,
+		"what was seen is withdrawn once it can no longer be trusted"
+	);
 
 	open.store(true, Ordering::Relaxed);
 	tokio::time::sleep(Duration::from_secs(3)).await;
 	assert!(fake.calls().len() > stopped_at, "looks again at once");
+	assert!(view.borrow().observed.is_running());
 }
 
 #[test]
@@ -89,4 +96,5 @@ fn an_act_under_way_lies_over_what_is_observed() {
 		Some(State::Restarting)
 	);
 	assert_eq!(view(Observed::Broken("x".to_owned()), None).state(), None);
+	assert_eq!(view(Observed::Pending, None).state(), None);
 }

@@ -2,7 +2,10 @@
 
 use std::{sync::Arc, time::Duration};
 
-use tokio::{sync::watch, time::Instant};
+use tokio::{
+	sync::{Mutex, watch},
+	time::Instant,
+};
 
 use super::{
 	acts::Act,
@@ -78,6 +81,9 @@ pub struct Snapshot {
 /// What the device observes of Tamanu.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Observed {
+	/// Tamanu has not been looked at yet, or not since the device last stopped looking for want of a
+	/// session. Nothing is known, which is not the same as being unable to tell.
+	Pending,
 	/// No installation is found.
 	Absent,
 	/// The status was read.
@@ -97,7 +103,7 @@ pub struct View {
 }
 
 impl View {
-	/// `tamanu-state`, or none where the device could not tell and no act is under way.
+	/// `tamanu-state`, or none where the device has not looked or could not tell and no act is under way.
 	pub fn state(&self) -> Option<State> {
 		if let Some(act) = self.acting {
 			return Some(act.under_way());
@@ -105,7 +111,7 @@ impl View {
 		match &self.observed {
 			Observed::Absent => Some(State::Absent),
 			Observed::Standing(snapshot) => Some(snapshot.state),
-			Observed::Broken(_) => None,
+			Observed::Pending | Observed::Broken(_) => None,
 		}
 	}
 }
@@ -119,6 +125,7 @@ impl Observed {
 	/// What is short of Tamanu running, in the device's words.
 	pub fn shortfall(&self) -> String {
 		match self {
+			Self::Pending => "Tamanu has not been looked at".to_owned(),
 			Self::Absent => "no installation of Tamanu is found".to_owned(),
 			Self::Broken(reason) => reason.clone(),
 			Self::Standing(snapshot) => snapshot
@@ -150,6 +157,10 @@ pub async fn observe(runner: &dyn Runner) -> Observed {
 	}
 }
 
+/// Held while Tamanu is looked at and the sight published, so that a look which began before another
+/// is never published after it and does not put an older state over a newer one.
+pub type Looking = Arc<Mutex<()>>;
+
 /// Publish what was observed, and say so where it changed.
 pub fn publish(view: &watch::Sender<View>, now: Observed) {
 	let changed = view.send_if_modified(|held| {
@@ -167,10 +178,12 @@ pub fn publish(view: &watch::Sender<View>, now: Observed) {
 /// Keep `view` current, looking while `wanted` says somebody is connected and for `idle_stop` after
 /// (NFO, "Sampling"), so a device nobody is talking to does not inspect Tamanu's containers.
 ///
-/// Runs until dropped.
+/// Where it has stopped looking, what it last saw is withdrawn, as it would be out of date by the time a
+/// session next opens. Runs until dropped.
 pub async fn poll(
 	runner: Arc<dyn Runner>,
 	view: Arc<watch::Sender<View>>,
+	looking: Looking,
 	wanted: Arc<dyn Fn() -> bool + Send + Sync>,
 	idle_stop: Duration,
 ) {
@@ -180,12 +193,16 @@ pub async fn poll(
 			last_wanted = Instant::now();
 		} else if last_wanted.elapsed() >= idle_stop {
 			tracing::debug!("no session for a while; Tamanu is not looked at until one opens");
+			publish(&view, Observed::Pending);
 			while !wanted() {
 				tokio::time::sleep(RESUME_CHECK).await;
 			}
 			last_wanted = Instant::now();
 		}
-		publish(&view, observe(&*runner).await);
+		{
+			let _looking = looking.lock().await;
+			publish(&view, observe(&*runner).await);
+		}
 		tokio::time::sleep(POLL).await;
 	}
 }
