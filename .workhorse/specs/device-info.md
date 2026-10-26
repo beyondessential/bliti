@@ -329,8 +329,6 @@ A device MUST report `tamanu-state` as `broken`, with a reason, where Tamanu is 
 
 A device MUST report a change in `tamanu-state` as soon as it observes the change.
 
-A device MUST report a required service that runs as several instances as short while fewer than the number Tamanu requires are running.
-
 A device MUST report the version a service is running as the value of its version entry, and where its instances run different versions, the highest.
 
 A device MUST report a version entry as `warning` where the version running differs from the version configured, or where instances run different versions, with a reason saying which.
@@ -346,7 +344,7 @@ The acts a client asks of Tamanu are specified under [TMU](control/tamanu.md).
 > [!NOTE]
 > The web application and the facility server are configured and versioned separately, so each has an entry of its own.
 > A device that holds a configured version while nothing runs still tells an operator which version a start will bring up.
-> A restart is rolled across instances and Tamanu keeps serving throughout, so the state would stay `running` while it happens. `restarting` says an act is under way, as [TMU](control/tamanu.md) has it.
+> Tamanu may keep serving while a restart happens, so its state alone does not show one under way. `restarting` says an act is under way, as [TMU](control/tamanu.md) has it.
 
 ## Power source and battery
 

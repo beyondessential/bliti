@@ -14,8 +14,8 @@ The Tamanu stream is a stream role beyond those of [MSG](../messages.md), establ
 
 | act | effect |
 | --- | --- |
-| `start` | brings Tamanu to the state it is configured to be in, as `running` of [NFO](../device-info.md) describes |
-| `restart` | restarts the services Tamanu requires to be running |
+| `start` | brings Tamanu up, so that it is `running` as [NFO](../device-info.md) has it |
+| `restart` | restarts Tamanu |
 
 A device MUST list an act only where it can carry it out now, by the table below.
 
@@ -28,16 +28,10 @@ A device MUST list no act while `tamanu-state` is `starting`, `restarting` or `b
 
 A client MUST ignore an act in `tamanu-acts` that it does not recognise.
 
-A device MUST carry out `start` by starting every service Tamanu requires to be running that is not, and stopping every service it requires to be absent that is present.
-
-A device MUST carry out `restart` by first starting every service Tamanu requires to be running that is not, and then restarting the rest.
-
-A device MUST restart a service that runs as more than one instance one instance at a time, waiting for each to be serving again before restarting the next, so that an instance keeps serving throughout.
-
 > [!NOTE]
 > Which acts are listed follows from the state, so a client holds no table of its own saying what each state allows.
 > The set of acts is open. A client that does not recognise an act has nothing to render for it and does not offer it, so a device can list an act a later client learns to word without breaking an earlier one.
-> A restart does not take Tamanu away from the facility, since an instance of each service that runs as several keeps serving, and the channel is carried over [CHN](../channel.md) and not over Tamanu, so neither act can strand the operator who asks for it.
+> The channel is carried over [CHN](../channel.md) and not over Tamanu, so neither act can strand the operator who asks for it.
 
 ## The exchange
 
@@ -83,7 +77,7 @@ A device MUST send `tamanu-failed` on the stream that asked for the act, and MUS
 A device MUST NOT wait indefinitely for an act to be carried out.
 
 > [!NOTE]
-> A restart is rolled across instances so that Tamanu keeps serving, which means `tamanu-state` stays well while it happens and a client cannot see a restart as Tamanu leaving and returning. The device says so itself with `starting` and `restarting`, on the `default` feed, where every client watching sees it and not only the one that asked.
+> Tamanu may keep serving while a restart happens, so its state alone does not show one under way. The device says so itself with `starting` and `restarting`, on the `default` feed, where every client watching sees it and not only the one that asked.
 > An act that fails part way leaves Tamanu as it stands, which may be some services restarted and some not. The state the device reports once the act ends says which, and `tamanu-failed` says why.
 
 ## Logging

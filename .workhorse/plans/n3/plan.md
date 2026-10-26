@@ -4,12 +4,14 @@ Specs: [TMU](../../specs/control/tamanu.md), and the Tamanu section of [NFO](../
 
 ## What `bestool` gives
 
+The device calls `bestool` as it is: `status --json` to read, `start` and `restart` to act. It does not reimplement any of its discovery, ordering, rolling or readiness logic, and the spec does not restate it.
+
 - State and versions come from `bestool tamanu status --json`. It prints the JSON and then exits non-zero when anything is short, so parse stdout whatever the exit status.
 - Per expectation the JSON has `name`, `expected_state`, `running`, `min_count`, `status` (`up`, `down`, `short`, `absent`, `forbidden`, `unknown`), `reason`, `expected_version`, and `instances[]` with `version_actual` (only while that instance runs) and `version_status` (`match`, `mismatch`, `unknown`). `any_short` is true for a short or forbidden expectation and for any version mismatch. That is `running` versus not.
 - Web is the `tamanu-frontend` expectation, versioned by `TAMANU_FRONTEND_VERSION`. Facility server is `tamanu-facility-api`, versioned by `TAMANU_VERSION`. Both carry `expected_version` even with nothing running, which is the configured fallback the spec asks for.
 - `unknown` expectations (a DB signal that could not be read) are not short, and do not count toward `degraded`.
 - `stopped` is every `up`-expected expectation at `down`; any other shortfall is `degraded`.
-- Acts are `bestool tamanu start` and `bestool tamanu restart`. `start` normalises: starts missing required services and stops and disables forbidden ones, which is what the spec's `start` says. `restart` starts missing ones first, then restarts in bulk or, for the frontend and API, one instance at a time behind a readiness probe. It is slow, so the device must not block its other work on it.
+- Acts are `bestool tamanu start` and `bestool tamanu restart`. Both are slow (`restart` rolls instances behind readiness probes), so the device must not block its other work on them; success is judged by the state reaching `running`.
 - The daemon runs as root, so `bestool`'s sudo re-exec for reading container versions does not trigger.
 - A Seedling host takes a separate path: `status` ignores `--json` and prints a table with no versions, and `start` and `restart` act through the Seedling daemon. State there cannot be read structurally, so the device reports `broken` and lists no act until `bestool` can give structured status on Seedling.
 
