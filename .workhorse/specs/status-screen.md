@@ -19,7 +19,7 @@ The application MUST carry beneath the title the device's software identity, fro
 
 The application MUST offer to disconnect beside the title.
 
-The application MUST show beneath the title each message from the device it could not act on.
+Where the device sends something this version is too old to act on, as [MSG](messages.md#a-critical-member-the-receiver-does-not-know) has it, the application MUST say so beneath the title, once for each message type however often it arrives, for as long as the channel stays open.
 
 > [!NOTE]
 > The question an operator opens the application to answer is "is this working, and if not, what is wrong". The Status screen answers it before anything is tapped.
@@ -32,7 +32,7 @@ The application MUST read the rows from the batches of [NFO](device-info.md#batc
 
 Until the first batch has ended, the application MUST show the network row and the Tailscale row in progress, saying it is checking each.
 
-Each row MUST carry a mark, a name saying how the thing stands, and beneath the name, where there is any, its detail.
+Each row MUST carry a mark, the name of what it is about, what it says of how that stands, and beneath them, where there is any, its detail.
 
 A row's mark MUST be one of:
 
@@ -43,13 +43,13 @@ A row's mark MUST be one of:
 | not well | the thing is not working |
 | in progress | the thing is changing state, or its state is not yet known |
 
-The application MUST give every row's detail as short labelled values, and MUST leave whole sentences to the device's `reason`.
+The application MUST keep a row's detail to short values and phrases, and MUST leave whole sentences to the device's `reason`.
 
 The application MUST render a `reason` as the device wrote it.
 
 The application MUST supply its own wording for every state it recognises.
 
-The application MUST render a state it does not recognise by the mark its `status` gives, `passed` as well, `warning` as warning and any other as not well, with the state's value in its own wording and the device's `reason`.
+The application MUST render a state it does not recognise by the mark its `status` gives, `passed` as well, `warning` as warning and any other as not well, saying the state's value as the device sent it, with the device's `reason`.
 
 ## The network row
 
@@ -69,7 +69,7 @@ The application MUST show the network row well, saying the device is connected, 
 The application MUST show as the network row's detail, while it is well, each way in use, by its icon and its short name, in this order:
 
 - one interface in use for the cable or for wifi, and for wifi the name of the network it is joined to;
-- then the hotspot, where it is in use, with how many clients are joined from `hotspot-clients`.
+- then the hotspot, where it is in use, with how many clients are joined from `hotspot-clients` where it carries a value.
 
 The application MUST choose that interface as the one whose `interface` trait carries `route` as `default`, and where none in use for the cable or for wifi does, the first in use for the cable by interface name, and otherwise the first in use for wifi by interface name.
 
@@ -87,7 +87,7 @@ Either MUST open the screen of [NSCR](network/screen.md).
 
 Once the first batch has ended, the application MUST show the Tailscale row only where the device reports `tailscale-state`.
 
-The application MUST render the Tailscale row from `tailscale-state` by this table, showing the device's `reason` beneath the name where the table says so:
+The application MUST render the Tailscale row from `tailscale-state` by this table, showing the device's `reason` beneath what the row says where the table calls for it:
 
 | `tailscale-state` | mark | says | `reason` |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ The application MUST render the Tailscale row from `tailscale-state` by this tab
 | `needs-login` | not well | not signed in | no |
 | `expired` | not well | sign-in expired | no |
 | `needs-approval` | not well | waiting for approval | no |
-| `broken` | not well | state unknown | yes |
+| no value, `broken` | not well | state unknown | yes |
 
 The application MUST show as the row's detail the name the device is reached by, from `tailscale-name`, labelled as the device name, wherever `tailscale-name` carries a value.
 
@@ -111,7 +111,7 @@ Where `tailscale-key-expiry` is `warning`, the application MUST show the row's m
 
 The application MUST show the Tamanu row in progress, saying it is checking Tamanu, while the device reports no `tamanu-state`.
 
-The application MUST otherwise render the Tamanu row from `tamanu-state` by this table, showing the device's `reason` beneath the name where the table says so:
+The application MUST otherwise render the Tamanu row from `tamanu-state` by this table, showing the device's `reason` beneath what the row says where the table calls for it:
 
 | `tamanu-state` | mark | says | `reason` |
 | --- | --- | --- | --- |
@@ -121,7 +121,7 @@ The application MUST otherwise render the Tamanu row from `tamanu-state` by this
 | `absent` | not well | not installed | no |
 | `starting` | in progress | starting | no |
 | `restarting` | in progress | restarting | no |
-| `broken` | not well | state unknown | yes |
+| no value, `broken` | not well | state unknown | yes |
 
 The application MUST show as the row's detail the version of each of Tamanu's web application and facility server, from `tamanu-web-version` and `tamanu-facility-server-version`, each labelled and only where it carries a value.
 
@@ -134,9 +134,6 @@ The application MUST gather, beneath the rows, under a disclosure headed Advance
 
 The application MUST show the disclosure closed when a channel opens, and MUST keep it open or closed as the operator left it while the channel stays open.
 
-> [!NOTE]
-> A facility operator never needs the disclosure and never meets it by accident; a field technician finds the full depth under Advanced, where they look for it.
+## While a power act is under way
 
-## While an act is under way
-
-The application MUST show on the Status screen a device carrying out an act, as [WEB](web-app.md) specifies, in place of the rows and Advanced, for as long as the act is under way.
+The application MUST show on the Status screen a device carrying out a power act of [CTL](control/power.md), as [WEB](web-app.md) specifies, in place of the rows and Advanced, for as long as the act is under way.
