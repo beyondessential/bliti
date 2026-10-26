@@ -39,7 +39,7 @@ The connect steps, the renamed screens, history navigation and dev mode. Automat
 - [x] Leave chosen from the screen's own Back does not ask again (verifies spec: NSCR)
 - [x] An act under way takes the operator to All readings and leaves no entry behind (verifies spec: WEB)
 - [x] Going forward after disconnecting goes nowhere (verifies spec: WEB)
-- [ ] The phone's back gesture on Android Chrome behaves as the on-screen Back, on a real device
+- [x] The phone's back gesture on Android Chrome behaves as the on-screen Back, on a real device
 
 ## Dev mode
 
