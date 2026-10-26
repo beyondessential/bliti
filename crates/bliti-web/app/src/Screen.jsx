@@ -30,11 +30,20 @@ export function useDevMode() {
 	return [on, tap]
 }
 
-export function Title({ title, children }) {
+/// A screen's title, with `sub` beneath it where there is one and the screen's actions beside it.
+export function Title({ title, sub, children }) {
 	const tap = useContext(TitleTaps)
+	const heading = <h1 onClick={tap}>{title}</h1>
 	return (
 		<div className="heading title">
-			<h1 onClick={tap}>{title}</h1>
+			{sub ? (
+				<div>
+					{heading}
+					<p className="muted software">{sub}</p>
+				</div>
+			) : (
+				heading
+			)}
 			{children && <div className="actions">{children}</div>}
 		</div>
 	)

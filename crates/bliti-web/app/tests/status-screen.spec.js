@@ -1,0 +1,190 @@
+// The Status screen of STAT, the landing a channel opens on, driven by facts fed in batches as the
+// device sends them (NFO).
+
+import { expect, test } from '@playwright/test'
+
+import { IN_FORCE, PI, bar } from './network-fixtures.js'
+import {
+	UNNAMED,
+	answer,
+	emit,
+	feed,
+	message,
+	openChannel,
+	openChecking,
+	openPower,
+	openReadings,
+	stateOf,
+} from './fake-client.js'
+
+const passed = { status: { is: 'passed' } }
+const fact = (name, value, traits = {}, kind = 'text') =>
+	message({ type: 'fact', at: 1, fact: name, kind, value, traits: { ...passed, ...traits } })
+const ended = (name, value, traits = {}, kind = 'text') =>
+	message({ type: 'fact', at: 2, fact: name, kind, value, traits: { ...traits, status: { is: 'ended', reason: 'no longer applies' } } })
+const carrier = (iface) => fact('wired-carrier', true, { interface: { name: iface } }, 'boolean')
+const address = (iface, value) => fact('network-address', value, { interface: { name: iface } }, 'ipv4')
+
+const title = (page) => page.getByRole('heading', { level: 1 })
+const rows = (page) => page.locator('.health li .name')
+const row = (page, name) => page.locator('.health li').filter({ has: page.locator('.name', { hasText: name }) })
+
+test.describe('the landing', () => {
+	test('is titled with the hostname, with the software identity beneath and Disconnect beside it', async ({ page }) => {
+		await openChannel(
+			page,
+			fact('hostname', 'clinic-iti-07'),
+			fact('board', 'Raspberry Pi 5'),
+			fact('board-revision', 'Rev 1.0'),
+			fact('os', 'Ubuntu 26.04'),
+			fact('kernel', '6.8.0'),
+		)
+		await expect(title(page)).toHaveText('clinic-iti-07')
+		await expect(page.locator('.heading.title .software')).toHaveText('Raspberry Pi 5 Rev 1.0 · Ubuntu 26.04 · 6.8.0')
+		await expect(page.locator('.heading.title .actions button')).toHaveText(['Disconnect'])
+	})
+
+	test('is titled with the end of the code where the device reports no hostname', async ({ page }) => {
+		await openChannel(page)
+		await expect(title(page)).toHaveText(UNNAMED)
+		await expect(page.locator('.heading.title .software')).toHaveCount(0)
+	})
+})
+
+test.describe('the rows', () => {
+	test('are checking until the first batch has ended', async ({ page }) => {
+		await openChecking(page)
+		await expect(rows(page)).toHaveText(['Checking network', 'Checking Tailscale', 'Checking Tamanu'])
+		await expect(page.locator('.health button')).toHaveCount(0)
+
+		// Held until the batch ends.
+		await emit(page, carrier('end0'))
+		await emit(page, address('end0', '192.0.2.4'))
+		await emit(page, fact('tamanu-state', 'running'))
+		await expect(rows(page)).toHaveText(['Checking network', 'Checking Tailscale', 'Checking Tamanu'])
+
+		await feed(page)
+		// A device that reports no Tailscale has no Tailscale row once the first batch has ended.
+		await expect(rows(page)).toHaveText(['Network connected', 'Tamanu running'])
+		await expect(row(page, 'Network').locator('.detail')).toHaveText('Cable')
+	})
+
+	test('show every state of the three in order', async ({ page }) => {
+		await openChannel(
+			page,
+			carrier('end0'),
+			address('end0', '192.0.2.4'),
+			fact('tailscale-state', 'running'),
+			fact('tailscale-name', 'clinic-iti-07'),
+			fact('tamanu-state', 'degraded', { status: { is: 'warning', reason: 'Facility server is running 2.33.2.' } }),
+			fact('tamanu-web-version', '2.34.1'),
+			fact('tamanu-facility-server-version', '2.33.2'),
+		)
+		await expect(rows(page)).toHaveText(['Network connected', 'Tailscale connected', 'Tamanu partly running'])
+		await expect(row(page, 'Tailscale').locator('.detail')).toHaveText('Device nameclinic-iti-07')
+		await expect(row(page, 'Tamanu').locator('.detail.reason')).toHaveText('Facility server is running 2.33.2.')
+		await expect(row(page, 'Tamanu').locator('.detail:not(.reason)')).toHaveText('Web 2.34.1·Facility server 2.33.2')
+		await expect(page.locator('.health .mark')).toHaveClass([/good/, /good/, /warn/])
+	})
+
+	// An address moving from one interface to another is its ending and its replacement in one batch,
+	// so the row never says the device is not connected between the two (NFO, STAT).
+	test('change a batch at a time, never between an entry ending and its replacement', async ({ page }) => {
+		await openChannel(page, carrier('end0'), address('end0', '192.0.2.4'), fact('wireless-network', 'Clinic-Staff', { interface: { name: 'wlan0' } }))
+		await expect(rows(page).first()).toHaveText('Network connected')
+
+		await page.evaluate(() => {
+			window.__said = []
+			new MutationObserver(() => {
+				for (const name of document.querySelectorAll('.health .name')) window.__said.push(name.textContent)
+			}).observe(document.querySelector('.health'), { subtree: true, childList: true, characterData: true })
+		})
+		await emit(page, ended('network-address', '192.0.2.4', { interface: { name: 'end0' } }, 'ipv4'))
+		await emit(page, address('wlan0', '192.0.2.4'))
+		await feed(page)
+
+		await expect(row(page, 'Network').locator('.detail')).toHaveText('Clinic-Staff')
+		expect(await page.evaluate(() => window.__said)).not.toContain('Network not connected')
+	})
+
+	test('offer Set up while the network is not connected, and Change once it is', async ({ page }) => {
+		await openChannel(page, carrier('end0'))
+		await expect(rows(page).first()).toHaveText('Network not connected')
+		await expect(row(page, 'Network').locator('.detail')).toHaveText('Cable plugged in, no address')
+		await expect(row(page, 'Network').getByRole('button')).toHaveText('Set up')
+
+		await feed(page, address('end0', '192.0.2.4'))
+		await expect(row(page, 'Network').getByRole('button')).toHaveText('Change')
+	})
+})
+
+test.describe('the network row', () => {
+	test('Change opens the network settings, and its Back returns to the Status screen', async ({ page }) => {
+		await openChannel(page, carrier('end0'), address('end0', '192.0.2.4'))
+		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf()])
+		await row(page, 'Network').getByRole('button', { name: 'Change' }).click()
+		await expect(title(page)).toHaveText('Network settings')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(title(page)).toHaveText(UNNAMED)
+	})
+
+	test('opens the network settings read-only where someone else holds the session', async ({ page }) => {
+		await openChannel(page, carrier('end0'))
+		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf({ busy: true })])
+		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await expect(bar(page)).toHaveAttribute('data-stage', 'watching')
+		await expect(page.getByLabel('Country')).toBeDisabled()
+	})
+})
+
+test.describe('Advanced', () => {
+	test('is closed when a channel opens, and leads to every other screen', async ({ page }) => {
+		await openChannel(page)
+		const advanced = page.getByRole('button', { name: 'Advanced' })
+		await expect(advanced).toHaveAttribute('aria-expanded', 'false')
+		await expect(page.getByRole('button', { name: 'All readings' })).toHaveCount(0)
+		await advanced.click()
+		await expect(page.locator('.advanced .inside button')).toHaveText(['All readings', 'Network settings', 'Power and battery'])
+	})
+
+	test('stays as the operator left it across screens, and closes on a new channel', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await expect(title(page)).toHaveText('All readings')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(page.getByRole('button', { name: 'Advanced' })).toHaveAttribute('aria-expanded', 'true')
+
+		// The browser's way back as the screen's own.
+		await openPower(page)
+		await page.goBack()
+		await expect(title(page)).toHaveText(UNNAMED)
+		await expect(page.getByRole('button', { name: 'Advanced' })).toHaveAttribute('aria-expanded', 'true')
+
+		await page.getByRole('button', { name: 'Advanced' }).click()
+		await expect(page.getByRole('button', { name: 'Advanced' })).toHaveAttribute('aria-expanded', 'false')
+
+		await page.getByRole('button', { name: 'Disconnect' }).click()
+		await page.getByRole('button', { name: 'Find my Iti' }).click()
+		await expect(page.getByRole('button', { name: 'Advanced' })).toHaveAttribute('aria-expanded', 'false')
+	})
+})
+
+// A feed declined while the page is hidden misses every entry that ended meanwhile, so the first batch
+// of the resumed feed replaces what was held (NFO).
+test('a resumed feed drops what ended while it was declined', async ({ page }) => {
+	await openChannel(page, carrier('end0'), address('end0', '192.0.2.4'), fact('hotspot', 'Clinic-Field-05'))
+	await expect(row(page, 'Network').locator('.detail')).toHaveText('Cable·Hotspot')
+
+	await page.evaluate(() => {
+		Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+		document.dispatchEvent(new Event('visibilitychange'))
+	})
+	await page.evaluate(() => {
+		Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+		document.dispatchEvent(new Event('visibilitychange'))
+	})
+	await expect.poll(() => page.evaluate(() => window.__blitiFeeds.length)).toBe(2)
+
+	await feed(page, carrier('end0'), address('end0', '192.0.2.4'))
+	await expect(row(page, 'Network').locator('.detail')).toHaveText('Cable')
+})

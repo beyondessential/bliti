@@ -5,7 +5,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { answer, echo, failsAt, message, openNetwork, refusing, say, sent, stateOf } from './fake-client.js'
+import { answer, echo, failsAt, feed, message, openNetwork, refusing, say, sent, stateOf } from './fake-client.js'
 import { IN_FORCE, INDEPENDENT, PI, STATES, TWO_RADIOS, UNTUNED, WIRED_ONLY, addWireless, ap, bar, open, proposals, row } from './network-fixtures.js'
 
 test.describe('editing is the application\'s own', () => {
@@ -825,13 +825,13 @@ test.describe('the hotspot beside a connection', () => {
 	// on, and still left to the device to decide (NSCR, HOT).
 	test('a hotspot that cannot run beside the connection joined now says so, and can still be applied', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-		await page.evaluate((event) => window.__blitiEmit(event), joinedOn(136))
+		await feed(page, joinedOn(136))
 		const notice = page.locator('section.hotspot .notice')
 		await expect(notice).toHaveText("Can't run beside Clinic-Staff on 5 GHz channel 136; turning that connection off lets it run.")
 		await page.locator('section.hotspot').getByLabel('SSID').fill('Clinic-Field-05')
 		await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled()
 
-		await page.evaluate((event) => window.__blitiEmit(event), joinedOn(36))
+		await feed(page, joinedOn(36))
 		await expect(notice).toHaveCount(0)
 	})
 })

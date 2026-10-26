@@ -340,6 +340,28 @@ export function forgetHistory(history, entry) {
 	return next
 }
 
+/// Apply one batch of the feed to the entries and history held: each entry replacing its own, and
+/// each ended one dropped with its history. A feed's first batch carries everything the device holds,
+/// so it replaces what was held, and the history of an entry no longer held goes with it (NFO).
+export function applyBatch({ entries, history }, batch, first) {
+	const held = first ? new Map() : new Map(entries)
+	let kept = history
+	for (const entry of batch) {
+		if (isEnded(entry)) {
+			held.delete(identityKey(entry))
+			kept = forgetHistory(kept, entry)
+		} else {
+			held.set(identityKey(entry), entry)
+			kept = pushHistory(kept, entry)
+		}
+	}
+	if (first) {
+		const series = new Set([...held.values()].filter((entry) => !entry.fact).map(seriesKey))
+		kept = new Map([...kept].filter(([key]) => series.has(key)))
+	}
+	return { entries: held, history: kept }
+}
+
 /// Whether the device has said this entry no longer applies (NFO).
 export function isEnded(entry) {
 	return statusOf(entry) === 'ended'

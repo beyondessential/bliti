@@ -4,11 +4,13 @@ import Connect from './Connect.jsx'
 import Network from './Network.jsx'
 import { useOfflineReady } from './offline.js'
 import Power from './Power.jsx'
-import Readings, { Identity } from './Readings.jsx'
+import Readings, { softwareOf } from './Readings.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from './Screen.jsx'
+import Status from './Status.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
-import { entryOf, forgetHistory, hasValue, identityKey, isEnded, pushHistory } from './readings.js'
-import { loadOn, loadRecent, remember, saveOn, saveRecent } from './remembered.js'
+import { applyBatch, entryOf, hasValue, isEnded } from './readings.js'
+import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
+import { statusRows } from './status.js'
 
 // How many notices are kept. The far end decides how many arrive.
 const KEPT = 20
@@ -18,8 +20,12 @@ const KEPT = 20
 const LOGGED = 100
 
 // Readings stream continuously on the feed and would drown the log, so it records that the feed is
-// running rather than every reading on it. Facts and the hello are rare and are recorded.
-const STREAMED = new Set(['reading'])
+// running rather than every reading on it, nor the end of every batch. Facts and the hello are rare
+// and are recorded.
+const STREAMED = new Set(['reading', 'end-of-batch'])
+
+// Nothing held of a device: no entries, and no history.
+const NOTHING_HELD = { entries: new Map(), history: new Map() }
 
 // What the application says while a device carries an act out. Only ever that it is under way: an
 // act accepted is not an act done, and nothing is left connected to say which it was (WEB).
@@ -57,11 +63,14 @@ export default function App() {
 	const connected_ = useRef(false)
 	connected_.current = connected
 	const [device, setDevice] = useState(null)
-	// Which screen of a connected device is showing: all its readings, its power and battery, or its
-	// network settings. Every screen but the readings has a history entry of its own (WEB, "Moving
-	// between screens"), and the ref is what the browser's way back is checked against.
-	const [screen, setScreen] = useState('readings')
-	const screen_ = useRef('readings')
+	// Which screen of a connected device is showing: its status, all its readings, its power and
+	// battery, or its network settings. Every screen but the status has a history entry of its own
+	// (WEB, "Moving between screens"), and the ref is what the browser's way back is checked against.
+	const [screen, setScreen] = useState('status')
+	const screen_ = useRef('status')
+	// Whether Advanced is open on the Status screen, kept while the operator goes down a level and back,
+	// and closed whenever a channel opens (STAT).
+	const [advanced, setAdvanced] = useState(false)
 	// Set while the application itself is going back, so that going back does not ask again.
 	const leaving_ = useRef(false)
 	// How the network settings screen asks before the operator leaves it with edits not applied (NSCR).
@@ -81,10 +90,19 @@ export default function App() {
 	const holding_ = useRef(null)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
-	// the device; a graph fills forward from connection.
-	const [entries, setEntries] = useState(() => new Map())
-	const [history, setHistory] = useState(() => new Map())
+	// the device; a graph fills forward from connection. Both change together, a batch at a time (NFO).
+	const [held, setHeld] = useState(NOTHING_HELD)
+	const { entries, history } = held
+	// What the feed has sent since its last `end-of-batch`, and whether the batch it is in is the
+	// feed's first, which carries everything the device holds and replaces what is held (NFO).
+	const pending_ = useRef([])
+	const first_ = useRef(true)
+	// Whether the first batch since the channel opened has ended: until it has, the Status screen is
+	// still checking (STAT).
+	const [settled, setSettled] = useState(false)
 	const [notices, setNotices] = useState([])
+	// The message types a notice has been raised for since the channel opened (STAT).
+	const refused_ = useRef(new Set())
 	const [log, setLog] = useState([])
 	// What the tab held before this load, read once, so that a second run of the mount effect under
 	// StrictMode sees the same device as the first (WEB, "After a reload").
@@ -110,7 +128,24 @@ export default function App() {
 		[],
 	)
 
-	// Opening a screen goes one level down from the readings, and the browser's way back brings the
+	// A channel about to open: its feed's first batch still to come, which replaces whatever is held,
+	// no notices, and Advanced closed (STAT). Called before the channel opens, so nothing it sends is
+	// lost to it.
+	const opening = useCallback(() => {
+		pending_.current = []
+		first_.current = true
+		refused_.current = new Set()
+		setSettled(false)
+		setNotices([])
+		setAdvanced(false)
+	}, [])
+	// A channel let go of: nothing of the device held any more.
+	const letGo = useCallback(() => {
+		opening()
+		setHeld(NOTHING_HELD)
+	}, [opening])
+
+	// Opening a screen goes one level down from the status, and the browser's way back brings the
 	// operator up again, as the screen's Back does (WEB, "Moving between screens").
 	const openScreen = (next) => {
 		window.history.pushState({ screen: next }, '')
@@ -121,25 +156,25 @@ export default function App() {
 		leaving_.current = true
 		window.history.back()
 	}
-	// Back at the readings however the operator got there, with the entry of the screen they were on
+	// Back at the status however the operator got there, with the entry of the screen they were on
 	// taken out of the history.
 	const toLanding = useCallback(() => {
 		if (window.history.state?.screen) {
 			leaving_.current = true
 			window.history.back()
 		}
-		screen_.current = 'readings'
-		setScreen('readings')
+		screen_.current = 'status'
+		setScreen('status')
 	}, [])
 
 	useEffect(() => {
 		const onPop = (event) => {
-			const next = event.state?.screen ?? 'readings'
+			const next = event.state?.screen ?? 'status'
 			const confirmed = leaving_.current
 			leaving_.current = false
 			// An entry gone forward to with no device to show it on is nothing to go to.
 			if (!connected_.current || going_.current) {
-				if (next !== 'readings') window.history.replaceState(null, '')
+				if (next !== 'status') window.history.replaceState(null, '')
 				return
 			}
 			if (!confirmed && screen_.current === 'network' && next !== 'network' && guard.current) {
@@ -183,18 +218,16 @@ export default function App() {
 					} else if (message.type === 'going-away') {
 						startGoing(message.act, message.cause)
 					} else if (message.type === 'fact' || message.type === 'reading') {
-						const entry = entryOf(message)
-						if (isEnded(entry)) {
-							setEntries((held) => {
-								const next = new Map(held)
-								next.delete(identityKey(entry))
-								return next
-							})
-							setHistory((held) => forgetHistory(held, entry))
-						} else {
-							setEntries((held) => new Map(held).set(identityKey(entry), entry))
-							setHistory((held) => pushHistory(held, entry))
-						}
+						pending_.current.push(entryOf(message))
+					} else if (message.type === 'end-of-batch') {
+						// Applied whole, so the moment between an entry ending and the one that replaces
+						// it is never shown (NFO).
+						const batch = pending_.current
+						const first = first_.current
+						pending_.current = []
+						first_.current = false
+						setHeld((held) => applyBatch(held, batch, first))
+						setSettled(true)
 					}
 					if (!STREAMED.has(message.type)) note('in', describe(message))
 					break
@@ -204,6 +237,9 @@ export default function App() {
 					break
 				case 'refused':
 					note('in', `refused  ${event.detail}`)
+					// Said once for each message type, however often it arrives (STAT).
+					if (refused_.current.has(event.type)) break
+					refused_.current.add(event.type)
 					notice('refused', `The device said something this version of the app is too old to act on: ${event.detail}`)
 					break
 				case 'fault':
@@ -249,10 +285,11 @@ export default function App() {
 	}, [client, note, start])
 
 	// Remembered whenever a channel opens, which also puts it at the top, and again once it says what
-	// it is called.
-	const hostnameEntry = connected
-		? [...entries.values()].find((entry) => entry.fact && entry.name === 'hostname' && hasValue(entry))
-		: undefined
+	// it is called. Nothing is held of a device once it is let go, so this is always the one the page
+	// is on.
+	const hostnameEntry = [...entries.values()].find(
+		(entry) => entry.fact && entry.name === 'hostname' && hasValue(entry),
+	)
 	const hostname = hostnameEntry ? String(hostnameEntry.value) : undefined
 	useEffect(() => {
 		if (connected && code) setRecent((held) => remember(held ?? [], code.text, hostname))
@@ -276,6 +313,10 @@ export default function App() {
 			if (document.hidden) {
 				client.pauseFeed()
 			} else {
+				// A resumed feed opens on everything the device holds, which replaces what was held:
+				// an entry that ended while the feed was declined is never sent ended (NFO).
+				pending_.current = []
+				first_.current = true
 				client.resumeFeed({ onEvent, onActivity: note })
 			}
 		}
@@ -302,11 +343,10 @@ export default function App() {
 			setConnected(false)
 			setPhase(null)
 			toLanding()
-			setEntries(new Map())
-			setHistory(new Map())
+			letGo()
 			setProblem(problem)
 		},
-		[client, toLanding],
+		[client, toLanding, letGo],
 	)
 
 	// What a channel reports back, the same for the first connection and every one after it.
@@ -332,6 +372,7 @@ export default function App() {
 			return
 		}
 		toLanding()
+		letGo()
 		setProblem({ kind: 'lost', detail: why })
 	}
 
@@ -344,6 +385,8 @@ export default function App() {
 		while (Date.now() < deadline) {
 			await sleep(TIMINGS.retry)
 			if (returning.current !== attempt) return
+			// What the device was is kept on screen while it comes back, and replaced by its first batch.
+			opening()
 			try {
 				await client.reconnect(code_.current.qr, handlers())
 			} catch (error) {
@@ -359,8 +402,6 @@ export default function App() {
 			returning.current = null
 			going_.current = null
 			setGoing(null)
-			setEntries(new Map())
-			setHistory(new Map())
 			toLanding()
 			setConnected(true)
 			note('note', 'the device is back')
@@ -374,6 +415,7 @@ export default function App() {
 		attempt_.current = attempt
 		setPhase('choosing')
 		setProblem(null)
+		opening()
 		const picked = () => attempt_.current === attempt && setPhase('connecting')
 		try {
 			await client.connect(code.qr, { ...handlers(), onPicked: picked })
@@ -418,8 +460,7 @@ export default function App() {
 		toLanding()
 		setPhase(null)
 		setProblem(null)
-		setEntries(new Map())
-		setHistory(new Map())
+		letGo()
 		note('note', 'disconnected')
 	}
 
@@ -462,81 +503,88 @@ export default function App() {
 	}
 
 	// A screen of a connected device: its title with its actions beside it, where every such screen
-	// carries them (VIEW, CSCR).
-	const screenOf = (title, actions, body) =>
+	// carries them (STAT, VIEW, CSCR).
+	const screenOf = (title, actions, body, sub) =>
 		shell(
 			<>
-				<Title title={title}>{actions}</Title>
+				<Title title={title} sub={sub}>
+					{actions}
+				</Title>
 				{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 				{body}
 			</>,
 		)
-
-	const disconnectButton = (
-		<button className="secondary small" onClick={disconnect}>
-			Disconnect
+	const back = (
+		<button className="secondary small" onClick={goBack}>
+			Back
 		</button>
 	)
-	const identity = (
-		<>
-			<h2>Device</h2>
-			{device && (
-				<p className="muted software">
-					{device.name} {device.version}
-				</p>
-			)}
-		</>
-	)
 
-	// The device carrying an act out: who it is, and what it is doing, until it is over (WEB).
+	// The Status screen: titled with the device's hostname, or the end of its code where it reports
+	// none, its software identity beneath and Disconnect beside it (STAT).
+	const statusOf = (body) =>
+		screenOf(
+			hostname ?? suffix(code.text),
+			<button className="secondary small" onClick={disconnect}>
+				Disconnect
+			</button>,
+			body,
+			softwareOf((name) => all.find((entry) => entry.name === name)),
+		)
+
+	// The device carrying an act out: what it is doing in place of the rows and Advanced, until it is
+	// over (WEB, STAT).
 	if (going) {
-		return screenOf(
-			'All readings',
-			disconnectButton,
-			<>
-				{identity}
-				<Identity entries={all} />
-				<section className="bar-state working" role="status">
-					<p>
-						<span className="spinner" aria-hidden="true" />
-						{UNDER_WAY[going]}
-					</p>
-					{cause === 'low-battery' && <p>Its battery is low.</p>}
-				</section>
-			</>,
+		return statusOf(
+			<section className="bar-state working" role="status">
+				<p>
+					<span className="spinner" aria-hidden="true" />
+					{UNDER_WAY[going]}
+				</p>
+				{cause === 'low-battery' && <p>Its battery is low.</p>}
+			</section>,
 		)
 	}
 
 	if (connected && screen === 'power') {
 		return screenOf(
 			'Power and battery',
-			<button className="secondary small" onClick={goBack}>
-				Back
-			</button>,
+			back,
 			<Power client={client} onActivity={note} onEvent={noteSession} onAccepted={startGoing} />,
 		)
 	}
 
-	if (connected) {
+	if (connected && screen === 'readings') {
 		return screenOf(
 			'All readings',
+			back,
 			<>
-				<button className="secondary small" onClick={() => openScreen('power')}>
-					Power and battery
-				</button>
-				<button className="secondary small" onClick={() => openScreen('network')}>
-					Network settings
-				</button>
-				{disconnectButton}
+				<h2>Device</h2>
+				{device && (
+					<p className="muted software">
+						{device.name} {device.version}
+					</p>
+				)}
+				<Readings entries={all} history={history} />
 			</>,
+		)
+	}
+
+	if (connected) {
+		return statusOf(
 			<>
-				{identity}
 				{notices.map((each) => (
 					<p key={each.id} className={`notice ${each.kind}`}>
 						{each.detail}
 					</p>
 				))}
-				<Readings entries={all} history={history} />
+				<Status
+					rows={statusRows(all, settled)}
+					onChange={() => openScreen('network')}
+					advanced={advanced}
+					onAdvanced={setAdvanced}
+					onOpen={openScreen}
+				/>
 			</>,
 		)
 	}

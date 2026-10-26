@@ -4,7 +4,19 @@
 import { expect, test } from '@playwright/test'
 
 import { IN_FORCE, PI } from './network-fixtures.js'
-import { answer, devMode, emit, installFakeClient, message, openChannel, openNetwork, typeCode } from './fake-client.js'
+import {
+	UNNAMED,
+	answer,
+	devMode,
+	emit,
+	installFakeClient,
+	message,
+	openChannel,
+	openNetwork,
+	openNetworkScreen,
+	openPower,
+	typeCode,
+} from './fake-client.js'
 
 const title = (page) => page.getByRole('heading', { level: 1 })
 
@@ -12,27 +24,27 @@ const title = (page) => page.getByRole('heading', { level: 1 })
 async function openFromBlank(page) {
 	await page.goto('about:blank')
 	await openChannel(page)
-	await expect(title(page)).toHaveText('All readings')
+	await expect(title(page)).toHaveText(UNNAMED)
 }
 
 test.describe('the browser’s way back', () => {
 	test('leaves a screen as its Back does', async ({ page }) => {
 		await openFromBlank(page)
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPower(page)
 		await expect(title(page)).toHaveText('Power and battery')
 		await page.goBack()
-		await expect(title(page)).toHaveText('All readings')
-		await page.getByRole('button', { name: 'Network settings' }).click()
+		await expect(title(page)).toHaveText(UNNAMED)
+		await openNetworkScreen(page)
 		await expect(title(page)).toHaveText('Network settings')
 		await page.goBack()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 
 	test('leaves the application from the screen a channel opens on', async ({ page }) => {
 		await openFromBlank(page)
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPower(page)
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 		await page.goBack()
 		await expect(page).toHaveURL('about:blank')
 	})
@@ -48,7 +60,7 @@ test.describe('the browser’s way back', () => {
 
 		await page.goBack()
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 
 	test('does not ask again once Leave has been chosen from the screen’s own Back', async ({ page }) => {
@@ -56,25 +68,25 @@ test.describe('the browser’s way back', () => {
 		await page.getByLabel('Country').selectOption('FJ')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 		await expect(page.getByRole('alertdialog')).toHaveCount(0)
 	})
 
 	test('finds no entry left behind by a screen the device took the operator off', async ({ page }) => {
 		await openFromBlank(page)
 		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPower(page)
 		await expect(title(page)).toHaveText('Power and battery')
 		await emit(page, message({ type: 'going-away', act: 'reboot', cause: 'manual-control' }))
 		await expect(page.getByRole('status')).toHaveText('Rebooting…')
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 		await page.goBack()
 		await expect(page).toHaveURL('about:blank')
 	})
 
 	test('goes nowhere forward once the channel has closed', async ({ page }) => {
 		await openFromBlank(page)
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPower(page)
 		await page.goBack()
 		await page.getByRole('button', { name: 'Disconnect' }).click()
 		await page.goForward()
@@ -92,7 +104,7 @@ test.describe('dev mode', () => {
 		await page.waitForTimeout(1_100)
 		await devMode(page)
 		await expect(page.locator('.log')).toContainText('code read')
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPower(page)
 		await expect(page.locator('.log')).toBeVisible()
 
 		await page.waitForTimeout(1_100)
@@ -125,7 +137,7 @@ test.describe('connecting', () => {
 		await expect(page.getByText('Connecting to your Iti')).toBeVisible()
 		await expect(page.locator('.steps [aria-current="step"] .name')).toHaveText('Connect')
 		await page.evaluate(() => window.__blitiReleaseConnect())
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 
 	test('can be cancelled, which returns to finding the device', async ({ page }) => {

@@ -8,13 +8,17 @@ import { expect, test } from '@playwright/test'
 
 import { IN_FORCE, PI } from './network-fixtures.js'
 import {
+	UNNAMED,
 	answer,
 	closeChannel,
 	curveSent,
 	emit,
+	feed,
 	message,
 	openChannel,
 	openNetwork,
+	openPower as openPowerScreen,
+	openReadings,
 	powerSent,
 	returns,
 	sayOnCurve,
@@ -46,7 +50,7 @@ const CURVES = message({
 async function openPower(page, acts = ['restart', 'reboot', 'power-off'], { open = true } = {}) {
 	if (open) await openChannel(page)
 	await answer(page, 'power', message({ type: 'acts', acts }))
-	await page.getByRole('button', { name: 'Power and battery' }).click()
+	await openPowerScreen(page)
 	if (acts.length > 0) await power(page).waitFor()
 }
 
@@ -72,33 +76,32 @@ async function confirmAct(page, button) {
 }
 
 test.describe('the device view', () => {
-	test('is titled All readings, with Power and battery, Network settings and Disconnect beside the title', async ({
-		page,
-	}) => {
+	test('is titled All readings, with only the way back beside the title', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		await expect(title(page)).toHaveText('All readings')
-		await expect(page.locator('.heading.title .actions button')).toHaveText([
-			'Power and battery',
-			'Network settings',
-			'Disconnect',
-		])
+		await expect(page.locator('.heading.title .actions button')).toHaveText(['Back'])
 		await expect(page.getByRole('heading', { name: 'Device', level: 2 })).toBeVisible()
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 
-	test('opens the network settings screen, whose Back returns to it', async ({ page }) => {
+	test('opens the network settings screen, whose Back returns to the Status screen', async ({ page }) => {
 		await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 		await expect(title(page)).toHaveText('Network settings')
+		await expect(page.locator('.heading.title .actions button')).toHaveText(['Back'])
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 })
 
 test.describe('the power and battery screen', () => {
-	test('is titled Power and battery, and its Back returns to the device view', async ({ page }) => {
+	test('is titled Power and battery, and its Back returns to the Status screen', async ({ page }) => {
 		await openPower(page)
 		await expect(title(page)).toHaveText('Power and battery')
+		await expect(page.locator('.heading.title .actions button')).toHaveText(['Back'])
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(UNNAMED)
 	})
 
 	test('opens a power stream and a curve stream while it is open, and closes both on leaving', async ({ page }) => {
@@ -125,7 +128,7 @@ test.describe('the power and battery screen', () => {
 		page,
 	}) => {
 		await openChannel(page)
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPowerScreen(page)
 		await expect(title(page)).toHaveText('Power and battery')
 		await expect(power(page)).toHaveCount(0)
 
@@ -183,9 +186,9 @@ test.describe('the power and battery screen', () => {
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
 
-		await expect(title(page)).toHaveText('All readings')
-		await page.getByRole('button', { name: 'Power and battery' }).click()
-		await emit(page, fact('network-configuration', 'provisional'))
+		await expect(title(page)).toHaveText(UNNAMED)
+		await openPowerScreen(page)
+		await feed(page, fact('network-configuration', 'provisional'))
 		await power(page).getByRole('button', { name: 'Reboot' }).click()
 		await expect(page.getByRole('alertdialog')).toContainText('Reboot the Iti?')
 		await expect(page.getByRole('alertdialog')).not.toContainText('network')
@@ -340,21 +343,19 @@ test.describe('the battery section', () => {
 })
 
 test.describe('when the device goes away', () => {
-	test('an act accepted keeps the title and the device named, in place of the tiles', async ({ page }) => {
-		await openChannel(page)
-		await emit(page, fact('hostname', 'tamanu-iti-04'))
-		await emit(page, reading('cpu-usage', 0.12))
+	test('an act accepted shows the Status screen, with the act in place of its rows and Advanced', async ({ page }) => {
+		await openChannel(page, fact('hostname', 'tamanu-iti-04'), fact('os', 'Debian 12'))
 		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
-		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await openPowerScreen(page)
 		await answer(page, 'act', message({ type: 'accepted' }))
 		await confirmAct(page, 'Reboot')
 
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText('tamanu-iti-04')
+		await expect(page.locator('.heading.title .software')).toHaveText('Debian 12')
 		await expect(page.getByRole('status')).toHaveText('Rebooting…')
-		await expect(page.getByText('tamanu-iti-04')).toBeVisible()
-		await expect(page.getByText('12%')).toHaveCount(0)
+		await expect(page.locator('.health')).toHaveCount(0)
+		await expect(page.getByRole('button', { name: 'Advanced' })).toHaveCount(0)
 		await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible()
-		await expect(page.getByRole('button', { name: 'Power and battery' })).toHaveCount(0)
 	})
 
 	// Another operator's act reaches this one on the feed (CTL).
@@ -368,7 +369,7 @@ test.describe('when the device goes away', () => {
 		await openChannel(page)
 		await emit(page, message({ type: 'going-away', act: 'hibernate', cause: 'manual-control' }))
 		await expect(page.getByRole('status')).toHaveCount(0)
-		await expect(page.getByRole('button', { name: 'Power and battery' })).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Advanced' })).toBeVisible()
 	})
 
 	test('after a reboot, the device is reached again on its own once it is back', async ({ page }) => {
@@ -378,11 +379,12 @@ test.describe('when the device goes away', () => {
 		await closeChannel(page)
 
 		await expect(page.getByRole('status')).toHaveText('Rebooting…')
-		await expect(page.getByRole('button', { name: 'Power and battery' })).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Advanced' })).toBeVisible()
 		await expect(page.getByRole('status')).toHaveCount(0)
 		expect(await page.evaluate(() => window.__blitiReconnects)).toBe(3)
 
-		await emit(page, reading('cpu-usage', 0.3))
+		await feed(page, reading('cpu-usage', 0.3))
+		await openReadings(page)
 		await expect(page.getByText('30%')).toBeVisible()
 	})
 
