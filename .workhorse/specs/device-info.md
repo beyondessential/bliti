@@ -16,6 +16,8 @@ Each reader decides how to use them; [VIEW](device-view.md) specifies how ours d
 | state of charge | How full a cell is, as a proportion of its capacity. Not whether it is charging or discharging, which is its direction of travel. |
 | overlay | A virtual network built across whatever physical links a device has, over which a fleet is reached. |
 | tailnet | The network of machines one organisation's Tailscale account holds. |
+| Tamanu | The health records system installed on the device, made of several services. |
+| required service | A service an installation of Tamanu requires to be running. An installation also requires some services to be absent. |
 | throttling | A platform limiting its own processor, typically for heat or for supply voltage. |
 
 ## The topic
@@ -176,6 +178,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `tailscale-name` | `text` | — | the name the device is reached by over Tailscale |
 | `tailnet` | `text` | — | the tailnet the device is a member of |
 | `tailscale-key-expiry` | `datetime` | — | the instant the device's sign-in lapses |
+| `tamanu-state` | `text` | — | whether Tamanu is running as it is configured to, as below |
+| `tamanu-web-version` | `text` | — | the version of Tamanu's web application |
+| `tamanu-facility-server-version` | `text` | — | the version of Tamanu's facility server |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
@@ -305,6 +310,43 @@ The acts a client asks of Tailscale are specified under [TSC](control/tailscale.
 > The name and the tailnet are entries of their own, not part of the state, so a device whose sign-in has lapsed still tells a reader which device it is and where it belongs.
 > A sign-in that lapses silently takes a device out of reach of the fleet. Warning ahead of it lets an operator renew it while the device can still be reached.
 > The interface Tailscale creates is the overlay of [Network](#network), reported there as an interface and here as how the device stands in it.
+
+## Tamanu
+
+A device on which Tamanu is installed MUST report `tamanu-state`, `tamanu-web-version` and `tamanu-facility-server-version`, and MUST omit all three where none is installed.
+
+`tamanu-state` MUST report one of:
+
+| value | meaning | `status` |
+| --- | --- | --- |
+| `running` | every required service is running, no service Tamanu requires to be absent is present, and every service runs the version it is configured to | `passed` |
+| `degraded` | some required service is running, and Tamanu is not `running` | `warning`, with a reason saying what is short |
+| `stopped` | no required service is running | `failed`, with a reason saying so |
+| `starting` | a `start` of [TMU](control/tamanu.md) is under way | `warning`, with a reason saying it is starting |
+| `restarting` | a `restart` of [TMU](control/tamanu.md) is under way | `warning`, with a reason saying it is restarting |
+
+A device MUST report `tamanu-state` as `broken`, with a reason, where Tamanu is installed and the device could not read how it stands.
+
+A device MUST report a change in `tamanu-state` as soon as it observes the change.
+
+A device MUST report a required service that runs as several instances as short while fewer than the number Tamanu requires are running.
+
+A device MUST report the version a service is running as the value of its version entry, and where its instances run different versions, the highest.
+
+A device MUST report a version entry as `warning` where the version running differs from the version configured, or where instances run different versions, with a reason saying which.
+
+A device MUST report a version entry whose service is not running with the version it is configured to run as its value, as `failed`, with a reason saying the service is not running.
+
+A device MUST report a version entry as `skipped`, with a reason, where it holds neither a running nor a configured version for the service.
+
+A device MUST report both version entries as `broken`, with the reason of `tamanu-state`, where `tamanu-state` is `broken`.
+
+The acts a client asks of Tamanu are specified under [TMU](control/tamanu.md).
+
+> [!NOTE]
+> The web application and the facility server are configured and versioned separately, so each has an entry of its own.
+> A device that holds a configured version while nothing runs still tells an operator which version a start will bring up.
+> A restart is rolled across instances and Tamanu keeps serving throughout, so the state would stay `running` while it happens. `restarting` says an act is under way, as [TMU](control/tamanu.md) has it.
 
 ## Power source and battery
 

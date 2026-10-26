@@ -85,6 +85,14 @@ An auth key an operator supplies to sign a device in crosses the channel, which 
 > [!NOTE]
 > The same session can already restart, reboot or power off the device, under [CTL](control/power.md). What a Tailscale act adds is the device's place on the network the fleet uses to reach it.
 
+### A session can interrupt the facility's software
+
+Anyone who can open a session can ask the device to start Tamanu or restart it, under [TMU](control/tamanu.md).
+A restart rolls across instances and Tamanu keeps serving, but a service that runs as a single instance is unavailable while it restarts.
+
+> [!NOTE]
+> The same session can already reboot or power off the device, under [CTL](control/power.md), which takes Tamanu away with it. A Tamanu act reaches the same software without taking the rest of the device.
+
 ### The board ID yields everything
 
 Anyone who learns a device's board ID can derive that device's root, and so both its presence token and its device static key.
