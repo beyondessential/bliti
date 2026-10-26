@@ -14,7 +14,7 @@ The connect steps, the renamed screens, history navigation and dev mode. Automat
 - [x] Scanning says how, hides Recently used and Advanced, and Cancel stops it (verifies spec: WEB)
 - [x] A camera that cannot be opened says so and offers Try again, and typing still works (verifies spec: WEB)
 - [x] A pasted code that does not read marks the field and says why beside it (verifies spec: WEB)
-- [ ] A code the camera sees that does not read is said beneath the camera, which keeps scanning (verifies spec: WEB)
+- [x] A code the camera sees that does not read is said beneath the camera, which keeps scanning (verifies spec: WEB)
 - [x] Finding shows the name to look for, Scan a different code and Save code for reprinting (verifies spec: WEB)
 - [x] Once a device is picked, step 3 says it is connecting; Cancel returns to finding it, and the abandoned attempt connects nothing (verifies spec: WEB)
 - [x] A chooser closed with nothing picked says the Iti wasn't found, and offers Try again (verifies spec: WEB)
