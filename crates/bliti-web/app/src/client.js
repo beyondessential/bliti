@@ -129,7 +129,7 @@ export function createClient() {
 				return 'This page needs a secure context. Open it over https, or over localhost while developing.'
 			}
 			if (!navigator.bluetooth) {
-				return 'This browser does not offer Web Bluetooth. Chrome on Android is the tested one.'
+				return 'Open this page in Chrome on an Android phone.'
 			}
 			return null
 		},
@@ -175,18 +175,19 @@ export function createClient() {
 
 			const advertised = device.name ? qr.read_local_name(device.name) : undefined
 			if (!advertised) {
-				throw new Error('That device is not advertising a bliti payload.')
+				throw new Error('That device is not an Iti.')
 			}
 			if (!advertised.supported) {
 				throw new Error(
-					`That device speaks bliti version ${advertised.version}, which this app does not read.`,
+					`That Iti speaks version ${advertised.version}, which this app does not read.`,
 				)
 			}
 			if (!advertised.matches) {
-				throw new Error('That is a different bliti device. Pick the one whose code you read.')
+				throw new Error('That is a different Iti. Pick the one whose code you read.')
 			}
 
 			say('note', `matched the code against ${device.name}`)
+			handlers.onPicked?.()
 			await open(qr, handlers)
 		},
 

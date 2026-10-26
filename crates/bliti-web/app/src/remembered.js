@@ -1,5 +1,5 @@
-// The devices this tab has opened a channel with, and the one it is on (WEB, "Remembering devices",
-// "After a reload").
+// The devices this tab has opened a channel with, the one it is on, and whether it is in dev mode
+// (WEB, "Remembering devices", "After a reload", "Activity").
 //
 // Kept in session storage, which lives exactly as long as the tab: a reload or a restored tab keeps it,
 // and closing the tab forgets it. A code is kept as the text it encodes, which reads back to the same
@@ -10,6 +10,7 @@ const KEPT = 3
 
 const RECENT = 'bliti.recent'
 const ON = 'bliti.on'
+const DEV = 'bliti.dev'
 
 /// Put `code` at the top of `recent`, keeping the hostname it had where none is given, and dropping
 /// the oldest beyond the cap.
@@ -45,6 +46,14 @@ export function loadOn() {
 
 export function saveOn(code) {
 	write(ON, code)
+}
+
+export function loadDev() {
+	return read(DEV) === true
+}
+
+export function saveDev(on) {
+	write(DEV, on || null)
 }
 
 // Storage can be refused outright, as in some private modes. Remembering is then only lost, never an

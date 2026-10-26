@@ -1,12 +1,11 @@
-/* The visual language of the client, carried over from the prototype page this application replaces
-   so that the screen an operator knows is the screen they still meet. */
+/* The visual language of the client: the prototype page's shapes, in Tamanu Iti's colours. */
 :root {
 	--page: #fbfbfa;
 	--surface: #ffffff;
 	--line: #e4e2dd;
 	--text: #1c1917;
 	--muted: #57534e;
-	--accent: #1d4ed8;
+	--accent: #326699;
 	--bad: #b91c1c;
 	--warn: #a16207;
 	--good: #15803d;
@@ -40,7 +39,7 @@ button {
 	cursor: pointer;
 }
 button:disabled { background: var(--muted); opacity: 0.5; cursor: default; }
-button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 input {
 	font: inherit;
 	width: 100%;
@@ -222,14 +221,18 @@ button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bott
 .acts li > div { flex: 1 1 auto; }
 .acts .name { display: block; }
 .acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
-button.secondary.danger { color: var(--bad); }
+button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 
 /* What the device gives for its battery, above the battery section's rows (CSCR). */
 .learnt { margin: 0 0 10px; }
 
-/* The devices this tab has reached, laid out as the acts are: which device, and the button that
+/* A confirmation takes its act's button's place, beneath the act it asks about (CSCR). */
+.acts li.asking { display: block; }
+.acts .bar-state { margin: 10px 0 0; }
+.acts .bar-state .row.fill > * { flex: 1 1 auto; }
+
+/* The devices this tab has reached are laid out as the acts are: which device, and the button that
    holds its code again (WEB). */
-.recent .code { color: var(--muted); font-size: 0.8rem; }
 .device-name { display: block; margin: 0 0 4px; }
 button.danger-fill { background: var(--bad); }
 .bar-state[role="alertdialog"] .row > * { flex: 0 1 auto; }
@@ -282,7 +285,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .order li.selected .what .name { color: var(--accent); }
 /* The candidate being edited, and its fields below, are unmistakably the same one. */
 .order li.selected {
-	background: #eef2fd;
+	background: #eef3f8;
 	box-shadow: inset 3px 0 0 var(--accent);
 	margin: 0 -12px;
 	padding-left: 12px;
@@ -401,3 +404,43 @@ button.link { background: transparent; color: var(--accent); padding: 0; min-hei
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* Where the operator is in reaching a device: done steps ticked, the current one named in full, so
+   how much is left is answered without reading anything else (WEB). */
+.steps { list-style: none; display: flex; margin: 0 0 16px; padding: 0; }
+.steps li { flex: 1 1 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted); text-align: center; }
+.steps li + li::before { content: ""; position: absolute; top: 11px; right: 50%; width: 100%; height: 2px; background: var(--line); }
+.steps li.done::before, .steps li.current::before { background: var(--accent); }
+.steps .dot { position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 0.75rem; font-weight: 600; }
+.steps li.current .dot { border-color: var(--accent); color: var(--accent); }
+.steps li.done .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steps li.current .name { color: var(--text); font-weight: 600; }
+
+/* The one instruction a step carries: what to do, in a line, with a sentence of help beneath. */
+.lead { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.lead + .muted { margin: 0 0 12px; }
+.lead.problem { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.alert { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #fbeaea; color: var(--bad); display: grid; place-items: center; font-size: 0.85rem; font-weight: 400; line-height: 1; }
+.done-line { color: var(--good); font-size: 0.85rem; font-weight: 600; margin: 0 0 8px; }
+.done-line::before { content: "\2713"; margin-right: 6px; }
+.chip { display: block; text-align: center; font-family: ui-monospace, monospace; font-size: 1rem; letter-spacing: 0.05em; padding: 8px 10px; margin: 8px 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); overflow-wrap: anywhere; }
+button.block { width: 100%; }
+.links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
+.steps-body video { margin: 0 0 12px; aspect-ratio: 4 / 3; object-fit: cover; }
+.steps-body .why { margin: 0 0 12px; }
+
+/* What only technical staff need, behind a section that stays closed until opened (WEB). */
+details.advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+details.advanced > summary { display: flex; align-items: center; justify-content: space-between; padding: 16px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; list-style: none; }
+details.advanced > summary::-webkit-details-marker { display: none; }
+details.advanced > summary::after { content: ""; width: 7px; height: 7px; margin: -4px 4px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+details.advanced[open] > summary { border-bottom: 1px solid var(--line); }
+details.advanced[open] > summary::after { margin-top: 4px; transform: rotate(-135deg); }
+details.advanced .inside { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+details.advanced label { font-size: 0.8rem; color: var(--muted); }
+details.advanced input { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+details.advanced .why { margin: 0; }
+
+/* A title's actions wrap among themselves rather than squeezing it, where there are several. */
+.heading.title h1 { flex: 0 0 auto; }
+.heading.title .actions { flex: 1 1 0; flex-wrap: wrap; justify-content: flex-end; }

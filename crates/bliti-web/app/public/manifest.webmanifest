@@ -1,8 +1,8 @@
 {
-	"name": "bliti",
-	"short_name": "bliti",
-	"description": "Provision a device by the QR code on its enclosure",
-	"theme_color": "#1d4ed8",
+	"name": "Tamanu Iti",
+	"short_name": "Tamanu Iti",
+	"description": "Set up a Tamanu Iti by the QR code on its enclosure",
+	"theme_color": "#326699",
 	"background_color": "#fbfbfa",
 	"display": "standalone",
 	"start_url": "/",

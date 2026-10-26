@@ -27,6 +27,8 @@
 // entry fails. Attempts are counted in window.__blitiReconnects.
 //
 // Setting window.__blitiNothingPicked makes connect fail as a chooser closed with nothing picked does.
+// Setting window.__blitiHoldConnect holds connect once a device is picked, until a test calls
+// window.__blitiReleaseConnect, and a disconnect meanwhile fails it as letting go of a device does.
 //
 // A code reads as its own text: whatever follows the last colon, upper-cased behind the prefix, so
 // each code a test types is a device of its own. Any text in window.__blitiUnreadable reads as a
@@ -48,7 +50,7 @@ window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
 		const body = text?.split(':').pop().trim()
-		if (!body || body === 'nope') throw new Error('That is not a bliti code.')
+		if (!body || body === 'nope') throw new Error("This isn't a Tamanu Iti code.")
 		const code = 'BLITI:' + body.toUpperCase()
 		if ((window.__blitiUnreadable ?? []).includes(code)) {
 			throw new Error('That QR code is bliti payload version 9, which this app does not read.')
@@ -61,6 +63,12 @@ window.__blitiClient = {
 			const nothing = new Error('No device was picked.')
 			nothing.name = 'NothingPicked'
 			throw nothing
+		}
+		handlers.onPicked?.()
+		if (window.__blitiHoldConnect) {
+			const attempt = (this._attempt = (this._attempt ?? 0) + 1)
+			await new Promise((resolve) => (window.__blitiReleaseConnect = resolve))
+			if (attempt !== this._attempt) throw new Error('The device was let go of while connecting.')
 		}
 		this._open(handlers)
 	},
@@ -204,6 +212,7 @@ window.__blitiClient = {
 	},
 	disconnect() {
 		this._feed = null
+		this._attempt = (this._attempt ?? 0) + 1
 	},
 }
 `
@@ -212,9 +221,21 @@ window.__blitiClient = {
 export async function openChannel(page) {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')
-	await page.getByPlaceholder('BLITI:...').fill('BLITI:AHFYTP4T6K2M9WQX')
+	await typeCode(page, 'BLITI:AHFYTP4T6K2M9WQX')
+	await page.getByRole('button', { name: 'Find my Iti' }).click()
+}
+
+/// Enter a code's text under Advanced, opening it first where it is closed (WEB).
+export async function typeCode(page, text) {
+	const field = page.getByPlaceholder('BLITI:...')
+	if (!(await field.isVisible())) await page.getByText('Advanced', { exact: true }).click()
+	await field.fill(text)
 	await page.getByRole('button', { name: 'Use', exact: true }).click()
-	await page.getByRole('button', { name: 'Find the device' }).click()
+}
+
+/// Turn dev mode on, or off again, by tapping the screen's title seven times in a row (WEB).
+export async function devMode(page) {
+	await page.locator('.heading.title h1').click({ clickCount: 7 })
 }
 
 /// Feed one message or outcome, as the protocol half would have described it.
@@ -300,9 +321,8 @@ export async function openNetwork(page, { document, capabilities, states, busy, 
 	await page.getByRole('heading', { name: 'Connections' }).waitFor()
 }
 
-/// Go from the device view to the network screen, through the Control screen that holds it (CSCR).
+/// Go from the device view to the network settings screen (VIEW).
 export async function openNetworkScreen(page) {
-	await page.getByRole('button', { name: 'Control' }).click()
 	await page.getByRole('button', { name: 'Network settings' }).click()
 }
 

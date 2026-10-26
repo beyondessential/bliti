@@ -93,7 +93,7 @@ test.describe('saying whether it is ready offline', () => {
 	test('stops saying it is not ready offline once a worker holds it', async ({ page }) => {
 		await page.goto('/')
 		await controlled(page)
-		await expect(page.locator('.heading.title h1')).toHaveText('bliti')
+		await expect(page.locator('.heading.title h1')).toHaveText('Tamanu Iti')
 		await expect(notReady(page)).toHaveCount(0)
 	})
 

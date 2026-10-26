@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { closeChannel, emit, openChannel } from './fake-client.js'
+import { closeChannel, devMode, emit, openChannel } from './fake-client.js'
 
 const hello = (extra = {}) => ({
 	kind: 'message',
@@ -24,6 +24,7 @@ test.describe('the device view', () => {
 	// device line rather than taking a tile. MSG asks the client display it (VIEW).
 	test('records the name and version the device reported', async ({ page }) => {
 		await openChannel(page)
+		await devMode(page)
 		await emit(page, hello())
 		await expect(page.locator('.log')).toContainText('name bliti')
 		await expect(page.locator('.log')).toContainText('version 0.4.2')
@@ -33,6 +34,7 @@ test.describe('the device view', () => {
 	// A device that grows its hello must not have the new member silently dropped in the record.
 	test('every member of the hello is recorded, including ones this build predates', async ({ page }) => {
 		await openChannel(page)
+		await devMode(page)
 		await emit(page, hello({ built: '2026-09-17' }))
 		await expect(page.locator('.log')).toContainText('built 2026-09-17')
 	})
@@ -187,18 +189,19 @@ test.describe('when the channel closes', () => {
 
 		await closeChannel(page)
 
-		await expect(page.getByText('The device disconnected.')).toBeVisible()
-		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
+		await expect(page.getByText('Lost connection to your Iti')).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
 	})
 
 	test('a fault that ends the connection is reported with its reason', async ({ page }) => {
 		await openChannel(page)
 		await emit(page, hello())
+		await devMode(page)
 
 		await closeChannel(page, 'decompression failed: corrupt deflate stream')
 
-		await expect(page.locator('p.muted').filter({ hasText: /decompression failed/ })).toBeVisible()
+		await expect(page.locator('p.why').filter({ hasText: /decompression failed/ })).toBeVisible()
 		await expect(page.locator('.log')).toContainText('the connection to the device closed: decompression failed')
-		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
 	})
 })

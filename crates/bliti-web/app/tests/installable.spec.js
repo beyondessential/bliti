@@ -27,7 +27,8 @@ const square = (icon) => {
 test.describe('the manifest', () => {
 	test('declares the name, start URL and display mode the install needs', async ({ request }) => {
 		const { doc } = await manifest(request)
-		expect(doc.name || doc.short_name).toBeTruthy()
+		expect(doc.name).toBe('Tamanu Iti')
+		expect(doc.short_name).toBe('Tamanu Iti')
 		expect(doc.start_url).toBeTruthy()
 		expect(DISPLAY_MODES).toContain(doc.display)
 		// A stated preference for a native application is a refusal of the install.

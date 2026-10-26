@@ -3,7 +3,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { emit, installFakeClient, message } from './fake-client.js'
+import { emit, installFakeClient, message, typeCode as read } from './fake-client.js'
 
 const A = 'BLITI:AHFYTP4T6K2M9WQX'
 const B = 'BLITI:AHFYTP4T6K2M2KXA'
@@ -13,20 +13,17 @@ const D = 'BLITI:AHFYTP4T6K2MQ7RM'
 const hostnameFact = (value) =>
 	message({ type: 'fact', at: 1, fact: 'hostname', traits: { status: { is: 'passed' } }, kind: 'text', value })
 
-const recent = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Recent' }) })
-const held = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'QR code read' }) })
+const recent = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Recently used' }) })
+const held = (page) => page.locator('section').filter({ hasText: 'Now find your Iti' })
 const title = (page) => page.getByRole('heading', { level: 1 })
-
-async function read(page, code) {
-	await page.getByPlaceholder('BLITI:...').fill(code)
-	await page.getByRole('button', { name: 'Use', exact: true }).click()
-}
+// The step the operator is on, of reaching a device (WEB).
+const step = (page) => page.locator('.steps [aria-current="step"] .name')
 
 /// Open a channel to the device `code` belongs to, optionally hearing its hostname.
 async function open(page, code, hostname) {
 	await read(page, code)
-	await page.getByRole('button', { name: 'Find the device' }).click()
-	await expect(title(page)).toHaveText('Info')
+	await page.getByRole('button', { name: 'Find my Iti' }).click()
+	await expect(title(page)).toHaveText('All readings')
 	if (hostname) {
 		await emit(page, hostnameFact(hostname))
 		// Remembered once the page has rendered the fact, so a reload straight after could lose it.
@@ -40,7 +37,7 @@ async function open(page, code, hostname) {
 async function visit(page, code, hostname) {
 	await open(page, code, hostname)
 	await page.getByRole('button', { name: 'Disconnect' }).click()
-	await page.getByRole('button', { name: 'Use another code' }).click()
+	await page.getByRole('button', { name: 'Scan a different code' }).click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -48,33 +45,33 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('/')
 })
 
-test.describe('the Recent list', () => {
+test.describe('the Recently used list', () => {
 	test('lists a device by hostname and the last four characters of its code once a channel has opened', async ({ page }) => {
 		await visit(page, A, 'clinic-store-2')
 		await expect(recent(page).locator('li')).toHaveCount(1)
 		await expect(recent(page).locator('li .name')).toHaveText('clinic-store-2')
-		await expect(recent(page).locator('li .code')).toHaveText('…9WQX')
-		await expect(recent(page).getByRole('button', { name: 'Use clinic-store-2' })).toBeVisible()
+		await expect(recent(page).locator('li .muted')).toHaveText('Code ending 9WQX')
+		await expect(recent(page).getByRole('button', { name: 'Connect to clinic-store-2' })).toBeVisible()
 	})
 
-	test('sits beneath the means of reading a code', async ({ page }) => {
+	test('sits above the means of reading a code', async ({ page }) => {
 		await visit(page, A, 'clinic-store-2')
-		const headings = await page.getByRole('heading', { level: 2 }).allTextContents()
-		expect(headings.slice(0, 2)).toEqual(['QR code', 'Recent'])
+		await expect(page.locator('section').first()).toContainText('Recently used')
+		await expect(page.locator('section').nth(1)).toContainText('Or connect to a different Iti')
 	})
 
 	test('leaves out a code no channel has opened with', async ({ page }) => {
 		await read(page, A)
-		await page.getByRole('button', { name: 'Use another code' }).click()
-		await expect(page.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+		await page.getByRole('button', { name: 'Scan a different code' }).click()
+		await expect(page.getByText('Scan the code on your Iti')).toBeVisible()
 		await expect(recent(page)).toHaveCount(0)
 	})
 
 	test('lists a device that reported no hostname by those characters alone', async ({ page }) => {
 		await visit(page, A)
 		await expect(recent(page).locator('li .name')).toHaveCount(0)
-		await expect(recent(page).locator('li')).toHaveText(/…9WQX/)
-		await expect(recent(page).getByRole('button', { name: 'Use 9WQX' })).toBeVisible()
+		await expect(recent(page).locator('li')).toHaveText(/Code ending 9WQX/)
+		await expect(recent(page).getByRole('button', { name: 'Connect to the Iti with code ending 9WQX' })).toBeVisible()
 	})
 
 	test('keeps three, most recently opened first, and reopening one moves it to the top', async ({ page }) => {
@@ -84,10 +81,10 @@ test.describe('the Recent list', () => {
 		await visit(page, D, 'd')
 		await expect(recent(page).locator('li .name')).toHaveText(['d', 'c', 'b'])
 
-		await recent(page).getByRole('button', { name: 'Use b' }).click()
-		await page.getByRole('button', { name: 'Find the device' }).click()
+		await recent(page).getByRole('button', { name: 'Connect to b' }).click()
+		await page.getByRole('button', { name: 'Find my Iti' }).click()
 		await page.getByRole('button', { name: 'Disconnect' }).click()
-		await page.getByRole('button', { name: 'Use another code' }).click()
+		await page.getByRole('button', { name: 'Scan a different code' }).click()
 		await expect(recent(page).locator('li .name')).toHaveText(['b', 'd', 'c'])
 	})
 
@@ -99,12 +96,12 @@ test.describe('the Recent list', () => {
 
 	test('choosing a device holds its code with its hostname, and finds it as any code', async ({ page }) => {
 		await visit(page, A, 'clinic-store-2')
-		await recent(page).getByRole('button', { name: 'Use clinic-store-2' }).click()
+		await recent(page).getByRole('button', { name: 'Connect to clinic-store-2' }).click()
 		await expect(held(page).locator('.device-name')).toHaveText('clinic-store-2')
-		await expect(held(page).locator('p.code')).toHaveText(A)
-		await expect(page.getByText('A device named AHOW2EZUD4343RQ will show up.')).toBeVisible()
-		await page.getByRole('button', { name: 'Find the device' }).click()
-		await expect(title(page)).toHaveText('Info')
+		await expect(step(page)).toHaveText('Find Iti')
+		await expect(held(page).locator('.chip')).toHaveText('AHOW2EZUD4343RQ')
+		await page.getByRole('button', { name: 'Find my Iti' }).click()
+		await expect(title(page)).toHaveText('All readings')
 	})
 
 	test('a code typed in shows the hostname where it is a remembered device', async ({ page }) => {
@@ -124,7 +121,7 @@ test.describe('the Recent list', () => {
 		const other = await context.newPage()
 		await other.addInitScript(installFakeClient)
 		await other.goto('/')
-		await expect(other.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+		await expect(other.getByText('Scan the code on your Iti')).toBeVisible()
 		await expect(recent(other)).toHaveCount(0)
 	})
 
@@ -143,9 +140,8 @@ test.describe('a reload', () => {
 	test('while connected comes back holding that device, ready to find it', async ({ page }) => {
 		await open(page, A, 'clinic-store-2')
 		await page.reload()
-		await expect(held(page).locator('p.code')).toHaveText(A)
 		await expect(held(page).locator('.device-name')).toHaveText('clinic-store-2')
-		await expect(page.getByRole('button', { name: 'Find the device' })).toBeEnabled()
+		await expect(page.getByRole('button', { name: 'Find my Iti' })).toBeEnabled()
 	})
 
 	test('while the device restarts comes back holding that device', async ({ page }) => {
@@ -153,14 +149,14 @@ test.describe('a reload', () => {
 		await emit(page, message({ type: 'going-away', act: 'restart', cause: 'manual-control' }))
 		await expect(page.getByText('Restarting bliti…')).toBeVisible()
 		await page.reload()
-		await expect(held(page).locator('p.code')).toHaveText(A)
+		await expect(held(page).locator('.device-name')).toHaveText('clinic-store-2')
 	})
 
 	test('after disconnecting comes back holding no code', async ({ page }) => {
 		await open(page, A, 'clinic-store-2')
 		await page.getByRole('button', { name: 'Disconnect' }).click()
 		await page.reload()
-		await expect(page.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+		await expect(step(page)).toHaveText('Scan code')
 		await expect(held(page)).toHaveCount(0)
 		await expect(recent(page).locator('li .name')).toHaveText('clinic-store-2')
 	})
@@ -169,10 +165,10 @@ test.describe('a reload', () => {
 		await open(page, A, 'clinic-store-2')
 		await page.addInitScript((code) => (window.__blitiUnreadable = [code]), A)
 		await page.reload()
-		await expect(page.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+		await expect(step(page)).toHaveText('Scan code')
 		await expect(held(page)).toHaveCount(0)
 		await expect(recent(page)).toHaveCount(0)
-		await expect(page.locator('.bad')).toHaveCount(0)
+		await expect(page.locator('.why')).toHaveCount(0)
 	})
 })
 
@@ -180,7 +176,7 @@ test.describe('a reload', () => {
 test('a fragment in the address is passed over', async ({ page }) => {
 	await page.goto('about:blank')
 	await page.goto(`/#${A.split(':').pop()}`)
-	await expect(page.getByRole('heading', { name: 'QR code', exact: true })).toBeVisible()
+	await expect(step(page)).toHaveText('Scan code')
 	await expect(held(page)).toHaveCount(0)
-	await expect(page.locator('.bad')).toHaveCount(0)
+	await expect(page.locator('.why')).toHaveCount(0)
 })

@@ -18,15 +18,25 @@ const listOf = async (request) => {
 
 const controlled = (page) => page.waitForFunction(() => navigator.serviceWorker.controller !== null)
 
-const fetchText = (page, path) =>
-	page.evaluate(async (path) => {
+// A file the page has fetched is in the dev server's module graph, so changing it reloads the page,
+// and a fetch the reload interrupts is asked again once the page has loaded.
+async function fetchText(page, path) {
+	for (;;) {
 		try {
-			const res = await fetch(path)
-			return res.ok ? await res.text() : `status ${res.status}`
+			return await page.evaluate(async (path) => {
+				try {
+					const res = await fetch(path)
+					return res.ok ? await res.text() : `status ${res.status}`
+				} catch (error) {
+					return String(error)
+				}
+			}, path)
 		} catch (error) {
-			return String(error)
+			if (!/Execution context was destroyed/.test(error.message)) throw error
+			await page.waitForLoadState()
 		}
-	}, path)
+	}
+}
 
 // An edit to a source file, undone however the test ends. The dev server sees the change through
 // its watcher, so a test waits on what it serves rather than on the write.
@@ -162,14 +172,14 @@ test('takes an edit live, and keeps it for an offline reload', async ({ page, co
 	await page.goto('/')
 	await controlled(page)
 	const heading = page.locator('h1').first()
-	await expect(heading).toHaveText('bliti')
+	await expect(heading).toHaveText('Tamanu Iti')
 	await page.evaluate(() => {
 		window.__stayed = true
 	})
-	const title = `bliti ${test.info().testId}`
+	const title = `Tamanu Iti ${test.info().testId}`
 	await editing(
-		'App.jsx',
-		(source) => source.replaceAll('<h1>bliti</h1>', `<h1>${title}</h1>`),
+		'Connect.jsx',
+		(source) => source.replaceAll('<Title title="Tamanu Iti">', `<Title title="${title}">`),
 		async () => {
 			await expect(heading).toHaveText(title)
 			expect(await page.evaluate(() => window.__stayed)).toBe(true)

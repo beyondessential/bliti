@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import Control from './Control.jsx'
+import Connect from './Connect.jsx'
 import Network from './Network.jsx'
 import { useOfflineReady } from './offline.js'
+import Power from './Power.jsx'
 import Readings, { Identity } from './Readings.jsx'
+import { Activity, Title, TitleTaps, useDevMode } from './Screen.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
 import { entryOf, forgetHistory, hasValue, identityKey, isEnded, pushHistory } from './readings.js'
-import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
-import { cameraAvailable, scan } from './scanner.js'
+import { loadOn, loadRecent, remember, saveOn, saveRecent } from './remembered.js'
 
 // How many notices are kept. The far end decides how many arrive.
 const KEPT = 20
@@ -43,17 +44,29 @@ export default function App() {
 
 	const [unsupported] = useState(() => client.unsupported())
 	const [code, setCode] = useState(null)
-	const [readError, setReadError] = useState('')
-	const [scanning, setScanning] = useState(false)
 	// Said beside the title on the screen for reading a code until the application can open offline (WEB).
 	const offlineReady = useOfflineReady()
-	const [connecting, setConnecting] = useState(false)
-	const [connectStatus, setConnectStatus] = useState('')
+	// Where an attempt to reach the device is: null, `choosing` while the chooser is open, or
+	// `connecting` once a device is picked. The attempt itself is held in a ref, so one cancelled is
+	// told apart from the one after it.
+	const [phase, setPhase] = useState(null)
+	const attempt_ = useRef(null)
+	// Why the last attempt, or the last channel, ended, where it did not end by choice (WEB).
+	const [problem, setProblem] = useState(null)
 	const [connected, setConnected] = useState(false)
+	const connected_ = useRef(false)
+	connected_.current = connected
 	const [device, setDevice] = useState(null)
-	// Which screen of a connected device is showing: its readings, its control, or its network
-	// configuration.
-	const [screen, setScreen] = useState('device')
+	// Which screen of a connected device is showing: all its readings, its power and battery, or its
+	// network settings. Every screen but the readings has a history entry of its own (WEB, "Moving
+	// between screens"), and the ref is what the browser's way back is checked against.
+	const [screen, setScreen] = useState('readings')
+	const screen_ = useRef('readings')
+	// Set while the application itself is going back, so that going back does not ask again.
+	const leaving_ = useRef(false)
+	// How the network settings screen asks before the operator leaves it with edits not applied (NSCR).
+	const guard = useRef(null)
+	const [dev, tap] = useDevMode()
 	// The act the device is carrying out, from being told of it until it is back, has not come back,
 	// or the operator lets it go (WEB). Mirrored in a ref for the channel's callbacks, which outlive
 	// any one render.
@@ -79,8 +92,6 @@ export default function App() {
 	// The devices this tab has opened a channel with, most recent first, once those stored have been
 	// checked to still read. Null until then (WEB, "Remembering devices").
 	const [recent, setRecent] = useState(null)
-	const video = useRef(null)
-	const scanning_ = useRef(null)
 	const code_ = useRef(null)
 	code_.current = code
 
@@ -99,6 +110,52 @@ export default function App() {
 		[],
 	)
 
+	// Opening a screen goes one level down from the readings, and the browser's way back brings the
+	// operator up again, as the screen's Back does (WEB, "Moving between screens").
+	const openScreen = (next) => {
+		window.history.pushState({ screen: next }, '')
+		screen_.current = next
+		setScreen(next)
+	}
+	const goBack = () => {
+		leaving_.current = true
+		window.history.back()
+	}
+	// Back at the readings however the operator got there, with the entry of the screen they were on
+	// taken out of the history.
+	const toLanding = useCallback(() => {
+		if (window.history.state?.screen) {
+			leaving_.current = true
+			window.history.back()
+		}
+		screen_.current = 'readings'
+		setScreen('readings')
+	}, [])
+
+	useEffect(() => {
+		const onPop = (event) => {
+			const next = event.state?.screen ?? 'readings'
+			const confirmed = leaving_.current
+			leaving_.current = false
+			// An entry gone forward to with no device to show it on is nothing to go to.
+			if (!connected_.current || going_.current) {
+				if (next !== 'readings') window.history.replaceState(null, '')
+				return
+			}
+			if (!confirmed && screen_.current === 'network' && next !== 'network' && guard.current) {
+				window.history.pushState({ screen: 'network' }, '')
+				guard.current()
+				return
+			}
+			screen_.current = next
+			setScreen(next)
+		}
+		// A reload ends the channel, so the screen whose entry it reloaded on is not there to go back from.
+		if (window.history.state?.screen) window.history.replaceState(null, '')
+		window.addEventListener('popstate', onPop)
+		return () => window.removeEventListener('popstate', onPop)
+	}, [])
+
 	// The device is about to carry out an act: say so until it is over (WEB). An act this build does
 	// not know is left to end the channel as anything else does.
 	const startGoing = useCallback(
@@ -107,10 +164,10 @@ export default function App() {
 			going_.current = act
 			setGoing(act)
 			setCause(cause)
-			setScreen('device')
+			toLanding()
 			note('note', `the device is carrying out ${act}`)
 		},
-		[note],
+		[note, toLanding],
 	)
 
 	// One message off the wire, already sorted into the outcomes of MSG by the protocol half. The
@@ -165,21 +222,11 @@ export default function App() {
 		[note],
 	)
 
-	const readFrom = useCallback(
-		async (text) => {
-			try {
-				const read = await client.readCode(text)
-				setCode(read)
-				setReadError('')
-				note('note', `code read  ${read.text}`)
-			} catch (error) {
-				const why = error.message ?? String(error)
-				setReadError(why)
-				note('note', `code not read: ${why}`)
-			}
-		},
-		[client, note],
-	)
+	const onCode = (read, how) => {
+		setCode(read)
+		setProblem(null)
+		note('note', `code read${how ? ` ${how}` : ''}  ${read.text}`)
+	}
 
 	// A page reloaded while on a device comes back holding its code (WEB). A remembered code that no
 	// longer reads is forgotten, and never held.
@@ -245,7 +292,7 @@ export default function App() {
 	// The end of a going-away, however it ends: the operator back at the code they read, with the
 	// device let go of and `status` said.
 	const endGoing = useCallback(
-		(status) => {
+		(problem) => {
 			returning.current = null
 			clearTimeout(holding_.current)
 			holding_.current = null
@@ -253,13 +300,13 @@ export default function App() {
 			setGoing(null)
 			client.disconnect()
 			setConnected(false)
-			setConnecting(false)
-			setScreen('device')
+			setPhase(null)
+			toLanding()
 			setEntries(new Map())
 			setHistory(new Map())
-			setConnectStatus(status)
+			setProblem(problem)
 		},
-		[client],
+		[client, toLanding],
 	)
 
 	// What a channel reports back, the same for the first connection and every one after it.
@@ -273,19 +320,19 @@ export default function App() {
 	function closed(why) {
 		note('note', why ? `the connection to the device closed: ${why}` : 'the device disconnected')
 		setConnected(false)
-		setConnecting(false)
+		setPhase(null)
 		const act = going_.current
 		if (act === 'power-off') {
 			// Said for long enough to be read, then gone (WEB).
-			holding_.current = setTimeout(() => endGoing('The device disconnected.'), TIMINGS.hold)
+			holding_.current = setTimeout(() => endGoing(null), TIMINGS.hold)
 			return
 		}
 		if (act) {
 			comeBack()
 			return
 		}
-		setScreen('device')
-		setConnectStatus(why ? `The connection to the device failed: ${why}` : 'The device disconnected.')
+		toLanding()
+		setProblem({ kind: 'lost', detail: why })
 	}
 
 	// Reach the device again once it is back, on its own and without the chooser, until it answers
@@ -302,7 +349,7 @@ export default function App() {
 			} catch (error) {
 				if (returning.current !== attempt) return
 				if (error.name === NEEDS_CHOOSER) {
-					endGoing('The device has to be picked again. Find it to reconnect.')
+					endGoing({ kind: 'lost' })
 					return
 				}
 				note('note', `not back yet: ${error.message ?? error}`)
@@ -314,29 +361,50 @@ export default function App() {
 			setGoing(null)
 			setEntries(new Map())
 			setHistory(new Map())
-			setScreen('device')
+			toLanding()
 			setConnected(true)
 			note('note', 'the device is back')
 			return
 		}
-		if (returning.current === attempt) endGoing('The device has not come back. Check it is on and nearby.')
+		if (returning.current === attempt) endGoing({ kind: 'lost' })
 	}
 
 	async function connect() {
-		setConnecting(true)
-		setConnectStatus('Looking for the device...')
+		const attempt = {}
+		attempt_.current = attempt
+		setPhase('choosing')
+		setProblem(null)
+		const picked = () => attempt_.current === attempt && setPhase('connecting')
 		try {
-			await client.connect(code.qr, handlers())
-			setConnectStatus('')
-			setConnected(true)
+			await client.connect(code.qr, { ...handlers(), onPicked: picked })
 		} catch (error) {
+			if (attempt_.current !== attempt) return
+			attempt_.current = null
 			const why = error.message ?? String(error)
 			const nothing = error.name === NOTHING_PICKED
 			note('note', nothing ? 'no device chosen' : `could not connect: ${why}`)
-			setConnectStatus(nothing ? 'If your device was not in the list, check it is on and nearby.' : why)
-			setConnecting(false)
+			setProblem(nothing ? { kind: 'not-found' } : { kind: 'failed', detail: why })
+			setPhase(null)
 			client.disconnect()
+			return
 		}
+		// Cancelled after the channel opened anyway: let go of it, unless another attempt is under way.
+		if (attempt_.current !== attempt) {
+			if (!attempt_.current) client.disconnect()
+			return
+		}
+		attempt_.current = null
+		setPhase(null)
+		toLanding()
+		setConnected(true)
+	}
+
+	// Cancelling abandons the attempt, back at finding the device (WEB).
+	function cancelConnect() {
+		attempt_.current = null
+		client.disconnect()
+		setPhase(null)
+		note('note', 'connecting cancelled')
 	}
 
 	function disconnect() {
@@ -347,51 +415,23 @@ export default function App() {
 		setGoing(null)
 		client.disconnect()
 		setConnected(false)
-		setScreen('device')
-		setConnecting(false)
-		setConnectStatus('')
+		toLanding()
+		setPhase(null)
+		setProblem(null)
 		setEntries(new Map())
 		setHistory(new Map())
 		note('note', 'disconnected')
 	}
 
-	async function startScan() {
-		const controller = new AbortController()
-		scanning_.current = controller
-		setScanning(true)
-		setReadError('')
-		try {
-			const found = await scan(video.current, {
-				read: (text) => client.readCode(text),
-				onRejected: setReadError,
-				signal: controller.signal,
-			})
-			if (found) {
-				setCode(found)
-				setReadError('')
-				note('note', `code read from the camera  ${found.text}`)
-			}
-		} catch (error) {
-			setReadError(`The camera is not available: ${error.message ?? error}`)
-		} finally {
-			scanning_.current = null
-			setScanning(false)
-		}
-	}
-
-	useEffect(() => () => scanning_.current?.abort(), [])
-
-	if (unsupported) {
-		return (
+	// Every screen: whatever it holds, and the activity record beneath it in dev mode (WEB).
+	const shell = (body) => (
+		<TitleTaps.Provider value={tap}>
 			<main>
-				<h1>bliti</h1>
-				<section>
-					<h2>Not available</h2>
-					<p className="bad">{unsupported}</p>
-				</section>
+				{body}
+				{dev && <Activity log={log} />}
 			</main>
-		)
-	}
+		</TitleTaps.Provider>
+	)
 
 	// What each interface is joined to, from the device's wireless-network facts (NFO).
 	const joined = [...entries.values()]
@@ -405,35 +445,32 @@ export default function App() {
 
 	const all = [...entries.values()]
 
+	if (unsupported) return shell(<Connect unsupported={unsupported} />)
+
 	if (connected && !going && screen === 'network') {
-		return (
-			<main>
-				<Network
-					client={client}
-					onActivity={note}
-					onEvent={noteSession}
-					onBack={() => setScreen('control')}
-					onDisconnect={disconnect}
-					joined={joined}
-				/>
-				<Activity log={log} />
-			</main>
+		return shell(
+			<Network
+				client={client}
+				onActivity={note}
+				onEvent={noteSession}
+				onBack={goBack}
+				onDisconnect={disconnect}
+				joined={joined}
+				guard={guard}
+			/>,
 		)
 	}
 
 	// A screen of a connected device: its title with its actions beside it, where every such screen
 	// carries them (VIEW, CSCR).
-	const screenOf = (title, actions, body) => (
-		<main>
-			<div className="heading title">
-				<h1>{title}</h1>
-				<div className="actions">{actions}</div>
-			</div>
-			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
-			{body}
-			<Activity log={log} />
-		</main>
-	)
+	const screenOf = (title, actions, body) =>
+		shell(
+			<>
+				<Title title={title}>{actions}</Title>
+				{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
+				{body}
+			</>,
+		)
 
 	const disconnectButton = (
 		<button className="secondary small" onClick={disconnect}>
@@ -454,7 +491,7 @@ export default function App() {
 	// The device carrying an act out: who it is, and what it is doing, until it is over (WEB).
 	if (going) {
 		return screenOf(
-			'Info',
+			'All readings',
 			disconnectButton,
 			<>
 				{identity}
@@ -470,28 +507,25 @@ export default function App() {
 		)
 	}
 
-	if (connected && screen === 'control') {
+	if (connected && screen === 'power') {
 		return screenOf(
-			'Control',
-			<button className="secondary small" onClick={() => setScreen('device')}>
+			'Power and battery',
+			<button className="secondary small" onClick={goBack}>
 				Back
 			</button>,
-			<Control
-				client={client}
-				onNetwork={() => setScreen('network')}
-				onActivity={note}
-				onEvent={noteSession}
-				onAccepted={startGoing}
-			/>,
+			<Power client={client} onActivity={note} onEvent={noteSession} onAccepted={startGoing} />,
 		)
 	}
 
 	if (connected) {
 		return screenOf(
-			'Info',
+			'All readings',
 			<>
-				<button className="small" onClick={() => setScreen('control')}>
-					Control
+				<button className="secondary small" onClick={() => openScreen('power')}>
+					Power and battery
+				</button>
+				<button className="secondary small" onClick={() => openScreen('network')}>
+					Network settings
 				</button>
 				{disconnectButton}
 			</>,
@@ -507,120 +541,26 @@ export default function App() {
 		)
 	}
 
-	// The code held is a remembered device's, which is shown with its hostname (WEB).
-	const known = code && recent?.find((each) => each.code === code.text)
-
-	return (
-		<main>
-			<div className="heading title">
-				<h1>bliti</h1>
-				{!offlineReady && <span className="offline">Not ready offline</span>}
-			</div>
-			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
-
-			{!code && (
-				<section>
-					<h2>QR code</h2>
-					<p className="muted">Scan the code on the device, or type its text.</p>
-					<TypedCode onRead={readFrom} />
-					{cameraAvailable() && (
-						<div className="row" style={{ marginTop: 8 }}>
-							{scanning ? (
-								<button className="secondary" onClick={() => scanning_.current?.abort()}>
-									Stop the camera
-								</button>
-							) : (
-								<button className="secondary" onClick={startScan}>
-									Scan with camera
-								</button>
-							)}
-						</div>
-					)}
-					{readError && <p className="bad">{readError}</p>}
-					<video ref={video} hidden={!scanning} playsInline muted />
-				</section>
-			)}
-
-			{!code && recent?.length > 0 && (
-				<section>
-					<h2>Recent</h2>
-					<ul className="acts recent">
-						{recent.map((each) => (
-							<li key={each.code}>
-								<div>
-									{each.hostname && <span className="name">{each.hostname}</span>}
-									<span className="code">…{suffix(each.code)}</span>
-								</div>
-								<button
-									className="secondary"
-									aria-label={`Use ${each.hostname ?? suffix(each.code)}`}
-									onClick={() => readFrom(each.code)}
-								>
-									Use
-								</button>
-							</li>
-						))}
-					</ul>
-				</section>
-			)}
-
-			{code && !connected && (
-				<section>
-					<h2>QR code read</h2>
-					{known?.hostname && <strong className="device-name">{known.hostname}</strong>}
-					<p className="code">{code.text}</p>
-					<p>
-						<button className="link" onClick={() => download(code)}>
-							Download SVG
-						</button>
-					</p>
-					<p className="muted">
-						A device named <span className="code">{code.localName}</span> will show up. It should be
-						the only one in the list.
-					</p>
-					<div className="row">
-						<button onClick={connect} disabled={connecting}>
-							Find the device
-						</button>
-						<button className="secondary" onClick={() => setCode(null)}>
-							Use another code
-						</button>
-					</div>
-					{connectStatus && <p className="muted">{connectStatus}</p>}
-				</section>
-			)}
-
-			<Activity log={log} />
-		</main>
+	return shell(
+		<Connect
+				client={client}
+				note={note}
+				offlineReady={offlineReady}
+				code={code}
+				onCode={onCode}
+				// The code held is a remembered device's, which is shown with its hostname (WEB).
+				known={code && recent?.find((each) => each.code === code.text)}
+				recent={recent}
+				phase={phase}
+				problem={problem}
+				onFind={connect}
+				onCancel={cancelConnect}
+				onOtherCode={() => {
+					setCode(null)
+					setProblem(null)
+				}}
+			/>,
 	)
-}
-
-function Activity({ log }) {
-	if (log.length === 0) return null
-	return (
-		<section>
-			<h2>Activity</h2>
-			<div className="log">
-				{log.map((line, index) => (
-					<p key={index} className={`line ${line.direction}`}>
-						<time>{clock(line.at)}</time>
-						<span className="arrow">{ARROWS[line.direction]}</span>
-						<span className="said">{line.text}</span>
-					</p>
-				))}
-			</div>
-		</section>
-	)
-}
-
-const ARROWS = { in: '←', out: '→', note: '·' }
-
-function clock(at) {
-	return at.toLocaleTimeString(undefined, {
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-	})
 }
 
 /// One message, summarised for the log: its type and enough to tell one from another, without
@@ -636,34 +576,4 @@ function describe(message) {
 		})
 		.join(', ')
 	return summary ? `${type}  ${summary}` : type
-}
-
-/// Save the code as SVG, for printing a replacement. Named after the last four characters of the
-/// encoded payload, which are all key fingerprint (WEB).
-function download(code) {
-	const url = URL.createObjectURL(new Blob([code.svg], { type: 'image/svg+xml' }))
-	const link = document.createElement('a')
-	link.href = url
-	link.download = `bliti-${code.suffix}.svg`
-	link.click()
-	// Revoked once the browser has had a turn to start the download from it.
-	setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
-function TypedCode({ onRead }) {
-	const [typed, setTyped] = useState('')
-	return (
-		<div className="row">
-			<input
-				value={typed}
-				onChange={(event) => setTyped(event.target.value)}
-				onKeyDown={(event) => event.key === 'Enter' && onRead(typed)}
-				placeholder="BLITI:..."
-				autoComplete="off"
-				autoCapitalize="characters"
-				spellCheck="false"
-			/>
-			<button onClick={() => onRead(typed)}>Use</button>
-		</div>
-	)
 }
