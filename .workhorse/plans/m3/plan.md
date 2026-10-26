@@ -81,6 +81,16 @@ Implements the Tailscale facts of NFO ("Tailscale") and the Tailscale stream of 
 - Controller tests cover the act table by state, the one-act lock across two streams, a stream ending mid-`netcheck`, a stream ending mid-`turn-on` leaving it to finish, a deadline expiring into `tailscale-failed`, the restriction refusing a foreign sign-in, and the secrets staying out of the log.
 - On the prototype device (see the `bliti-prototype` skill), by hand: sign in by auth key and by login link, turn off and on, log out, netcheck while signed out, ping the default.
 
+### As built
+
+- The modules are `client` (with `client/unix.rs`), `state`, `acts`, `run`, `netcheck`, `ping`, `relays` and `restriction`, with `fake.rs` for tests; the carrying out of acts lives in `run.rs`, and `tailscale.rs` holds the handle and the stream.
+- `Options` carries the flags and the state directory, which is the directory of the identity cache (`/var/lib/bliti`).
+- `bus` is watched with mask `InitialState | InitialHealthState`, which delivers the state and the health as they stand and each change; the first message of a live bus was checked against this machine's tailscaled.
+- `ping` also resolves `PEER` by the first label of the machine's name, since that is the bare name MagicDNS answers to and it can differ from the operating system's hostname.
+- An act's wait deadlines are constants in `run.rs`: thirty seconds for a transition, three minutes for a sign-in.
+- Where a sign-in has reached `needs-approval` and the tailnet is not yet known, the restriction does not sign out, since nothing says it is another tailnet.
+- `Secret` in `bliti-core` holds the auth key and the login link, and says nothing of its contents when a message is formatted with `Debug`.
+
 ### To confirm on the prototype before building
 
 - What Tailscale's own control plane does differently from Headscale: `NeedsMachineAuth` for a device awaiting approval, the shape of a lapsed key, and the text of a rejected key.
@@ -102,71 +112,71 @@ Read-only parts of the local API are already confirmed on a signed-in machine, a
 
 ## Wire (`bliti-core`)
 
-- [ ] `crates/bliti-core/src/channel/messages.rs`: add variants `Tailscale`, `TailscaleActs { acts }`, `TailscaleAct { act, method, key, name, peer }` (the last four optional), `TailscaleAccepted`, `TailscaleLoginLink { url }`, `TailscaleResult { result }` (a JSON object), `TailscaleFailed { reason }`, with doc comments citing TSC
-- [ ] Same file: `to_json` and the parse arms for each, `type` names `tailscale`, `tailscale-acts`, `tailscale-act`, `tailscale-accepted`, `tailscale-login-link`, `tailscale-result`, `tailscale-failed`, and the type-name list the file keeps beside `"acts"`, `"act"` and `"accepted"`
-- [ ] Same file: `critical_members("tailscale-act")` returns `act`, `method`, `key`, `name`, `peer`, with a comment saying why each is critical, as `"act"` has
-- [ ] `crates/bliti-core/src/channel/generate.rs`: generate every new variant, the optional members of `TailscaleAct` present and absent, beside the power stream's
-- [ ] `crates/bliti-core/src/channel/messages/tests.rs`: round trip each variant, and a test that `tailscale-act` serialises its members in upper case and reads them back from upper case only, and that an unknown critical member makes the message unprocessed, as the existing `act` tests do
-- [ ] `wire-breaks.toml`: five `[[critical]]` entries for `tailscale-act`, one per member, each with its reason from the TSC note; run `cargo test -p bliti-wire-compat` and add what the ledger test asks for
-- [ ] `crates/bliti-wire-compat/corpus/`: one raw `tailscale-act` file pinning a `sign-in` by `auth-key` with `ACT`, `METHOD`, `KEY` and `NAME` as they go on the wire
-- [ ] `crates/bliti-web/src/tests.rs`: no change expected; confirm the crate builds for `wasm32-unknown-unknown` with the new variants
+- [x] `crates/bliti-core/src/channel/messages.rs`: add variants `Tailscale`, `TailscaleActs { acts }`, `TailscaleAct { act, method, key, name, peer }` (the last four optional), `TailscaleAccepted`, `TailscaleLoginLink { url }`, `TailscaleResult { result }` (a JSON object), `TailscaleFailed { reason }`, with doc comments citing TSC
+- [x] Same file: `to_json` and the parse arms for each, `type` names `tailscale`, `tailscale-acts`, `tailscale-act`, `tailscale-accepted`, `tailscale-login-link`, `tailscale-result`, `tailscale-failed`, and the type-name list the file keeps beside `"acts"`, `"act"` and `"accepted"`
+- [x] Same file: `critical_members("tailscale-act")` returns `act`, `method`, `key`, `name`, `peer`, with a comment saying why each is critical, as `"act"` has
+- [x] `crates/bliti-core/src/channel/generate.rs`: generate every new variant, the optional members of `TailscaleAct` present and absent, beside the power stream's
+- [x] `crates/bliti-core/src/channel/messages/tests.rs`: round trip each variant, and a test that `tailscale-act` serialises its members in upper case and reads them back from upper case only, and that an unknown critical member makes the message unprocessed, as the existing `act` tests do
+- [x] `wire-breaks.toml`: five `[[critical]]` entries for `tailscale-act`, one per member, each with its reason from the TSC note; run `cargo test -p bliti-wire-compat` and add what the ledger test asks for
+- [x] `crates/bliti-wire-compat/corpus/`: one raw `tailscale-act` file pinning a `sign-in` by `auth-key` with `ACT`, `METHOD`, `KEY` and `NAME` as they go on the wire
+- [x] `crates/bliti-web/src/tests.rs`: no change expected; confirm the crate builds for `wasm32-unknown-unknown` with the new variants
 
 ## Device: the client
 
-- [ ] `cargo add` in `crates/bliti`: `hyper` (client, http1), `hyper-util` (tokio), `http-body-util` and `bytes`, versions as `cargo add` resolves them; add the `process` feature to `tokio` for netcheck
-- [ ] `crates/bliti/src/tailscale.rs`: module root, with `mod client; mod state; mod acts; mod netcheck; mod relays; mod ping; mod restriction;`, `use` before `mod`
-- [ ] `tailscale/client.rs`: a `LocalApi` trait with `status`, `watch` (a stream of notifications), `prefs`, `set_running(bool)` (the flat masked-prefs body), `start(prefs, auth_key)`, `login_interactive`, `logout`, `ping` (one probe), `derp_map`, and an error type that carries no request body, so a key cannot reach a log through one
-- [ ] `tailscale/client.rs`: the implementation over `hyper` on `tokio::net::UnixStream` at the default socket path, gated on `cfg(unix)` as `battery::socket` is, with a per-call timeout
-- [ ] `tailscale/client.rs`: a fake `LocalApi` for tests, holding a scripted status and recording the calls it receives
+- [x] `cargo add` in `crates/bliti`: `hyper` (client, http1), `hyper-util` (tokio), `http-body-util` and `bytes`, versions as `cargo add` resolves them; add the `process` feature to `tokio` for netcheck
+- [x] `crates/bliti/src/tailscale.rs`: module root, with `mod client; mod state; mod acts; mod netcheck; mod relays; mod ping; mod restriction;`, `use` before `mod`
+- [x] `tailscale/client.rs`: a `LocalApi` trait with `status`, `watch` (a stream of notifications), `prefs`, `set_running(bool)` (the flat masked-prefs body), `start(prefs, auth_key)`, `login_interactive`, `logout`, `ping` (one probe), `derp_map`, and an error type that carries no request body, so a key cannot reach a log through one
+- [x] `tailscale/client.rs`: the implementation over `hyper` on `tokio::net::UnixStream` at the default socket path, gated on `cfg(unix)` as `battery::socket` is, with a per-call timeout
+- [x] `tailscale/client.rs`: a fake `LocalApi` for tests, holding a scripted status and recording the calls it receives
 
 ## Device: state and facts
 
-- [ ] `tailscale/state.rs`: `State` with the six wire names and the `status` each carries (NFO "Tailscale"), and `Snapshot` holding the state, name, tailnet, key expiry and the first health message
-- [ ] `tailscale/state.rs`: `Snapshot::from_status(&Status, now)` as a pure function implementing the mapping in the notes, tested against each recorded fixture
-- [ ] `tailscale/state.rs`: the watcher task, reading `watch` and re-reading `status` on each notification, publishing on a `tokio::sync::watch`, holding `Broken(reason)` while the socket does not answer and retrying with a delay
-- [ ] `tailscale.rs`: the `Tailscale` handle, cheap to clone, with `none()` for a device without Tailscale and `start(socket, options)` otherwise, found by the socket's absence at startup
-- [ ] `crates/bliti/src/facts/tailscale.rs`: `entries(at, &Snapshot, now)` yielding `tailscale-state`, `tailscale-name`, `tailnet` and `tailscale-key-expiry` with the statuses and reasons NFO gives, and nothing for a device without Tailscale
-- [ ] `facts/tailscale.rs` tests, over hand-built snapshots: every state and its `status`; `running` with a health message is `warning`; key expiry `passed`, `warning` inside seven days, `failed` once lapsed, `skipped` where it does not lapse or none is held, each with its reason; name and tailnet `skipped` while signed out and `passed` while `expired`; all four `broken` with the state's reason; all four absent without Tailscale
-- [ ] `crates/bliti/src/session.rs`: `facts_now` takes the `Tailscale` handle and appends `facts::tailscale::entries`, both call sites updated; a test that `same_facts` sees a state change as a change
+- [x] `tailscale/state.rs`: `State` with the six wire names and the `status` each carries (NFO "Tailscale"), and `Snapshot` holding the state, name, tailnet, key expiry and the first health message
+- [x] `tailscale/state.rs`: `Snapshot::from_status(&Status, now)` as a pure function implementing the mapping in the notes, tested against each recorded fixture
+- [x] `tailscale/state.rs`: the watcher task, reading `watch` and re-reading `status` on each notification, publishing on a `tokio::sync::watch`, holding `Broken(reason)` while the socket does not answer and retrying with a delay
+- [x] `tailscale.rs`: the `Tailscale` handle, cheap to clone, with `none()` for a device without Tailscale and `start(socket, options)` otherwise, found by the socket's absence at startup
+- [x] `crates/bliti/src/facts/tailscale.rs`: `entries(at, &Snapshot, now)` yielding `tailscale-state`, `tailscale-name`, `tailnet` and `tailscale-key-expiry` with the statuses and reasons NFO gives, and nothing for a device without Tailscale
+- [x] `facts/tailscale.rs` tests, over hand-built snapshots: every state and its `status`; `running` with a health message is `warning`; key expiry `passed`, `warning` inside seven days, `failed` once lapsed, `skipped` where it does not lapse or none is held, each with its reason; name and tailnet `skipped` while signed out and `passed` while `expired`; all four `broken` with the state's reason; all four absent without Tailscale
+- [x] `crates/bliti/src/session.rs`: `facts_now` takes the `Tailscale` handle and appends `facts::tailscale::entries`, both call sites updated; a test that `same_facts` sees a state change as a change
 
 ## Device: acts
 
-- [ ] `tailscale/acts.rs`: `Act` with `name` and `from_name` as `power::Act` has, and `listed(&Snapshot, netcheck_available) -> Vec<Act>` as a pure function; a table-driven test of the TSC table across every state, `broken`, and no Tailscale
-- [ ] `tailscale/acts.rs`: the slot, taken on acceptance and released on drop, and `ask(request, peer)` returning either an accepted run or a `CannotAct { at, reason }` for an act not listed (`$['act']`), another under way (`$`), an unknown `METHOD` (`$['method']`) and a missing `KEY` (`$['key']`), logging the client's `name` and `version` as `Controller::ask` does
-- [ ] `tailscale/acts.rs`: carrying out `turn-on`, `turn-off` and `log-out`, each by one `LocalApi` call and then waiting on the watcher for the target state with a deadline, failing with `tailscale-failed` on the deadline or on the call's error
-- [ ] `tailscale/acts.rs`: `sign-in` by `auth-key`, passing `NAME` or the device's hostname, reading and updating `prefs` and calling `start` then `login-interactive`, waiting for `running` or `needs-approval` with the sign-in deadline; a rejected key arrives as an `ErrMessage` on the bus with no change of state, so the first one seen after `login-interactive` is the `tailscale-failed` reason, with the key scrubbed from it
-- [ ] `tailscale/acts.rs`: `sign-in` by `login-link`, forwarding each URL the bus announces as `tailscale-login-link`, starting it as the key sign-in does without a key, failing when the link lapses or the deadline passes
-- [ ] `tailscale.rs`: `serve(stream, tailscale, peer)` answering `tailscale` with `tailscale-acts`, then selecting on stream reads, the watcher (pushing `tailscale-acts` when the list changes) and an act's messages, answering each act with `tailscale-accepted` or `cannot-act`
-- [ ] `tailscale.rs`: acts that wait on the outside (`netcheck`, `ping`, a login link) run on tasks the stream owns and aborts when it ends by any route; the others are spawned detached, their messages dropped once the stream is gone
-- [ ] `crates/bliti/src/session.rs`: a `Message::Tailscale` arm in `serve_stream` handing the stream to `tailscale::serve`, a no-op arm for a `TailscaleAct` outside a Tailscale stream, the device-only variants added to the "answers only a device sends" arm, and `Tailscale` added to `Context`
-- [ ] Controller tests with the fake client: acceptance and the busy refusal across two streams; a stream dropped mid-`sign-in` by login link leaves the state as it stood; a stream dropped mid-`turn-on` leaves it to finish; each deadline becomes `tailscale-failed`; the state change after `turn-off` pushes a new `tailscale-acts`; an auth key is absent from every log line and every message the device sends, asserted over a captured `tracing` output
+- [x] `tailscale/acts.rs`: `Act` with `name` and `from_name` as `power::Act` has, and `listed(&Snapshot, netcheck_available) -> Vec<Act>` as a pure function; a table-driven test of the TSC table across every state, `broken`, and no Tailscale
+- [x] `tailscale/acts.rs`: the slot, taken on acceptance and released on drop, and `ask(request, peer)` returning either an accepted run or a `CannotAct { at, reason }` for an act not listed (`$['act']`), another under way (`$`), an unknown `METHOD` (`$['method']`) and a missing `KEY` (`$['key']`), logging the client's `name` and `version` as `Controller::ask` does
+- [x] `tailscale/acts.rs`: carrying out `turn-on`, `turn-off` and `log-out`, each by one `LocalApi` call and then waiting on the watcher for the target state with a deadline, failing with `tailscale-failed` on the deadline or on the call's error
+- [x] `tailscale/acts.rs`: `sign-in` by `auth-key`, passing `NAME` or the device's hostname, reading and updating `prefs` and calling `start` then `login-interactive`, waiting for `running` or `needs-approval` with the sign-in deadline; a rejected key arrives as an `ErrMessage` on the bus with no change of state, so the first one seen after `login-interactive` is the `tailscale-failed` reason, with the key scrubbed from it
+- [x] `tailscale/acts.rs`: `sign-in` by `login-link`, forwarding each URL the bus announces as `tailscale-login-link`, starting it as the key sign-in does without a key, failing when the link lapses or the deadline passes
+- [x] `tailscale.rs`: `serve(stream, tailscale, peer)` answering `tailscale` with `tailscale-acts`, then selecting on stream reads, the watcher (pushing `tailscale-acts` when the list changes) and an act's messages, answering each act with `tailscale-accepted` or `cannot-act`
+- [x] `tailscale.rs`: acts that wait on the outside (`netcheck`, `ping`, a login link) run on tasks the stream owns and aborts when it ends by any route; the others are spawned detached, their messages dropped once the stream is gone
+- [x] `crates/bliti/src/session.rs`: a `Message::Tailscale` arm in `serve_stream` handing the stream to `tailscale::serve`, a no-op arm for a `TailscaleAct` outside a Tailscale stream, the device-only variants added to the "answers only a device sends" arm, and `Tailscale` added to `Context`
+- [x] Controller tests with the fake client: acceptance and the busy refusal across two streams; a stream dropped mid-`sign-in` by login link leaves the state as it stood; a stream dropped mid-`turn-on` leaves it to finish; each deadline becomes `tailscale-failed`; the state change after `turn-off` pushes a new `tailscale-acts`; an auth key is absent from every log line and every message the device sends, asserted over a captured `tracing` output
 
 ## Device: netcheck, relays and ping
 
-- [ ] `tailscale/netcheck.rs`: run `tailscale netcheck --format=json` with a timeout and map its output to the TSC result, `relays` sorted by latency in seconds with the relay object of TSC; the runner behind a trait so tests supply recorded output
-- [ ] `tailscale/netcheck.rs` tests over recorded output: all-reachable, UDP blocked with HTTPS-only relays, IPv6 absent, a captive portal, `null` `MappingVariesByDestIP`, and no relay answering (an empty `relays` with `udp` false), the last a `tailscale-result` and not a failure; a runner that cannot start, or exits because it could not fetch the relay map, is `tailscale-failed` with its own reason
-- [ ] `tailscale/relays.rs`: the relay name cache in the state directory, written atomically, read at start, refreshed from the local API's `derpmap` when the device enters `running` and on each netcheck where it answers with regions, since a device that has never signed in answers with none; a missing or unreadable file is an empty cache and logged, never an error
-- [ ] `tailscale/relays.rs` tests over a temporary directory: a name found, an id not in the cache giving a null name, a corrupt file, a refresh replacing the map
-- [ ] `tailscale/ping.rs`: resolve `PEER` against the peers in the status (bare or fully qualified name, never an address), or the configured default where absent; no default or no such peer is `tailscale-failed`
-- [ ] `tailscale/ping.rs`: send probes until one is direct or the count is spent, report `reachable`, `path` as `direct` if any probe was, `relay` as a relay object for a relayed path, `latency` from the last answer on the reported path, and `peer`; no answer is a result with `reachable` false
-- [ ] `tailscale/ping.rs` tests with the fake client: direct on the first probe, relayed then direct, relayed only, no answer, unknown peer, an address given as `PEER`, no default configured
+- [x] `tailscale/netcheck.rs`: run `tailscale netcheck --format=json` with a timeout and map its output to the TSC result, `relays` sorted by latency in seconds with the relay object of TSC; the runner behind a trait so tests supply recorded output
+- [x] `tailscale/netcheck.rs` tests over recorded output: all-reachable, UDP blocked with HTTPS-only relays, IPv6 absent, a captive portal, `null` `MappingVariesByDestIP`, and no relay answering (an empty `relays` with `udp` false), the last a `tailscale-result` and not a failure; a runner that cannot start, or exits because it could not fetch the relay map, is `tailscale-failed` with its own reason
+- [x] `tailscale/relays.rs`: the relay name cache in the state directory, written atomically, read at start, refreshed from the local API's `derpmap` when the device enters `running` and on each netcheck where it answers with regions, since a device that has never signed in answers with none; a missing or unreadable file is an empty cache and logged, never an error
+- [x] `tailscale/relays.rs` tests over a temporary directory: a name found, an id not in the cache giving a null name, a corrupt file, a refresh replacing the map
+- [x] `tailscale/ping.rs`: resolve `PEER` against the peers in the status (bare or fully qualified name, never an address), or the configured default where absent; no default or no such peer is `tailscale-failed`
+- [x] `tailscale/ping.rs`: send probes until one is direct or the count is spent, report `reachable`, `path` as `direct` if any probe was, `relay` as a relay object for a relayed path, `latency` from the last answer on the reported path, and `peer`; no answer is a result with `reachable` false
+- [x] `tailscale/ping.rs` tests with the fake client: direct on the first probe, relayed then direct, relayed only, no answer, unknown peer, an address given as `PEER`, no default configured
 
 ## Device: tailnet restriction and the daemon
 
-- [ ] `tailscale/restriction.rs`: `check_at_startup(&dyn LocalApi, Option<&str>)` returning an error naming both tailnets where the device is signed in to another, and `Ok` where it is signed out, in the accepted tailnet, or tailscaled does not answer
-- [ ] `tailscale/acts.rs`: after a `sign-in` reaches `running` or `needs-approval`, compare the tailnet with the restriction, and on a mismatch call `logout` and fail with the reason TSC asks for
-- [ ] `crates/bliti/src/main.rs`: `--tailnet <name>` and `--ping-default <name>` on the `Daemon` command, passed through `daemon()` to `device::run`, with the doc comments the other flags have
-- [ ] `crates/bliti/src/device.rs`: build the `Tailscale` handle before the adapter is touched, so the restriction's refusal stops the daemon before it advertises; pass it through `Shared` and `session::run` beside the controller
-- [ ] Restriction tests with the fake client: refuses another tailnet, accepts the same, accepts signed out, starts when the socket is dead, a foreign sign-in is logged out and failed, and an unrestricted device accepts any
+- [x] `tailscale/restriction.rs`: `check_at_startup(&dyn LocalApi, Option<&str>)` returning an error naming both tailnets where the device is signed in to another, and `Ok` where it is signed out, in the accepted tailnet, or tailscaled does not answer
+- [x] `tailscale/acts.rs`: after a `sign-in` reaches `running` or `needs-approval`, compare the tailnet with the restriction, and on a mismatch call `logout` and fail with the reason TSC asks for
+- [x] `crates/bliti/src/main.rs`: `--tailnet <name>` and `--ping-default <name>` on the `Daemon` command, passed through `daemon()` to `device::run`, with the doc comments the other flags have
+- [x] `crates/bliti/src/device.rs`: build the `Tailscale` handle before the adapter is touched, so the restriction's refusal stops the daemon before it advertises; pass it through `Shared` and `session::run` beside the controller
+- [x] Restriction tests with the fake client: refuses another tailnet, accepts the same, accepts signed out, starts when the socket is dead, a foreign sign-in is logged out and failed, and an unrestricted device accepts any
 
 ## Deployment
 
-- [ ] `services/bliti.service`: `After=tailscaled.service` with no `Requires`, and a comment saying why
-- [ ] `services/bliti.service`: the `--tailnet` and `--ping-default` arguments for our deployment, with a comment that they are the fleet's
-- [ ] `services/README.md`: list `tailscale` under the packages the device needs, pinned, and say what depends on its local API
+- [x] `services/bliti.service`: `After=tailscaled.service` with no `Requires`, and a comment saying why
+- [x] `services/bliti.service`: the `--tailnet` and `--ping-default` arguments for our deployment, with a comment that they are the fleet's
+- [x] `services/README.md`: list `tailscale` under the packages the device needs, pinned, and say what depends on its local API
 
 ## Finish
 
-- [ ] `cargo fmt`, `cargo clippy` and `cargo test` for the workspace, including `-p bliti-wire-compat`
-- [ ] Build for `wasm32-unknown-unknown` with `just build-wasm` to confirm `bliti-core` still builds for the client
+- [x] `cargo fmt`, `cargo clippy` and `cargo test` for the workspace, including `-p bliti-wire-compat`
+- [x] Build for `wasm32-unknown-unknown` with `just build-wasm` to confirm `bliti-core` still builds for the client
 - [ ] By hand on the prototype device: sign in by auth key and by login link, turn off and on, log out, netcheck while signed out and signed in, ping the default and a named peer, and start the daemon with `--tailnet` set to another tailnet and see it refuse

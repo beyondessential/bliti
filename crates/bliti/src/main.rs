@@ -20,6 +20,7 @@ mod power;
 mod qr;
 mod sampler;
 mod session;
+mod tailscale;
 
 #[cfg(target_os = "linux")]
 mod client;
@@ -62,6 +63,15 @@ enum Command {
 		/// proposal, `stack` drives iwd, hostapd and systemd-networkd.
 		#[arg(long, value_enum, default_value_t = NetworkBackend::Inert)]
 		network_backend: NetworkBackend,
+
+		/// The one tailnet this device accepts. A device signed in to another refuses to start, and one
+		/// that is asked to sign in to another signs out of it again.
+		#[arg(long)]
+		tailnet: Option<String>,
+
+		/// The machine a Tailscale ping tests where the client names none.
+		#[arg(long)]
+		ping_default: Option<String>,
 	},
 
 	/// Write out the battery curve document in force, load one, or reset to the curve this build
@@ -220,7 +230,23 @@ async fn run(cli: Cli) -> Result<()> {
 			adapter,
 			network,
 			network_backend,
-		} => daemon(&cli.cache, &network, network_backend, adapter.as_deref()).await,
+			tailnet,
+			ping_default,
+		} => {
+			let tailscale = tailscale::Options {
+				tailnet,
+				ping_default,
+				state_dir: cli.cache.parent().map(PathBuf::from),
+			};
+			daemon(
+				&cli.cache,
+				&network,
+				network_backend,
+				adapter.as_deref(),
+				tailscale,
+			)
+			.await
+		}
 		Command::Scan {
 			code,
 			seconds,
@@ -438,8 +464,9 @@ async fn daemon(
 	network: &std::path::Path,
 	backend: NetworkBackend,
 	adapter: Option<&str>,
+	tailscale: tailscale::Options,
 ) -> Result<()> {
-	device::run(cache, network, backend, adapter).await
+	device::run(cache, network, backend, adapter, tailscale).await
 }
 
 /// Read a QR code from its text, as its code encodes it or as a person typed it (QR, "Reading").
@@ -493,6 +520,7 @@ async fn daemon(
 	_network: &std::path::Path,
 	_backend: NetworkBackend,
 	_adapter: Option<&str>,
+	_tailscale: tailscale::Options,
 ) -> Result<()> {
 	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")
 }

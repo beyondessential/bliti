@@ -1,6 +1,8 @@
 [Unit]
 Description=bliti QR-anchored BLE device provisioning
-After=bluetooth.service
+# Tailscale is ordered before and not required: a device with no Tailscale, or one whose
+# tailscaled is down, still starts, and stays reachable to be diagnosed over bluetooth.
+After=bluetooth.service tailscaled.service
 Requires=bluetooth.service
 
 [Service]
@@ -14,7 +16,10 @@ Requires=bluetooth.service
 # imaging, and after a board change; every later start reads the cache. The
 # derivation is memory-hard by design and wants 2 GiB, and the kernel kills it
 # rather than failing it if that is not there, so deliberately no MemoryMax.
-ExecStart=/usr/local/bin/bliti daemon
+# --tailnet and --ping-default are this fleet's: the one tailnet a device accepts, and the machine
+# a Tailscale ping tests when the client names none. A device refuses to start while signed in to
+# another tailnet, and signs out of any other a client signs it in to.
+ExecStart=/usr/local/bin/bliti daemon --tailnet bes.au --ping-default canopy
 Restart=always
 RestartSec=10s
 

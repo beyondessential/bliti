@@ -257,7 +257,14 @@ impl Open {
 			| Message::Curve
 			| Message::Curves { .. }
 			| Message::Load { .. }
-			| Message::Reset => {
+			| Message::Reset
+			| Message::Tailscale
+			| Message::TailscaleActs { .. }
+			| Message::TailscaleAct { .. }
+			| Message::TailscaleAccepted
+			| Message::TailscaleLoginLink { .. }
+			| Message::TailscaleResult { .. }
+			| Message::TailscaleFailed { .. } => {
 				// Nothing a configuration session does anything about, which MSG makes a no-op.
 				tracing::debug!("a message the configuration session has nothing to do about");
 			}

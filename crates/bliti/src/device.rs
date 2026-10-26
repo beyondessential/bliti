@@ -43,6 +43,7 @@ use crate::{
 	},
 	power::{Controller, systemd::Systemd},
 	session::{self, AbortOnDrop},
+	tailscale::{self, Tailscale},
 };
 
 mod slots;
@@ -53,6 +54,7 @@ pub async fn run(
 	network: &Path,
 	backend: NetworkBackend,
 	adapter_name: Option<&str>,
+	tailscale: tailscale::Options,
 ) -> Result<()> {
 	// Establish identity before touching Bluetooth: a board whose QR code is dead, or that this build
 	// cannot derive for, must say so rather than advertise a handle nobody can match.
@@ -63,6 +65,12 @@ pub async fn run(
 		tracing::info!(source = %identity.kind, "root is cached");
 	}
 	let keys = Arc::new(identity.keys);
+
+	// Before the adapter is touched, so a device signed in to a tailnet it does not accept stops here
+	// and does not advertise (TSC, "Signing in").
+	let tailscale = Tailscale::connect(tailscale)
+		.await
+		.context("checking the tailnet this device is in")?;
 
 	// The configuration the device holds goes in force before anything else (CFG). One configurator
 	// serves every connection, so the configuration is the device's, whichever connection reads it.
@@ -162,6 +170,7 @@ pub async fn run(
 				configurator,
 				controller,
 				supply,
+				tailscale,
 				// One allowance for the whole device, since every session shares the one radio.
 				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
 			},
@@ -491,6 +500,7 @@ struct Shared {
 	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
+	tailscale: Tailscale,
 	pacer: Arc<Mutex<Pacer>>,
 }
 
@@ -535,6 +545,7 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 		configurator,
 		controller,
 		supply,
+		tailscale,
 		pacer,
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
@@ -579,7 +590,15 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
 	// stays reachable afterwards.
 	tokio::select! {
-		result = session::run(transport, &keys, sampler, configurator, controller, supply) => {
+		result = session::run(
+			transport,
+			&keys,
+			sampler,
+			configurator,
+			controller,
+			supply,
+			tailscale,
+		) => {
 			match result {
 				Ok(()) => tracing::info!("session ended"),
 				Err(err) => tracing::info!(%err, "session ended"),

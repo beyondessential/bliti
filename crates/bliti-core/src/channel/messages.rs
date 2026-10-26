@@ -181,6 +181,79 @@ pub enum Message {
 
 	/// A client asking a device to return to the curve its build carries (CRV).
 	Reset,
+
+	/// A client opening a Tailscale stream, first on the stream it opens for it (TSC).
+	Tailscale,
+
+	/// A device's answer to `tailscale`, and what it sends on every Tailscale stream when the acts it
+	/// can carry out change (TSC). Named as strings, as [`Message::Acts`] is.
+	TailscaleActs {
+		/// The acts, by wire name.
+		acts: Vec<String>,
+	},
+
+	/// A client asking a device to carry out a Tailscale act (TSC). Every member is critical, so a
+	/// device does not act on a request it has not wholly read.
+	TailscaleAct {
+		/// The act, by wire name.
+		act: String,
+		/// How a `sign-in` is to be done, by wire name.
+		method: Option<String>,
+		/// The auth key a `sign-in` by `auth-key` uses.
+		key: Option<Secret>,
+		/// The name a `sign-in` registers the device under.
+		name: Option<String>,
+		/// The machine a `ping` tests, by its name on the tailnet.
+		peer: Option<String>,
+	},
+
+	/// A device's answer that it will carry out the Tailscale act asked for (TSC).
+	TailscaleAccepted,
+
+	/// A device handing a client the login link of a `sign-in` by `login-link` (TSC).
+	TailscaleLoginLink {
+		/// The login link.
+		url: Secret,
+	},
+
+	/// A device's report of what a `netcheck` or a `ping` found (TSC). Its shape is the act's, so it
+	/// rides as raw JSON, and a member a newer device adds survives.
+	TailscaleResult {
+		/// What the test found.
+		result: Map<String, Json>,
+	},
+
+	/// A device's report that it accepted a Tailscale act and did not carry it out (TSC).
+	TailscaleFailed {
+		/// Why, in the device's own words.
+		reason: String,
+	},
+}
+
+/// Something a message carries that must not reach a log: an auth key or a login link (TSC).
+///
+/// Its [`fmt::Debug`] says nothing of what it holds, so a message that is logged with `{:?}` does not
+/// spill it.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Secret(String);
+
+impl Secret {
+	/// Hold `value`.
+	pub fn new(value: impl Into<String>) -> Self {
+		Self(value.into())
+	}
+
+	/// The secret itself, for whatever it is for.
+	pub fn expose(&self) -> &str {
+		&self.0
+	}
+}
+
+impl fmt::Debug for Secret {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("Secret(..)")
+	}
 }
 
 /// A time, and how far either way it may be off, both in seconds (CRV, "The curve stream").
@@ -349,6 +422,51 @@ impl Message {
 			Self::Reset => {
 				map.insert("type".to_owned(), "reset".into());
 			}
+			Self::Tailscale => {
+				map.insert("type".to_owned(), "tailscale".into());
+			}
+			Self::TailscaleActs { acts } => {
+				map.insert("type".to_owned(), "tailscale-acts".into());
+				map.insert(
+					"acts".to_owned(),
+					Json::Array(acts.iter().cloned().map(Json::String).collect()),
+				);
+			}
+			Self::TailscaleAct {
+				act,
+				method,
+				key,
+				name,
+				peer,
+			} => {
+				map.insert("type".to_owned(), "tailscale-act".into());
+				map.insert("act".to_owned(), act.clone().into());
+				for (member, value) in [
+					("method", method.as_deref()),
+					("key", key.as_ref().map(Secret::expose)),
+					("name", name.as_deref()),
+					("peer", peer.as_deref()),
+				] {
+					if let Some(value) = value {
+						map.insert(member.to_owned(), value.into());
+					}
+				}
+			}
+			Self::TailscaleAccepted => {
+				map.insert("type".to_owned(), "tailscale-accepted".into());
+			}
+			Self::TailscaleLoginLink { url } => {
+				map.insert("type".to_owned(), "tailscale-login-link".into());
+				map.insert("url".to_owned(), url.expose().into());
+			}
+			Self::TailscaleResult { result } => {
+				map.insert("type".to_owned(), "tailscale-result".into());
+				map.insert("result".to_owned(), Json::Object(result.clone()));
+			}
+			Self::TailscaleFailed { reason } => {
+				map.insert("type".to_owned(), "tailscale-failed".into());
+				map.insert("reason".to_owned(), reason.clone().into());
+			}
 		}
 		map
 	}
@@ -468,6 +586,27 @@ impl<'de> Visitor<'de> for MessageVisitor {
 					.ok_or_else(|| de::Error::custom("this message carries a `document`"))?,
 			}),
 			"reset" => Ok(Message::Reset),
+			"tailscale" => Ok(Message::Tailscale),
+			"tailscale-acts" => Ok(Message::TailscaleActs {
+				acts: strings(&map, "acts")?,
+			}),
+			"tailscale-act" => Ok(Message::TailscaleAct {
+				act: string(&map, "act")?,
+				method: optional_string(&map, "method")?,
+				key: optional_string(&map, "key")?.map(Secret::new),
+				name: optional_string(&map, "name")?,
+				peer: optional_string(&map, "peer")?,
+			}),
+			"tailscale-accepted" => Ok(Message::TailscaleAccepted),
+			"tailscale-login-link" => Ok(Message::TailscaleLoginLink {
+				url: Secret::new(string::<A::Error>(&map, "url")?),
+			}),
+			"tailscale-result" => Ok(Message::TailscaleResult {
+				result: object(&map, "result")?,
+			}),
+			"tailscale-failed" => Ok(Message::TailscaleFailed {
+				reason: string(&map, "reason")?,
+			}),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -585,6 +724,13 @@ impl MessageSet for Message {
 			"curves",
 			"load",
 			"reset",
+			"tailscale",
+			"tailscale-acts",
+			"tailscale-act",
+			"tailscale-accepted",
+			"tailscale-login-link",
+			"tailscale-result",
+			"tailscale-failed",
 		]
 	}
 
@@ -608,6 +754,9 @@ impl MessageSet for Message {
 			// `act` pins its selector critical, so a device does not carry out an act it has not read
 			// (CTL). Recorded in `wire-breaks.toml`.
 			"act" => &["act"],
+			// `tailscale-act` pins every member critical, since an act carried out without a parameter it
+			// did not read would be a different act (TSC). Recorded in `wire-breaks.toml`.
+			"tailscale-act" => &["act", "method", "key", "name", "peer"],
 			_ => &[],
 		}
 	}

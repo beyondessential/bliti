@@ -20,6 +20,16 @@ one failure at a time.
   peripheral-only, which is what `bliti-bluetoothd.conf` and
   `bliti-bluetooth-dropin.conf` beside this file are for.
 
+### For Tailscale
+
+- **`tailscale`**, pinned to the version the shapes recorded in
+  `crates/bliti/src/tailscale/fixtures/` came from (see the README there). bliti
+  talks to tailscaled's local API over its socket, which is not a stability
+  promise by Tailscale, and runs `tailscale netcheck` as a command. The daemon
+  runs as root, which is what lets it change Tailscale's preferences. A device
+  with no `tailscale` package reports no Tailscale and lists no act, since the
+  network check is that package's command.
+
 ### For the network configuration module
 
 - **`hostapd`** for the hotspot. Nothing else here puts a radio into AP mode.

@@ -25,7 +25,7 @@ use serde_json::{Map, Value as Json};
 
 use super::{
 	config::{Failure, Outcome},
-	messages::{Message, Span},
+	messages::{Message, Secret, Span},
 	readings::Entry,
 };
 
@@ -220,6 +220,29 @@ pub fn message() -> impl Strategy<Value = Message> {
 			document: Json::Object(document)
 		}),
 		1 => Just(Message::Reset),
+		// The Tailscale stream of TSC. The optional members of an act are generated present and absent.
+		1 => Just(Message::Tailscale),
+		1 => prop::collection::vec("[a-z-]{1,10}", 0..4)
+			.prop_map(|acts| Message::TailscaleActs { acts }),
+		1 => (
+			"[a-z-]{1,10}",
+			prop::option::of("[a-z-]{1,10}"),
+			prop::option::of("[a-zA-Z0-9-]{1,30}".prop_map(Secret::new)),
+			prop::option::of("[a-z0-9-]{1,15}"),
+			prop::option::of("[a-z0-9.-]{1,15}"),
+		)
+			.prop_map(|(act, method, key, name, peer)| Message::TailscaleAct {
+				act,
+				method,
+				key,
+				name,
+				peer,
+			}),
+		1 => Just(Message::TailscaleAccepted),
+		1 => "https://[a-z]{1,10}\\.example/[a-z0-9]{1,12}"
+			.prop_map(|url| Message::TailscaleLoginLink { url: Secret::new(url) }),
+		1 => object_of(json()).prop_map(|result| Message::TailscaleResult { result }),
+		1 => "[a-z ]{1,20}".prop_map(|reason| Message::TailscaleFailed { reason }),
 	]
 }
 
