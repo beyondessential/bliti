@@ -42,3 +42,43 @@ async fn a_daemon_that_does_not_answer_is_not_a_refusal() {
 			.is_ok()
 	);
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_daemon_still_starting_is_waited_for() {
+	let fake = Fake::in_state("Running");
+	fake.unsettled("Starting");
+	let waiting = {
+		let fake = fake.clone();
+		tokio::spawn(async move { check_at_startup(&*fake, Some("other.example")).await })
+	};
+	tokio::time::sleep(Duration::from_secs(2)).await;
+	fake.move_to("Running");
+	let err = waiting.await.unwrap().unwrap_err();
+	assert!(err.to_string().contains(JOINED), "{err}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_daemon_that_never_settles_is_not_a_refusal() {
+	let fake = Fake::in_state("Running");
+	fake.unsettled("NoState");
+	let started = Instant::now();
+	assert!(
+		check_at_startup(&*fake, Some("other.example"))
+			.await
+			.is_ok()
+	);
+	assert!(started.elapsed() >= SETTLE);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_daemon_with_no_tailnet_once_settled_is_accepted_at_once() {
+	let fake = Fake::in_state("Running");
+	fake.unsettled("Stopped");
+	let started = Instant::now();
+	assert!(
+		check_at_startup(&*fake, Some("other.example"))
+			.await
+			.is_ok()
+	);
+	assert!(started.elapsed() < SETTLE_POLL);
+}

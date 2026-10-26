@@ -52,7 +52,6 @@ struct Inner {
 fn node(name: &str) -> Node {
 	Node {
 		dns_name: format!("{name}.{JOINED}."),
-		host_name: name.to_owned(),
 		tailscale_ips: Some(vec!["100.64.0.2".parse().unwrap()]),
 		..Node::default()
 	}
@@ -121,6 +120,13 @@ impl Fake {
 		self.set(backend_state, backend_state != "NeedsLogin");
 	}
 
+	/// Make tailscaled report `backend_state` with no tailnet yet, as it does while it starts.
+	pub fn unsettled(&self, backend_state: &str) {
+		let mut inner = self.inner();
+		inner.status.backend_state = backend_state.to_owned();
+		inner.status.current_tailnet = None;
+	}
+
 	/// Make tailscaled stop answering.
 	pub fn go_down(&self) {
 		self.inner().down = true;
@@ -137,13 +143,26 @@ impl Fake {
 	}
 
 	/// Add a peer, as `status` lists it.
-	pub fn peer(&self, host_name: &str) {
+	pub fn peer(&self, name: &str) {
 		let mut inner = self.inner();
 		inner
 			.status
 			.peer
 			.get_or_insert_default()
-			.insert(host_name.to_owned(), node(host_name));
+			.insert(name.to_owned(), node(name));
+	}
+
+	/// Add a peer under `key` with its own tailnet name and address.
+	pub fn peer_named(&self, key: &str, name: &str, address: &str) {
+		let mut inner = self.inner();
+		inner.status.peer.get_or_insert_default().insert(
+			key.to_owned(),
+			Node {
+				dns_name: format!("{name}.{JOINED}."),
+				tailscale_ips: Some(vec![address.parse().unwrap()]),
+				..Node::default()
+			},
+		);
 	}
 
 	/// Queue the answer to a probe.

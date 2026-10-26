@@ -1,6 +1,6 @@
 //! The local API over tailscaled's unix socket: one HTTP/1 connection per call.
 
-use std::{net::IpAddr, path::PathBuf};
+use std::{net::IpAddr, path::PathBuf, time::Duration};
 
 use async_trait::async_trait;
 use bliti_core::channel::messages::Secret;
@@ -12,7 +12,10 @@ use hyper_util::rt::TokioIo;
 use serde_json::{Value as Json, json};
 use tokio::net::UnixStream;
 
-use super::{ApiError, CALL_TIMEOUT, DerpMap, LocalApi, Notify, Pong, Prefs, Status, read_json};
+use super::{
+	ApiError, CALL_TIMEOUT, DerpMap, LocalApi, Notify, PROBE_TIMEOUT, Pong, Prefs, Status,
+	read_json,
+};
 
 /// The notifications to ask the bus for: the state and the health as they stand now, then each change.
 const WATCH_MASK: u32 = 2 | 128;
@@ -67,6 +70,17 @@ impl Unix {
 		path: &str,
 		body: Option<Json>,
 	) -> Result<Bytes, ApiError> {
+		self.call_within(CALL_TIMEOUT, method, path, body).await
+	}
+
+	/// A call that answers once, with its body whole, given up on after `limit`.
+	async fn call_within(
+		&self,
+		limit: Duration,
+		method: Method,
+		path: &str,
+		body: Option<Json>,
+	) -> Result<Bytes, ApiError> {
 		let exchange = async {
 			let response = self.send(method, path, body).await?;
 			let status = response.status();
@@ -82,7 +96,7 @@ impl Unix {
 				Err(refused(status, &bytes))
 			}
 		};
-		tokio::time::timeout(CALL_TIMEOUT, exchange)
+		tokio::time::timeout(limit, exchange)
 			.await
 			.map_err(|_| ApiError::Timeout)?
 	}
@@ -187,18 +201,30 @@ impl LocalApi for Unix {
 	}
 
 	async fn ping(&self, address: IpAddr) -> Result<Pong, ApiError> {
-		read_json(
-			&self
-				.call(
-					Method::POST,
-					&format!("ping?ip={address}&type=disco&size=0"),
-					None,
-				)
-				.await?,
-		)
+		// tailscaled leaves the wait for a probe to its caller, so a peer that does not answer is a
+		// probe that timed out here, not a failure of the call.
+		let answer = self
+			.call_within(
+				PROBE_TIMEOUT,
+				Method::POST,
+				&format!("ping?ip={address}&type=disco&size=0"),
+				None,
+			)
+			.await;
+		match answer {
+			Ok(body) => read_json(&body),
+			Err(ApiError::Timeout) => Ok(Pong {
+				err: "no answer in time".to_owned(),
+				..Pong::default()
+			}),
+			Err(err) => Err(err),
+		}
 	}
 
 	async fn derp_map(&self) -> Result<Option<DerpMap>, ApiError> {
 		read_json(&self.call(Method::GET, "derpmap", None).await?)
 	}
 }
+
+#[cfg(test)]
+mod tests;

@@ -29,6 +29,9 @@ one failure at a time.
   runs as root, which is what lets it change Tailscale's preferences. A device
   with no `tailscale` package reports no Tailscale and lists no act, since the
   network check is that package's command.
+- **`bliti-daemon.env`**, installed at `/etc/bliti/daemon.env`, carries the
+  fleet's `--tailnet` and `--ping-default`. Without it a device accepts any
+  tailnet and has no machine of its own to ping.
 
 ### For the network configuration module
 

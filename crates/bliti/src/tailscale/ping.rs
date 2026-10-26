@@ -46,7 +46,8 @@ pub async fn run(
 	Ok(report(&named, &answered, names))
 }
 
-/// The machine `peer` names, bare or fully qualified, and its first address.
+/// The machine `peer` names, bare or fully qualified, and its first address. The name is the one on
+/// the tailnet, never the hostname the machine's system gives it, which two machines can share.
 fn resolve<'a>(status: &'a Status, peer: &str) -> Option<(&'a Node, IpAddr)> {
 	let peer = peer.trim_end_matches('.');
 	status
@@ -57,7 +58,7 @@ fn resolve<'a>(status: &'a Status, peer: &str) -> Option<(&'a Node, IpAddr)> {
 		.find(|node| {
 			let qualified = node.dns_name.trim_end_matches('.');
 			let bare = qualified.split('.').next().unwrap_or_default();
-			[qualified, bare, node.host_name.as_str()]
+			[qualified, bare]
 				.into_iter()
 				.any(|name| !name.is_empty() && name.eq_ignore_ascii_case(peer))
 		})

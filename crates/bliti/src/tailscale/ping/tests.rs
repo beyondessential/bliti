@@ -116,3 +116,14 @@ async fn a_peer_is_found_bare_or_fully_qualified_with_or_without_the_dot() {
 		assert!(run(&*fake, name, &names()).await.is_ok(), "{name}");
 	}
 }
+
+#[tokio::test]
+async fn a_peer_is_found_by_its_name_on_the_tailnet() {
+	let fake = Fake::in_state("Running");
+	fake.peer_named("a", "canopy-1", "100.64.0.3");
+	fake.peer_named("b", "canopy", "100.64.0.4");
+	fake.pong(direct(0.001));
+	let result = run(&*fake, "canopy", &names()).await.unwrap();
+	assert_eq!(result["peer"], json!("canopy.fleet.example"));
+	assert!(fake.calls().contains(&"ping 100.64.0.4".to_owned()));
+}

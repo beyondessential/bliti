@@ -41,6 +41,24 @@ impl Outcome {
 	}
 }
 
+/// An act carried out by one call.
+#[derive(Debug, Clone, Copy)]
+enum Change {
+	TurnOn,
+	TurnOff,
+	LogOut,
+}
+
+impl Change {
+	fn what(self) -> &'static str {
+		match self {
+			Self::TurnOn => "turn on",
+			Self::TurnOff => "turn off",
+			Self::LogOut => "log out",
+		}
+	}
+}
+
 impl Inner {
 	/// Carry `request` out, sending each login link a sign-in is issued to `links`.
 	pub(super) async fn carry_out(
@@ -52,17 +70,17 @@ impl Inner {
 			(Request::Netcheck, daemon) => self.netcheck(daemon.as_ref()).await,
 			(_, None) => Outcome::Failed("this device runs no Tailscale".to_owned()),
 			(Request::TurnOn, Some(daemon)) => {
-				self.transition(daemon, "turn on", |state| {
+				self.transition(daemon, Change::TurnOn, |state| {
 					matches!(state, State::Running | State::Starting)
 				})
 				.await
 			}
 			(Request::TurnOff, Some(daemon)) => {
-				self.transition(daemon, "turn off", |state| state == State::Stopped)
+				self.transition(daemon, Change::TurnOff, |state| state == State::Stopped)
 					.await
 			}
 			(Request::LogOut, Some(daemon)) => {
-				self.transition(daemon, "log out", |state| state == State::NeedsLogin)
+				self.transition(daemon, Change::LogOut, |state| state == State::NeedsLogin)
 					.await
 			}
 			(Request::SignIn { method, name }, Some(daemon)) => {
@@ -80,14 +98,15 @@ impl Inner {
 	async fn transition(
 		&self,
 		daemon: &Daemon,
-		what: &str,
+		change: Change,
 		target: impl Fn(State) -> bool,
 	) -> Outcome {
 		let mut observed = daemon.observed.clone();
-		let called = match what {
-			"turn on" => daemon.api.set_running(true).await,
-			"turn off" => daemon.api.set_running(false).await,
-			_ => daemon.api.logout().await,
+		let what = change.what();
+		let called = match change {
+			Change::TurnOn => daemon.api.set_running(true).await,
+			Change::TurnOff => daemon.api.set_running(false).await,
+			Change::LogOut => daemon.api.logout().await,
 		};
 		if let Err(err) = called {
 			return Outcome::Failed(format!("cannot {what}: {err}"));
@@ -151,7 +170,9 @@ impl Inner {
 							return Outcome::Failed(scrub(&error, key.as_ref()));
 						}
 					}
-					Err(broadcast::error::RecvError::Lagged(_)) => {}
+					Err(broadcast::error::RecvError::Lagged(missed)) => {
+						tracing::warn!(missed, "the notification bus ran ahead of a sign-in");
+					}
 					Err(broadcast::error::RecvError::Closed) => {
 						return Outcome::Failed("Tailscale is not being watched".to_owned());
 					}

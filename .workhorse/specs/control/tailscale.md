@@ -126,6 +126,7 @@ A device MUST NOT persist an auth key or a login link, and MUST NOT put one in a
 > A device already signed in to another tailnet cannot honour the restriction, and refusing to start says so at the point the configuration is made, not when an operator next signs in.
 > A key or a link names no tailnet until it is used, so a device learns which tailnet a sign-in reached only once it has reached it, and a device that accepts one tailnet signs out of the others afterwards and not before.
 > `needs-approval` is a sign-in that succeeded and is waiting on an administrator, which is nothing more the operator can do at the device.
+> A `needs-approval` sign-in may not yet name its tailnet, so a device that accepts one tailnet cannot sign out of another there, and finds it by the refusal to start at its next start.
 
 ## Turning on and off, and logging out
 

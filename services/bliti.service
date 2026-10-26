@@ -16,10 +16,11 @@ Requires=bluetooth.service
 # imaging, and after a board change; every later start reads the cache. The
 # derivation is memory-hard by design and wants 2 GiB, and the kernel kills it
 # rather than failing it if that is not there, so deliberately no MemoryMax.
-# --tailnet and --ping-default are this fleet's: the one tailnet a device accepts, and the machine
-# a Tailscale ping tests when the client names none. A device refuses to start while signed in to
-# another tailnet, and signs out of any other a client signs it in to.
-ExecStart=/usr/local/bin/bliti daemon --tailnet bes.au --ping-default canopy
+# The options a deployment sets, such as --tailnet and --ping-default, come from the optional
+# environment file bliti-daemon.env beside this one, installed at /etc/bliti/daemon.env. A device with
+# none accepts any tailnet, since a device that accepts one refuses to start while signed in to another.
+EnvironmentFile=-/etc/bliti/daemon.env
+ExecStart=/usr/local/bin/bliti daemon $BLITI_DAEMON_ARGS
 Restart=always
 RestartSec=10s
 

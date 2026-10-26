@@ -147,10 +147,7 @@ pub async fn watch(
 				while let Some(message) = bus.next().await {
 					match message {
 						Ok(notify) => {
-							if notify.err_message.is_some()
-								|| notify.browse_to_url.is_some()
-								|| notify.login_finished.is_some()
-							{
+							if notify.err_message.is_some() || notify.browse_to_url.is_some() {
 								let _ = events.send(notify);
 							}
 							publish(&observed, observe(&*api).await, &api, &names).await;

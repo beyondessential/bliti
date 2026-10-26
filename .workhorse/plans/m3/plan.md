@@ -157,13 +157,13 @@ Read-only parts of the local API are already confirmed on a signed-in machine, a
 - [x] `tailscale/netcheck.rs` tests over recorded output: all-reachable, UDP blocked with HTTPS-only relays, IPv6 absent, a captive portal, `null` `MappingVariesByDestIP`, and no relay answering (an empty `relays` with `udp` false), the last a `tailscale-result` and not a failure; a runner that cannot start, or exits because it could not fetch the relay map, is `tailscale-failed` with its own reason
 - [x] `tailscale/relays.rs`: the relay name cache in the state directory, written atomically, read at start, refreshed from the local API's `derpmap` when the device enters `running` and on each netcheck where it answers with regions, since a device that has never signed in answers with none; a missing or unreadable file is an empty cache and logged, never an error
 - [x] `tailscale/relays.rs` tests over a temporary directory: a name found, an id not in the cache giving a null name, a corrupt file, a refresh replacing the map
-- [x] `tailscale/ping.rs`: resolve `PEER` against the peers in the status (bare or fully qualified name, never an address), or the configured default where absent; no default or no such peer is `tailscale-failed`
+- [x] `tailscale/ping.rs`: resolve `PEER` against the peers in the status (bare or fully qualified name on the tailnet, never an address and never the system hostname), or the configured default where absent; no default or no such peer is `tailscale-failed`
 - [x] `tailscale/ping.rs`: send probes until one is direct or the count is spent, report `reachable`, `path` as `direct` if any probe was, `relay` as a relay object for a relayed path, `latency` from the last answer on the reported path, and `peer`; no answer is a result with `reachable` false
 - [x] `tailscale/ping.rs` tests with the fake client: direct on the first probe, relayed then direct, relayed only, no answer, unknown peer, an address given as `PEER`, no default configured
 
 ## Device: tailnet restriction and the daemon
 
-- [x] `tailscale/restriction.rs`: `check_at_startup(&dyn LocalApi, Option<&str>)` returning an error naming both tailnets where the device is signed in to another, and `Ok` where it is signed out, in the accepted tailnet, or tailscaled does not answer
+- [x] `tailscale/restriction.rs`: `check_at_startup(&dyn LocalApi, Option<&str>)` returning an error naming both tailnets where the device is signed in to another, and `Ok` where it is signed out, in the accepted tailnet, or tailscaled does not answer; a status still `NoState` or `Starting` with no tailnet is read again for a bounded time, since tailscaled names none until it has its network map
 - [x] `tailscale/acts.rs`: after a `sign-in` reaches `running` or `needs-approval`, compare the tailnet with the restriction, and on a mismatch call `logout` and fail with the reason TSC asks for
 - [x] `crates/bliti/src/main.rs`: `--tailnet <name>` and `--ping-default <name>` on the `Daemon` command, passed through `daemon()` to `device::run`, with the doc comments the other flags have
 - [x] `crates/bliti/src/device.rs`: build the `Tailscale` handle before the adapter is touched, so the restriction's refusal stops the daemon before it advertises; pass it through `Shared` and `session::run` beside the controller
@@ -172,7 +172,7 @@ Read-only parts of the local API are already confirmed on a signed-in machine, a
 ## Deployment
 
 - [x] `services/bliti.service`: `After=tailscaled.service` with no `Requires`, and a comment saying why
-- [x] `services/bliti.service`: the `--tailnet` and `--ping-default` arguments for our deployment, with a comment that they are the fleet's
+- [x] `services/bliti.service` reads `BLITI_DAEMON_ARGS` from the optional `/etc/bliti/daemon.env`, and `services/bliti-daemon.env` carries the fleet's `--tailnet` and `--ping-default`, so a unit installed without the file accepts any tailnet instead of refusing to start
 - [x] `services/README.md`: list `tailscale` under the packages the device needs, pinned, and say what depends on its local API
 
 ## Finish
@@ -180,3 +180,5 @@ Read-only parts of the local API are already confirmed on a signed-in machine, a
 - [x] `cargo fmt`, `cargo clippy` and `cargo test` for the workspace, including `-p bliti-wire-compat`
 - [x] Build for `wasm32-unknown-unknown` with `just build-wasm` to confirm `bliti-core` still builds for the client
 - [ ] By hand on the prototype device: sign in by auth key and by login link, turn off and on, log out, netcheck while signed out and signed in, ping the default and a named peer, and start the daemon with `--tailnet` set to another tailnet and see it refuse
+
+A sign-in that waits on approval names no tailnet yet, so a foreign tailnet joined that way is found by the refusal to start and not signed out at once. Signing in through a shadow tailscaled, and promoting it only once its tailnet is known, closes that; it is card R3.

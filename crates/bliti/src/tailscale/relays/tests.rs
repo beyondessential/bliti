@@ -44,3 +44,13 @@ fn a_refresh_replaces_the_names() {
 	assert_eq!(names.name(5).as_deref(), Some("Auckland"));
 	assert_eq!(names.name(9), None);
 }
+
+#[tokio::test]
+async fn a_region_the_map_leaves_unnamed_has_no_name() {
+	let fake = crate::tailscale::fake::Fake::in_state("Running");
+	fake.relays(&[(5, "Sydney"), (9, "")]);
+	let names = Names::in_memory();
+	names.refresh(&*fake).await;
+	assert_eq!(names.name(5).as_deref(), Some("Sydney"));
+	assert_eq!(names.name(9), None);
+}

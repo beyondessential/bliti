@@ -25,6 +25,9 @@ pub const DEFAULT_SOCKET: &str = "/var/run/tailscale/tailscaled.sock";
 /// How long a call to the local API may take before it is given up on.
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// How long one probe of a `ping` may wait for an answer, as long as `tailscale ping` waits.
+pub const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// What went wrong talking to tailscaled. It carries no request body, so a key sent in one cannot
 /// reach a log through it.
 #[derive(Debug, thiserror::Error)]
@@ -91,9 +94,6 @@ pub struct Node {
 	/// Its name on the tailnet, fully qualified, with a trailing dot.
 	#[serde(rename = "DNSName", default)]
 	pub dns_name: String,
-	/// The name its operating system gives it.
-	#[serde(default)]
-	pub host_name: String,
 	/// When its sign-in lapses, where it does.
 	#[serde(default)]
 	pub key_expiry: Option<String>,
@@ -112,9 +112,6 @@ pub struct Notify {
 	/// Something went wrong, such as a rejected key.
 	#[serde(default)]
 	pub err_message: Option<String>,
-	/// A sign-in finished.
-	#[serde(default)]
-	pub login_finished: Option<Json>,
 	/// The login link of a sign-in by link.
 	#[serde(rename = "BrowseToURL", default)]
 	pub browse_to_url: Option<String>,

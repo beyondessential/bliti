@@ -84,6 +84,7 @@ impl Names {
 			Ok(Some(map)) if !map.regions.is_empty() => self.replace(
 				map.regions
 					.into_iter()
+					.filter(|(_, region)| !region.region_name.is_empty())
 					.map(|(id, region)| (id, region.region_name))
 					.collect(),
 			),
