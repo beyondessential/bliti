@@ -44,6 +44,7 @@ use crate::{
 	power::{Controller, systemd::Systemd},
 	session::{self, AbortOnDrop},
 	tailscale::{self, Tailscale},
+	tamanu::Tamanu,
 };
 
 mod slots;
@@ -129,6 +130,8 @@ pub async fn run(
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
+	// Looked at while the device is being talked to, which the sampler knows.
+	let tamanu = Tamanu::connect(sampler.clone());
 	// The command line changes the curves of a running daemon through this, since the daemon holds
 	// them in memory and would otherwise overwrite what it wrote to the curve file (CRV).
 	let socket = Path::new(crate::battery::socket::PATH);
@@ -171,6 +174,7 @@ pub async fn run(
 				controller,
 				supply,
 				tailscale,
+				tamanu,
 				// One allowance for the whole device, since every session shares the one radio.
 				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
 			},
@@ -501,6 +505,7 @@ struct Shared {
 	controller: Controller,
 	supply: Supply,
 	tailscale: Tailscale,
+	tamanu: Tamanu,
 	pacer: Arc<Mutex<Pacer>>,
 }
 
@@ -546,6 +551,7 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 		controller,
 		supply,
 		tailscale,
+		tamanu,
 		pacer,
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
@@ -598,7 +604,8 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 			controller,
 			supply,
 			tailscale,
-		) => {
+			tamanu,
+			) => {
 			match result {
 				Ok(()) => tracing::info!("session ended"),
 				Err(err) => tracing::info!(%err, "session ended"),

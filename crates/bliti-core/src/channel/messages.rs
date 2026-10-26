@@ -228,6 +228,32 @@ pub enum Message {
 		/// Why, in the device's own words.
 		reason: String,
 	},
+
+	/// A client opening a Tamanu stream, first on the stream it opens for it (TMU).
+	Tamanu,
+
+	/// A device's answer to `tamanu`, and what it sends on every Tamanu stream when the acts it can
+	/// carry out change (TMU). Named as strings, as [`Message::Acts`] is.
+	TamanuActs {
+		/// The acts, by wire name.
+		acts: Vec<String>,
+	},
+
+	/// A client asking a device to carry out a Tamanu act (TMU). Every member is critical, so a device
+	/// does not act on a request it has not wholly read.
+	TamanuAct {
+		/// The act, by wire name.
+		act: String,
+	},
+
+	/// A device's answer that it will carry out the Tamanu act asked for (TMU).
+	TamanuAccepted,
+
+	/// A device's report that it accepted a Tamanu act and did not carry it out (TMU).
+	TamanuFailed {
+		/// Why, in the device's own words.
+		reason: String,
+	},
 }
 
 /// Something a message carries that must not reach a log: an auth key or a login link (TSC).
@@ -467,6 +493,27 @@ impl Message {
 				map.insert("type".to_owned(), "tailscale-failed".into());
 				map.insert("reason".to_owned(), reason.clone().into());
 			}
+			Self::Tamanu => {
+				map.insert("type".to_owned(), "tamanu".into());
+			}
+			Self::TamanuActs { acts } => {
+				map.insert("type".to_owned(), "tamanu-acts".into());
+				map.insert(
+					"acts".to_owned(),
+					Json::Array(acts.iter().cloned().map(Json::String).collect()),
+				);
+			}
+			Self::TamanuAct { act } => {
+				map.insert("type".to_owned(), "tamanu-act".into());
+				map.insert("act".to_owned(), act.clone().into());
+			}
+			Self::TamanuAccepted => {
+				map.insert("type".to_owned(), "tamanu-accepted".into());
+			}
+			Self::TamanuFailed { reason } => {
+				map.insert("type".to_owned(), "tamanu-failed".into());
+				map.insert("reason".to_owned(), reason.clone().into());
+			}
 		}
 		map
 	}
@@ -607,6 +654,17 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"tailscale-failed" => Ok(Message::TailscaleFailed {
 				reason: string(&map, "reason")?,
 			}),
+			"tamanu" => Ok(Message::Tamanu),
+			"tamanu-acts" => Ok(Message::TamanuActs {
+				acts: strings(&map, "acts")?,
+			}),
+			"tamanu-act" => Ok(Message::TamanuAct {
+				act: string(&map, "act")?,
+			}),
+			"tamanu-accepted" => Ok(Message::TamanuAccepted),
+			"tamanu-failed" => Ok(Message::TamanuFailed {
+				reason: string(&map, "reason")?,
+			}),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -731,6 +789,11 @@ impl MessageSet for Message {
 			"tailscale-login-link",
 			"tailscale-result",
 			"tailscale-failed",
+			"tamanu",
+			"tamanu-acts",
+			"tamanu-act",
+			"tamanu-accepted",
+			"tamanu-failed",
 		]
 	}
 
@@ -757,6 +820,8 @@ impl MessageSet for Message {
 			// `tailscale-act` pins every member critical, since an act carried out without a parameter it
 			// did not read would be a different act (TSC).
 			"tailscale-act" => &["act", "method", "key", "name", "peer"],
+			// `tamanu-act` pins its act critical for the same reason (TMU).
+			"tamanu-act" => &["act"],
 			_ => &[],
 		}
 	}

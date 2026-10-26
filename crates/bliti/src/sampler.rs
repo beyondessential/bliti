@@ -27,7 +27,7 @@ const FAST: Duration = Duration::from_secs(1);
 const SLOW_EVERY: u32 = 5;
 
 /// How long sampling continues with no session open (NFO).
-const IDLE_STOP: Duration = Duration::from_secs(30 * 60);
+pub(crate) const IDLE_STOP: Duration = Duration::from_secs(30 * 60);
 
 /// The reading of how many clients have a channel open (NFO).
 const CHANNEL_CLIENTS: &str = "channel-clients";
@@ -119,6 +119,11 @@ impl Sampler {
 		SessionGuard {
 			sessions: self.sessions.clone(),
 		}
+	}
+
+	/// Whether a session is open now.
+	pub(crate) fn has_session(&self) -> bool {
+		self.open_sessions() > 0
 	}
 
 	fn open_sessions(&self) -> usize {

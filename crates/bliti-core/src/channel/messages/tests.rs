@@ -603,6 +603,60 @@ fn secrets_do_not_debug() {
 	}
 }
 
+/// The Tamanu stream's messages round trip (TMU).
+#[test]
+fn the_tamanu_messages_round_trip() {
+	for message in [
+		Message::Tamanu,
+		Message::TamanuActs {
+			acts: vec!["restart".to_owned()],
+		},
+		Message::TamanuActs { acts: Vec::new() },
+		Message::TamanuAct {
+			act: "start".to_owned(),
+		},
+		Message::TamanuAccepted,
+		Message::TamanuFailed {
+			reason: "tamanu-facility-api is not running".to_owned(),
+		},
+	] {
+		let json = message.to_json();
+		assert_eq!(read(&json).unwrap(), Reading::Message(message.clone()));
+		assert_eq!(round_trip_omissions(&message), Vec::<String>::new());
+	}
+}
+
+/// `tamanu-act` writes its act in upper case (TMU).
+#[test]
+fn tamanu_act_writes_its_act_critical() {
+	let act = Message::TamanuAct {
+		act: "restart".to_owned(),
+	};
+	assert_eq!(
+		String::from_utf8(act.to_json()).unwrap(),
+		r#"{"ACT":"restart","type":"tamanu-act"}"#
+	);
+}
+
+/// A `tamanu-act` carrying a critical member this build does not know is not acted on (TMU).
+#[test]
+fn tamanu_act_refuses_a_critical_member_it_does_not_know() {
+	assert!(matches!(
+		parse(r#"{"type":"tamanu-act","ACT":"restart","FORCE":true}"#).unwrap(),
+		Reading::Refused(_)
+	));
+	assert!(matches!(
+		parse(r#"{"type":"tamanu-act","ACT":"restart","force":true}"#).unwrap(),
+		Reading::Message(Message::TamanuAct { .. })
+	));
+}
+
+/// `tamanu-failed` always says why.
+#[test]
+fn tamanu_failed_requires_its_reason() {
+	assert!(parse(r#"{"type":"tamanu-failed"}"#).is_err());
+}
+
 /// `tailscale-failed` always says why.
 #[test]
 fn tailscale_failed_requires_its_reason() {

@@ -243,6 +243,13 @@ pub fn message() -> impl Strategy<Value = Message> {
 			.prop_map(|url| Message::TailscaleLoginLink { url: Secret::new(url) }),
 		1 => object_of(json()).prop_map(|result| Message::TailscaleResult { result }),
 		1 => "[a-z ]{1,20}".prop_map(|reason| Message::TailscaleFailed { reason }),
+		// The Tamanu stream of TMU.
+		1 => Just(Message::Tamanu),
+		1 => prop::collection::vec("[a-z-]{1,10}", 0..4)
+			.prop_map(|acts| Message::TamanuActs { acts }),
+		1 => "[a-z-]{1,10}".prop_map(|act| Message::TamanuAct { act }),
+		1 => Just(Message::TamanuAccepted),
+		1 => "[a-z ]{1,20}".prop_map(|reason| Message::TamanuFailed { reason }),
 	]
 }
 

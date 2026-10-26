@@ -55,6 +55,7 @@ async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) ->
 			controller,
 			supply,
 			Tailscale::none(),
+			Tamanu::none(),
 		)
 		.await;
 	});
@@ -281,6 +282,7 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 			Controller::none(),
 			Supply::default(),
 			Tailscale::none(),
+			Tamanu::none(),
 		)
 		.await
 	});
@@ -319,6 +321,7 @@ async fn the_right_token_with_the_wrong_fingerprint_cannot_open_a_session() {
 			Controller::none(),
 			Supply::default(),
 			Tailscale::none(),
+			Tamanu::none(),
 		)
 		.await
 	});
@@ -460,6 +463,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Controller::none(),
 				Supply::default(),
 				Tailscale::none(),
+				Tamanu::none(),
 			)
 			.await;
 		})
@@ -498,6 +502,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Controller::none(),
 				Supply::default(),
 				Tailscale::none(),
+				Tamanu::none(),
 			)
 			.await;
 		}
@@ -785,7 +790,7 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 		Options::default(),
 	)
 	.await;
-	let before = facts_now(&tailscale);
+	let before = facts_now(&tailscale, &Tamanu::none());
 	let state = |facts: &[Entry]| {
 		facts
 			.iter()
@@ -796,14 +801,51 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 
 	fake.move_to("Stopped");
 	tokio::time::sleep(Duration::from_millis(100)).await;
-	let after = facts_now(&tailscale);
+	let after = facts_now(&tailscale, &Tamanu::none());
 	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
 	assert!(!same_facts(&before, &after));
-	assert!(same_facts(&after, &facts_now(&tailscale)));
+	assert!(same_facts(&after, &facts_now(&tailscale, &Tamanu::none())));
 
 	assert!(
-		facts_now(&Tailscale::none())
+		facts_now(&Tailscale::none(), &Tamanu::none())
 			.iter()
 			.all(|fact| !fact.name.starts_with("tailscale"))
 	);
+}
+
+/// A change in Tamanu is a change in the facts, and the three Tamanu facts are reported once Tamanu
+/// has been looked at (NFO, "Tamanu").
+#[tokio::test(start_paused = true)]
+async fn a_change_in_tamanu_is_a_change_in_the_facts() {
+	use crate::tamanu::fake::{Fake, RUNNING, STOPPED};
+
+	let fake = std::sync::Arc::new(Fake::reporting(RUNNING));
+	let tamanu = Tamanu::start(
+		fake.clone(),
+		std::sync::Arc::new(|| true),
+		Duration::from_secs(30 * 60),
+	);
+	tamanu.looked().await;
+	let state = |facts: &[Entry]| {
+		facts
+			.iter()
+			.find(|fact| fact.name == "tamanu-state")
+			.and_then(|fact| fact.value.clone())
+	};
+	let before = facts_now(&Tailscale::none(), &tamanu);
+	assert_eq!(state(&before), Some(serde_json::json!("running")));
+
+	fake.set_status(STOPPED);
+	tokio::time::sleep(Duration::from_secs(6)).await;
+	let after = facts_now(&Tailscale::none(), &tamanu);
+	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
+	assert!(!same_facts(&before, &after));
+
+	let names = |facts: &[Entry]| {
+		facts
+			.iter()
+			.filter(|fact| fact.name.starts_with("tamanu"))
+			.count()
+	};
+	assert_eq!(names(&facts_now(&Tailscale::none(), &Tamanu::none())), 3);
 }

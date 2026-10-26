@@ -264,7 +264,12 @@ impl Open {
 			| Message::TailscaleAccepted
 			| Message::TailscaleLoginLink { .. }
 			| Message::TailscaleResult { .. }
-			| Message::TailscaleFailed { .. } => {
+			| Message::TailscaleFailed { .. }
+			| Message::Tamanu
+			| Message::TamanuActs { .. }
+			| Message::TamanuAct { .. }
+			| Message::TamanuAccepted
+			| Message::TamanuFailed { .. } => {
 				// Nothing a configuration session does anything about, which MSG makes a no-op.
 				tracing::debug!("a message the configuration session has nothing to do about");
 			}
