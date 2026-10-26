@@ -52,6 +52,18 @@ A device MUST send one message per fact or reading, at a cadence suited to the e
 > Times are measured from boot rather than from an epoch because a device in the field may have no set clock and no way to reach one.
 > The two catalogues are separate and may name the same thing: a fact and a reading of one name are different things.
 
+### Batches
+
+A device MUST send its facts and readings on a feed in batches, and MUST end each batch with `end-of-batch`, which carries nothing beyond `type`.
+
+The first batch on a feed MUST carry every entry the device holds when the feed opens.
+
+A device MUST send as one batch the entries it takes together: every reading taken at one moment, or every fact that changed together with each entry the change ends.
+
+> [!NOTE]
+> The end of the first batch tells a reader it holds what the device holds, so an entry still missing then is one the device does not report, not one yet to arrive.
+> A reader that applies a batch whole never shows the moment between an entry ending and the one that replaces it, as an address moving from one interface to another.
+
 ### What a message is about
 
 `traits` names the subject of a fact or reading.

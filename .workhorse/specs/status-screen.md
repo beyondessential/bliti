@@ -28,6 +28,10 @@ The application MUST show beneath the title each message from the device it coul
 
 The application MUST show, beneath the title, a row for the network, a row for Tailscale and a row for Tamanu, in that order.
 
+The application MUST read the rows from the batches of [NFO](device-info.md#batches), changing them only once a batch has ended, by everything in it.
+
+Until the first batch has ended, the application MUST show the network row and the Tailscale row in progress, saying it is checking each.
+
 Each row MUST carry a mark, a name saying how the thing stands, and beneath the name, where there is any, its detail.
 
 A row's mark MUST be one of:
@@ -79,7 +83,7 @@ Either MUST open the screen of [NSCR](network/screen.md).
 
 ## The Tailscale row
 
-The application MUST show the Tailscale row only where the device reports `tailscale-state`.
+Once the first batch has ended, the application MUST show the Tailscale row only where the device reports `tailscale-state`.
 
 The application MUST render the Tailscale row from `tailscale-state` by this table, showing the device's `reason` beneath the name where the table says so:
 
