@@ -313,7 +313,7 @@ The acts a client asks of Tailscale are specified under [TSC](control/tailscale.
 
 ## Tamanu
 
-A device on which Tamanu is installed MUST report `tamanu-state`, `tamanu-web-version` and `tamanu-facility-server-version`, and MUST omit all three where none is installed.
+A device MUST report `tamanu-state`, `tamanu-web-version` and `tamanu-facility-server-version`.
 
 `tamanu-state` MUST report one of:
 
@@ -322,10 +322,11 @@ A device on which Tamanu is installed MUST report `tamanu-state`, `tamanu-web-ve
 | `running` | every required service is running, no service Tamanu requires to be absent is present, and every service runs the version it is configured to | `passed` |
 | `degraded` | some required service is running, and Tamanu is not `running` | `warning`, with a reason saying what is short |
 | `stopped` | no required service is running | `failed`, with a reason saying so |
+| `absent` | no installation of Tamanu is found | `failed`, with a reason saying none is installed |
 | `starting` | a `start` of [TMU](control/tamanu.md) is under way | `warning`, with a reason saying it is starting |
 | `restarting` | a `restart` of [TMU](control/tamanu.md) is under way | `warning`, with a reason saying it is restarting |
 
-A device MUST report `tamanu-state` as `broken`, with a reason, where Tamanu is installed and the device could not read how it stands.
+A device MUST report `tamanu-state` as `broken`, with a reason, where it could not tell whether Tamanu is installed or how it stands.
 
 A device MUST report a change in `tamanu-state` as soon as it observes the change.
 
@@ -335,7 +336,9 @@ A device MUST report a version entry as `warning` where the version running diff
 
 A device MUST report a version entry whose service is not running with the version it is configured to run as its value, as `failed`, with a reason saying the service is not running.
 
-A device MUST report a version entry as `skipped`, with a reason, where it holds neither a running nor a configured version for the service.
+A device MUST report both version entries as `skipped`, with a reason saying Tamanu is not installed, where `tamanu-state` is `absent`.
+
+A device MUST report a version entry as `skipped`, with a reason, where it otherwise holds neither a running nor a configured version for the service.
 
 A device MUST report both version entries as `broken`, with the reason of `tamanu-state`, where `tamanu-state` is `broken`.
 

@@ -10,6 +10,7 @@ The device calls `bestool` as it is: `status --json` to read, `start` and `resta
 - Per expectation the JSON has `name`, `expected_state`, `running`, `min_count`, `status` (`up`, `down`, `short`, `absent`, `forbidden`, `unknown`), `reason`, `expected_version`, and `instances[]` with `version_actual` (only while that instance runs) and `version_status` (`match`, `mismatch`, `unknown`). `any_short` is true for a short or forbidden expectation and for any version mismatch. That is `running` versus not.
 - Web is the `tamanu-frontend` expectation, versioned by `TAMANU_FRONTEND_VERSION`. Facility server is `tamanu-facility-api`, versioned by `TAMANU_VERSION`. Both carry `expected_version` even with nothing running, which is the configured fallback the spec asks for.
 - `unknown` expectations (a DB signal that could not be read) are not short, and do not count toward `degraded`.
+- Absent is `bestool tamanu find` returning no installation (or `status` failing for that reason); tell it apart from `broken`, where `bestool` is missing or errors for another reason.
 - `stopped` is every `up`-expected expectation at `down`; any other shortfall is `degraded`.
 - Acts are `bestool tamanu start` and `bestool tamanu restart`. Both are slow (`restart` rolls instances behind readiness probes), so the device must not block its other work on them; success is judged by the state reaching `running`.
 - The daemon runs as root, so `bestool`'s sudo re-exec for reading container versions does not trigger.
@@ -18,7 +19,7 @@ The device calls `bestool` as it is: `status --json` to read, `start` and `resta
 
 - [ ] Wire: `tamanu`, `tamanu-acts`, `tamanu-act`, `tamanu-accepted`, `tamanu-failed` in `bliti-core` messages, with `ACT` critical, and the corpus entry M3 added for its act
 - [ ] `tamanu` module: run `bestool` with a timeout, parse the status JSON into a snapshot (fixtures from a real run, as M3 did for Tailscale), run an act and wait for `running` with a bound
-- [ ] `facts/tamanu.rs`: `tamanu-state` and the two version entries, including `broken` and omitted-when-not-installed
+- [ ] `facts/tamanu.rs`: `tamanu-state` and the two version entries, including `absent` and `broken`
 - [ ] `starting` and `restarting` reported for the life of an act, re-reading state as the act ends
 - [ ] Tamanu stream in the session: acts listed by state, re-sent on change, one act at a time across streams, carried out after the stream ends, logging
 - [ ] Tests: state mapping, fixtures for running, degraded, stopped, drift and unreadable; act listing by state; refusal while an act is under way; failure naming the short services

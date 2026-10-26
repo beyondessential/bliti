@@ -22,9 +22,9 @@ A device MUST list an act only where it can carry it out now, by the table below
 | act | listed while `tamanu-state` is |
 | --- | --- |
 | `start` | `stopped` |
-| `restart` | `running`, `degraded` or `broken` |
+| `restart` | `running` or `degraded` |
 
-A device MUST list no act while `tamanu-state` is `starting` or `restarting`, and where it does not report `tamanu-state` at all.
+A device MUST list no act while `tamanu-state` is any other value, and where it does not report `tamanu-state` at all.
 
 A client MUST ignore an act in `tamanu-acts` that it does not recognise.
 
