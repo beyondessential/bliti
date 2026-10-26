@@ -159,13 +159,14 @@ Created after K3 merged:
 5. **Network configuration history · S3.** How a device keeps past configurations and offers undo back to one that worked.
 6. **Take over a busy session · T3.** A "Take over" button beside "Someone else is making changes", making this session the holder in place of the longest-served one.
 
-### The UI, proposed split
+### The UI, split
 
 Mockup lanes: 1 connect, 2 status, 3 choose how the Iti connects, 4 join wifi, 5 share hotspot, 6 Advanced.
 
-7. **Restyle the existing screens** (lanes 1 and 6). Tamanu Iti branding and the connect screens' new copy; Info becomes All readings, Control becomes Power and battery (its network section goes), the full editor becomes Network settings; the shared screen shell with title and Back; browser-history navigation. Lands first, with All readings still the screen a channel opens on.
-8. **Status screen** (lane 2). The landing a channel opens on: the network, Tailscale and Tamanu rows with the acts the device lists, the Advanced disclosure leading to 7's screens, and the busy note on Change. Change opens the full editor until 9 lands. Follows 7.
-9. **Simple network screens** (lanes 3 to 5). Network, Cable, Join wifi and Share hotspot, the pure module for the simple states, and the session opened from Change. Follows 8.
+7. **Restyle the existing screens for Tamanu Iti · U3** (lanes 1 and 6). Branding, renames, the shared screen shell, history navigation. First.
+8. **Status screen · V3** (lane 2). The landing, its rows showing state only, Advanced, and the busy note. Follows U3.
+9. **Simple network screens · W3** (lanes 3 to 5). Network, Cable, Join wifi, Share hotspot. Follows V3.
+10. **Tailscale and Tamanu actions on the Status screen · X3.** The rows' acts over TSC and TMU, and Tailscale's sign-in design. Follows V3, independent of W3.
 
 Each card adopts its share of F3's UI specs, with this doc's decisions and the review's fixes.
 
