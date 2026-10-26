@@ -244,6 +244,7 @@ impl Open {
 			Message::Subscribe { .. }
 			| Message::Fact(_)
 			| Message::Reading(_)
+			| Message::EndOfBatch
 			| Message::State { .. }
 			| Message::CannotAct { .. }
 			| Message::CannotConfigure { .. }

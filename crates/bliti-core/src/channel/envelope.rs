@@ -130,8 +130,13 @@ impl fmt::Display for Skip {
 pub enum Refusal {
 	/// A critical `TYPE` naming a message type this build does not know.
 	CriticalType(String),
-	/// Members marked critical that this build does not know, named by their path within the message.
-	CriticalMembers(Vec<String>),
+	/// Members marked critical that this build does not know, on a message of a type it does.
+	CriticalMembers {
+		/// The message's type.
+		type_name: String,
+		/// The members, named by their path within the message.
+		members: Vec<String>,
+	},
 }
 
 impl fmt::Display for Refusal {
@@ -141,10 +146,10 @@ impl fmt::Display for Refusal {
 				f,
 				"message type {name:?} is marked critical and is not known to this build"
 			),
-			Self::CriticalMembers(names) => write!(
+			Self::CriticalMembers { type_name, members } => write!(
 				f,
-				"critical members not known to this build: {}",
-				names.join(", ")
+				"critical members of {type_name:?} not known to this build: {}",
+				members.join(", ")
 			),
 		}
 	}
@@ -282,7 +287,7 @@ pub fn read<T: MessageSet>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 	// of. Only the critical ones stop the message being acted on.
 	let mut unknown = BTreeSet::new();
 	let round = serde_json::to_value(&message).map_err(|err| Fault::Malformed {
-		type_name,
+		type_name: type_name.clone(),
 		detail: err.to_string(),
 	})?;
 	collect_unknown(&normalised, &round, &mut String::new(), &mut unknown);
@@ -291,7 +296,10 @@ pub fn read<T: MessageSet>(bytes: &[u8]) -> Result<Reading<T>, Fault> {
 	if refused.is_empty() {
 		Ok(Reading::Message(message))
 	} else {
-		Ok(Reading::Refused(Refusal::CriticalMembers(refused)))
+		Ok(Reading::Refused(Refusal::CriticalMembers {
+			type_name,
+			members: refused,
+		}))
 	}
 }
 
@@ -550,7 +558,10 @@ mod tests {
 	fn an_unknown_critical_member_is_refused() {
 		assert_eq!(
 			sample(r#"{"type":"sample","topic":"system","REDACT":["cpu"]}"#).unwrap(),
-			Reading::Refused(Refusal::CriticalMembers(vec!["redact".to_owned()]))
+			Reading::Refused(Refusal::CriticalMembers {
+				type_name: "sample".to_owned(),
+				members: vec!["redact".to_owned()],
+			})
 		);
 	}
 

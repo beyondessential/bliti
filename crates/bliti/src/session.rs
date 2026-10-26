@@ -330,7 +330,7 @@ where
 				// like, and it fails nothing (MSG).
 				tracing::info!(%topic, "subscription to a topic this device does not serve");
 			}
-			Ok(Reading::Message(Message::Fact(_) | Message::Reading(_))) => {
+			Ok(Reading::Message(Message::Fact(_) | Message::Reading(_) | Message::EndOfBatch)) => {
 				// A client reporting what the device cannot measure about itself. This device has
 				// nothing to do about it, which MSG makes a no-op rather than a fault.
 				tracing::debug!("a fact or reading from the client; nothing to do about it");
@@ -437,18 +437,18 @@ where
 	let mut told = false;
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
-	// current readings, so every tile fills at once rather than over the next few seconds.
+	// current readings, so every tile fills at once rather than over the next few seconds. Together
+	// they are the first batch: everything the device holds (NFO).
 	let mut last_facts = facts_now(tailscale, tamanu);
-	for fact in &last_facts {
-		write_message(stream, &Message::Fact(fact.clone()).to_json())
-			.await
-			.map_err(|err| SessionError::Stream(err.to_string()))?;
-	}
-	for reading in sampler.current() {
-		write_message(stream, &Message::Reading(reading).to_json())
-			.await
-			.map_err(|err| SessionError::Stream(err.to_string()))?;
-	}
+	let first = last_facts
+		.iter()
+		.cloned()
+		.map(Message::Fact)
+		.chain(sampler.current().into_iter().map(Message::Reading))
+		.collect();
+	write_batch(stream, first)
+		.await
+		.map_err(|err| SessionError::Stream(err.to_string()))?;
 
 	let mut live = sampler.live();
 	let mut facts_poll = tokio::time::interval(FACTS_POLL);
@@ -485,13 +485,11 @@ where
 
 			received = live.recv() => match received {
 				Ok(readings) => {
-					for reading in readings {
-						if write_message(&mut writer, &Message::Reading(reading).to_json())
-							.await
-							.is_err()
-						{
-							return Ok(());
-						}
+					if write_batch(&mut writer, readings.into_iter().map(Message::Reading).collect())
+						.await
+						.is_err()
+					{
+						return Ok(());
 					}
 				}
 				Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
@@ -504,26 +502,39 @@ where
 				let current = facts_now(tailscale, tamanu);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
-					// A fact left out says nothing to a client already showing it (NFO).
-					let kept: HashSet<String> = current.iter().map(identity_key).collect();
-					let at = now();
-					let ended = last_facts
-						.iter()
-						.filter(|fact| !kept.contains(&identity_key(fact)))
-						.map(|fact| fact.ended(at, ENDED));
-					for fact in ended.chain(current.iter().cloned()) {
-						if write_message(&mut writer, &Message::Fact(fact).to_json())
-							.await
-							.is_err()
-						{
-							return Ok(());
-						}
+					let batch = changed_facts(&last_facts, &current, now());
+					if write_batch(&mut writer, batch).await.is_err() {
+						return Ok(());
 					}
 					last_facts = current;
 				}
 			}
 		}
 	}
+}
+
+/// The batch a change of facts is sent as: each fact the change ends, then the facts now. A fact
+/// left out says nothing to a client already showing it, so one that is gone is sent ended (NFO).
+fn changed_facts(last: &[Entry], current: &[Entry], at: u64) -> Vec<Message> {
+	let kept: HashSet<String> = current.iter().map(identity_key).collect();
+	last.iter()
+		.filter(|fact| !kept.contains(&identity_key(fact)))
+		.map(|fact| fact.ended(at, ENDED))
+		.chain(current.iter().cloned())
+		.map(Message::Fact)
+		.collect()
+}
+
+/// Write the entries taken together as one batch, ended by `end-of-batch` (NFO).
+async fn write_batch<W: AsyncWrite + Unpin>(
+	writer: &mut W,
+	mut batch: Vec<Message>,
+) -> std::io::Result<()> {
+	batch.push(Message::EndOfBatch);
+	for message in batch {
+		write_message(writer, &message.to_json()).await?;
+	}
+	Ok(())
 }
 
 /// The facts the device reports now: what it reads off the system (NFO).

@@ -66,6 +66,38 @@ fn the_power_messages_are_described_as_the_wire_names_them() {
 	}
 }
 
+/// `end-of-batch` reaches the application as the wire names it, which is when it applies what the
+/// feed sent since the last one (NFO).
+#[test]
+fn end_of_batch_is_described_as_the_wire_names_it() {
+	let (described, fault) = describe(&Message::EndOfBatch.to_json());
+	assert_eq!(fault, None);
+	let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+	assert_eq!(
+		described,
+		serde_json::json!({"kind": "message", "message": {"type": "end-of-batch"}})
+	);
+}
+
+/// A refusal names the type it refused, whether the type itself or a member of a type this build
+/// knows was critical and unknown (STAT).
+#[test]
+fn a_refusal_names_its_type() {
+	for (raw, type_name) in [
+		(r#"{"TYPE":"wipe"}"#, "wipe"),
+		(
+			r#"{"type":"tamanu-act","ACT":"restart","FORCE":true}"#,
+			"tamanu-act",
+		),
+	] {
+		let (described, fault) = describe(raw.as_bytes());
+		assert_eq!(fault, None);
+		let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+		assert_eq!(described["kind"], "refused");
+		assert_eq!(described["type"], type_name);
+	}
+}
+
 /// A load carries the document as the file held it, whatever the device will make of it: the
 /// device validates it and refuses with a reason (CRV).
 #[test]
