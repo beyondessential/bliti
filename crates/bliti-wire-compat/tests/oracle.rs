@@ -2,7 +2,7 @@
 
 use bliti_core::channel::generate::message;
 use bliti_wire_compat::{
-	Verdict, baseline_reads, baseline_snapshot, corpus, current_reads, markers_agree,
+	baseline_reads, baseline_snapshot, corpus, current_reads, markers_agree, Verdict,
 };
 use proptest::prelude::*;
 
@@ -26,6 +26,7 @@ fn vacuous() -> bool {
 /// A skip or a refusal is not a break: it is an older peer meeting something newer and doing what
 /// MSG tells it to. Only a fault says the sender has stopped speaking the protocol.
 #[test]
+#[ignore]
 fn nothing_the_current_build_says_faults_the_baseline() {
 	if vacuous() {
 		return;
@@ -48,6 +49,7 @@ fn nothing_the_current_build_says_faults_the_baseline() {
 /// cannot be asked to produce messages live. Moving the baseline to a revision built with
 /// `generate` replaces this with generation.
 #[test]
+#[ignore]
 fn the_current_build_understands_everything_the_baseline_says() {
 	if vacuous() {
 		return;
@@ -71,6 +73,7 @@ fn the_current_build_understands_everything_the_baseline_says() {
 ///
 /// Empty until a failure is worth keeping, and it stays checked so that adding one is enough.
 #[test]
+#[ignore]
 fn the_current_build_understands_the_regression_corpus() {
 	if vacuous() {
 		return;

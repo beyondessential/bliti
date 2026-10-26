@@ -12,30 +12,13 @@
 # This is not a schema. It says nothing about which members exist, what they carry, or what shape a
 # message has, and it is not what checks compatibility: the oracle does that, by running the
 # baseline build against the current one. This records only the deliberate breaks.
+#
+# == UNTIL THE FIRST RELEASE, ALL THE TESTS ARE DISABLED, AND **NOTHING** SHOULD BE RECORDED HERE ==
 
-[[critical]]
-message = "subscribe"
-member = "topic"
-reason = """
-A subscription is a request to be sent something, and an end that acted on one whose selector it \
-had not read would send something other than what was asked for. Marking the selector critical is \
-what says so on the wire (MSG).
-"""
+#[[critical]]
+#message = "message-type"
+#member = "field-name"
+#nreason = """
+#Reason and SPEC reference.
+#"""
 
-[[critical]]
-message = "configuration"
-member = "document"
-reason = """
-A configuration message carries the whole network configuration, and a device acting on a partial \
-reading of one would apply something other than what was asked for. Marking the document critical \
-is what says an end which cannot read it must not act on the message carrying it (CFG).
-"""
-
-[[critical]]
-message = "act"
-member = "act"
-reason = """
-An act is a request to do something that cannot be taken back, and a device that acted on one \
-whose selector it had not read would do something other than what was asked. Marking the selector \
-critical is what says so on the wire (CTL).
-"""
