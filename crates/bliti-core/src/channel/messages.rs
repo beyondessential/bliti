@@ -755,7 +755,7 @@ impl MessageSet for Message {
 			// (CTL). Recorded in `wire-breaks.toml`.
 			"act" => &["act"],
 			// `tailscale-act` pins every member critical, since an act carried out without a parameter it
-			// did not read would be a different act (TSC). Recorded in `wire-breaks.toml`.
+			// did not read would be a different act (TSC).
 			"tailscale-act" => &["act", "method", "key", "name", "peer"],
 			_ => &[],
 		}

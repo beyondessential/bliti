@@ -55,7 +55,7 @@ Scenarios that show the device reports Tailscale and carries out its acts. Autom
 
 - [x] Every Tailscale message round trips, with the optional members of `tailscale-act` present and absent
 - [x] `tailscale-act` writes every member it carries in upper case, and an unknown critical member makes it unprocessed
-- [x] The ledger of critical members and the corpus pass
+- [x] The corpus line for a key sign-in reads back as sent
 
 ## By hand, on a device
 

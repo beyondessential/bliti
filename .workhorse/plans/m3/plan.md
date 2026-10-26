@@ -65,7 +65,7 @@ Implements the Tailscale facts of NFO ("Tailscale") and the Tailscale stream of 
 ### Wire
 
 - New `Message` variants in `bliti-core/src/channel/messages.rs`: `Tailscale`, `TailscaleActs`, `TailscaleAct`, `TailscaleAccepted`, `TailscaleLoginLink`, `TailscaleResult`, `TailscaleFailed`, each with parse and serialise arms, an entry in the proptest generator in `generate.rs`, and a corpus line.
-- `TailscaleAct` is read as `Act` is, with the critical members `ACT`, `METHOD`, `KEY`, `NAME` and `PEER` in upper case on the wire and a member absent where TSC says it may be. Each critical member gets an entry in `wire-breaks.toml` with its reason, or the ledger test fails.
+- `TailscaleAct` is read as `Act` is, with the critical members `ACT`, `METHOD`, `KEY`, `NAME` and `PEER` in upper case on the wire and a member absent where TSC says it may be. Nothing is recorded in `wire-breaks.toml` until the first release.
 - `session.rs` matches `Message` exhaustively, so each new variant needs an arm, the device-only ones joining the "answers only a device sends" arm.
 - `bliti-web` needs no change: it builds only the messages a client sends and holds no exhaustive match on `Message`. The control screen's use of these streams is H3's.
 
@@ -117,7 +117,7 @@ Read-only parts of the local API are already confirmed on a signed-in machine, a
 - [x] Same file: `critical_members("tailscale-act")` returns `act`, `method`, `key`, `name`, `peer`, with a comment saying why each is critical, as `"act"` has
 - [x] `crates/bliti-core/src/channel/generate.rs`: generate every new variant, the optional members of `TailscaleAct` present and absent, beside the power stream's
 - [x] `crates/bliti-core/src/channel/messages/tests.rs`: round trip each variant, and a test that `tailscale-act` serialises its members in upper case and reads them back from upper case only, and that an unknown critical member makes the message unprocessed, as the existing `act` tests do
-- [x] `wire-breaks.toml`: five `[[critical]]` entries for `tailscale-act`, one per member, each with its reason from the TSC note; run `cargo test -p bliti-wire-compat` and add what the ledger test asks for
+- [x] `wire-breaks.toml`: no entries for `tailscale-act`, since nothing is recorded there until the first release; `cargo test -p bliti-wire-compat` passes
 - [x] `crates/bliti-wire-compat/corpus/`: one raw `tailscale-act` file pinning a `sign-in` by `auth-key` with `ACT`, `METHOD`, `KEY` and `NAME` as they go on the wire
 - [x] `crates/bliti-web/src/tests.rs`: no change expected; confirm the crate builds for `wasm32-unknown-unknown` with the new variants
 
