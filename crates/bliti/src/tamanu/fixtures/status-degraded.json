@@ -1,0 +1,102 @@
+{
+  "any_short": true,
+  "expectations": [
+    {
+      "name": "tamanu-facility-tasks",
+      "expected_state": "up",
+      "running": 1,
+      "min_count": 1,
+      "status": "up",
+      "reason": "always required",
+      "legacy": false,
+      "behind_caddy": false,
+      "instances": [
+        {
+          "name": "tamanu-facility-tasks",
+          "instance": null,
+          "pm_id": null,
+          "running": true,
+          "version_actual": "v2.10.0",
+          "version_status": "match"
+        }
+      ]
+    },
+    {
+      "name": "tamanu-frontend",
+      "expected_state": "up",
+      "running": 2,
+      "min_count": 2,
+      "status": "up",
+      "reason": "always required on systemd",
+      "legacy": false,
+      "behind_caddy": true,
+      "expected_version": "v2.10.1",
+      "instances": [
+        {
+          "name": "tamanu-frontend@a",
+          "instance": "a",
+          "pm_id": null,
+          "running": true,
+          "version_actual": "v2.10.1",
+          "version_status": "match"
+        },
+        {
+          "name": "tamanu-frontend@b",
+          "instance": "b",
+          "pm_id": null,
+          "running": true,
+          "version_actual": "v2.10.1",
+          "version_status": "match"
+        }
+      ]
+    },
+    {
+      "name": "tamanu-facility-api",
+      "expected_state": "up",
+      "running": 1,
+      "min_count": 2,
+      "status": "short",
+      "reason": "always required",
+      "legacy": false,
+      "behind_caddy": true,
+      "expected_version": "v2.10.0",
+      "instances": [
+        {
+          "name": "tamanu-facility-api@1",
+          "instance": "1",
+          "pm_id": null,
+          "running": true,
+          "version_actual": "v2.10.0",
+          "version_status": "match"
+        },
+        {
+          "name": "tamanu-facility-api@2",
+          "instance": "2",
+          "pm_id": null,
+          "running": false,
+          "version_status": "unknown"
+        }
+      ]
+    },
+    {
+      "name": "tamanu-facility-sync",
+      "expected_state": "up",
+      "running": 1,
+      "min_count": 1,
+      "status": "up",
+      "reason": "kind is facility",
+      "legacy": false,
+      "behind_caddy": false,
+      "instances": [
+        {
+          "name": "tamanu-facility-sync",
+          "instance": null,
+          "pm_id": null,
+          "running": true,
+          "version_actual": "v2.10.0",
+          "version_status": "match"
+        }
+      ]
+    }
+  ]
+}

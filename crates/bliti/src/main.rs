@@ -21,6 +21,7 @@ mod qr;
 mod sampler;
 mod session;
 mod tailscale;
+mod tamanu;
 
 #[cfg(target_os = "linux")]
 mod client;

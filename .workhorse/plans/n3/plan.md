@@ -29,42 +29,48 @@ The shape is Tailscale's (M3), minus the daemon watcher and the act parameters:
 
 ### Wire
 
-- [ ] `crates/bliti-core/src/channel/messages.rs`: add `Tamanu`, `TamanuActs { acts }`, `TamanuAct { act }`, `TamanuAccepted`, `TamanuFailed { reason }`, with their wire names (`tamanu`, `tamanu-acts`, `tamanu-act`, `tamanu-accepted`, `tamanu-failed`) in `to_json`, the parser and the type-name list; pin `act` critical for `tamanu-act` in `critical_members`
-- [ ] `crates/bliti-core/src/channel/generate.rs`: generators for the five messages
-- [ ] `crates/bliti-core/src/channel/messages/tests.rs`: round trip and critical-member cases, as for the Tailscale messages
-- [ ] Add the new variants to the exhaustive matches that M3 extended: `crates/bliti/src/client.rs` (diagnostic client), `crates/bliti/src/session.rs` (the pass-through arm near line 358) and `crates/bliti/src/network/session/open.rs`
-- [ ] A corpus entry beside `crates/bliti-wire-compat/corpus/tailscale-act-sign-in-by-key.json` for `tamanu-act`. `wire-breaks.toml` stays empty until the first release
+- [x] `crates/bliti-core/src/channel/messages.rs`: add `Tamanu`, `TamanuActs { acts }`, `TamanuAct { act }`, `TamanuAccepted`, `TamanuFailed { reason }`, with their wire names (`tamanu`, `tamanu-acts`, `tamanu-act`, `tamanu-accepted`, `tamanu-failed`) in `to_json`, the parser and the type-name list; pin `act` critical for `tamanu-act` in `critical_members`
+- [x] `crates/bliti-core/src/channel/generate.rs`: generators for the five messages
+- [x] `crates/bliti-core/src/channel/messages/tests.rs`: round trip and critical-member cases, as for the Tailscale messages
+- [x] Add the new variants to the exhaustive matches that M3 extended: `crates/bliti/src/client.rs` (diagnostic client), `crates/bliti/src/session.rs` (the pass-through arm near line 358) and `crates/bliti/src/network/session/open.rs`
+- [x] A corpus entry beside `crates/bliti-wire-compat/corpus/tailscale-act-sign-in-by-key.json` for `tamanu-act`. `wire-breaks.toml` stays empty until the first release
 
 ### Reading Tamanu
 
-- [ ] `tamanu/run.rs`: the `Runner` trait and the command implementation: `bestool tamanu find` (absent when it prints nothing), `bestool tamanu status --json` (parse stdout whatever the exit status), `bestool tamanu start`, `bestool tamanu restart`, each with a timeout and the program looked up on the path
-- [ ] `tamanu/status.rs`: serde structs for the status JSON, and the reduction to a snapshot: `Running` when `any_short` is false; `Stopped` when every `up`-expected expectation is `down`; otherwise `Degraded` with a reason naming the short expectations. Ignore `unknown` expectations. Web and facility server versions from the `tamanu-frontend` and `tamanu-facility-api` expectations: the highest `version_actual` across running instances, else `expected_version`, with the mismatch and disagreement cases NFO gives `warning`
-- [ ] `tamanu/fixtures/`: `status-running.json`, `status-degraded.json`, `status-stopped.json`, `status-drift.json`, and a README saying they are written from `bestool`'s own serialised structs and not captured from a device, until one is
-- [ ] `tamanu/state.rs`: `Observed` (`Absent`, `Standing(Snapshot)`, `Broken(reason)`), and the poller task with its session gating and immediate re-poll
+- [x] `tamanu/run.rs`: the `Runner` trait and the command implementation: `bestool tamanu find` (absent when it prints nothing), `bestool tamanu status --json` (parse stdout whatever the exit status), `bestool tamanu start`, `bestool tamanu restart`, each with a timeout and the program looked up on the path
+- [x] `tamanu/status.rs`: serde structs for the status JSON, and the reduction to a snapshot: `Running` when `any_short` is false; `Stopped` when every `up`-expected expectation is `down`; otherwise `Degraded` with a reason naming the short expectations. Ignore `unknown` expectations. Web and facility server versions from the `tamanu-frontend` and `tamanu-facility-api` expectations: the highest `version_actual` across running instances, else `expected_version`, with the mismatch and disagreement cases NFO gives `warning`
+- [x] `tamanu/fixtures/`: `status-running.json`, `status-degraded.json`, `status-stopped.json`, `status-drift.json`, and a README saying they are written from `bestool`'s own serialised structs and not captured from a device, until one is
+- [x] `tamanu/state.rs`: `Observed` (`Absent`, `Standing(Snapshot)`, `Broken(reason)`), and the poller task with its session gating and immediate re-poll
 
 ### Facts
 
-- [ ] `facts/tamanu.rs`: `tamanu-state`, `tamanu-web-version`, `tamanu-facility-server-version`, mapping each state to its `status` and reason as NFO has it, including `absent` (versions `skipped`), `broken` (versions `broken` with the same reason) and the version `warning` and `failed` cases
-- [ ] `crates/bliti/src/facts.rs` and `session.rs::facts_now`: register the module and append the entries, which the two-second fact poll then sends on change and ends as needed
+- [x] `facts/tamanu.rs`: `tamanu-state`, `tamanu-web-version`, `tamanu-facility-server-version`, mapping each state to its `status` and reason as NFO has it, including `absent` (versions `skipped`), `broken` (versions `broken` with the same reason) and the version `warning` and `failed` cases
+- [x] `crates/bliti/src/facts.rs` and `session.rs::facts_now`: register the module and append the entries, which the two-second fact poll then sends on change and ends as needed
 
 ### The stream and the acts
 
-- [ ] `tamanu/acts.rs`: `Act` (`Start`, `Restart`) with wire names, `listed` by state (`start` while stopped, `restart` while running or degraded, none otherwise), and the `Slot` shared across every session so one act is under way at a time
-- [ ] `tamanu.rs::serve`: answer `tamanu` with `tamanu-acts`, re-send it when the listed acts change, answer each `tamanu-act` with `tamanu-accepted` or `cannot-act` (not listed at `$['act']`, busy at `$`), and log every act with the client's `name` and `version`
-- [ ] Carry out an accepted act on a task detached from the stream, so it finishes after the stream ends: run the command, re-poll, send `tamanu-failed` on the asking stream if the state does not reach `running`, with a reason naming the services still short, and bound the whole act
-- [ ] `session.rs`: route a stream whose first message is `tamanu` to `tamanu::serve`, and a `tamanu-act` outside one to the same no-op arm Tailscale's has
-- [ ] `device.rs` and `main.rs`: construct the `Tamanu` handle once, hand it to every session beside `tailscale`, and hand it the sampler's session count. Add `Tamanu::none()` and pass it where the session tests in `crates/bliti/src/session/tests.rs` pass `Tailscale::none()`
+- [x] `tamanu/acts.rs`: `Act` (`Start`, `Restart`) with wire names, `listed` by state (`start` while stopped, `restart` while running or degraded, none otherwise), and the `Slot` shared across every session so one act is under way at a time
+- [x] `tamanu.rs::serve`: answer `tamanu` with `tamanu-acts`, re-send it when the listed acts change, answer each `tamanu-act` with `tamanu-accepted` or `cannot-act` (not listed at `$['act']`, busy at `$`), and log every act with the client's `name` and `version`
+- [x] Carry out an accepted act on a task detached from the stream, so it finishes after the stream ends: run the command, re-poll, send `tamanu-failed` on the asking stream if the state does not reach `running`, with a reason naming the services still short, and bound the whole act
+- [x] `session.rs`: route a stream whose first message is `tamanu` to `tamanu::serve`, and a `tamanu-act` outside one to the same no-op arm Tailscale's has
+- [x] `device.rs` and `main.rs`: construct the `Tamanu` handle once, hand it to every session beside `tailscale`, and hand it the sampler's session count. Add `Tamanu::none()` and pass it where the session tests in `crates/bliti/src/session/tests.rs` pass `Tailscale::none()`
 
 ### Tests
 
-- [ ] Status reduction: every fixture gives its state, reason and versions; `unknown` expectations do not degrade; disagreeing instances give the highest version and a warning
-- [ ] Absent and broken: `find` empty is `absent`; missing program, unparseable output and timeout are `broken`
-- [ ] Facts: each state and version case maps to the status and reason NFO gives
-- [ ] Acts: listed by state, none while an act is under way, `cannot-act` for an unlisted act and for a second act while one is under way, across two streams
-- [ ] The act lifecycle with a fake `Runner`: `starting` or `restarting` is reported from acceptance, the state returns to what is observed when it ends, a run that ends short sends `tamanu-failed` naming the short services, and the act completes after the asking stream closes
-- [ ] Stream tests in `tamanu/tests.rs`, driving `serve` over an in-memory duplex stream with a fake `Runner`, as `tailscale/tests.rs` does
+- [x] Status reduction: every fixture gives its state, reason and versions; `unknown` expectations do not degrade; disagreeing instances give the highest version and a warning
+- [x] Absent and broken: `find` empty is `absent`; missing program, unparseable output and timeout are `broken`
+- [x] Facts: each state and version case maps to the status and reason NFO gives
+- [x] Acts: listed by state, none while an act is under way, `cannot-act` for an unlisted act and for a second act while one is under way, across two streams
+- [x] The act lifecycle with a fake `Runner`: `starting` or `restarting` is reported from acceptance, the state returns to what is observed when it ends, a run that ends short sends `tamanu-failed` naming the short services, and the act completes after the asking stream closes
+- [x] Stream tests in `tamanu/tests.rs`, driving `serve` over an in-memory duplex stream with a fake `Runner`, as `tailscale/tests.rs` does
 
 ### Device
 
-- [ ] `services/README.md`: a "For Tamanu" section saying `bestool` ships in the device's OS image and is run from the path, and that the daemon runs as root, which `bestool` needs to read running container versions
+- [x] `services/README.md`: a "For Tamanu" section saying `bestool` ships in the device's OS image and is run from the path, and that the daemon runs as root, which `bestool` needs to read running container versions
 - [ ] Check on the prototype device (the `bliti-prototype` skill) that `bestool tamanu status --json` there matches the fixtures, and replace the fixtures with a capture if it does not
+
+## Notes from the build
+
+- A look at Tamanu reads the status first and only runs `find` where the status does not read, so the common case is one command and not two.
+- The time bound on an act sits in the device and not in the command, so a runner that never returns is still given up on. An act is carried out when the state reaches `running`, so a command that fails against a Tamanu that is nonetheless running is not reported as failed.
+- `session::run` and `converse` take an eighth handle, which clippy's argument limit flags; each carries an `expect` saying why.

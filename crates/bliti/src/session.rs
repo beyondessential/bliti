@@ -11,7 +11,8 @@
 //! handed to the configuration session of [`crate::network::session`], one whose client sends
 //! `power` to the power stream of [`crate::power`], and one whose client sends `curve` to the curve
 //! stream of [`crate::battery`], and one whose client sends `tailscale` to the Tailscale stream of
-//! [`crate::tailscale`]. Beyond that it never answers a message on the wire: one it does not
+//! [`crate::tailscale`], and one whose client sends `tamanu` to the Tamanu stream of
+//! [`crate::tamanu`]. Beyond that it never answers a message on the wire: one it does not
 //! recognise is passed over, one carrying something critical it does not know is refused, one it
 //! knows but has nothing to do about is a no-op, and one that breaks the protocol closes the stream
 //! it arrived on.
@@ -44,6 +45,7 @@ use crate::{
 	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
 	tailscale::{self, Tailscale},
+	tamanu::{self, Tamanu},
 };
 
 /// How often to look for a change in the facts the device reports about itself.
@@ -91,6 +93,10 @@ impl Peer {
 type Served = Arc<Mutex<HashSet<String>>>;
 
 /// Run a session to completion over a transport, as the device.
+#[expect(
+	clippy::too_many_arguments,
+	reason = "each is a handle every session shares, and none belongs with another"
+)]
 pub async fn run<S>(
 	transport: S,
 	keys: &DeviceKeys,
@@ -99,6 +105,7 @@ pub async fn run<S>(
 	controller: Controller,
 	supply: Supply,
 	tailscale: Tailscale,
+	tamanu: Tamanu,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -138,6 +145,7 @@ where
 		&controller,
 		&supply,
 		&tailscale,
+		&tamanu,
 		&mut held,
 	)
 	.await;
@@ -157,6 +165,10 @@ where
 
 /// The device's half of the conversation: name itself and push the `default` feed, both unprompted,
 /// and serve whatever streams the client opens.
+#[expect(
+	clippy::too_many_arguments,
+	reason = "each is a handle every session shares, and none belongs with another"
+)]
 async fn converse(
 	streams: &mut Streams,
 	sampler: &Sampler,
@@ -164,6 +176,7 @@ async fn converse(
 	controller: &Controller,
 	supply: &Supply,
 	tailscale: &Tailscale,
+	tamanu: &Tamanu,
 	held: &mut SessionGuard,
 ) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
@@ -196,11 +209,19 @@ async fn converse(
 		let served = served.clone();
 		let controller = controller.clone();
 		let tailscale = tailscale.clone();
+		let tamanu = tamanu.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
-				if let Err(err) =
-					serve_default(&mut feed, &sampler, &served, &controller, &tailscale).await
+				if let Err(err) = serve_default(
+					&mut feed,
+					&sampler,
+					&served,
+					&controller,
+					&tailscale,
+					&tamanu,
+				)
+				.await
 				{
 					tracing::debug!(%err, "the pushed feed ended");
 				}
@@ -231,6 +252,7 @@ async fn converse(
 			controller: controller.clone(),
 			supply: supply.clone(),
 			tailscale: tailscale.clone(),
+			tamanu: tamanu.clone(),
 			peer: peer.clone(),
 		};
 		tasks.spawn(
@@ -261,6 +283,7 @@ struct Context {
 	controller: Controller,
 	supply: Supply,
 	tailscale: Tailscale,
+	tamanu: Tamanu,
 	peer: Peer,
 }
 
@@ -277,6 +300,7 @@ where
 		controller,
 		supply,
 		tailscale,
+		tamanu,
 		peer,
 	} = context;
 	loop {
@@ -298,7 +322,7 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served, controller, tailscale).await;
+				return serve_default(stream, sampler, served, controller, tailscale, tamanu).await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -330,6 +354,14 @@ where
 				// makes a no-op rather than a fault.
 				tracing::debug!("a Tailscale act outside a Tailscale stream; nothing to do");
 			}
+			Ok(Reading::Message(Message::Tamanu)) => {
+				return tamanu::serve(stream, tamanu, peer).await;
+			}
+			Ok(Reading::Message(Message::TamanuAct { .. })) => {
+				// An act on a stream that opened no Tamanu stream. Nothing to act on, which MSG makes a
+				// no-op rather than a fault.
+				tracing::debug!("a Tamanu act outside a Tamanu stream; nothing to do");
+			}
 			Ok(Reading::Message(Message::Curve)) => {
 				return battery::serve_stream(stream, supply, peer).await;
 			}
@@ -359,7 +391,10 @@ where
 				| Message::TailscaleAccepted
 				| Message::TailscaleLoginLink { .. }
 				| Message::TailscaleResult { .. }
-				| Message::TailscaleFailed { .. },
+				| Message::TailscaleFailed { .. }
+				| Message::TamanuActs { .. }
+				| Message::TamanuAccepted
+				| Message::TamanuFailed { .. },
 			)) => {
 				// Answers only a device sends. A client sending one has nothing for this device to do
 				// about it, a no-op rather than a fault (MSG).
@@ -389,6 +424,7 @@ async fn serve_default<S>(
 	served: &Served,
 	controller: &Controller,
 	tailscale: &Tailscale,
+	tamanu: &Tamanu,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -402,7 +438,7 @@ where
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds.
-	let mut last_facts = facts_now(tailscale);
+	let mut last_facts = facts_now(tailscale, tamanu);
 	for fact in &last_facts {
 		write_message(stream, &Message::Fact(fact.clone()).to_json())
 			.await
@@ -465,7 +501,7 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts_now(tailscale);
+				let current = facts_now(tailscale, tamanu);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					// A fact left out says nothing to a client already showing it (NFO).
@@ -491,7 +527,7 @@ where
 }
 
 /// The facts the device reports now: what it reads off the system (NFO).
-fn facts_now(tailscale: &Tailscale) -> Vec<Entry> {
+fn facts_now(tailscale: &Tailscale, tamanu: &Tamanu) -> Vec<Entry> {
 	let at = now();
 	let mut facts = facts::facts(at);
 	facts.extend(facts::tailscale::entries(
@@ -499,6 +535,7 @@ fn facts_now(tailscale: &Tailscale) -> Vec<Entry> {
 		tailscale.observed().as_ref(),
 		jiff::Timestamp::now(),
 	));
+	facts.extend(facts::tamanu::entries(at, &tamanu.view()));
 	facts.push(Entry::quantity(
 		at,
 		"channel-clients-max",

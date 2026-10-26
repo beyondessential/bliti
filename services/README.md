@@ -33,6 +33,19 @@ one failure at a time.
   fleet's `--tailnet` and `--ping-default`. Without it a device accepts any
   tailnet and has no machine of its own to ping.
 
+### For Tamanu
+
+- **`bestool`**, which ships in the device's OS image and is run from the path.
+  bliti reads Tamanu's state and versions with `bestool tamanu status --json`,
+  finds out whether Tamanu is installed with `bestool tamanu find`, and starts
+  or restarts it with `bestool tamanu start` and `bestool tamanu restart`. The
+  daemon runs as root, which `bestool` needs to read the versions of running
+  containers. A device without `bestool` reports Tamanu as `broken`, and one
+  without a Tamanu installation reports it as `absent`.
+- `crates/bliti/src/tamanu/fixtures/` holds the status shapes the tests read,
+  written from `bestool`'s own structs and not captured from a device (see the
+  README there).
+
 ### For the network configuration module
 
 - **`hostapd`** for the hotspot. Nothing else here puts a radio into AP mode.

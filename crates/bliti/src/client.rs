@@ -412,6 +412,16 @@ pub async fn connect(
 					)) => {
 						println!("tailscale: a Tailscale-stream message");
 					}
+					// The Tamanu stream of TMU. This diagnostic client opens none.
+					Ok(Reading::Message(
+						Message::Tamanu
+						| Message::TamanuActs { .. }
+						| Message::TamanuAct { .. }
+						| Message::TamanuAccepted
+						| Message::TamanuFailed { .. },
+					)) => {
+						println!("tamanu:   a Tamanu-stream message");
+					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
 					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),

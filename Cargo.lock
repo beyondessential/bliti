@@ -248,6 +248,7 @@ dependencies = [
  "rand 0.10.2",
  "rtnetlink",
  "rustix",
+ "semver",
  "serde",
  "serde_json",
  "socket2",
