@@ -13,7 +13,6 @@ The device calls `bestool` as it is: `status --json` to read, `start` and `resta
 - `stopped` is every `up`-expected expectation at `down`; any other shortfall is `degraded`.
 - Acts are `bestool tamanu start` and `bestool tamanu restart`. Both are slow (`restart` rolls instances behind readiness probes), so the device must not block its other work on them; success is judged by the state reaching `running`.
 - The daemon runs as root, so `bestool`'s sudo re-exec for reading container versions does not trigger.
-- A Seedling host takes a separate path: `status` ignores `--json` and prints a table with no versions, and `start` and `restart` act through the Seedling daemon. State there cannot be read structurally, so the device reports `broken` and lists no act until `bestool` can give structured status on Seedling.
 
 ## Checklist
 
