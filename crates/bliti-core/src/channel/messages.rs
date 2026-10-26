@@ -749,10 +749,10 @@ impl MessageSet for Message {
 		match type_name {
 			"subscribe" => &["topic"],
 			// `configuration` pins its document critical, so a peer that cannot read the document does not
-			// act on the message carrying it (CFG). Recorded in `wire-breaks.toml`.
+			// act on the message carrying it (CFG).
 			"configuration" => &["document"],
 			// `act` pins its selector critical, so a device does not carry out an act it has not read
-			// (CTL). Recorded in `wire-breaks.toml`.
+			// (CTL).
 			"act" => &["act"],
 			// `tailscale-act` pins every member critical, since an act carried out without a parameter it
 			// did not read would be a different act (TSC).
