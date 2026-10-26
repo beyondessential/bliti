@@ -15,16 +15,14 @@ Reviewed against main at the same base, which hasn't moved since F3 branched.
 
 ### Scope: this isn't UI-only
 
-The Status screen's Tailscale and Tamanu rows need device work that doesn't exist yet: the `service` facts (today the device only knows the overlay's interface name), finding Tamanu's two versions, and the whole SVC stream with its restarts.
-That's a protocol addition plus sampler work on `bliti`, beside the client work.
-It goes to two follow-up cards, one for Tailscale and one for Tamanu (see Follow-ups); this card builds the rows' UI with every service shown as work in progress.
+The Status screen's Tailscale and Tamanu rows needed device work, now landed by M3 and N3 as specific facts and streams (TSC, TMU) in place of F3's generic `service` fact and SVC stream. F3's SVC and NFO `service` drafts are not adopted.
 
 ### Gaps and contradictions to fix
 
 - **No carrier fact.** NSET shows "whether a wired interface has carrier" and the cable screen waits on carrier, but NFO reports no carrier. CFG's `state` only covers enabled candidates, and on wifi the wired attachments are off, so carrier can't be observed from wifi, which is exactly where the cable flow starts. Settled: NFO gains a carrier fact per wired interface, reported whether or not its attachment is enabled.
 - **WIFI's ordering rule contradicts itself.** It says to leave the ordering as it is, and also to send the joined network to the top, without saying whether joining replaces the one candidate it presents or adds one. Settled: joining replaces that candidate in place, keeping the ordering; the old network's credentials are not kept, which keeps the configuration within the simple states.
 - **When the simple screens hold a session is unsaid.** Settled below under Sessions.
-- **Service findings, for the Tailscale and Tamanu cards:** a restart accepted then failed reads "restarting" forever; NFO's "leaving and returning" reads like `ended` where SVC means `failed` then `passed`; the overlay row can't show the device name on a `broken` entry; restarting Tamanu's two services can half-succeed.
+- **Service findings:** resolved by M3 and N3. An accepted act that fails sends `tailscale-failed` or `tamanu-failed`; Tamanu reports `restarting` on the feed while a restart is under way; `tailscale-name` stays `passed` in every state that holds it; a Tamanu restart that half-succeeds leaves `tamanu-state` saying which.
 - **Stale reference.** WEB:105 still returns to "the device view" after a reconnect; it should be the Status screen.
 - **NFO wording.** "MUST NOT rely on the name's meaning being understood to report the service" doesn't parse.
 
@@ -71,11 +69,11 @@ Editing then applying stays (no autosave), so a half-typed gateway is never prop
 A configuration that fails is still saved: the device keeps what was applied and reports the errors, and stays on it until someone changes it.
 
 The sequence: Apply sends the document; the device saves it, applies it, and reports whether it worked.
-- Leaving before Apply (Back, the back gesture, the channel dropping) loses the edits, as any unsubmitted form does.
+- Leaving before Apply loses the edits. As in NSCR, the simple screens ask before leaving with edits not applied, and the browser warns before the page closes; a dropped channel loses them without asking.
 - After Apply the app shows it is applying, with a spinner and without saying "confirmed", until the device answers, then shows any errors. There is no Cancel, on Join wifi or anywhere else.
 - Where no answer comes (the channel dropped, the device crashed or lost power), the app drops the attempt and shows the device as disconnected, as after any closed channel. The operator walked away or the device needs fixing in person, and the app can't tell which.
 
-This reaches past the UI: CFG's `confirm`, the recorded/provisional split, the `network-configuration` fact, VIEW's provisional notice and CSCR's provisional confirmation wording all go or change.
+Landed by K3 across protocol, device and the shipped client.
 There is no undo on this card: the operator remembers the settings they changed and puts them back. A configuration history with undo is a follow-up card.
 
 ### Sessions
@@ -85,7 +83,8 @@ The configuration session of CFG is the only exclusive one: power and service st
 - Change on the Status screen's network row opens a session, held across the simple network screens (Network, Cable, Join wifi, Share hotspot); returning to the Status screen closes it.
 - The full network settings editor, reached under Advanced, opens and closes its own session the same way.
 - Change and the Advanced network settings entry stay enabled. Tapping either tries to open a session; where the device answers `busy`, the application stays on the Status screen and says "Someone else is making changes" in the row, in place of opening the screen.
-- No device change for this: `busy` is already in CFG.
+- Since K3 a device serves every session, the longest-served holds the configuration and the rest are busy, each told so by `busy` on `state`. Tapping Change opens a session and reads the first `state`: busy closes it again and shows the note; not busy carries on to the screen.
+- The Status screen can't hold a session idly to grey Change out up front: an idle session would itself be the holder and lock everyone else out.
 
 ### Branding
 
@@ -98,8 +97,8 @@ Mockup lane 1's copy ("Tamanu Iti", "Find my Iti", "Save code for reprinting", "
 
 The client (`crates/bliti-web/app`) is React 19 with no router or state library.
 `App.jsx` holds everything for a connected device and switches on a `screen` string (`device`, `control`, `network`), each screen built by `screenOf(title, actions, body)`.
-`Network.jsx` is NSCR: its session lives exactly as long as it is mounted, and `network.js` holds the stage reducer (editing, applying, errored, applied) and the document edits as pure functions.
-`App.jsx` also carries the kept-session machinery (`keep`, `held`, `HeldBar`, `unapplied`, `provisional`), which one-step apply removes.
+`Network.jsx` is NSCR: its session lives exactly as long as it is mounted, and `network.js` holds the stage reducer (editing, applying, errored, watching, all driven by the device's `state`) and the document edits as pure functions.
+The client has no Tailscale or Tamanu stream yet; it only renders their facts as readings.
 Tests are Playwright against `tests/fake-client.js`, a fake device at the message layer; pure modules are tested in Playwright without a page (`capabilities.spec.js`).
 
 ### Screens
@@ -129,11 +128,14 @@ Going back out of the simple network screens closes the session, as returning to
 
 ### Device dependencies
 
-One-step apply and the carrier fact are device, protocol and client changes the simple screens are built on. They go to cards of their own, per the split below.
+One-step apply (K3), the carrier fact (L3, `wired-carrier`), Tailscale (M3) and Tamanu (N3) have all merged.
 
 ### Service rows
 
-Tailscale and Tamanu rows render from the layout of the mockup with every service shown as work in progress; no `service` facts or SVC yet.
+The Tailscale row reads `tailscale-state` and `tailscale-name`; the Tamanu row reads `tamanu-state` and the two version facts.
+Each row's action comes from the acts its stream lists (TSC, TMU), so the device decides what's offered, and the Status screen opens a Tailscale and a Tamanu stream while it's showing.
+Tamanu offers Start while `stopped` and Restart while `running` or `degraded`, and shows its own `starting`/`restarting` state from the feed.
+Tailscale has no restart: its row offers what TSC lists for the state (Turn on when stopped, Sign in when signed out or expired), and nothing while running. The mockup's "Restart Tailscale" goes.
 
 ## Splitting
 
@@ -145,16 +147,16 @@ At that point we decide whether the UI change is done here in one go or split fu
 
 Proposed split. Each card is independent of this one.
 
-Created, device-side and protocol. This card resumes once K3 and L3 have merged:
+Created and merged:
 
 1. **One-step network apply · K3.** Apply saves at once: CFG loses `confirm`, `discard` and the recorded/provisional split, and NFO loses `network-configuration`. The device's session and apply code changes to match, and so does the shipped client: NSCR's stages drop applied and confirm, and App's kept-session bar, the provisional notice and Control's provisional wording go. The largest of the four.
 2. **Wired carrier fact · L3.** NFO reports whether each wired port has a cable in, whether or not its attachment is enabled. The shipped client shows it as All readings would. Small, and parallel with 1.
 3. **Tailscale status and restart · M3.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
 4. **Tamanu status and restart · N3.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
 
-Later, once 1 has merged, since both rework CFG after it:
+Due now that K3 has merged, not yet created:
 
 5. **Network configuration history.** How a device keeps past configurations and offers undo back to one that worked.
-6. **Take over a busy session.** A "Take over" button beside "Someone else is making changes", ending the other client's network session.
+6. **Take over a busy session.** A "Take over" button beside "Someone else is making changes", making this session the holder in place of the longest-served one.
 
 Stays on H3: adopting F3's UI specs with the review's fixes, the Tamanu Iti branding, and every screen of the redesign.
