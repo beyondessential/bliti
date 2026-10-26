@@ -10,7 +10,7 @@ The device calls `bestool` as it is: `status --json` to read, `start` and `resta
 - Per expectation the JSON has `name`, `expected_state`, `running`, `min_count`, `status` (`up`, `down`, `short`, `absent`, `forbidden`, `unknown`), `reason`, `expected_version`, and `instances[]` with `version_actual` (only while that instance runs) and `version_status` (`match`, `mismatch`, `unknown`). `any_short` is true for a short or forbidden expectation and for any version mismatch. That is `running` versus not.
 - Web is the `tamanu-frontend` expectation, versioned by `TAMANU_FRONTEND_VERSION`. Facility server is `tamanu-facility-api`, versioned by `TAMANU_VERSION`. Both carry `expected_version` even with nothing running, which is the configured fallback the spec asks for.
 - `unknown` expectations (a DB signal that could not be read) are not short, and do not count toward `degraded`.
-- Absent: with no installation `status --json` exits 1 with only stderr ("not a Tamanu host: /etc/tamanu/env not found"), and `find` exits 0 printing nothing. Decide absent from `find` printing nothing, not from the stderr text; `find` listing a root while `status` fails, `bestool` missing from the path, unparseable JSON, or a timeout are `broken`.
+- Absent: with no installation `status --json` exits 1 with only stderr ("not a Tamanu host: /etc/tamanu/env not found"), and `find` exits 0 printing nothing. Decide absent from `find` printing nothing, not from the stderr text; `find` listing a root while `status` fails, `bestool` not found on the path (not expected, since the image carries it), unparseable JSON, or a timeout are `broken`.
 - `stopped` is every `up`-expected expectation at `down`; any other shortfall is `degraded`.
 - Acts are `bestool tamanu start` and `bestool tamanu restart`. Both are slow (`restart` rolls instances behind readiness probes), so the device must not block its other work on them; success is judged by the state reaching `running`.
 - The daemon runs as root, so `bestool`'s sudo re-exec for reading container versions does not trigger.
@@ -66,5 +66,5 @@ The shape is Tailscale's (M3), minus the daemon watcher and the act parameters:
 
 ### Device
 
-- [ ] `services/README.md`: a "For Tamanu" section saying `bestool` must be on the path of a device that reports Tamanu, and that the daemon runs as root, which `bestool` needs to read running container versions
+- [ ] `services/README.md`: a "For Tamanu" section saying `bestool` ships in the device's OS image and is run from the path, and that the daemon runs as root, which `bestool` needs to read running container versions
 - [ ] Check on the prototype device (the `bliti-prototype` skill) that `bestool tamanu status --json` there matches the fixtures, and replace the fixtures with a capture if it does not
