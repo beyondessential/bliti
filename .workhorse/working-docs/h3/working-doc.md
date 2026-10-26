@@ -154,9 +154,18 @@ Created and merged:
 3. **Tailscale status and restart · M3.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
 4. **Tamanu status and restart · N3.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
 
-Due now that K3 has merged, not yet created:
+Created after K3 merged:
 
-5. **Network configuration history.** How a device keeps past configurations and offers undo back to one that worked.
-6. **Take over a busy session.** A "Take over" button beside "Someone else is making changes", making this session the holder in place of the longest-served one.
+5. **Network configuration history · S3.** How a device keeps past configurations and offers undo back to one that worked.
+6. **Take over a busy session · T3.** A "Take over" button beside "Someone else is making changes", making this session the holder in place of the longest-served one.
 
-Stays on H3: adopting F3's UI specs with the review's fixes, the Tamanu Iti branding, and every screen of the redesign.
+### The UI, proposed split
+
+Mockup lanes: 1 connect, 2 status, 3 choose how the Iti connects, 4 join wifi, 5 share hotspot, 6 Advanced.
+
+7. **Restyle the existing screens** (lanes 1 and 6). Tamanu Iti branding and the connect screens' new copy; Info becomes All readings, Control becomes Power and battery (its network section goes), the full editor becomes Network settings; the shared screen shell with title and Back; browser-history navigation. Lands first, with All readings still the screen a channel opens on.
+8. **Status screen** (lane 2). The landing a channel opens on: the network, Tailscale and Tamanu rows with the acts the device lists, the Advanced disclosure leading to 7's screens, and the busy note on Change. Change opens the full editor until 9 lands. Follows 7.
+9. **Simple network screens** (lanes 3 to 5). Network, Cable, Join wifi and Share hotspot, the pure module for the simple states, and the session opened from Change. Follows 8.
+
+Each card adopts its share of F3's UI specs, with this doc's decisions and the review's fixes.
+
