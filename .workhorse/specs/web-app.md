@@ -120,13 +120,13 @@ The application MUST treat `accepted` for an act it asked for as it treats `goin
 
 On either, the application MUST say that the act is under way, as restarting bliti, rebooting or shutting down, and MUST keep the QR code it read.
 On a `going-away` whose cause is `low-battery`, the application MUST also say that the device is shutting down because its battery is low.
-While it says so, the application MUST keep the device view's title and the header naming the device, as [VIEW](device-view.md) has them, MUST show the act under way in place of the tiles, and MUST offer to disconnect beside the title.
+While it says so, the application MUST show the Status screen of [STAT](status-screen.md), keeping its title and the device's software identity, MUST show the act under way in place of its rows and Advanced, and MUST offer to disconnect beside the title.
 The application MUST NOT say that an act has completed.
 
 After a `restart` or a `reboot`, the application MUST reconnect to the same device on its own once the channel has closed, without offering the chooser, and MUST go on trying until the channel is open again.
 While it tries, the application MUST go on saying that the act is under way.
 Disconnecting MUST stop it trying.
-Once the channel is open again, the application MUST stop saying so and show the device view.
+Once the channel is open again, the application MUST stop saying so and show the Status screen.
 The application MUST stop trying once a device that has not come back is unlikely to, and MUST then say that the device has not come back and offer to find it again.
 Where the browser cannot reach the device again without the chooser, the application MUST offer to find it again.
 

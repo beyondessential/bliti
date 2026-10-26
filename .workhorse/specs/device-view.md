@@ -14,12 +14,12 @@ This spec says how ours renders them, and binds nothing else that reads the same
 
 ## Title and actions
 
-The application MUST title the device view All readings, and MUST offer beside that title to open the power and battery screen of [CSCR](control/screen.md), to open the network settings screen of [NSCR](network/screen.md), and to disconnect.
+The application MUST title the device view All readings, and MUST offer beside that title the way back to the Status screen of [STAT](status-screen.md).
 
 The application MUST carry the header naming the device beneath the title, under a heading of its own.
 
 > [!NOTE]
-> The device view, the power and battery screen and the network settings screen each carry their title in the same place, with their actions beside it, so moving between them keeps the operator at one level.
+> The device view, the power and battery screen and the network settings screen each carry their title in the same place, with the way back beside it, so each reads as one level below the Status screen.
 
 ## Everything is rendered
 
