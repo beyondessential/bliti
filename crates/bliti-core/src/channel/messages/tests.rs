@@ -504,3 +504,107 @@ fn a_message_without_a_string_type_is_a_fault() {
 		Fault::TypeNotString
 	);
 }
+
+/// The Tailscale stream's messages round trip (TSC).
+#[test]
+fn the_tailscale_messages_round_trip() {
+	let result = serde_json::json!({"udp": true, "relays": []});
+	for message in [
+		Message::Tailscale,
+		Message::TailscaleActs {
+			acts: vec!["turn-off".to_owned(), "netcheck".to_owned()],
+		},
+		Message::TailscaleAct {
+			act: "sign-in".to_owned(),
+			method: Some("auth-key".to_owned()),
+			key: Some(Secret::new("tskey-auth-abc")),
+			name: Some("iti-7".to_owned()),
+			peer: None,
+		},
+		Message::TailscaleAct {
+			act: "netcheck".to_owned(),
+			method: None,
+			key: None,
+			name: None,
+			peer: None,
+		},
+		Message::TailscaleAccepted,
+		Message::TailscaleLoginLink {
+			url: Secret::new("https://login.example/a1b2"),
+		},
+		Message::TailscaleResult {
+			result: result.as_object().unwrap().clone(),
+		},
+		Message::TailscaleFailed {
+			reason: "the control server is out of reach".to_owned(),
+		},
+	] {
+		let json = message.to_json();
+		assert_eq!(read(&json).unwrap(), Reading::Message(message.clone()));
+		assert_eq!(round_trip_omissions(&message), Vec::<String>::new());
+	}
+}
+
+/// `tailscale-act` writes every member it carries in upper case, and an absent one not at all (TSC).
+#[test]
+fn tailscale_act_writes_its_members_critical() {
+	let act = Message::TailscaleAct {
+		act: "ping".to_owned(),
+		method: None,
+		key: None,
+		name: None,
+		peer: Some("canopy".to_owned()),
+	};
+	assert_eq!(
+		String::from_utf8(act.to_json()).unwrap(),
+		r#"{"ACT":"ping","PEER":"canopy","type":"tailscale-act"}"#
+	);
+	let sign_in = Message::TailscaleAct {
+		act: "sign-in".to_owned(),
+		method: Some("auth-key".to_owned()),
+		key: Some(Secret::new("k")),
+		name: Some("iti".to_owned()),
+		peer: None,
+	};
+	assert_eq!(
+		String::from_utf8(sign_in.to_json()).unwrap(),
+		r#"{"ACT":"sign-in","KEY":"k","METHOD":"auth-key","NAME":"iti","type":"tailscale-act"}"#
+	);
+}
+
+/// A `tailscale-act` carrying a critical member this build does not know is not acted on (TSC).
+#[test]
+fn tailscale_act_refuses_a_critical_member_it_does_not_know() {
+	assert!(matches!(
+		parse(r#"{"type":"tailscale-act","ACT":"ping","TIMEOUT":5}"#).unwrap(),
+		Reading::Refused(_)
+	));
+	assert!(matches!(
+		parse(r#"{"type":"tailscale-act","ACT":"ping","timeout":5}"#).unwrap(),
+		Reading::Message(Message::TailscaleAct { .. })
+	));
+}
+
+/// An auth key and a login link stay out of a message's `Debug` output (TSC).
+#[test]
+fn secrets_do_not_debug() {
+	let act = Message::TailscaleAct {
+		act: "sign-in".to_owned(),
+		method: Some("auth-key".to_owned()),
+		key: Some(Secret::new("tskey-auth-hunter2")),
+		name: None,
+		peer: None,
+	};
+	let link = Message::TailscaleLoginLink {
+		url: Secret::new("https://login.example/hunter2"),
+	};
+	for message in [act, link] {
+		assert!(!format!("{message:?}").contains("hunter2"));
+	}
+}
+
+/// `tailscale-failed` always says why.
+#[test]
+fn tailscale_failed_requires_its_reason() {
+	assert!(parse(r#"{"type":"tailscale-failed"}"#).is_err());
+}

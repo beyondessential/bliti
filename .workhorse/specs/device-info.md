@@ -15,6 +15,7 @@ Each reader decides how to use them; [VIEW](device-view.md) specifies how ours d
 | --- | --- |
 | state of charge | How full a cell is, as a proportion of its capacity. Not whether it is charging or discharging, which is its direction of travel. |
 | overlay | A virtual network built across whatever physical links a device has, over which a fleet is reached. |
+| tailnet | The network of machines one organisation's Tailscale account holds. |
 | throttling | A platform limiting its own processor, typically for heat or for supply voltage. |
 
 ## The topic
@@ -171,6 +172,10 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `wired-carrier` | `boolean` | `interface` | whether a wired interface has carrier, as [LINK](network/attachment.md) has it: `true` where a cable is plugged in and the link is up |
 | `wireless-network` | `text` | `interface`, `security`, `channel` | the wireless network an interface is joined to |
 | `hotspot` | `text` | `channel`, `passphrase` | the network the device's hotspot advertises |
+| `tailscale-state` | `text` | — | how the device stands in Tailscale, as below |
+| `tailscale-name` | `text` | — | the name the device is reached by over Tailscale |
+| `tailnet` | `text` | — | the tailnet the device is a member of |
+| `tailscale-key-expiry` | `datetime` | — | the instant the device's sign-in lapses |
 | `cpu-frequency-max` | `quantity`, `hertz` | — | the speed the processor is capable of |
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
@@ -262,6 +267,44 @@ The networks a device joins, and the hotspot it runs, are configured under [NET]
 > An aggregate is a sum a reader can take, and one taken on the device is a figure it cannot break down.
 > A device on wireless has its wired candidates off, and the configuration session of [CFG](network/session.md) says nothing of a candidate that is off. `wired-carrier` is how a reader learns a cable is plugged in before switching over to it.
 > No cable is an ordinary state of a port rather than difficulty, so a `false` value is `passed`: it is the fact, not a fault.
+
+## Tailscale
+
+A device that runs Tailscale MUST report `tailscale-state`, `tailscale-name`, `tailnet` and `tailscale-key-expiry`, and MUST omit all four where it runs none.
+
+`tailscale-state` MUST report one of:
+
+| value | meaning | `status` |
+| --- | --- | --- |
+| `running` | the device is connected | `passed` |
+| `starting` | the device is connecting | `warning`, with a reason saying it is still connecting |
+| `stopped` | the device is signed in and turned off | `failed` |
+| `needs-login` | the device holds no sign-in | `failed` |
+| `expired` | the device's sign-in has lapsed | `failed` |
+| `needs-approval` | the device is signed in and an administrator has yet to approve it | `failed` |
+
+A device MUST report `tailscale-state` as `warning` while `running` where Tailscale reports a problem with its connection, with Tailscale's own words as the reason.
+
+A device MUST report a change in `tailscale-state` as soon as it observes the change.
+
+A device MUST report `tailscale-state` as `broken`, with a reason, where it runs Tailscale and Tailscale does not answer.
+
+A device MUST report `expired` where it was signed in and its sign-in has lapsed, and `needs-login` where it holds none.
+
+A device MUST report `tailscale-name`, `tailnet` and `tailscale-key-expiry` as `broken`, with the reason of `tailscale-state`, where `tailscale-state` is `broken`.
+
+A device MUST otherwise report `tailscale-name` and `tailnet` as `passed` in every state in which it holds them, `expired`, `stopped` and `needs-approval` included, and as `skipped` where it holds none, with a reason saying it is not signed in.
+
+A device MUST otherwise report `tailscale-key-expiry` as `passed` where its sign-in lapses in more than seven days, as `warning` where it lapses within seven days, with a reason saying when, and as `failed` where it has lapsed, with a reason saying so.
+
+A device MUST report `tailscale-key-expiry` as `skipped` where its sign-in does not lapse or it holds none, with a reason saying which.
+
+The acts a client asks of Tailscale are specified under [TSC](control/tailscale.md).
+
+> [!NOTE]
+> The name and the tailnet are entries of their own, not part of the state, so a device whose sign-in has lapsed still tells a reader which device it is and where it belongs.
+> A sign-in that lapses silently takes a device out of reach of the fleet. Warning ahead of it lets an operator renew it while the device can still be reached.
+> The interface Tailscale creates is the overlay of [Network](#network), reported there as an interface and here as how the device stands in it.
 
 ## Power source and battery
 

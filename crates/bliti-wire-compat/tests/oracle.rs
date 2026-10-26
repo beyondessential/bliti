@@ -2,7 +2,7 @@
 
 use bliti_core::channel::generate::message;
 use bliti_wire_compat::{
-	baseline_reads, baseline_snapshot, corpus, current_reads, markers_agree, Verdict,
+	Verdict, baseline_reads, baseline_snapshot, corpus, current_reads, markers_agree,
 };
 use proptest::prelude::*;
 

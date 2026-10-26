@@ -1,0 +1,125 @@
+{
+ "AuthURL": "",
+ "BackendState": "NeedsLogin",
+ "CertDomains": null,
+ "ClientVersion": null,
+ "CurrentTailnet": {
+  "MagicDNSEnabled": true,
+  "MagicDNSSuffix": "example.com",
+  "Name": "127.0.0.1",
+  "StableID": "REDACTED"
+ },
+ "ExtraRecords": null,
+ "HaveNodeKey": true,
+ "Health": [],
+ "MagicDNSSuffix": "example.com",
+ "Peer": {
+  "nodekey:REDACTED-PEER": {
+   "Active": false,
+   "Addrs": "",
+   "AllowedIPs": [
+    "100.64.0.2/32",
+    "fd7a:115c:a1e0::2/128"
+   ],
+   "Created": "2026-10-24T04:40:56.72970806Z",
+   "CurAddr": "",
+   "DNSName": "bliti-lab-peer.example.com.",
+   "ExitNode": false,
+   "ExitNodeOption": false,
+   "HostName": "bliti-lab-peer",
+   "ID": "REDACTED",
+   "InEngine": false,
+   "InMagicSock": true,
+   "InNetworkMap": true,
+   "LastHandshake": "0001-01-01T00:00:00Z",
+   "LastSeen": "0001-01-01T00:00:00Z",
+   "LastWrite": "0001-01-01T00:00:00Z",
+   "NoFileSharingReason": "",
+   "NodeID": 2,
+   "OS": "linux",
+   "Online": true,
+   "PeerAPIURL": [
+    "http://100.64.0.2:46590",
+    "http://[fd7a:115c:a1e0::2]:46590"
+   ],
+   "PeerRelay": "",
+   "PublicKey": "nodekey:REDACTED",
+   "Relay": "syd",
+   "RxBytes": 0,
+   "TaildropTarget": 3,
+   "TailscaleIPs": [
+    "100.64.0.1",
+    "100.64.0.2"
+   ],
+   "TxBytes": 0,
+   "UserID": 1
+  }
+ },
+ "Self": {
+  "Active": false,
+  "Addrs": [],
+  "AllowedIPs": [
+   "100.64.0.1/32",
+   "fd7a:115c:a1e0::1/128"
+  ],
+  "CapMap": {
+   "default-auto-update": [
+    false
+   ],
+   "https://tailscale.com/cap/file-sharing": [],
+   "https://tailscale.com/cap/is-admin": [],
+   "https://tailscale.com/cap/ssh": []
+  },
+  "Capabilities": [
+   "HTTPS://TAILSCALE.COM/s/DEPRECATED-NODE-CAPS#see-https://github.com/tailscale/tailscale/issues/11508",
+   "default-auto-update",
+   "https://tailscale.com/cap/file-sharing",
+   "https://tailscale.com/cap/is-admin",
+   "https://tailscale.com/cap/ssh"
+  ],
+  "Created": "2026-10-24T04:38:36.128969355Z",
+  "CurAddr": "",
+  "DNSName": "bliti-lab.example.com.",
+  "ExitNode": false,
+  "ExitNodeOption": false,
+  "Expired": true,
+  "HostName": "bliti-lab-key",
+  "ID": "REDACTED",
+  "InEngine": false,
+  "InMagicSock": false,
+  "InNetworkMap": true,
+  "KeyExpiry": "2026-10-24T04:41:40Z",
+  "LastHandshake": "0001-01-01T00:00:00Z",
+  "LastSeen": "0001-01-01T00:00:00Z",
+  "LastWrite": "0001-01-01T00:00:00Z",
+  "NoFileSharingReason": "",
+  "NodeID": 1,
+  "OS": "linux",
+  "Online": true,
+  "PeerAPIURL": null,
+  "PeerRelay": "",
+  "PublicKey": "nodekey:REDACTED",
+  "Relay": "syd",
+  "RxBytes": 0,
+  "TaildropTarget": 0,
+  "TailscaleIPs": [
+   "100.64.0.1",
+   "100.64.0.2"
+  ],
+  "TxBytes": 0,
+  "UserID": 1
+ },
+ "TUN": false,
+ "TailscaleIPs": [
+  "100.64.0.1",
+  "100.64.0.2"
+ ],
+ "User": {
+  "1": {
+   "DisplayName": "lab",
+   "ID": 1,
+   "LoginName": "lab"
+  }
+ },
+ "Version": "1.104.2"
+}

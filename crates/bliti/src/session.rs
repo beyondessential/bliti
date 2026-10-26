@@ -10,7 +10,8 @@
 //! `subscribe` for one already being served is skipped. A stream whose client sends `configure` is
 //! handed to the configuration session of [`crate::network::session`], one whose client sends
 //! `power` to the power stream of [`crate::power`], and one whose client sends `curve` to the curve
-//! stream of [`crate::battery`]. Beyond that it never answers a message on the wire: one it does not
+//! stream of [`crate::battery`], and one whose client sends `tailscale` to the Tailscale stream of
+//! [`crate::tailscale`]. Beyond that it never answers a message on the wire: one it does not
 //! recognise is passed over, one carrying something critical it does not know is refused, one it
 //! knows but has nothing to do about is a no-op, and one that breaks the protocol closes the stream
 //! it arrived on.
@@ -42,6 +43,7 @@ use crate::{
 	network::{self, session::Configurator},
 	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
+	tailscale::{self, Tailscale},
 };
 
 /// How often to look for a change in the facts the device reports about itself.
@@ -96,6 +98,7 @@ pub async fn run<S>(
 	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
+	tailscale: Tailscale,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -134,6 +137,7 @@ where
 		&configurator,
 		&controller,
 		&supply,
+		&tailscale,
 		&mut held,
 	)
 	.await;
@@ -159,6 +163,7 @@ async fn converse(
 	configurator: &Configurator,
 	controller: &Controller,
 	supply: &Supply,
+	tailscale: &Tailscale,
 	held: &mut SessionGuard,
 ) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
@@ -190,10 +195,13 @@ async fn converse(
 		let sampler = sampler.clone();
 		let served = served.clone();
 		let controller = controller.clone();
+		let tailscale = tailscale.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
-				if let Err(err) = serve_default(&mut feed, &sampler, &served, &controller).await {
+				if let Err(err) =
+					serve_default(&mut feed, &sampler, &served, &controller, &tailscale).await
+				{
 					tracing::debug!(%err, "the pushed feed ended");
 				}
 			}
@@ -222,6 +230,7 @@ async fn converse(
 			configurator: configurator.clone(),
 			controller: controller.clone(),
 			supply: supply.clone(),
+			tailscale: tailscale.clone(),
 			peer: peer.clone(),
 		};
 		tasks.spawn(
@@ -251,6 +260,7 @@ struct Context {
 	configurator: Configurator,
 	controller: Controller,
 	supply: Supply,
+	tailscale: Tailscale,
 	peer: Peer,
 }
 
@@ -266,6 +276,7 @@ where
 		configurator,
 		controller,
 		supply,
+		tailscale,
 		peer,
 	} = context;
 	loop {
@@ -287,7 +298,7 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served, controller).await;
+				return serve_default(stream, sampler, served, controller, tailscale).await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -310,6 +321,14 @@ where
 				// An act on a stream that opened no power stream. Nothing to act on, which MSG makes a
 				// no-op rather than a fault.
 				tracing::debug!("an act outside a power stream; nothing to do");
+			}
+			Ok(Reading::Message(Message::Tailscale)) => {
+				return tailscale::serve(stream, tailscale, peer).await;
+			}
+			Ok(Reading::Message(Message::TailscaleAct { .. })) => {
+				// An act on a stream that opened no Tailscale stream. Nothing to act on, which MSG
+				// makes a no-op rather than a fault.
+				tracing::debug!("a Tailscale act outside a Tailscale stream; nothing to do");
 			}
 			Ok(Reading::Message(Message::Curve)) => {
 				return battery::serve_stream(stream, supply, peer).await;
@@ -335,7 +354,12 @@ where
 				| Message::Acts { .. }
 				| Message::Accepted
 				| Message::GoingAway { .. }
-				| Message::Curves { .. },
+				| Message::Curves { .. }
+				| Message::TailscaleActs { .. }
+				| Message::TailscaleAccepted
+				| Message::TailscaleLoginLink { .. }
+				| Message::TailscaleResult { .. }
+				| Message::TailscaleFailed { .. },
 			)) => {
 				// Answers only a device sends. A client sending one has nothing for this device to do
 				// about it, a no-op rather than a fault (MSG).
@@ -364,6 +388,7 @@ async fn serve_default<S>(
 	sampler: &Sampler,
 	served: &Served,
 	controller: &Controller,
+	tailscale: &Tailscale,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -377,7 +402,7 @@ where
 
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds.
-	let mut last_facts = facts_now();
+	let mut last_facts = facts_now(tailscale);
 	for fact in &last_facts {
 		write_message(stream, &Message::Fact(fact.clone()).to_json())
 			.await
@@ -440,7 +465,7 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts_now();
+				let current = facts_now(tailscale);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					// A fact left out says nothing to a client already showing it (NFO).
@@ -466,9 +491,14 @@ where
 }
 
 /// The facts the device reports now: what it reads off the system (NFO).
-fn facts_now() -> Vec<Entry> {
+fn facts_now(tailscale: &Tailscale) -> Vec<Entry> {
 	let at = now();
 	let mut facts = facts::facts(at);
+	facts.extend(facts::tailscale::entries(
+		at,
+		tailscale.observed().as_ref(),
+		jiff::Timestamp::now(),
+	));
 	facts.push(Entry::quantity(
 		at,
 		"channel-clients-max",

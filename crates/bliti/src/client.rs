@@ -400,6 +400,18 @@ pub async fn connect(
 					)) => {
 						println!("curve:    a curve-stream message");
 					}
+					// The Tailscale stream of TSC. This diagnostic client opens none.
+					Ok(Reading::Message(
+						Message::Tailscale
+						| Message::TailscaleActs { .. }
+						| Message::TailscaleAct { .. }
+						| Message::TailscaleAccepted
+						| Message::TailscaleLoginLink { .. }
+						| Message::TailscaleResult { .. }
+						| Message::TailscaleFailed { .. },
+					)) => {
+						println!("tailscale: a Tailscale-stream message");
+					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
 					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),

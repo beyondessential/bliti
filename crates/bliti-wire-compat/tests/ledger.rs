@@ -1,6 +1,6 @@
 //! The ledger records every member this build marks critical, and nothing else.
 
-use bliti_wire_compat::ledger::{built, keys, recorded, FILE};
+use bliti_wire_compat::ledger::{FILE, built, keys, recorded};
 
 /// A member marked critical that the ledger does not record. Adding one breaks every older peer,
 /// which is permitted and must be said out loud.

@@ -54,6 +54,7 @@ async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) ->
 			configurator,
 			controller,
 			supply,
+			Tailscale::none(),
 		)
 		.await;
 	});
@@ -279,6 +280,7 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 			configurator,
 			Controller::none(),
 			Supply::default(),
+			Tailscale::none(),
 		)
 		.await
 	});
@@ -316,6 +318,7 @@ async fn the_right_token_with_the_wrong_fingerprint_cannot_open_a_session() {
 			configurator,
 			Controller::none(),
 			Supply::default(),
+			Tailscale::none(),
 		)
 		.await
 	});
@@ -456,6 +459,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				configurator,
 				Controller::none(),
 				Supply::default(),
+				Tailscale::none(),
 			)
 			.await;
 		})
@@ -493,6 +497,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				configurator,
 				Controller::none(),
 				Supply::default(),
+				Tailscale::none(),
 			)
 			.await;
 		}
@@ -754,4 +759,51 @@ fn a_carrier_that_flips_is_a_change_and_one_that_settled_is_not() {
 		&[carrier(1, "end0", true)],
 		&[carrier(3, "end0", true)]
 	));
+}
+
+/// The facts a session reports carry how the device stands in Tailscale, and a change in it is a
+/// change in the facts (NFO, "Tailscale").
+#[tokio::test(start_paused = true)]
+async fn a_change_in_tailscale_is_a_change_in_the_facts() {
+	use crate::tailscale::{Options, fake::Fake};
+
+	struct NoNetcheck;
+	#[async_trait::async_trait]
+	impl crate::tailscale::netcheck::Runner for NoNetcheck {
+		fn available(&self) -> bool {
+			false
+		}
+		async fn run(&self) -> Result<crate::tailscale::netcheck::Report, String> {
+			Err("unavailable".to_owned())
+		}
+	}
+
+	let fake = Fake::in_state("Running");
+	let tailscale = Tailscale::start(
+		fake.clone(),
+		std::sync::Arc::new(NoNetcheck),
+		Options::default(),
+	)
+	.await;
+	let before = facts_now(&tailscale);
+	let state = |facts: &[Entry]| {
+		facts
+			.iter()
+			.find(|fact| fact.name == "tailscale-state")
+			.and_then(|fact| fact.value.clone())
+	};
+	assert_eq!(state(&before), Some(serde_json::json!("running")));
+
+	fake.move_to("Stopped");
+	tokio::time::sleep(Duration::from_millis(100)).await;
+	let after = facts_now(&tailscale);
+	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
+	assert!(!same_facts(&before, &after));
+	assert!(same_facts(&after, &facts_now(&tailscale)));
+
+	assert!(
+		facts_now(&Tailscale::none())
+			.iter()
+			.all(|fact| !fact.name.starts_with("tailscale"))
+	);
 }

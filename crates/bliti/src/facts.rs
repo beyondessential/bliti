@@ -34,6 +34,7 @@ mod compute;
 mod network;
 mod power;
 mod storage;
+pub mod tailscale;
 mod thermal;
 
 /// The facts a device reports: what board it is, what it runs, and the shapes a reading is measured
