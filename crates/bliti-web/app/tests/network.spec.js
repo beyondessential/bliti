@@ -344,7 +344,7 @@ test.describe('editing is the application\'s own', () => {
 		).toBeVisible()
 		await expect(page.getByRole('button', { name: 'Start again' })).toHaveCount(0)
 		await page.getByRole('button', { name: 'Disconnect' }).click()
-		await expect(page.getByRole('button', { name: 'Find the device' })).toBeVisible()
+		await expect(page.getByRole('button', { name: 'Find my Iti' })).toBeVisible()
 	})
 })
 

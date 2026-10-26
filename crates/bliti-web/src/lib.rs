@@ -206,9 +206,9 @@ impl QrCode {
 		use bliti_core::qr::QrError;
 		let payload = QrPayload::read(text).map_err(|err| match err {
 			QrError::UnsupportedVersion(version) => JsError::new(&format!(
-				"That QR code is bliti payload version {version}, which this app does not read."
+				"That code is Tamanu Iti payload version {version}, which this app does not read."
 			)),
-			QrError::Malformed => JsError::new("That is not a bliti QR code."),
+			QrError::Malformed => JsError::new("This isn't a Tamanu Iti code."),
 		})?;
 		Ok(Self { payload })
 	}

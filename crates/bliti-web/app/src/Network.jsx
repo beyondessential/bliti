@@ -1,4 +1,4 @@
-// The network configuration screen of NSCR: the ordering, one candidate's fields, the hotspot and
+// The network settings screen of NSCR: the ordering, one candidate's fields, the hotspot and
 // the country, edited here and proposed only when the operator applies, with the state of the session
 // pinned in view. The session closes when the screen does.
 
@@ -42,8 +42,11 @@ import {
 import { pathOf, within } from './path.js'
 import { bandName } from './wireless.js'
 import { loadProtocol } from './protocol.js'
+import { Title } from './Screen.jsx'
 
-export default function Network({ client, onActivity, onEvent, onBack, onDisconnect, joined }) {
+/// `guard` is where the screen tells its caller, while leaving would lose edits, how to ask before the
+/// operator goes, so the browser's way back asks as the screen's own Back does (NSCR).
+export default function Network({ client, onActivity, onEvent, onBack, onDisconnect, joined, guard }) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
 	const [leaving, setLeaving] = useState(false)
@@ -101,8 +104,12 @@ export default function Network({ client, onActivity, onEvent, onBack, onDisconn
 			event.returnValue = ''
 		}
 		window.addEventListener('beforeunload', warn)
-		return () => window.removeEventListener('beforeunload', warn)
-	}, [lost])
+		guard.current = () => setLeaving(true)
+		return () => {
+			window.removeEventListener('beforeunload', warn)
+			guard.current = null
+		}
+	}, [lost, guard])
 
 	const change = (edit) => dispatch({ type: 'edit', change: (held) => fitted(edit(held), state.capabilities) })
 	const readOnly = !writable(state)
@@ -131,12 +138,11 @@ export default function Network({ client, onActivity, onEvent, onBack, onDisconn
 	}
 
 	const title = (
-		<div className="heading title">
-			<h1>Network</h1>
+		<Title title="Network settings">
 			<button className="secondary small" onClick={() => (lost ? setLeaving(true) : onBack())}>
 				Back
 			</button>
-		</div>
+		</Title>
 	)
 
 	if (state.status !== 'open') {

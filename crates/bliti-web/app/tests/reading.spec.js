@@ -3,14 +3,9 @@
 
 import { expect, test } from '@playwright/test'
 
+import { typeCode as read } from './fake-client.js'
+
 const TEXT = 'BLITI:AEAACAQDAQCQMBYIBEFAWDANBYHYBAMCQOCILBUHRCEYVC4MRWHI7EER'
-
-const held = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'QR code read' }) })
-
-async function read(page, code) {
-	await page.getByPlaceholder('BLITI:...').fill(code)
-	await page.getByRole('button', { name: 'Use' }).click()
-}
 
 test.beforeEach(async ({ page }) => {
 	await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { value: {} }))
@@ -21,19 +16,20 @@ test('the code text reads however it was typed', async ({ page }) => {
 	const grouped = TEXT.split(':').pop().toLowerCase().match(/.{1,4}/g).join('-')
 	for (const typed of [TEXT, TEXT.toLowerCase(), grouped]) {
 		await read(page, typed)
-		await expect(held(page).locator('p.code')).toHaveText(TEXT)
-		await page.getByRole('button', { name: 'Use another code' }).click()
+		await expect(page.locator('.chip')).toHaveText('AFVB2XNR5G2JGXI')
+		await page.getByRole('button', { name: 'Scan a different code' }).click()
 	}
 })
 
 test('a code at a payload version this build does not read is reported as that', async ({ page }) => {
 	await read(page, 'BLITI:AJNFUWS2LJNFUWS2LJNFUWS2LJNFUWS2LJNFUWS2LJNFUWS2LJNFUWS2')
 	await expect(
-		page.getByText('That QR code is bliti payload version 2, which this app does not read.', { exact: true }),
+		page.getByText('That code is Tamanu Iti payload version 2, which this app does not read.', { exact: true }),
 	).toBeVisible()
 })
 
 test('text that is not a code is reported as that', async ({ page }) => {
 	await read(page, 'WIFI:S:site;T:WPA;P:passphrase;;')
-	await expect(page.getByText('That is not a bliti QR code.', { exact: true })).toBeVisible()
+	await expect(page.getByText("This isn't a Tamanu Iti code.", { exact: true })).toBeVisible()
+	await expect(page.getByPlaceholder('BLITI:...')).toHaveClass(/field-fault/)
 })

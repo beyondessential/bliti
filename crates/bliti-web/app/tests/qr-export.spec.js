@@ -4,17 +4,12 @@ import { readFile } from 'node:fs/promises'
 
 import { expect, test } from '@playwright/test'
 
-import { installFakeClient } from './fake-client.js'
-
-async function read(page, code) {
-	await page.getByPlaceholder('BLITI:...').fill(code)
-	await page.getByRole('button', { name: 'Use' }).click()
-}
+import { installFakeClient, typeCode as read } from './fake-client.js'
 
 async function downloaded(page) {
 	const [download] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('button', { name: 'Download SVG' }).click(),
+		page.getByRole('button', { name: 'Save code for reprinting' }).click(),
 	])
 	return { name: download.suggestedFilename(), body: await readFile(await download.path(), 'utf8') }
 }

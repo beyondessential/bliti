@@ -2,12 +2,14 @@
 id: NSCR
 ---
 
-# Network configuration screen
+# Network settings screen
 
 The screen an operator configures a device from: the document of [NET](overview.md), edited through the session of [CFG](session.md), by our application.
 
 [NET](overview.md) and [CFG](session.md) bind every implementation.
 This spec covers how ours handles them, and binds nothing else that configures a bliti device.
+
+The application MUST title the screen Network settings, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
 
 ## Editing is the application's own
 
@@ -38,7 +40,7 @@ The application MUST close the session when the operator leaves the screen, and 
 
 Edits are not applied while the application is editing or errored and the fields differ from the configuration the device holds.
 
-The application MUST ask the operator to confirm leaving the screen while edits are not applied, saying that they will be lost.
+The application MUST ask the operator to confirm leaving the screen while edits are not applied, by its way back or by the browser's, saying that they will be lost.
 
 The application MUST have the browser warn before the page is closed, reloaded or navigated away from while edits are not applied.
 

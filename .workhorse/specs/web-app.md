@@ -6,6 +6,16 @@ id: WEB
 
 The web application is a client that runs in a browser: it reads a QR code, finds the device the code belongs to, and opens a channel to it.
 
+The application MUST name itself Tamanu Iti, as its title on the screens for reaching a device and as the name it is installed under, and MUST call the device it reaches an Iti on those screens.
+
+## Reaching a device in steps
+
+Until a channel opens, the application MUST show three steps, scanning the code, finding the Iti and connecting, marking those done and naming the current one.
+
+Each step MUST offer one thing to do as its primary action.
+
+Where the browser cannot open a channel at all, the application MUST say so, and MUST NOT show the steps or offer anything else.
+
 ## Borrowed terms
 
 | term | meaning |
@@ -16,6 +26,14 @@ The web application is a client that runs in a browser: it reads a QR code, find
 ## Reading a QR code
 
 The application MUST accept a payload by either path: capturing the code with the camera, or the operator entering the code's text, each read as [QR](qr-code.md) specifies.
+
+The application MUST offer opening the camera as the first step's primary action, and MUST offer entering the code's text under a section, Advanced, that stays closed until the operator opens it.
+
+The application MUST go on reading from the camera until it reads a payload or the operator cancels.
+
+Where the camera cannot be opened, the application MUST say so and offer to try again.
+
+Where a code is not a payload the application reads, the application MUST say so beneath the camera, which goes on reading, or beside the text entered.
 
 The application MUST treat a payload identically however it arrived, including one it held from before, as [Remembering devices](#remembering-devices) and [After a reload](#after-a-reload) have it.
 
@@ -40,11 +58,17 @@ The application MUST compute the local names of [ADV](discovery.md) that the dev
 
 Before offering the chooser, the application MUST show the operator the name for the highest of those markers, and that it should be the only device listed.
 
+Beside the means of finding the device, the application MUST offer to read a different code, and to save the code it holds for reprinting, as [Exporting the QR code](#exporting-the-qr-code) has it.
+
 Where the browser offers a chooser rather than the advertisements themselves, the application MUST filter that chooser by those exact local names alone, and MUST ask for access to the service of [ADV](discovery.md) alongside the filter.
 
 The application MUST match the device picked against the QR code as [ADV](discovery.md) specifies before it sends that device anything.
 
+Once a device is picked, the application MUST say that it is connecting until the channel opens or fails, and MUST offer to cancel, which abandons the attempt and returns to finding the device.
+
 Where the chooser closes without a device picked, the application MUST tell the operator that, if their device was not listed, it may be off or out of range, and MUST let them open the chooser again.
+
+Where a channel closes other than by the operator disconnecting, and other than as [When the device goes away](#when-the-device-goes-away) has it, the application MUST say that the connection was lost, and MUST let the operator find the device again.
 
 > [!NOTE]
 > Filtering the chooser puts the device whose QR code was read in front of the operator, rather than every bliti device in range, and showing the name first tells them which device to expect there.
@@ -61,7 +85,7 @@ The application MUST remember at most three devices, forgetting the one whose ch
 
 The application MUST forget a remembered device whose payload it can no longer read, as after an update that drops the payload's version.
 
-Where it holds no payload, the application MUST list the devices it remembers beneath the means of reading a QR code, the one whose channel opened most recently first.
+Where it holds no payload, the application MUST list the devices it remembers above the means of reading a QR code, the one whose channel opened most recently first.
 Each MUST be listed by its hostname and the last four characters of the encoded payload of [QR](qr-code.md), or by those characters alone where the device has reported no hostname.
 
 Choosing a remembered device MUST hold its payload as though it had just been read, and the application MUST then find the device as [Finding the device](#finding-the-device) specifies, the operator opening the chooser as for any other payload.
@@ -113,6 +137,22 @@ The application MUST NOT reconnect on its own after a `power-off`.
 > The browser keeps the device the operator picked, so reaching it again needs no chooser and no tap, provided it comes back under the same Bluetooth address. One that comes back under another is a device the browser has not been given, and only the chooser can give it.
 > An act accepted is not an act done: the device may fail to carry it out after it has said it is going, and nothing is left connected to say so. Saying only that the act is under way stays true either way.
 > A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
+
+## Moving between screens
+
+Opening a screen of a connected device from the one a channel opens on MUST add an entry to the browser's history, so that the browser's way back leaves that screen as the screen's own way back does.
+
+Going back from the screen a channel opens on MUST leave the application, as it does where no channel is open.
+
+Where the application leaves a screen other than by the operator going back, as on disconnecting or when the device goes away, it MUST take that screen's entry out of the history with it.
+
+## Activity
+
+The application MUST keep a record of what it and the device said, and of what it did, for the life of the page.
+
+The application MUST show the record beneath every screen only while it is in dev mode, which tapping a screen's title seven times in a row turns on, and again off.
+
+The application MUST stay in dev mode, or out of it, for the life of the tab.
 
 ## Installation and offline use
 

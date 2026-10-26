@@ -1,5 +1,5 @@
-// The Control screen of CSCR: the way into the network screen, the acts of CTL the device offers,
-// and its battery curve (CRV), each act, import and reset confirmed before it is asked for.
+// The power and battery screen of CSCR: the acts of CTL the device offers, and its battery curve
+// (CRV), each act, import and reset confirmed before it is asked for.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -19,20 +19,21 @@ export const ACTS = [
 		name: 'Reboot',
 		hint: 'The whole device.',
 		button: 'Reboot',
-		question: 'Reboot the device?',
+		question: 'Reboot the Iti?',
+		warning: 'The Iti will be unavailable while it reboots.',
 	},
 	{
 		act: 'power-off',
 		name: 'Power off',
 		hint: 'Stays off until turned on at the device.',
 		button: 'Power off',
-		question: 'Power off the device?',
+		question: 'Power off the Iti?',
 		warning: 'It stays off until it is turned on at the device.',
 		danger: true,
 	},
 ]
 
-export default function Control({ client, onNetwork, onActivity, onEvent, onAccepted }) {
+export default function Power({ client, onActivity, onEvent, onAccepted }) {
 	// The acts the device listed that this build knows, or null until it has listed them. A device older
 	// than this build never answers, and looks like one offering nothing (CSCR).
 	const [acts, setActs] = useState(null)
@@ -95,42 +96,35 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 	}
 
 	const offered = acts ?? []
-	const pending = offered.find((each) => each.act === confirming)
 
 	return (
 		<>
-			<section>
-				<h2>Network</h2>
-				<button className="secondary" onClick={onNetwork}>
-					Network settings
-				</button>
-			</section>
 			{offered.length > 0 && (
 				<section>
 					<h2>Power</h2>
-					{pending ? (
-						<div className="bar-state" role="alertdialog" aria-label={pending.question}>
-							<p>
-								<strong>{pending.question}</strong>
-							</p>
-							{pending.warning && <p>{pending.warning}</p>}
-							<div className="row">
-								<button className={pending.danger ? 'danger-fill' : undefined} onClick={() => ask(pending.act)}>
-									{pending.button}
-								</button>
-								<button className="secondary" onClick={() => setConfirming(null)}>
-									Cancel
-								</button>
-							</div>
-						</div>
-					) : (
-						<ul className="acts">
-							{offered.map((each) => (
-								<li key={each.act}>
-									<div>
-										<span className="name">{each.name}</span>
-										<span className="muted">{each.hint}</span>
+					<ul className="acts">
+						{offered.map((each) => (
+							<li key={each.act} className={each.act === confirming ? 'asking' : undefined}>
+								<div>
+									<span className="name">{each.name}</span>
+									<span className="muted">{each.hint}</span>
+								</div>
+								{each.act === confirming ? (
+									<div className="bar-state" role="alertdialog" aria-label={each.question}>
+										<p>
+											<strong>{each.question}</strong>
+										</p>
+										{each.warning && <p>{each.warning}</p>}
+										<div className="row fill">
+											<button className={each.danger ? 'danger-fill' : undefined} onClick={() => ask(each.act)}>
+												{each.button}
+											</button>
+											<button className="secondary" onClick={() => setConfirming(null)}>
+												Cancel
+											</button>
+										</div>
 									</div>
+								) : (
 									<button
 										className={`secondary${each.danger ? ' danger' : ''}`}
 										onClick={() => setConfirming(each.act)}
@@ -138,10 +132,10 @@ export default function Control({ client, onNetwork, onActivity, onEvent, onAcce
 									>
 										{each.button}
 									</button>
-								</li>
-							))}
-						</ul>
-					)}
+								)}
+							</li>
+						))}
+					</ul>
 					{refused && <p className="why reason">{refused}</p>}
 				</section>
 			)}
