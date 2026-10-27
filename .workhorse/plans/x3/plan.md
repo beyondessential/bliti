@@ -17,11 +17,11 @@ The protocol's result schema and its tests change with it, and the shipped clien
 
 The messages are all in `bliti-core` already (`Tailscale*`, `Tamanu*`); the browser has no way to open either stream.
 
-- [ ] Move the stream handles out of `crates/bliti-web/src/lib.rs` (817 lines) into `src/streams.rs` before adding two more
-- [ ] `Channel::tailscale` and `Channel::tamanu`, each opening an `Exchange` with `Message::Tailscale` / `Message::Tamanu`, as `power` does
-- [ ] `TailscaleHandle::act(act, params)`, with `params` a plain object of `method`, `key`, `name`, `peer`, building `Message::TailscaleAct` (the key as a `Secret`); `TamanuHandle::act(act)`
-- [ ] A text QR in `bliti-core`: lift the rendering out of `wifi_qr::svg` into one taking any text, which `wifi_qr` then calls; expose it as `text_qr(text)` for the login link
-- [ ] Tests in `src/tests.rs` for the act shapes: a sign-in by key carries `KEY`, `NAME` only where given, a ping `PEER` only where given
+- [x] Move the stream handles out of `crates/bliti-web/src/lib.rs` (817 lines) into `src/streams.rs` before adding two more
+- [x] `Channel::tailscale` and `Channel::tamanu`, each opening an `Exchange` with `Message::Tailscale` / `Message::Tamanu`, as `power` does
+- [x] `TailscaleHandle::act(act, method, key, name, peer)`, each member optional and left out where empty, building `Message::TailscaleAct` (the key as a `Secret`); `TamanuHandle::act(act)`
+- [x] A text QR in `bliti-core`: lift the rendering out of `wifi_qr::svg` into one taking any text, which `wifi_qr` then calls; expose it as `text_qr(text)` for the login link
+- [x] Tests in `src/tests.rs` for the act shapes: a sign-in by key carries `KEY`, `NAME` only where given, a ping `PEER` only where given
 
 ## Client plumbing
 

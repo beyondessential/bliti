@@ -4,7 +4,9 @@
 //! writes it when sharing a network and reads it back. The WPA3 Specification's percent-encoded
 //! form of the same URI is not what they were written against.
 
-use qrcode::{EcLevel, QrCode, render::svg, types::QrError};
+use qrcode::types::QrError;
+
+use crate::text_qr;
 
 /// The Wi-Fi network URI for a hotspot. `T:WPA` covers the WPA2/WPA3 transitional mode every
 /// hotspot runs in, and leaves which of the two to the phone.
@@ -12,21 +14,9 @@ pub fn uri(ssid: &str, passphrase: &str) -> String {
 	format!("WIFI:T:WPA;S:{};P:{};;", escape(ssid), escape(passphrase))
 }
 
-/// The code as an SVG image for inlining in a page. The dark modules are drawn in `currentColor`
-/// over nothing, so the page colours the code and its quiet zone alike, in any theme.
+/// The code as an SVG image for inlining in a page, drawn as [`text_qr::svg`] draws any.
 pub fn svg(ssid: &str, passphrase: &str) -> Result<String, QrError> {
-	let svg = QrCode::with_error_correction_level(uri(ssid, passphrase), EcLevel::M)?
-		.render::<svg::Color<'_>>()
-		.dark_color(svg::Color("currentColor"))
-		.light_color(svg::Color("none"))
-		.min_dimensions(256, 256)
-		.quiet_zone(true)
-		.build();
-	// The XML declaration belongs to a file, and is noise inside a document.
-	Ok(match svg.split_once("?>") {
-		Some((_, rest)) => rest.to_owned(),
-		None => svg,
-	})
+	text_qr::svg(&uri(ssid, passphrase))
 }
 
 /// Backslash-escape what the URI gives meaning to. Nothing is quoted: Android keeps quotes as part of

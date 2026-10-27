@@ -11,9 +11,9 @@ Scenarios for the acts on the Status screen's Tailscale and Tamanu rows, the Tai
 ## Wasm bridge
 
 - [ ] A Tailscale stream and a Tamanu stream open with `tailscale` and `tamanu` as their first message (verifies spec: TSC, TMU)
-- [ ] A sign-in by key carries `ACT`, `METHOD`, `KEY` critical, and `NAME` only where given (verifies spec: TSC)
-- [ ] A ping carries `PEER` only where given (verifies spec: TSC)
-- [ ] The login link renders as a QR code that decodes back to the link
+- [x] A sign-in by key carries `ACT`, `METHOD`, `KEY` critical, and `NAME` only where given (verifies spec: TSC)
+- [x] A ping carries `PEER` only where given (verifies spec: TSC)
+- [x] The login link renders as a QR code that decodes back to the link
 - [ ] The activity record never shows an auth key or a login link
 
 ## Status screen: streams

@@ -3,7 +3,10 @@ use bliti_core::channel::{
 	messages::Span,
 };
 
-use super::*;
+use super::{
+	streams::{loading, proposal, tailscale_act},
+	*,
+};
 
 /// A proposal is a `configuration` carrying the document whole and no capabilities, with the
 /// document critical on the wire so a device that cannot read it does not act on it (CFG).
@@ -284,4 +287,63 @@ fn the_expected_local_names_are_the_devices() {
 fn a_proposal_is_an_object() {
 	assert!(proposal("[]").is_err());
 	assert!(proposal("not json").is_err());
+}
+
+/// A sign-in by key carries its method and key critical, and its name only where one is given; a
+/// ping carries its machine only where one is given (TSC).
+#[test]
+fn a_tailscale_act_carries_only_the_members_given() {
+	let wire = |message: Message| -> serde_json::Value {
+		serde_json::from_slice(&message.to_json()).unwrap()
+	};
+	let sign_in = wire(tailscale_act(
+		"sign-in".to_owned(),
+		Some("auth-key".to_owned()),
+		Some("tskey-auth-k".to_owned()),
+		None,
+		None,
+	));
+	assert_eq!(
+		sign_in,
+		serde_json::json!({"type": "tailscale-act", "ACT": "sign-in", "METHOD": "auth-key", "KEY": "tskey-auth-k"})
+	);
+	let named = wire(tailscale_act(
+		"sign-in".to_owned(),
+		Some("auth-key".to_owned()),
+		Some("k".to_owned()),
+		Some("clinic-iti".to_owned()),
+		None,
+	));
+	assert_eq!(named["NAME"], "clinic-iti");
+	for peer in [None, Some(String::new())] {
+		assert_eq!(
+			wire(tailscale_act("ping".to_owned(), None, None, None, peer)),
+			serde_json::json!({"type": "tailscale-act", "ACT": "ping"})
+		);
+	}
+	assert_eq!(
+		wire(tailscale_act(
+			"ping".to_owned(),
+			None,
+			None,
+			None,
+			Some("canopy".to_owned())
+		))["PEER"],
+		"canopy"
+	);
+}
+
+/// The Tamanu stream's act is `tamanu-act` with the act critical (TMU).
+#[test]
+fn a_tamanu_act_carries_its_act_critical() {
+	assert_eq!(
+		String::from_utf8(
+			Message::TamanuAct {
+				act: "restart".to_owned()
+			}
+			.to_json()
+		)
+		.unwrap(),
+		r#"{"ACT":"restart","type":"tamanu-act"}"#
+	);
 }
