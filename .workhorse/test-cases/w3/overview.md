@@ -60,4 +60,4 @@ What verifies the Network, Cable, Join wifi and Share hotspot screens.
 - [x] Wifi to cable by plugging one in
 - [x] Cable and hotspot together, a phone joining by the QR code
 - [x] Joining wifi from the hotspot, and a wrong password
-- [ ] The busy note from a second phone
+- [x] The busy note from a second phone
