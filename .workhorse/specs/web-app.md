@@ -140,14 +140,14 @@ The application MUST NOT reconnect on its own after a `power-off`.
 
 ## While the page is hidden
 
-Where the channel closes while the page is hidden, other than as [When the device goes away](#when-the-device-goes-away) has it, the application MUST hold the screen the operator was on and what it showed, and MUST NOT say the device was lost.
+Where the channel closes while the page is hidden, or within a moment of it being shown again, other than as [When the device goes away](#when-the-device-goes-away) has it, the application MUST hold the screen the operator was on and what it showed, and MUST NOT say the device was lost.
 Once the page is shown again, the application MUST reconnect to the same device on its own, without offering the chooser, saying that it is reconnecting, and MUST return the operator to the screen they were on once the channel is open again.
 Disconnecting MUST stop it reconnecting.
 The application MUST stop trying once a device that has not answered is unlikely to, and MUST then say that the device was lost and offer to find it again.
 Where the browser cannot reach the device again without the chooser, the application MUST say that the device was lost and offer to find it again.
 
 > [!NOTE]
-> A phone ends the Bluetooth link of a browser it has put in the background, and a page cannot hold it open. Without this, a technician who steps into another app and back would meet a lost device every time.
+> A phone may end the Bluetooth link of a browser it has put in the background, and a page cannot hold it open. A browser that froze the page may end it only as the page comes back, which is why a drop just after the page is shown counts too. Without this, a technician who steps into another app and back would meet a lost device.
 
 ## Moving between screens
 
