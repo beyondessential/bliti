@@ -53,7 +53,7 @@ Scenarios for the Status screen landing and the `end-of-batch` marker it reads i
 - [x] Network settings keep edits not applied across the reconnect, and follow the device where the session is read-only (verifies spec: NSCR)
 - [x] Power and battery opens its streams again on the reconnected channel
 - [x] Advanced stays as left across a reconnect (verifies spec: STAT)
-- [ ] On the phone: switch to another app for a minute and back, and land where you were
+- [x] On the phone: switch to another app for a minute and back, and land where you were
 
 ## On a real device
 
