@@ -934,3 +934,16 @@ fn a_change_of_facts_carries_what_it_ends_and_what_replaces_it() {
 	assert_eq!(*entries[1], after[0]);
 	assert_eq!(*entries[2], after[1]);
 }
+
+/// The sampler gathers the wireless network and the hotspot with the readings, and they go out as the
+/// facts NFO catalogues them as; what else it gathers goes out as readings.
+#[test]
+fn the_sampled_wireless_network_and_hotspot_are_facts() {
+	let joined = Entry::text(1, "wireless-network", "Clinic-Staff")
+		.with_trait("interface", serde_json::json!({ "name": "wlan0" }));
+	let hotspot = Entry::text(1, "hotspot", "Clinic-Field-05");
+	let clients = Entry::quantity(1, "hotspot-clients", "clients", 2.0);
+	assert_eq!(sampled(joined.clone()), Message::Fact(joined));
+	assert_eq!(sampled(hotspot.clone()), Message::Fact(hotspot));
+	assert_eq!(sampled(clients.clone()), Message::Reading(clients));
+}

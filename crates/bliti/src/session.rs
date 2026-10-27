@@ -440,11 +440,17 @@ where
 	// current readings, so every tile fills at once rather than over the next few seconds. Together
 	// they are the first batch: everything the device holds (NFO).
 	let mut last_facts = facts_now(tailscale, tamanu);
+	let (sampled_facts, readings): (Vec<Message>, Vec<Message>) = sampler
+		.current()
+		.into_iter()
+		.map(sampled)
+		.partition(|message| matches!(message, Message::Fact(_)));
 	let first = last_facts
 		.iter()
 		.cloned()
 		.map(Message::Fact)
-		.chain(sampler.current().into_iter().map(Message::Reading))
+		.chain(sampled_facts)
+		.chain(readings)
 		.collect();
 	write_batch(stream, first)
 		.await
@@ -485,7 +491,7 @@ where
 
 			received = live.recv() => match received {
 				Ok(readings) => {
-					if write_batch(&mut writer, readings.into_iter().map(Message::Reading).collect())
+					if write_batch(&mut writer, readings.into_iter().map(sampled).collect())
 						.await
 						.is_err()
 					{
@@ -524,6 +530,20 @@ fn changed_facts(last: &[Entry], current: &[Entry], at: u64) -> Vec<Message> {
 		.map(Message::Fact)
 		.collect()
 }
+
+/// An entry the sampler gathered, as the message of the catalogue that names it. The sampler takes
+/// the wireless network and the hotspot with the readings, because they change at the rate it samples
+/// and are read off the same radios, but NFO catalogues them as facts.
+fn sampled(entry: Entry) -> Message {
+	if SAMPLED_FACTS.contains(&entry.name.as_str()) {
+		Message::Fact(entry)
+	} else {
+		Message::Reading(entry)
+	}
+}
+
+/// The facts the sampler gathers (NFO).
+const SAMPLED_FACTS: [&str; 2] = ["wireless-network", "hotspot"];
 
 /// Write the entries taken together as one batch, ended by `end-of-batch` (NFO).
 async fn write_batch<W: AsyncWrite + Unpin>(
