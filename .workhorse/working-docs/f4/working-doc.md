@@ -17,7 +17,7 @@ The vendor-info atom's fields are all standard:
 | --- | --- | --- |
 | `uuid` | a fresh RFC 4122 UUID generated per board at programming time: the board's serial | no (see open questions on accounting) |
 | `vendor` | a readable vendor string ("BES International") | no |
-| `product` | a readable product string, e.g. "Tamanu Iti v4" | no |
+| `product` | a readable product string, e.g. "Tamanu Iti v4.0" | no |
 | `product_id` | one value per generation | no; readable only |
 | `product_ver` | the board revision within a generation | no; readable only |
 
