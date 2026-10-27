@@ -187,8 +187,11 @@ test('a simple network screen keeps the password typed across the reconnect, on 
 	await returns(page, 'ok')
 	await setHidden(page, false)
 
+	// The screen renders on the old session for a moment before the new one is asked for, so the
+	// field is checked only once the new session is open.
+	await expect.poll(() => page.evaluate(() => window.__blitiSessions.length)).toBe(2)
+	await expect(page.getByText('Asking the Iti for its network settings.')).toHaveCount(0)
 	await expect(page.getByLabel('Password', { exact: true })).toHaveValue('half-typed')
-	expect(await page.evaluate(() => window.__blitiSessions.length)).toBe(2)
 })
 
 test('a simple network screen returns to the Status screen where the session opened again is busy', async ({ page }) => {
