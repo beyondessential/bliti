@@ -146,7 +146,7 @@ This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generat
 | U1 | the HAT EEPROM (SOIC-8, presumably) | beside R1/R2, marked 392 (3.9 kΩ, the HAT spec's ID-pin pull-ups) and the ID WP pads |
 | ID WP | two round pads, centre right | bridged to make the EEPROM writable |
 | U2 | TPM, ST33K part on SPI | the BID board-ID source |
-| U3 | AIR: Bosch BME680 | rev C is expected to carry a cheaper air sensor instead (possibly a BMP580") |
+| U3 | AIR: Bosch BME680 | rev C is expected to carry a cheaper air sensor instead (possibly a BMP580) |
 | U4 | LIGHT: ambient light sensor ("ALS 308") | |
 | USER | tactile button | the button the assembler presses to select a board in provisioning |
 | SW1 | CASE: lever switch, held pressed while the case is closed | case-open detection |
