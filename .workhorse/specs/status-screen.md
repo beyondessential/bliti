@@ -15,7 +15,7 @@ The application MUST show the Status screen when a channel to a device opens, an
 
 The application MUST title the Status screen with the device's `hostname`, falling back to the last four characters of the encoded payload of [QR](qr-code.md) where the device reports none.
 
-The application MUST carry beneath the title the device's software identity, from `board` with `board-revision`, `os` and `kernel`, as [VIEW](device-view.md) draws its header.
+The application MUST carry beneath the title the device's identity, from `board` and `os`, each as its `short` trait of [NFO](device-info.md#identity) has it and as its value where it carries none.
 
 The application MUST offer to disconnect beside the title.
 

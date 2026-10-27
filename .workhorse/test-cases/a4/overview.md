@@ -16,5 +16,5 @@
 ## Readers
 
 - [x] All readings keeps the full board and os line where they carry short forms (verifies spec: VIEW)
-- [ ] The Status screen's identity line reads "Raspberry Pi 5 · Ubuntu 26.04" from the short forms (verifies spec: STAT)
-- [ ] The Status screen falls back to a fact's value where it carries no `short` (verifies spec: STAT)
+- [x] The Status screen's identity line reads "Raspberry Pi 5 · Ubuntu 26.04" from the short forms (verifies spec: STAT)
+- [x] The Status screen falls back to a fact's value where it carries no `short` (verifies spec: STAT)

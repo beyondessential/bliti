@@ -30,18 +30,31 @@ const rows = (page) => page.locator('.health li .name')
 const row = (page, name) => page.locator('.health li').filter({ has: page.locator('.name', { hasText: name }) })
 
 test.describe('the landing', () => {
-	test('is titled with the hostname, with the software identity beneath and Disconnect beside it', async ({ page }) => {
+	test('is titled with the hostname, with the identity in short beneath and Disconnect beside it', async ({ page }) => {
 		await openChannel(
 			page,
 			fact('hostname', 'clinic-iti-07'),
-			fact('board', 'Raspberry Pi 5'),
-			fact('board-revision', 'Rev 1.0'),
-			fact('os', 'Ubuntu 26.04'),
+			fact('board', 'Raspberry Pi 5 Model B Rev 1.0', { short: 'Raspberry Pi 5' }),
+			fact('board-revision', 'd04170'),
+			fact('os', 'Ubuntu 26.04 LTS', { short: 'Ubuntu 26.04' }),
 			fact('kernel', '6.8.0'),
 		)
 		await expect(title(page)).toHaveText('clinic-iti-07')
-		await expect(page.locator('.heading.title .software')).toHaveText('Raspberry Pi 5 Rev 1.0 · Ubuntu 26.04 · 6.8.0')
+		await expect(page.locator('.heading.title .software')).toHaveText('Raspberry Pi 5 · Ubuntu 26.04')
 		await expect(page.locator('.heading.title .actions button')).toHaveText(['Disconnect'])
+	})
+
+	// A board with no short form is named by its value, without its revision (STAT).
+	test('names a board or os with no short form by its value', async ({ page }) => {
+		await openChannel(
+			page,
+			fact('hostname', 'dev-laptop'),
+			fact('board', 'Dell Inc. G7 7700'),
+			fact('board-revision', 'A01'),
+			fact('os', 'Arch Linux', { short: 'Arch Linux' }),
+			fact('kernel', '7.2.11'),
+		)
+		await expect(page.locator('.heading.title .software')).toHaveText('Dell Inc. G7 7700 · Arch Linux')
 	})
 
 	test('is titled with the end of the code where the device reports no hostname', async ({ page }) => {

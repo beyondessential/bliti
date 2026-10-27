@@ -18,6 +18,6 @@ This card then rebases onto it and switches the Status screen's identity line to
 - [x] Device: decode the board type and carry `short` on `board`; carry `short` on `os`
 - [x] Device tests: type decoding (known, unknown, old-style code), os-release with and without `VERSION_ID`
 - [x] Rebase onto V3 once merged
-- [ ] STAT: identity line from `short` on `board` and `os`, falling back to their values
+- [x] STAT: identity line from `short` on `board` and `os`, falling back to their values
 - [x] Client: `short` is descriptive in series keying; All readings unchanged
-- [ ] Client: Status screen identity line
+- [x] Client: Status screen identity line
