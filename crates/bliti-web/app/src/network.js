@@ -626,7 +626,8 @@ function hotspotProblem(hotspot) {
 	return null
 }
 
-function passphraseFits(passphrase) {
+/// Whether a passphrase has from 8 to 63 characters, as every key-based network and hotspot needs.
+export function passphraseFits(passphrase) {
 	return typeof passphrase === 'string' && passphrase.length >= 8 && passphrase.length <= 63
 }
 

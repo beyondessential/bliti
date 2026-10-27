@@ -20,7 +20,7 @@ This spec, [WIFI](wifi.md) and [SHARE](share.md) use these terms of a configurat
 | the cable | every `wired-dynamic` and `wired-static` [candidate](../overview.md#candidate) the configuration carries |
 | wifi | the `wireless` candidate the configuration carries, where it carries exactly one |
 | on | for the cable, carrying at least one candidate, every one with `enabled` true; for wifi and the hotspot, present with `enabled` true |
-| off | for the cable, carrying no candidate whose `enabled` is true; for wifi and the hotspot, absent or with `enabled` false |
+| off | for the cable, carrying at least one candidate, none with `enabled` true; for wifi and the hotspot, absent or with `enabled` false |
 
 A configuration MUST be in one of the simple states where it matches a row of this table, and outside them otherwise:
 
