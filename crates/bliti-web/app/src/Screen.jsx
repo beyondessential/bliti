@@ -77,3 +77,42 @@ function clock(at) {
 		second: '2-digit',
 	})
 }
+
+/// While `lost` is set, leaving the screen loses what the operator has not applied: the browser warns
+/// before the page goes, and `guard` holds how the screen asks before the browser's way back leaves
+/// it, which `ask` does (NSCR, NSET).
+export function useLeaveGuard(lost, guard, ask) {
+	useEffect(() => {
+		if (!lost) return
+		const warn = (event) => {
+			event.preventDefault()
+			event.returnValue = ''
+		}
+		window.addEventListener('beforeunload', warn)
+		guard.current = ask
+		return () => {
+			window.removeEventListener('beforeunload', warn)
+			guard.current = null
+		}
+	}, [lost, guard, ask])
+}
+
+/// Asking before the operator leaves a screen with something not applied, saying it will be lost.
+export function LeaveConfirm({ question, lost, onLeave, onStay }) {
+	return (
+		<div className="bar-state" role="alertdialog" aria-label={question}>
+			<p>
+				<strong>{question}</strong>
+			</p>
+			<p>{lost}</p>
+			<div className="row">
+				<button className="danger-fill" onClick={onLeave}>
+					Leave
+				</button>
+				<button className="secondary" onClick={onStay}>
+					Stay
+				</button>
+			</div>
+		</div>
+	)
+}

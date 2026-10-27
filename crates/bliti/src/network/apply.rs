@@ -191,6 +191,14 @@ pub trait System {
 	/// has done so.
 	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()>;
 
+	/// Let the hotspot's clients on `interface` reach the device's DHCP server through its firewall,
+	/// doing nothing where the device has no firewall or already lets them.
+	fn open_firewall(&mut self, interface: &str) -> anyhow::Result<()>;
+
+	/// Take away what [`System::open_firewall`] let through on `interface`, doing nothing where it
+	/// is not there.
+	fn close_firewall(&mut self, interface: &str) -> anyhow::Result<()>;
+
 	/// Restart iwd, so it reads its main configuration again, returning once it is up.
 	fn restart_iwd(&mut self) -> anyhow::Result<()>;
 
@@ -361,7 +369,8 @@ impl Step<'_> {
 
 	/// Each access point interface's configuration is written and restarted on, or taken away with
 	/// its interface. At most one hotspot runs, so one moving to another radio goes down on the old
-	/// one before it comes up on the new.
+	/// one before it comes up on the new. The firewall lets the hotspot's clients reach DHCP from
+	/// before hostapd starts until after it stops.
 	fn hostapd(&self, system: &mut dyn System) -> Result<(), Error> {
 		let paths = &self.hardware.paths;
 		for path in self.removed {
@@ -370,6 +379,9 @@ impl Step<'_> {
 			};
 			system
 				.hostapd(Hostapd::Stop, interface)
+				.map_err(|e| self.failed(e))?;
+			system
+				.close_firewall(interface)
 				.map_err(|e| self.failed(e))?;
 			if self.hardware.access_point_radio(interface).is_some() {
 				system
@@ -383,7 +395,12 @@ impl Step<'_> {
 			let Some(interface) = paths.hostapd_interface(&file.path) else {
 				continue;
 			};
+			// Opened on a restart too, so a hotspot running when a daemon that opens it first starts
+			// is let through.
 			if self.record.contains(&file.path) {
+				system
+					.open_firewall(interface)
+					.map_err(|e| self.failed(e))?;
 				system
 					.hostapd(Hostapd::Restart, interface)
 					.map_err(|e| self.failed(e))?;
@@ -394,6 +411,9 @@ impl Step<'_> {
 					.create_access_point(radio, interface)
 					.map_err(|e| self.failed(e))?;
 			}
+			system
+				.open_firewall(interface)
+				.map_err(|e| self.failed(e))?;
 			system
 				.hostapd(Hostapd::Start, interface)
 				.map_err(|e| self.failed(e))?;

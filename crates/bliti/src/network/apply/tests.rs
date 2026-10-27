@@ -38,6 +38,8 @@ enum Call {
 	CreateAp(String, String),
 	DeleteAp(String),
 	Hostapd(Hostapd, String),
+	OpenFirewall(String),
+	CloseFirewall(String),
 	RestartIwd,
 	ReloadNetworkd,
 	ReloadResolved,
@@ -80,6 +82,14 @@ impl System for Fake {
 
 	fn hostapd(&mut self, action: Hostapd, interface: &str) -> anyhow::Result<()> {
 		self.call(Call::Hostapd(action, interface.into()))
+	}
+
+	fn open_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		self.call(Call::OpenFirewall(interface.into()))
+	}
+
+	fn close_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		self.call(Call::CloseFirewall(interface.into()))
 	}
 
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {
@@ -253,6 +263,7 @@ fn the_first_apply_picks_everything_up_in_order() {
 		[
 			Call::Regdom("NZ".into()),
 			Call::CreateAp("wlan0".into(), "ap0".into()),
+			Call::OpenFirewall("ap0".into()),
 			Call::Hostapd(Hostapd::Start, "ap0".into()),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
@@ -474,7 +485,10 @@ fn a_hostapd_change_only_restarts_hostapd() {
 	);
 	assert_eq!(
 		device.system.take(),
-		[Call::Hostapd(Hostapd::Restart, "ap0".into())]
+		[
+			Call::OpenFirewall("ap0".into()),
+			Call::Hostapd(Hostapd::Restart, "ap0".into())
+		]
 	);
 }
 
@@ -493,6 +507,7 @@ fn a_domain_change_reaches_every_backend_carrying_it() {
 		device.system.take(),
 		[
 			Call::Regdom("AU".into()),
+			Call::OpenFirewall("ap0".into()),
 			Call::Hostapd(Hostapd::Restart, "ap0".into()),
 			Call::RestartIwd,
 		]
@@ -517,6 +532,7 @@ fn a_dropped_hotspot_stops_hostapd_and_deletes_its_interface() {
 		device.system.take(),
 		[
 			Call::Hostapd(Hostapd::Stop, "ap0".into()),
+			Call::CloseFirewall("ap0".into()),
 			Call::DeleteAp("ap0".into()),
 			Call::ReloadNetworkd,
 		]
@@ -542,6 +558,7 @@ fn a_hotspot_turned_off_stops_hostapd_and_deletes_its_interface() {
 		device.system.take(),
 		[
 			Call::Hostapd(Hostapd::Stop, "ap0".into()),
+			Call::CloseFirewall("ap0".into()),
 			Call::DeleteAp("ap0".into()),
 			Call::ReloadNetworkd,
 		]
@@ -573,8 +590,10 @@ fn a_hotspot_moving_radio_moves_its_access_point_interface() {
 		device.system.take(),
 		[
 			Call::Hostapd(Hostapd::Stop, "ap0".into()),
+			Call::CloseFirewall("ap0".into()),
 			Call::DeleteAp("ap0".into()),
 			Call::CreateAp("wlan1".into(), "ap1".into()),
+			Call::OpenFirewall("ap1".into()),
 			Call::Hostapd(Hostapd::Start, "ap1".into()),
 			Call::ReloadNetworkd,
 		]
@@ -614,7 +633,10 @@ fn a_channel_change_restarts_hostapd() {
 	);
 	assert_eq!(
 		device.system.take(),
-		[Call::Hostapd(Hostapd::Restart, "ap0".into())]
+		[
+			Call::OpenFirewall("ap0".into()),
+			Call::Hostapd(Hostapd::Restart, "ap0".into())
+		]
 	);
 	assert!(
 		fs::read_to_string(device.path("etc/hostapd/ap0.conf"))
@@ -647,6 +669,7 @@ fn a_failing_call_names_its_backend_and_is_retried() {
 		[
 			Call::Regdom("NZ".into()),
 			Call::CreateAp("wlan0".into(), "ap0".into()),
+			Call::OpenFirewall("ap0".into()),
 			Call::Hostapd(Hostapd::Start, "ap0".into()),
 		]
 	);
@@ -658,6 +681,7 @@ fn a_failing_call_names_its_backend_and_is_retried() {
 		device.system.take(),
 		[
 			Call::CreateAp("wlan0".into(), "ap0".into()),
+			Call::OpenFirewall("ap0".into()),
 			Call::Hostapd(Hostapd::Start, "ap0".into()),
 			Call::RestartIwd,
 			Call::ReloadNetworkd,
@@ -715,7 +739,7 @@ fn an_unreadable_record_applies_afresh() {
 
 	let changes = device.apply(&full());
 	assert_eq!(changes.iwd.len(), 2);
-	assert_eq!(device.system.take().len(), 6);
+	assert_eq!(device.system.take().len(), 7);
 }
 
 #[test]

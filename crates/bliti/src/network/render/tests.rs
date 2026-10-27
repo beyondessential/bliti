@@ -487,7 +487,7 @@ fn hotspot_defaults() {
 		"interface=ap0\n",
 		&format!("ssid2={}\n", hex::encode("bliti-setup")),
 		"hw_mode=g\nchannel=6\n",
-		"wpa_key_mgmt=WPA-PSK SAE\n",
+		"wpa_key_mgmt=WPA-PSK\n",
 		"ieee80211w=1\n",
 		"wpa_passphrase=read this aloud\n",
 		"ap_isolate=1\n",
@@ -500,6 +500,7 @@ fn hotspot_defaults() {
 		);
 	}
 	assert!(!hostapd.contents.contains("country_code"));
+	assert!(!hostapd.contents.contains("SAE"));
 }
 
 /// Every hotspot switch the document sets is carried through.

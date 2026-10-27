@@ -197,9 +197,11 @@ pub(super) fn conf(
 		out.push_str("ieee80211ac=1\n");
 	}
 	widen(&mut out, channel, width).map_err(|reason| invalid(&at("channel-width"), reason))?;
+	// WPA2 alone: a phone that picks WPA3 from the transition mode cannot join a radio that does not
+	// offer SAE as an access point, and says the password is wrong.
 	let _ = write!(
 		out,
-		"wpa=2\nwpa_key_mgmt=WPA-PSK SAE\nrsn_pairwise=CCMP\nieee80211w=1\nsae_require_mfp=1\n\
+		"wpa=2\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\nieee80211w=1\n\
 		 wpa_passphrase={passphrase}\nap_isolate={}\nwps_state=0\n",
 		u8::from(hotspot.isolate_clients.unwrap_or(true))
 	);

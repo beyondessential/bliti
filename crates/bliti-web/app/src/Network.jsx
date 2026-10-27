@@ -2,7 +2,7 @@
 // the country, edited here and proposed only when the operator applies, with the state of the session
 // pinned in view. The session closes when the screen does.
 
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { absent, acts, attachmentKinds, check, countries, hotspotBlockedBy, hotspotOn } from './capabilities.js'
 import {
@@ -42,7 +42,7 @@ import {
 import { pathOf, within } from './path.js'
 import { bandName } from './wireless.js'
 import { loadProtocol } from './protocol.js'
-import { Title } from './Screen.jsx'
+import { LeaveConfirm, Title, useLeaveGuard } from './Screen.jsx'
 
 /// `guard` is where the screen tells its caller, while leaving would lose edits, how to ask before the
 /// operator goes, so the browser's way back asks as the screen's own Back does (NSCR). `channel`
@@ -116,19 +116,8 @@ export default function Network({
 	// Edits the device does not hold are lost on leaving, so leaving asks, and the browser warns before
 	// the page goes (NSCR).
 	const lost = unapplied(state)
-	useEffect(() => {
-		if (!lost) return
-		const warn = (event) => {
-			event.preventDefault()
-			event.returnValue = ''
-		}
-		window.addEventListener('beforeunload', warn)
-		guard.current = () => setLeaving(true)
-		return () => {
-			window.removeEventListener('beforeunload', warn)
-			guard.current = null
-		}
-	}, [lost, guard])
+	const ask = useCallback(() => setLeaving(true), [])
+	useLeaveGuard(lost, guard, ask)
 
 	const change = (edit) => dispatch({ type: 'edit', change: (held) => fitted(edit(held), state.capabilities) })
 	const readOnly = !writable(state)
@@ -231,20 +220,12 @@ export default function Network({
 		<div className="network">
 			{title}
 			{leaving && lost && (
-				<div className="bar-state" role="alertdialog" aria-label="Leave the network settings?">
-					<p>
-						<strong>Leave the network settings?</strong>
-					</p>
-					<p>The changes you have not applied will be lost.</p>
-					<div className="row">
-						<button className="danger-fill" onClick={onBack}>
-							Leave
-						</button>
-						<button className="secondary" onClick={() => setLeaving(false)}>
-							Stay
-						</button>
-					</div>
-				</div>
+				<LeaveConfirm
+					question="Leave the network settings?"
+					lost="The changes you have not applied will be lost."
+					onLeave={onBack}
+					onStay={() => setLeaving(false)}
+				/>
 			)}
 			{state.notice && <p className="notice fault">{state.notice}</p>}
 

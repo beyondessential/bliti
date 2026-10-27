@@ -12,10 +12,13 @@ import {
 	message,
 	openChannel,
 	openChecking,
+	openNetworkScreen,
 	openPower,
 	openReadings,
+	say,
 	stateOf,
 } from './fake-client.js'
+import { ON_CABLE } from './setup-fixtures.js'
 
 const passed = { status: { is: 'passed' } }
 const fact = (name, value, traits = {}, kind = 'text') =>
@@ -132,19 +135,56 @@ test.describe('the rows', () => {
 })
 
 test.describe('the network row', () => {
-	test('Change opens the network settings, and its Back returns to the Status screen', async ({ page }) => {
+	test('Change opens the Network screen, and its Back returns to the Status screen, closing the session', async ({ page }) => {
 		await openChannel(page, carrier('end0'), address('end0', '192.0.2.4'))
-		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf()])
+		await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf()])
 		await row(page, 'Network').getByRole('button', { name: 'Change' }).click()
-		await expect(title(page)).toHaveText('Network settings')
+		await expect(title(page)).toHaveText('Network')
 		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		await expect(title(page)).toHaveText(UNNAMED)
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
 	})
 
-	test('opens the network settings read-only where someone else holds the session', async ({ page }) => {
+	test('Set up says it is waiting on the device until the session answers', async ({ page }) => {
+		await openChannel(page, carrier('end0'))
+		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await expect(row(page, 'Network').getByRole('status')).toHaveText('Asking the Iti…')
+		await expect(title(page)).toHaveText(UNNAMED)
+		await say(page, message({ type: 'configuration', document: ON_CABLE, capabilities: PI }))
+		await expect(title(page)).toHaveText(UNNAMED)
+		await say(page, stateOf())
+		await expect(title(page)).toHaveText('Network')
+	})
+
+	test('stays on the Status screen where someone else holds the session, saying so until asked again', async ({ page }) => {
+		await openChannel(page, carrier('end0'))
+		await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf({ busy: true })])
+		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await expect(row(page, 'Network')).toContainText('Someone else is making changes')
+		await expect(title(page)).toHaveText(UNNAMED)
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+
+		await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf()])
+		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await expect(title(page)).toHaveText('Network')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(row(page, 'Network')).not.toContainText('Someone else')
+	})
+
+	test('clears the note once the operator leaves the Status screen', async ({ page }) => {
+		await openChannel(page, carrier('end0'))
+		await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf({ busy: true })])
+		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await expect(row(page, 'Network')).toContainText('Someone else is making changes')
+		await openReadings(page)
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(row(page, 'Network')).not.toContainText('Someone else')
+	})
+
+	test('network settings opens under Advanced as it did, read-only where someone else holds the session', async ({ page }) => {
 		await openChannel(page, carrier('end0'))
 		await answer(page, 'configure', [message({ type: 'configuration', document: IN_FORCE, capabilities: PI }), stateOf({ busy: true })])
-		await row(page, 'Network').getByRole('button', { name: 'Set up' }).click()
+		await openNetworkScreen(page)
 		await expect(bar(page)).toHaveAttribute('data-stage', 'watching')
 		await expect(page.getByLabel('Country')).toBeDisabled()
 	})

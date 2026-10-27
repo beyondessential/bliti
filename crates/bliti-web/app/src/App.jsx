@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Connect from './Connect.jsx'
+import JoinWifi from './JoinWifi.jsx'
 import Network from './Network.jsx'
 import { useOfflineReady } from './offline.js'
 import Power from './Power.jsx'
 import Readings, { identityOf } from './Readings.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from './Screen.jsx'
+import { CableScreen, NetworkScreen } from './Setup.jsx'
+import ShareHotspot from './ShareHotspot.jsx'
 import Status from './Status.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
 import { applyBatch, entryOf, hasValue, isEnded } from './readings.js'
 import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
+import { useSetupSession } from './session.js'
 import { statusRows } from './status.js'
 
 // How many notices are kept. The far end decides how many arrive.
@@ -47,6 +51,12 @@ const TIMINGS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// The simple network screens, which share one configuration session (NSET).
+const SIMPLE = new Set(['network', 'cable', 'wifi', 'hotspot'])
+
+// Said on the network row where another session holds the configuration (NSET).
+const BUSY = 'Someone else is making changes'
+
 export default function App() {
 	// The seam the harness fakes at: a fake client is fed decoded messages with no wasm and no
 	// Bluetooth in the loop. Compiled out of any build but the harness's.
@@ -68,8 +78,9 @@ export default function App() {
 	connected_.current = connected
 	const [device, setDevice] = useState(null)
 	// Which screen of a connected device is showing: its status, all its readings, its power and
-	// battery, or its network settings. Every screen but the status has a history entry of its own
-	// (WEB, "Moving between screens"), and the ref is what the browser's way back is checked against.
+	// battery, its network settings, or one of the simple network screens. Every screen but the status
+	// has a history entry of its own, carrying how many levels below the status it is (WEB, "Moving
+	// between screens"), and the ref is what the browser's way back is checked against.
 	const [screen, setScreen] = useState('status')
 	const screen_ = useRef('status')
 	// Whether Advanced is open on the Status screen, kept while the operator goes down a level and back,
@@ -77,7 +88,7 @@ export default function App() {
 	const [advanced, setAdvanced] = useState(false)
 	// Set while the application itself is going back, so that going back does not ask again.
 	const leaving_ = useRef(false)
-	// How the network settings screen asks before the operator leaves it with edits not applied (NSCR).
+	// How the screen showing asks before the operator leaves it with edits not applied (NSCR, NSET).
 	const guard = useRef(null)
 	const [dev, tap] = useDevMode()
 	// The act the device is carrying out, from being told of it until it is back, has not come back,
@@ -158,23 +169,24 @@ export default function App() {
 		setAway(null)
 	}, [opening])
 
-	// Opening a screen goes one level down from the status, and the browser's way back brings the
+	// Opening a screen goes one level down from the one showing, and the browser's way back brings the
 	// operator up again, as the screen's Back does (WEB, "Moving between screens").
-	const openScreen = (next) => {
-		window.history.pushState({ screen: next }, '')
+	const openScreen = useCallback((next) => {
+		window.history.pushState({ screen: next, depth: (window.history.state?.depth ?? 0) + 1 }, '')
 		screen_.current = next
 		setScreen(next)
-	}
+	}, [])
 	const goBack = () => {
 		leaving_.current = true
 		window.history.back()
 	}
-	// Back at the status however the operator got there, with the entry of the screen they were on
+	// Back at the status however the operator got there, with the entries of the screens they were on
 	// taken out of the history.
 	const toLanding = useCallback(() => {
-		if (window.history.state?.screen) {
+		const depth = window.history.state?.depth ?? 0
+		if (depth > 0) {
 			leaving_.current = true
-			window.history.back()
+			window.history.go(-depth)
 		}
 		screen_.current = 'status'
 		setScreen('status')
@@ -190,8 +202,8 @@ export default function App() {
 				if (next !== 'status') window.history.replaceState(null, '')
 				return
 			}
-			if (!confirmed && screen_.current === 'network' && next !== 'network' && guard.current) {
-				window.history.pushState({ screen: 'network' }, '')
+			if (!confirmed && next !== screen_.current && guard.current) {
+				window.history.pushState({ screen: screen_.current, depth: (event.state?.depth ?? 0) + 1 }, '')
 				guard.current()
 				return
 			}
@@ -270,6 +282,64 @@ export default function App() {
 		(event) => note('in', event.kind === 'message' ? describe(event.message) : `${event.kind}  ${event.detail}`),
 		[note],
 	)
+
+	// The session the simple network screens share, opened from the Status screen's network row and
+	// closed on returning to it (NSET). `asking` is whether the application is waiting on its first
+	// `state`: `open` from the Status screen, or `resume` under a simple screen already showing.
+	const setup = useSetupSession(client, { onActivity: note, onEvent: noteSession })
+	const [asking, setAsking] = useState(null)
+	// What the network row says of the session, until the operator next asks for it or leaves.
+	const [networkNote, setNetworkNote] = useState(null)
+
+	const changeNetwork = () => {
+		setNetworkNote(null)
+		setAsking('open')
+		setup.open()
+	}
+	const reopenSetup = () => {
+		setAsking('resume')
+		setup.resume()
+	}
+	const openSettings = () => {
+		setup.close()
+		openScreen('settings')
+	}
+
+	useEffect(() => {
+		if (!asking || setup.state.status === 'opening') return
+		setAsking(null)
+		const { status, busy, why } = setup.state
+		if (status === 'closed') {
+			if (asking === 'open') setNetworkNote(why ? `Couldn't open the network settings: ${why}` : "Couldn't open the network settings.")
+			return
+		}
+		if (busy) {
+			setup.close()
+			setNetworkNote(BUSY)
+			if (asking === 'resume') toLanding()
+			return
+		}
+		if (asking === 'open') openScreen('network')
+	}, [asking, setup, toLanding, openScreen])
+
+	// Held across the simple screens, opened again on coming back to one from the network settings,
+	// and closed everywhere else, but on the Status screen while it opens (NSET).
+	useEffect(() => {
+		if (screen !== 'status') setNetworkNote(null)
+		if (SIMPLE.has(screen)) {
+			if (!setup.active) reopenSetup()
+		} else if (screen !== 'status' || asking !== 'open') {
+			setup.close()
+		}
+	}, [screen, asking, setup.active])
+
+	// A channel reconnected under a simple screen opens the session again (NSET, WEB).
+	const seenChannel_ = useRef(channel)
+	useEffect(() => {
+		if (seenChannel_.current === channel) return
+		seenChannel_.current = channel
+		if (setup.active && SIMPLE.has(screen_.current)) reopenSetup()
+	}, [channel])
 
 	const onCode = (read, how) => {
 		setCode(read)
@@ -575,7 +645,7 @@ export default function App() {
 		</section>
 	)
 
-	if (live && !going && screen === 'network') {
+	if (live && !going && screen === 'settings') {
 		return shell(
 			<Network
 				client={client}
@@ -589,6 +659,20 @@ export default function App() {
 				reconnecting={!!away}
 			/>,
 		)
+	}
+
+	if (live && !going && SIMPLE.has(screen)) {
+		const frame = { session: setup, entries: all, onBack: goBack, reconnecting: !!away, onReopen: reopenSetup }
+		switch (screen) {
+			case 'network':
+				return shell(<NetworkScreen {...frame} onOpen={openScreen} onSettings={openSettings} />)
+			case 'cable':
+				return shell(<CableScreen {...frame} onDone={toLanding} />)
+			case 'wifi':
+				return shell(<JoinWifi {...frame} onDone={toLanding} onSettings={openSettings} guard={guard} />)
+			default:
+				return shell(<ShareHotspot {...frame} name={hostname ?? suffix(code.text)} guard={guard} />)
+		}
 	}
 
 	// A screen of a connected device: its title with its actions beside it, where every such screen
@@ -676,7 +760,9 @@ export default function App() {
 				))}
 				<Status
 					rows={statusRows(all, settled)}
-					onChange={() => openScreen('network')}
+					onChange={changeNetwork}
+					opening={asking === 'open'}
+					note={networkNote}
 					advanced={advanced}
 					onAdvanced={setAdvanced}
 					onOpen={openScreen}

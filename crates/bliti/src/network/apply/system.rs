@@ -6,6 +6,8 @@
 
 use std::{
 	collections::HashMap,
+	io,
+	process::Command,
 	sync::{Arc, Mutex, PoisonError},
 	time::{Duration, Instant},
 };
@@ -31,6 +33,33 @@ const IWD: &str = "iwd.service";
 /// instance of the template unit in `services/`.
 fn hostapd_unit(interface: &str) -> String {
 	format!("bliti-hostapd@{interface}.service")
+}
+
+/// The firewall Ubuntu ships, which drops what a rule does not let in.
+const UFW: &str = "/usr/sbin/ufw";
+
+/// The ufw rule letting the hotspot's clients on `interface` reach networkd's DHCP server.
+fn dhcp_rule(interface: &str) -> [&str; 10] {
+	[
+		"allow", "in", "on", interface, "to", "any", "port", "67", "proto", "udp",
+	]
+}
+
+/// Run ufw with `args`. A device without ufw has no firewall of its own to let anything through.
+fn ufw(args: &[&str]) -> anyhow::Result<()> {
+	let output = match Command::new(UFW).args(args).output() {
+		Ok(output) => output,
+		Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+		Err(error) => return Err(error).context("cannot run ufw"),
+	};
+	if !output.status.success() {
+		bail!(
+			"ufw {} failed: {}",
+			args.join(" "),
+			String::from_utf8_lossy(&output.stderr).trim()
+		);
+	}
+	Ok(())
 }
 
 /// The unit running systemd-resolved, which rereads its DNS delegates on reload.
@@ -145,6 +174,16 @@ impl System for Linux {
 			Hostapd::Stop => "StopUnit",
 		};
 		self.unit(method, &hostapd_unit(interface))
+	}
+
+	fn open_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		ufw(&dhcp_rule(interface))
+	}
+
+	fn close_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		let mut args = vec!["delete"];
+		args.extend(dhcp_rule(interface));
+		ufw(&args)
 	}
 
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {

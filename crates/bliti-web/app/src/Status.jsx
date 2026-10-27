@@ -6,13 +6,15 @@ import { Fragment } from 'react'
 import { IN_PROGRESS, NOT_WELL, WARNING, WELL } from './status.js'
 
 /// The rows and Advanced, beneath the title the application gives the screen.
-export default function Status({ rows, onChange, advanced, onAdvanced, onOpen }) {
+/// `opening` says the session the network row opens is waiting on the device, and `note` is what the
+/// row says of it (NSET).
+export default function Status({ rows, onChange, opening, note, advanced, onAdvanced, onOpen }) {
 	return (
 		<>
 			<section>
 				<h2>Status</h2>
 				<ul className="health">
-					<Row row={rows.network} onAction={onChange} />
+					<Row row={rows.network} onAction={onChange} waiting={opening} note={note} />
 					{rows.tailscale && <Row row={rows.tailscale} />}
 					<Row row={rows.tamanu} />
 				</ul>
@@ -26,7 +28,7 @@ export default function Status({ rows, onChange, advanced, onAdvanced, onOpen })
 						<button className="secondary" onClick={() => onOpen('readings')}>
 							All readings
 						</button>
-						<button className="secondary" onClick={() => onOpen('network')}>
+						<button className="secondary" onClick={() => onOpen('settings')}>
 							Network settings
 						</button>
 						<button className="secondary" onClick={() => onOpen('power')}>
@@ -47,7 +49,7 @@ const MARKS = {
 	[IN_PROGRESS]: ['wait', 'In progress'],
 }
 
-function Row({ row, onAction }) {
+function Row({ row, onAction, waiting, note }) {
 	const [mark, said] = MARKS[row.mark]
 	return (
 		<li>
@@ -62,8 +64,15 @@ function Row({ row, onAction }) {
 				{row.lines.map((parts, index) => (
 					<Line key={index} parts={parts} />
 				))}
+				{note && <span className="detail">{note}</span>}
 			</div>
-			{row.action && onAction && (
+			{row.action && onAction && waiting && (
+				<span className="busy" role="status">
+					<span className="spinner" aria-hidden="true" />
+					Asking the Iti…
+				</span>
+			)}
+			{row.action && onAction && !waiting && (
 				<button className="secondary" onClick={onAction}>
 					{row.action}
 				</button>
@@ -120,7 +129,7 @@ const WAYS = {
 	),
 }
 
-function Way({ way }) {
+export function Way({ way }) {
 	return (
 		<span className="way" aria-hidden="true">
 			<svg
