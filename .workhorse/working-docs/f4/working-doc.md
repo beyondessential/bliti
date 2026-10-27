@@ -66,6 +66,20 @@ It needs no QR code to start.
 
 Each step is offered separately and can be skipped, so a board that is already imaged (the v4 prototype, say) can have only its EEPROM programmed.
 
+#### Order of steps
+
+1. Check the hardware (first, so a bad board fails fast, and because the air sensor read places the board's version for the EEPROM step)
+2. Program the EEPROM
+3. Configure the bootloader
+4. Flash the NVMe and read it back
+5. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
+6. Render the label and save the board's record
+
+The assembler chooses which steps to run; the rest are skipped.
+A step that fails stops the run and says why, and the assembler can run it again without repeating the steps before it.
+The label and record are offered at the end of any run whose chosen steps all passed, since the QR code comes from the TPM board ID whichever steps ran.
+At the end the client tells the assembler to power the board off and remove the SD card.
+
 #### Flashing the NVMe
 
 The image is the `linux-images` `pi` variant.
@@ -78,6 +92,11 @@ The image copy on the SD card is ideally carried in a dm-verity partition, as th
 Hybrid: provisioning enrols a TPM-only keyslot (no PCR policy), which works from the SD boot and ties the disk to this board, and replaces the empty placeholder passphrase.
 A first-boot enrolment on the NVMe system then rebinds with PCRs, if the Pi can measure anything worth binding to.
 A recovery passphrase is generated at provisioning. It is never printed on the outside of the device.
+
+What the TPM-only keyslot protects: the disk away from its board.
+It does not protect a whole stolen device. The bootloader tries SD before NVMe (`BOOT_ORDER=0xf61` in `linux-images`), so anyone can boot their own SD on the board and the TPM will unseal for them; with no measured boot on the Pi, a PCR policy cannot tell their OS from ours.
+NVMe-first would not close this (boot with the NVMe out, then attach it over USB) and would stop the provisioning SD taking over an imaged board, so the order stays SD first.
+Closing it takes Raspberry Pi secure boot (signed boot images, a customer key burnt into OTP, irreversible per board). That is a separate card, though its OTP programming would naturally be another provisioning step.
 
 #### Configuring the bootloader
 
@@ -145,7 +164,7 @@ Where provisioning can't place the board as a known version (the sensor that tel
 
 ### Checking the hardware
 
-Proposed step: before the label is printed, provisioning exercises the HAT so a bad board is caught on the bench and not in the field.
+Before the label is printed, provisioning exercises the HAT so a bad board is caught on the bench and not in the field.
 The assembler presses USER, then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
 Each check passes or fails in the client.
 Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
@@ -153,6 +172,7 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
+- Volume key rotation: the `pi` image rekeys itself on first boot. If provisioning rotates instead (it can, while the volume is offline and before enrolment), the first-boot rekey must recognise that and not run again; or provisioning leaves rotation to first boot and enrols keyslots that survive it (LUKS2 reencryption keeps keyslots). Tech design picks.
 - `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, the save-recovery-keys option, and the `pi eeprom` SD image that configures the Pi 5 bootloader.
 
 ## Trade-offs
@@ -169,7 +189,7 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 - [ ] Which bus the sensors are on, and which GPIOs USER and CASE use (user is gathering)
 - [ ] U1's exact part, for its size and write page size
 - [ ] The "bridge here" picture: a render from the PCB design files, or a cleaned-up photo
-- [ ] The hardware check step: agreed?
+- [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
 - [ ] Mapping from EEPROM to version: a well-known UUID per board version in a `custom_data` atom, and how major.minor is read from it
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
