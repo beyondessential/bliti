@@ -68,6 +68,9 @@ impl Client {
 	}
 }
 
+/// What the fake `tailscale netcheck` prints, spaced as Tailscale's own output is.
+const NETCHECK_REPORT: &str = "{\n  \"UDP\": true,\n  \"IPv4\": true,\n  \"GlobalV4\": \"203.0.113.7:41641\",\n  \"RegionLatency\": {\"5\": 38400000}\n}\n";
+
 fn tailscale_with(
 	fake: &Arc<Fake>,
 	options: Options,
@@ -78,13 +81,8 @@ fn tailscale_with(
 		fn available(&self) -> bool {
 			true
 		}
-		async fn run(&self) -> Result<netcheck::Report, String> {
-			Ok(netcheck::Report {
-				udp: true,
-				ipv4: true,
-				region_latency: Some([("5".to_owned(), 38_400_000)].into()),
-				..netcheck::Report::default()
-			})
+		async fn run(&self) -> Result<String, String> {
+			Ok(NETCHECK_REPORT.to_owned())
 		}
 	}
 	Tailscale::start(fake.clone(), Arc::new(Netcheck), options)
@@ -390,6 +388,7 @@ async fn netcheck_runs_signed_out_and_names_relays_it_has_learned() {
 				result["relays"],
 				serde_json::json!([{"id": 5, "name": "Sydney", "latency": 0.0384}])
 			);
+			assert_eq!(result["report"], serde_json::json!(NETCHECK_REPORT));
 		}
 		other => panic!("{other:?}"),
 	}
@@ -403,7 +402,7 @@ async fn a_stream_ending_mid_netcheck_ends_it_and_frees_the_slot() {
 		fn available(&self) -> bool {
 			true
 		}
-		async fn run(&self) -> Result<netcheck::Report, String> {
+		async fn run(&self) -> Result<String, String> {
 			std::future::pending().await
 		}
 	}

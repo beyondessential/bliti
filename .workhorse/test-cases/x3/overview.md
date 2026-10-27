@@ -4,9 +4,9 @@ Scenarios for the acts on the Status screen's Tailscale and Tamanu rows, the Tai
 
 ## Device: netcheck report
 
-- [ ] A netcheck result carries `report` as the text `tailscale netcheck --format=json` printed, byte for byte (verifies spec: TSC)
-- [ ] `report` is present in every netcheck result, with relays and without (verifies spec: TSC)
-- [ ] The typed members are unchanged by `report` being added (verifies spec: TSC)
+- [x] A netcheck result carries `report` as the text `tailscale netcheck --format=json` printed, byte for byte (verifies spec: TSC)
+- [x] `report` is present in every netcheck result, with relays and without (verifies spec: TSC)
+- [x] The typed members are unchanged by `report` being added (verifies spec: TSC)
 
 ## Wasm bridge
 

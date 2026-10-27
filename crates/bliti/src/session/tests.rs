@@ -778,7 +778,7 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 		fn available(&self) -> bool {
 			false
 		}
-		async fn run(&self) -> Result<crate::tailscale::netcheck::Report, String> {
+		async fn run(&self) -> Result<String, String> {
 			Err("unavailable".to_owned())
 		}
 	}

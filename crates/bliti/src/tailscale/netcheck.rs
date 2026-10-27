@@ -16,25 +16,25 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 /// What `tailscale netcheck --format=json` reports, as far as a result uses it.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Report {
+struct Report {
 	/// Whether UDP got through to a relay.
 	#[serde(rename = "UDP", default)]
-	pub udp: bool,
+	udp: bool,
 	/// Whether the internet was reached over IPv4.
 	#[serde(rename = "IPv4", default)]
-	pub ipv4: bool,
+	ipv4: bool,
 	/// Whether the internet was reached over IPv6.
 	#[serde(rename = "IPv6", default)]
-	pub ipv6: bool,
+	ipv6: bool,
 	/// Whether the NAT presents the device at a different address to each destination.
 	#[serde(rename = "MappingVariesByDestIP", default)]
-	pub nat_varies: Option<bool>,
+	nat_varies: Option<bool>,
 	/// Whether the network intercepts web traffic.
 	#[serde(default)]
-	pub captive_portal: Option<bool>,
+	captive_portal: Option<bool>,
 	/// The round trip to each relay region that answered, in nanoseconds.
 	#[serde(default)]
-	pub region_latency: Option<BTreeMap<String, u64>>,
+	region_latency: Option<BTreeMap<String, u64>>,
 }
 
 /// Runs the check.
@@ -43,8 +43,8 @@ pub trait Runner: Send + Sync + 'static {
 	/// Whether the device can run the check at all.
 	fn available(&self) -> bool;
 
-	/// Run the check, or say why it could not be run.
-	async fn run(&self) -> Result<Report, String>;
+	/// Run the check, giving the report as Tailscale printed it, or say why it could not be run.
+	async fn run(&self) -> Result<String, String>;
 }
 
 /// The `tailscale` command.
@@ -82,7 +82,7 @@ impl Runner for Command {
 		self.found()
 	}
 
-	async fn run(&self) -> Result<Report, String> {
+	async fn run(&self) -> Result<String, String> {
 		let output = tokio::time::timeout(
 			TIMEOUT,
 			tokio::process::Command::new(&self.program)
@@ -103,13 +103,16 @@ impl Runner for Command {
 				.unwrap_or("the network check failed");
 			return Err(reason.chars().take(200).collect());
 		}
-		serde_json::from_slice(&output.stdout)
+		String::from_utf8(output.stdout)
 			.map_err(|err| format!("the network check gave something unreadable: {err}"))
 	}
 }
 
-/// The result of TSC for a report, naming relays from `names`.
-pub fn result(report: &Report, names: &Names) -> Map<String, Json> {
+/// The result of TSC for the report Tailscale printed, naming relays from `names` and carrying the
+/// report itself as `report`.
+pub fn result(text: &str, names: &Names) -> Result<Map<String, Json>, String> {
+	let report: Report = serde_json::from_str(text)
+		.map_err(|err| format!("the network check gave something unreadable: {err}"))?;
 	let mut relays: Vec<(u32, f64)> = report
 		.region_latency
 		.iter()
@@ -128,7 +131,8 @@ pub fn result(report: &Report, names: &Names) -> Map<String, Json> {
 	result.insert("nat-varies".into(), json!(report.nat_varies));
 	result.insert("captive-portal".into(), json!(report.captive_portal));
 	result.insert("relays".into(), Json::Array(relays));
-	result
+	result.insert("report".into(), json!(text));
+	Ok(result)
 }
 
 #[cfg(test)]

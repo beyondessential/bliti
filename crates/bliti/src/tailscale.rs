@@ -147,7 +147,7 @@ impl Tailscale {
 			fn available(&self) -> bool {
 				false
 			}
-			async fn run(&self) -> Result<netcheck::Report, String> {
+			async fn run(&self) -> Result<String, String> {
 				Err("this device cannot run the network check".to_owned())
 			}
 		}

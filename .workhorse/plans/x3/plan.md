@@ -9,9 +9,9 @@ The network check's result carries Tailscale's own report as `report` (TSC), so 
 The device already runs `tailscale netcheck --format=json` and parses the members it maps; it keeps the command's output text as it is and sends it as `report` beside them.
 The protocol's result schema and its tests change with it, and the shipped client gains nothing to parse: it passes `report` on untouched.
 
-- [ ] `crates/bliti/src/tailscale/netcheck.rs`: `Runner::run` returns the output text with the parsed `Report` (a small struct holding both), and `result` inserts it as `report`
-- [ ] Every `Runner` impl follows: `Command`, `Absent` in `tailscale.rs`, the fakes in `tailscale/tests.rs` and `session/tests.rs`
-- [ ] Tests in `netcheck/tests.rs` and `tailscale/tests.rs`: `report` is the runner's text byte for byte, and is present in every netcheck result
+- [x] `crates/bliti/src/tailscale/netcheck.rs`: `Runner::run` returns the output text, and `result` parses it and inserts it as `report`, so the text is carried as printed by construction
+- [x] Every `Runner` impl follows: `Command`, `Absent` in `tailscale.rs`, the fakes in `tailscale/tests.rs` and `session/tests.rs`
+- [x] Tests in `netcheck/tests.rs` and `tailscale/tests.rs`: `report` is the runner's text byte for byte, and is present in every netcheck result
 
 ## Wasm bridge
 

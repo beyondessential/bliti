@@ -220,8 +220,13 @@ impl Inner {
 		if let Some(daemon) = daemon {
 			self.names.refresh(daemon.api.as_ref()).await;
 		}
-		match self.netcheck.run().await {
-			Ok(report) => Outcome::Result(netcheck::result(&report, &self.names)),
+		match self
+			.netcheck
+			.run()
+			.await
+			.and_then(|text| netcheck::result(&text, &self.names))
+		{
+			Ok(result) => Outcome::Result(result),
 			Err(reason) => Outcome::Failed(reason),
 		}
 	}
