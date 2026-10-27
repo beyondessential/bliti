@@ -159,6 +159,7 @@ A device MUST run `netcheck` without regard to whether it is signed in, and MUST
 | `nat-varies` | boolean or null | whether the NAT in front of the device presents it at a different address to each destination; null where the test could not tell |
 | `captive-portal` | boolean or null | whether the network the device is on intercepts web traffic until a person signs in to it; null where the test could not tell |
 | `relays` | array | each relay that answered, as a relay object with its `latency` in seconds added, ordered by rising latency |
+| `report` | string | Tailscale's own report of the test, as the text Tailscale gave |
 
 A device MUST send `tailscale-failed` where it could not run the test, and MUST send `tailscale-result` where it ran the test, whatever the network it found.
 
@@ -166,11 +167,16 @@ A relay has answered where it replied to the device over any transport, and `udp
 
 A device sending `tailscale-result` with no relay in `relays` MUST carry `udp` as false.
 
+A device MUST carry in `report` the whole of the report Tailscale gave of the test, unaltered.
+
+A client MUST NOT derive anything from `report`, and MAY show it or pass it on only as it is.
+
 > [!NOTE]
 > The test measures the network the device is on and not Tailscale, which is why it runs for a device that is not signed in: a device that cannot sign in is usually on a network that blocks Tailscale, and the result says which part where the test can run at all.
 > A `nat-varies` of true is the case in which two machines behind such NATs cannot connect directly and Tailscale falls back to a relay.
 > An empty `relays` is a network that reaches no relay at all, and the first of `relays` is the nearest.
 > A device that has never been signed in may not know region names, which is why `name` can be null and `id` cannot.
+> The other members are the contract a client reads. `report` is in Tailscale's own shape, which changes with Tailscale's version, and is carried for a person diagnosing the network, who gets everything Tailscale found, public addresses and port mapping included.
 
 ## Ping
 
