@@ -433,7 +433,7 @@ fn allocation(
 					.await;
 				match allocation {
 					Allocation::Given(slot) => {
-						tracing::info!(%client, slot = slot.number(), "gave a client its slot");
+						tracing::info!(%client, slot = slot.number(), mtu = request.mtu, "gave a client its slot");
 					}
 					Allocation::Full => {
 						tracing::warn!(%client, "every slot is held; turning a client away");
@@ -556,7 +556,7 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
 	// it is the point at which a handshake can run.
-	tracing::info!("client subscribed; opening a session");
+	tracing::info!(mtu = notifier.mtu(), "client subscribed; opening a session");
 	readvertise.notify_one();
 	let (transport, mut outbound) =
 		GattTransport::open(&sink, client, slot::payload(notifier.mtu()));
