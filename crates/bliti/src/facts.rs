@@ -33,6 +33,7 @@ mod board;
 mod compute;
 mod network;
 mod power;
+mod product;
 mod storage;
 pub mod tailscale;
 pub mod tamanu;
@@ -40,8 +41,9 @@ mod thermal;
 
 /// The facts a device reports: what board it is, what it runs, and the shapes a reading is measured
 /// against. Read fresh, so the caller polls this and sends what changed (NFO).
-pub fn facts(at: u64) -> Vec<Entry> {
+pub fn facts(at: u64, supply: &Supply) -> Vec<Entry> {
 	let mut entries = vec![Entry::text(at, "hostname", board::hostname())];
+	entries.extend(product::entry(at, supply.fitted()));
 	entries.extend(board::identity(at));
 	entries.extend(board::os(at));
 	entries.extend(board::last_boot(at));
@@ -167,7 +169,7 @@ mod tests {
 
 	#[test]
 	fn the_facts_name_the_device() {
-		let entries = facts(20_308_140);
+		let entries = facts(20_308_140, &Supply::default());
 		let hostname = entries.iter().find(|e| e.name == "hostname").unwrap();
 		assert_eq!(hostname.status(), Some("passed"));
 		assert!(hostname.value.is_some());
@@ -176,7 +178,7 @@ mod tests {
 	/// Every fact and reading carries a status, at every sample (NFO).
 	#[test]
 	fn every_entry_carries_a_status() {
-		for entry in facts(1) {
+		for entry in facts(1, &Supply::default()) {
 			assert!(entry.status().is_some(), "{entry:?}");
 			assert!(!entry.name.is_empty());
 		}

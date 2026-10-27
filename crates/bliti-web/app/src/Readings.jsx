@@ -78,14 +78,17 @@ function Header({ single }) {
 	)
 }
 
-/// The device's software identity, from its board with the board's revision, its operating system
-/// and its kernel, as one line. Empty where it reports none of them.
+/// The device's identity, from its product, its board with the board's revision, its operating system
+/// and its kernel, as one line, each by its value; a product with none is given by its reason. Empty
+/// where it reports none of them.
 function softwareOf(single) {
+	const product = single('product')
 	const board = single('board')
 	const revision = single('board-revision')
 	const os = single('os')
 	const kernel = single('kernel')
 	return [
+		product && (hasValue(product) ? textOf(product) : reasonOf(product)),
 		board && [textOf(board), revision && textOf(revision)].filter(Boolean).join(' '),
 		os && textOf(os),
 		kernel && textOf(kernel),
@@ -94,10 +97,12 @@ function softwareOf(single) {
 		.join(' · ')
 }
 
-/// The device's identity in short, its board and its operating system, each by its short form and by
-/// its value where it carries none (STAT). Empty where it reports neither.
+/// The device's identity in short: its product where it reports one with a value, else its board, and
+/// its operating system, the board and system each by its short form and by its value where it
+/// carries none (STAT). Empty where it reports none of them.
 export function identityOf(single) {
-	return [single('board'), single('os')]
+	const product = single('product')
+	return [hasValue(product) ? product : single('board'), single('os')]
 		.filter(Boolean)
 		.map((entry) => entry.traits?.short ?? textOf(entry))
 		.filter(Boolean)

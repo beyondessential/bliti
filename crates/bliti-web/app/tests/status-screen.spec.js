@@ -47,6 +47,30 @@ test.describe('the landing', () => {
 		await expect(page.locator('.heading.title .actions button')).toHaveText(['Disconnect'])
 	})
 
+	// The product stands in for the board where it has a value (STAT).
+	test('names the product in place of the board', async ({ page }) => {
+		await openChannel(
+			page,
+			fact('hostname', 'clinic-iti-07'),
+			fact('product', 'Tamanu Iti v4'),
+			fact('board', 'Raspberry Pi 5 Model B Rev 1.0', { short: 'Raspberry Pi 5' }),
+			fact('os', 'Ubuntu 26.04 LTS', { short: 'Ubuntu 26.04' }),
+		)
+		await expect(page.locator('.heading.title .software')).toHaveText('Tamanu Iti v4 · Ubuntu 26.04')
+	})
+
+	// A product that could not be told leaves the board to name the device (STAT).
+	test('names the board where the product is broken', async ({ page }) => {
+		await openChannel(
+			page,
+			fact('hostname', 'clinic-iti-07'),
+			message({ type: 'fact', at: 1, fact: 'product', kind: 'text', traits: { status: { is: 'broken', reason: 'no HAT EEPROM' } } }),
+			fact('board', 'Raspberry Pi 5 Model B Rev 1.0', { short: 'Raspberry Pi 5' }),
+			fact('os', 'Ubuntu 26.04 LTS', { short: 'Ubuntu 26.04' }),
+		)
+		await expect(page.locator('.heading.title .software')).toHaveText('Raspberry Pi 5 · Ubuntu 26.04')
+	})
+
 	// A board with no short form is named by its value, without its revision (STAT).
 	test('names a board or os with no short form by its value', async ({ page }) => {
 		await openChannel(

@@ -76,6 +76,40 @@ test.describe('the header', () => {
 		await expect(page.locator('.tile')).toHaveCount(0)
 	})
 
+	// The product leads the header by its value, with the board and system in full, and gets no tile
+	// of its own (NFO, VIEW).
+	test('names the product ahead of the board and gives it no tile', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
+		await feed(page, fact('product', { kind: 'text', value: 'Tamanu Iti v4' }))
+		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5 Model B Rev 1.0', traits: { status: { is: 'passed' }, short: 'Raspberry Pi 5' } }))
+		await feed(page, fact('os', { kind: 'text', value: 'Ubuntu 26.04 LTS', traits: { status: { is: 'passed' }, short: 'Ubuntu 26.04' } }))
+
+		await expect(page.locator('.device .sub')).toHaveText('Tamanu Iti v4 · Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
+		await expect(page.locator('.tile')).toHaveCount(0)
+	})
+
+	// A product that could not be told shows its reason in the header in place of a value (VIEW).
+	test('shows the reason of a broken product in its place', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
+		await feed(
+			page,
+			fact('product', {
+				kind: 'text',
+				traits: { status: { is: 'broken', reason: 'this board carries a TPM but no HAT EEPROM identifying it as a Tamanu Iti' } },
+			}),
+		)
+		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5' }))
+
+		await expect(page.locator('.device .sub')).toHaveText(
+			'this board carries a TPM but no HAT EEPROM identifying it as a Tamanu Iti · Raspberry Pi 5',
+		)
+		await expect(page.locator('.tile')).toHaveCount(0)
+	})
+
 	// An unrecognised fact is a tile, not a header entry (VIEW).
 	test('an unrecognised fact renders as a tile rather than in the header', async ({ page }) => {
 		await openChannel(page)

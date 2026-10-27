@@ -19,6 +19,8 @@ Each reader decides how to use them; [VIEW](device-view.md) specifies how ours d
 | Tamanu | The health records system installed on the device, made of several services. |
 | required service | A service an installation of Tamanu requires to be running. An installation also requires some services to be absent. |
 | throttling | A platform limiting its own processor, typically for heat or for supply voltage. |
+| HAT EEPROM | The memory on the identification pins of a board fitted to a Raspberry Pi's header, from which the Pi's firmware publishes that board's vendor, product and version to the operating system at boot. |
+| TPM | A Trusted Platform Module, as [BID](board-id.md) has it. |
 
 ## The topic
 
@@ -177,6 +179,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `fact` | kind | traits | reports |
 | --- | --- | --- | --- |
 | `hostname` | `text` | — | the name the system answers to, from the kernel |
+| `product` | `text` | — | the product the device is, as [Product](#product) has it |
 | `board` | `text` | `short` | the board's model, falling back to the machine's vendor and product |
 | `board-revision` | `text` | — | the board's revision, or the machine's version |
 | `os` | `text` | `short` | the operating system and its version |
@@ -253,6 +256,20 @@ A device MUST carry the `short` trait on `os`, as the operating system's name fo
 > [!NOTE]
 > A short form is for a reader with room for little more than which board and which system, and it lets that reader show one without guessing at how to cut down a string whose shape varies by board and distribution.
 > The Pi 5 generation is the only one devices ship on. Any other board, Pi or not, has no `short`, and a reader with none shows the fact's value.
+
+## Product
+
+A device MUST report `product` from the first of these that holds of it, and MUST omit `product` where none holds:
+
+| where the device carries | `product` |
+| --- | --- |
+| a HAT EEPROM identifying the board as a Tamanu Iti | "Tamanu Iti v" followed by the generation that HAT EEPROM records |
+| a backup supply and a TPM | `broken`, with a reason saying the board carries a TPM but no HAT EEPROM identifying it |
+| a backup supply, and neither a TPM nor a HAT EEPROM | "Tamanu Iti v3" |
+
+> [!NOTE]
+> The third generation carries no HAT EEPROM, so it is known by what it lacks.
+> A later generation carries both a TPM and an identifying HAT EEPROM, so it reads as the third only where both have failed, and where only its HAT EEPROM is blank or unreadable it is reported broken rather than taken for the third.
 
 ## Storage
 
