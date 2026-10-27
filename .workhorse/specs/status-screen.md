@@ -133,7 +133,7 @@ The application MUST offer on the Tailscale row, where the device lists the act,
 
 Connect MUST open the sign-in screen of [TSCR](control/tailscale-screen.md#signing-in).
 
-The confirmation of Cancel MUST ask whether to cancel the sign-in.
+The confirmation of Cancel MUST ask whether to cancel the sign-in, and MUST offer to keep waiting as the preferred choice.
 
 While a network check is under way, the application MUST show the row's act as under way, saying it is checking.
 
