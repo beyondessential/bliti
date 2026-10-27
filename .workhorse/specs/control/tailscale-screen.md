@@ -57,6 +57,10 @@ The application MUST show the result as the verdict the Tailscale row of [STAT](
 - whether the network presents the device at a different address to each destination, and whether it asks for a sign-in, each where the result says;
 - the relays that answered, nearest first, each by its name, or its number where the device gives no name, with its latency.
 
+The application MUST offer to share the result as text, through the share sheet of the system where the browser offers one, and otherwise by copying it.
+
+The shared text MUST carry the device's `hostname`, when the check ran, and the result as the screen shows it.
+
 ## Ping
 
 The application MUST offer to ping where the device lists `ping`, with a field for the machine to test, by its name on the tailnet.
