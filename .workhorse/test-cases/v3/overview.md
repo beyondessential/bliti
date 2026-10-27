@@ -48,6 +48,7 @@ Scenarios for the Status screen landing and the `end-of-batch` marker it reads i
 - [x] It says it is reconnecting while it tries, and keeps trying for a spell (verifies spec: WEB)
 - [x] A device that does not answer, or needs the chooser, is said to be lost (verifies spec: WEB)
 - [x] Disconnecting stops it reconnecting (verifies spec: WEB)
+- [x] A link dropped just after the page is shown again is reached again, and one dropped once it has been shown a while is lost (verifies spec: WEB)
 - [x] A link dropped in view is lost at once (verifies spec: WEB)
 - [x] Network settings keep edits not applied across the reconnect, and follow the device where the session is read-only (verifies spec: NSCR)
 - [x] Power and battery opens its streams again on the reconnected channel

@@ -105,6 +105,29 @@ test('a link dropped while the page is in view is lost at once', async ({ page }
 	expect(await reconnects(page)).toBe(0)
 })
 
+// A browser that froze a hidden page may end its link only as the page comes back (WEB).
+test('a link dropped just after the page is shown again is reached again', async ({ page }) => {
+	await openChannel(page)
+	await openReadings(page)
+	await setHidden(page, true)
+	await setHidden(page, false)
+	await returns(page, 'ok')
+	await closeChannel(page)
+	await expect(title(page)).toHaveText('All readings')
+	await expect(page.getByText('Lost connection to your Iti')).toHaveCount(0)
+	expect(await reconnects(page)).toBe(1)
+})
+
+test('a link dropped once the page has been shown a while is lost at once', async ({ page }) => {
+	await openChannel(page)
+	await setHidden(page, true)
+	await setHidden(page, false)
+	await page.waitForTimeout(500)
+	await closeChannel(page)
+	await expect(page.getByText('Lost connection to your Iti')).toBeVisible()
+	expect(await reconnects(page)).toBe(0)
+})
+
 test('network settings keep the edits not applied across the reconnect', async ({ page }) => {
 	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
 	await page.getByLabel('Country').selectOption('FJ')

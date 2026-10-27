@@ -33,12 +33,14 @@ const UNDER_WAY = { restart: 'Restarting bliti…', reboot: 'Rebooting…', 'pow
 
 // How long to wait between attempts to reach a device coming back, how long to go on trying before
 // saying it has not come back, how long to go on trying a device the phone let go of while the page
-// was hidden, and how long "Shutting down…" stays up once the channel has closed. The harness
-// shortens them, which is the only thing it changes.
+// was hidden, how long after the page is shown a drop still counts as one while hidden, and how long
+// "Shutting down…" stays up once the channel has closed. The harness shortens them, which is the only
+// thing it changes.
 const TIMINGS = {
 	retry: 3_000,
 	giveUp: 180_000,
 	away: 30_000,
+	grace: 5_000,
 	hold: 3_000,
 	...(__TEST_SEAM__ ? window.__blitiTimings : undefined),
 }
@@ -93,6 +95,9 @@ export default function App() {
 	// `reconnecting` until the device answers or is unlikely to (WEB, "While the page is hidden").
 	const [away, setAway] = useState(null)
 	const away_ = useRef(null)
+	// When the page was last shown after being hidden. A browser that froze a hidden page may end its
+	// link only as the page comes back, so a drop just after this counts as one while hidden (WEB).
+	const shown_ = useRef(-Infinity)
 	// How many channels have opened, so a screen holding a stream of its own opens it again on the next.
 	const [channel, setChannel] = useState(0)
 	const holding_ = useRef(null)
@@ -379,9 +384,9 @@ export default function App() {
 			comeBack()
 			return
 		}
-		if (document.hidden) {
-			// A phone ends the link of a browser it has put away. The operator is held where they were,
-			// and the device reached again once they are back (WEB).
+		if (document.hidden || Date.now() - shown_.current < TIMINGS.grace) {
+			// A phone ends the link of a browser it has put away, or as it brings it back. The operator is
+			// held where they were, and the device reached again once they are back (WEB).
 			away_.current = 'hidden'
 			setAway('hidden')
 			return
@@ -460,6 +465,14 @@ export default function App() {
 		opened()
 		note('note', 'the device is back')
 	}
+
+	useEffect(() => {
+		const onVisibility = () => {
+			if (!document.hidden) shown_.current = Date.now()
+		}
+		document.addEventListener('visibilitychange', onVisibility)
+		return () => document.removeEventListener('visibilitychange', onVisibility)
+	}, [])
 
 	useEffect(() => {
 		if (away !== 'hidden') return
