@@ -10,26 +10,36 @@ What a v4 board's HAT EEPROM holds, how bliti programs and verifies it during pr
 
 ### What the EEPROM holds
 
-The EEPROM uses the Raspberry Pi HAT+ format: a header, a vendor-info atom, and optional further atoms.
-The vendor-info atom's fields are all standard:
+The EEPROM conforms to the Raspberry Pi HAT+ specification (header format version `0x02`): a header, a vendor-info atom, and a Device Tree overlay name atom, which HAT+ requires.
 
-| field | holds | interpreted by bliti |
-| --- | --- | --- |
-| `uuid` | a fresh RFC 4122 UUID generated per board at programming time: the board's serial | no (see open questions on accounting) |
-| `vendor` | a readable vendor string ("BES International") | no |
-| `product` | a readable product string, e.g. "Tamanu Iti v4.0" | no |
-| `product_id` | one value per generation | no; readable only |
-| `product_ver` | the board revision within a generation | no; readable only |
+What HAT+ defines for the vendor-info atom:
 
-What bliti matches on to recognise a Tamanu Iti, and to read its generation, is a well-known UUID per generation.
-The HAT spec reserves `uuid` for a per-board unique value, so the well-known one can't live there; the candidate is a `custom_data` atom.
+| field | HAT+ says | Iti holds | bliti reads it |
+| --- | --- | --- | --- |
+| `uuid` | 16 bytes, "product UUID (unique)", required; unique per product and preserved across flashes (the tools say to keep the one generated) | one well-known UUID for the Tamanu Iti product line | yes: recognises a Tamanu Iti |
+| `product_id` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the generation: 4 | yes: major version |
+| `product_ver` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the revision within the generation: 0 for rev B, 1 for rev C | yes: minor version |
+| `vendor` | ASCII string, up to 255 bytes, required | "BES International" | no |
+| `product` | ASCII string, up to 255 bytes, required | "Tamanu Iti v4.0" | no |
 
-The readable fields are for anyone curious reading the board, and carry no meaning bliti depends on.
+A board is a Tamanu Iti when `uuid` is the Iti product UUID, and its version is `product_id`.`product_ver`.
+The strings are for anyone reading the board, and bliti ignores them.
+
+There is no vendor ID registry, so `product_id` and `product_ver` mean something only alongside the product UUID; bliti never reads them from a board whose UUID isn't the Iti's.
+
+The legacy HAT format (version `0x01`) made `uuid` unique per board; HAT+ made it per product, which is what lets it be the well-known identifier.
+HAT+ has no per-board serial field. Each board is already identified by its board ID (BID, the TPM Endorsement Key name), which the board's record carries through its QR suffix, so the EEPROM carries no serial of its own.
+
+HAT+ also defines a manufacturer custom data atom (type `0x0004`) for anything vendor-defined; nothing needs it yet.
+
+The overlay name atom names the Device Tree overlay the firmware loads for the HAT, from the overlays on the boot partition.
+An Iti overlay per generation configures the HAT's devices (TPM, sensors, buttons) from the hardware itself, rather than from `config.txt` lines every image carries (`linux-images` currently enables the TPM overlay unconditionally).
 
 ### How C4 consumes it
 
 C4's `product` fact takes "Tamanu Iti v" plus the generation where the HAT EEPROM identifies a Tamanu Iti.
 This card fills in C4's placeholder (`facts::product::generation`) with the real match.
+The placeholder takes `vendor` and `product`; the real match reads `uuid`, `product_id` and `product_ver` instead, so its inputs change too.
 
 ### Provisioning
 
@@ -50,7 +60,7 @@ Each board version is expected to be detectable from the hardware present via GP
 Board versions are reported as major.minor: rev B is v4.0, rev C v4.1.
 
 Where the EEPROM already identifies a Tamanu Iti of the version being provisioned, the step compares the rest of its contents against what it would write, since there may be updates for it.
-It skips if they match and rewrites if not, keeping the board's serial UUID.
+It skips if they match and rewrites if not.
 
 Where the EEPROM holds something else (another vendor's data, or another Iti version), the step shows what it holds and asks the assembler to confirm before overwriting.
 
@@ -108,7 +118,7 @@ The client renders a label file (PDF/PNG) sized for a label printer, carrying th
 
 #### Board records
 
-At the end, each board's record (EEPROM serial UUID, QR suffix, recovery passphrase) is shown to the assembler in the client and appended to a file on the provisioning SD card.
+At the end, each board's record (QR suffix, version, recovery passphrase) is shown to the assembler in the client and appended to a file on the provisioning SD card.
 Sending it to a central register is a separate card.
 
 #### Where it's built
@@ -183,7 +193,8 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 
 ## Open questions
 
-- [ ] Does the firmware publish `custom_data` atoms under `/proc/device-tree/hat/`? If not, matching on a custom-atom UUID means reading the EEPROM over I²C, which C4 avoids in the facts poll
+- [ ] Exactly how the firmware renders `uuid`, `product_id` and `product_ver` under `/proc/device-tree/hat/` (expected as text, e.g. `0x0004`); confirm by reading back the prototype once programmed
+- [ ] The Iti overlay: its name, what it configures, and whether it lives in `linux-images` or upstream (HAT+ asks vendors to upstream overlays)
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
 - [ ] Which bus the sensors are on, and which GPIOs USER and CASE use (user is gathering)
@@ -191,6 +202,7 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 - [x] The "bridge here" picture: the user's rev B photo, labelled
 - [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
-- [ ] Mapping from EEPROM to version: a well-known UUID per board version in a `custom_data` atom, and how major.minor is read from it
+- [x] Mapping from EEPROM to version: Iti product UUID, then `product_id`.`product_ver`
+- [ ] Generate the Iti product UUID (once, recorded in the spec)
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [ ] Vendor and product strings, and the `product_id` values
