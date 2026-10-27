@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { closeChannel, devMode, emit, openChannel } from './fake-client.js'
+import { closeChannel, devMode, emit, feed, openChannel, openReadings } from './fake-client.js'
 
 const hello = (extra = {}) => ({
 	kind: 'message',
@@ -13,6 +13,7 @@ const fact = (name, body) => ({
 })
 
 const hostname = fact('hostname', { kind: 'text', value: 'tamanu-iti' })
+const title = (page) => page.getByRole('heading', { level: 1 })
 const address = fact('network-address', {
 	kind: 'ipv4',
 	value: '192.0.2.10',
@@ -24,6 +25,7 @@ test.describe('the device view', () => {
 	// device line rather than taking a tile. MSG asks the client display it (VIEW).
 	test('records the name and version the device reported', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		await devMode(page)
 		await emit(page, hello())
 		await expect(page.locator('.log')).toContainText('name bliti')
@@ -42,8 +44,8 @@ test.describe('the device view', () => {
 	// The header names the device from the facts that say which device it is; they get no tiles (VIEW).
 	test('shows what the device reports about itself, in the header and as tiles', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, hostname)
-		await emit(page, address)
+		await openReadings(page)
+		await feed(page, hostname, address)
 		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
 		await expect(page.getByText('192.0.2.10')).toBeVisible()
 		// hostname is in the header, not a tile; the only tile is the address.
@@ -54,38 +56,57 @@ test.describe('the device view', () => {
 test.describe('a device newer than this build', () => {
 	// An ignorable unknown is passed over in silence, and costs the view nothing (MSG).
 	test('skipping leaves the view whole and says nothing about it', async ({ page }) => {
-		await openChannel(page)
-		await emit(page, hostname)
+		await openChannel(page, hostname)
 		await emit(page, { kind: 'skipped', detail: 'message type "telemetry" is not known to this build' })
-		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
+		await expect(title(page)).toHaveText('tamanu-iti')
 		await expect(page.locator('.notice')).toHaveCount(0)
 	})
 
 	// A critical unknown is refused: said plainly, not as a fault, and never at the cost of what the
 	// application did understand.
 	test('refusing is shown without blanking the view', async ({ page }) => {
-		await openChannel(page)
-		await emit(page, hostname)
-		await emit(page, { kind: 'refused', detail: 'critical members not known to this build: redact' })
+		await openChannel(page, hostname)
+		await emit(page, { kind: 'refused', type: 'reading', detail: 'critical members of "reading" not known to this build: redact' })
 
 		const notice = page.locator('.notice')
 		await expect(notice).toHaveCount(1)
 		await expect(notice).toContainText('too old to act on')
 		await expect(notice).not.toHaveClass(/fault/)
-		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
+		await expect(title(page)).toHaveText('tamanu-iti')
+	})
+
+	// However often a type is refused, it is said once while the channel is open, and said again on
+	// the next channel (STAT).
+	test('a refusal is said once for each message type', async ({ page }) => {
+		await openChannel(page)
+		const refused = (type, member) => ({ kind: 'refused', type, detail: `critical members of "${type}" not known to this build: ${member}` })
+		await emit(page, refused('reading', 'redact'))
+		await emit(page, refused('fact', 'redact'))
+		await emit(page, refused('reading', 'scope'))
+		await emit(page, refused('reading', 'redact'))
+
+		const notice = page.locator('.notice')
+		await expect(notice).toHaveCount(2)
+		await expect(notice.nth(0)).toContainText('"reading"')
+		await expect(notice.nth(1)).toContainText('"fact"')
+
+		await page.getByRole('button', { name: 'Disconnect' }).click()
+		await page.getByRole('button', { name: 'Find my Iti' }).click()
+		await expect(notice).toHaveCount(0)
+		await emit(page, refused('reading', 'redact'))
+		await expect(notice).toHaveCount(1)
 	})
 })
 
 test.describe('a device not speaking the protocol', () => {
 	test('is surfaced to the operator rather than leaving the view blank', async ({ page }) => {
-		await openChannel(page)
-		await emit(page, hostname)
+		await openChannel(page, hostname)
 		await emit(page, { kind: 'fault', detail: 'message is not valid JSON: expected value' })
 
 		const notice = page.locator('.notice.fault')
 		await expect(notice).toHaveCount(1)
 		await expect(notice).toContainText('not speaking the protocol')
-		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
+		await expect(title(page)).toHaveText('tamanu-iti')
 	})
 })
 
@@ -183,9 +204,8 @@ test.describe('the feed lifecycle', () => {
 // operator is told, and offered the channel again without rereading the code (CHN).
 test.describe('when the channel closes', () => {
 	test('the operator is told, and is offered the channel again', async ({ page }) => {
-		await openChannel(page)
-		await emit(page, hostname)
-		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
+		await openChannel(page, hostname)
+		await expect(title(page)).toHaveText('tamanu-iti')
 
 		await closeChannel(page)
 

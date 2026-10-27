@@ -11,7 +11,7 @@ This spec says how ours applies them, and binds nothing else that controls a bli
 
 ## What it holds
 
-The application MUST title the screen Power and battery, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
+The application MUST title the screen Power and battery, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md) beside it.
 
 The application MUST hold the screen's sections in the order power, battery.
 

@@ -45,12 +45,31 @@ import { loadProtocol } from './protocol.js'
 import { Title } from './Screen.jsx'
 
 /// `guard` is where the screen tells its caller, while leaving would lose edits, how to ask before the
-/// operator goes, so the browser's way back asks as the screen's own Back does (NSCR).
-export default function Network({ client, onActivity, onEvent, onBack, onDisconnect, joined, guard }) {
+/// operator goes, so the browser's way back asks as the screen's own Back does (NSCR). `channel`
+/// counts the channels the screen has been open across, and `reconnecting` says the application is
+/// reaching the device again under it (WEB).
+export default function Network({
+	client,
+	onActivity,
+	onEvent,
+	onBack,
+	onDisconnect,
+	joined,
+	guard,
+	channel,
+	reconnecting,
+}) {
 	const [state, dispatch] = useReducer(reduce, undefined, opening)
 	const [attempt, setAttempt] = useState(0)
 	const [leaving, setLeaving] = useState(false)
 	const session = useRef(null)
+
+	// A channel reconnected under the screen opens a session again, keeping the edits (NSCR).
+	const opened_ = useRef(channel)
+	if (opened_.current !== channel) {
+		opened_.current = channel
+		dispatch({ type: 'resume' })
+	}
 
 	// The session lasts as long as this is mounted: unmounting closes the stream, which changes nothing
 	// the device holds (CFG), and drops the edits (NSCR). It opens once the checker a document is held
@@ -81,7 +100,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onDisconn
 			opened?.close()
 			session.current = null
 		}
-	}, [client, attempt, onActivity, onEvent])
+	}, [client, attempt, channel, onActivity, onEvent])
 
 	const send = (act) => {
 		try {
@@ -149,13 +168,19 @@ export default function Network({ client, onActivity, onEvent, onBack, onDisconn
 		return (
 			<div className="network">
 				{title}
-				{state.status === 'opening' && (
+				{reconnecting && (
+					<p className="muted">
+						<span className="spinner" aria-hidden="true" />
+						Reconnecting to your Iti.
+					</p>
+				)}
+				{!reconnecting && state.status === 'opening' && (
 					<p className="muted">
 						<span className="spinner" aria-hidden="true" />
 						Asking the device for its network settings.
 					</p>
 				)}
-				{state.status === 'closed' && state.unreachable && (
+				{!reconnecting && state.status === 'closed' && state.unreachable && (
 					<>
 						<p className="notice fault">
 							{state.why
@@ -167,7 +192,7 @@ export default function Network({ client, onActivity, onEvent, onBack, onDisconn
 						</button>
 					</>
 				)}
-				{state.status === 'closed' && !state.unreachable && (
+				{!reconnecting && state.status === 'closed' && !state.unreachable && (
 					<>
 						<p className="notice fault">
 							{state.why ? `The device stopped answering: ${state.why}` : 'The device ended the session.'}

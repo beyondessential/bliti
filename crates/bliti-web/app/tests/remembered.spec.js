@@ -3,7 +3,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { emit, installFakeClient, message, typeCode as read } from './fake-client.js'
+import { emit, feed, installFakeClient, message, typeCode as read } from './fake-client.js'
 
 const A = 'BLITI:AHFYTP4T6K2M9WQX'
 const B = 'BLITI:AHFYTP4T6K2M2KXA'
@@ -23,9 +23,11 @@ const step = (page) => page.locator('.steps [aria-current="step"] .name')
 async function open(page, code, hostname) {
 	await read(page, code)
 	await page.getByRole('button', { name: 'Find my Iti' }).click()
-	await expect(title(page)).toHaveText('All readings')
+	// Titled with the end of its code until it says what it is called (STAT).
+	await expect(title(page)).toHaveText(code.slice(-4))
 	if (hostname) {
-		await emit(page, hostnameFact(hostname))
+		await feed(page, hostnameFact(hostname))
+		await expect(title(page)).toHaveText(hostname)
 		// Remembered once the page has rendered the fact, so a reload straight after could lose it.
 		await expect
 			.poll(() => page.evaluate(() => sessionStorage.getItem('bliti.recent') ?? ''))
@@ -101,7 +103,7 @@ test.describe('the Recently used list', () => {
 		await expect(step(page)).toHaveText('Find Iti')
 		await expect(held(page).locator('.chip')).toHaveText('AHOW2EZUD4343RQ')
 		await page.getByRole('button', { name: 'Find my Iti' }).click()
-		await expect(title(page)).toHaveText('All readings')
+		await expect(title(page)).toHaveText(A.slice(-4))
 	})
 
 	test('a code typed in shows the hostname where it is a remembered device', async ({ page }) => {

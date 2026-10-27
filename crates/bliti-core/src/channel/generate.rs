@@ -162,6 +162,7 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => "[a-z-]{1,10}".prop_map(|topic| Message::Subscribe { topic }),
 		7 => entry().prop_map(Message::Fact),
 		7 => entry().prop_map(Message::Reading),
+		1 => Just(Message::EndOfBatch),
 		// The configuration session of CFG. The document, capabilities and act-answer payloads ride as
 		// raw JSON, so they are generated over the same conforming-JSON strategy as everything else.
 		1 => Just(Message::Configure),

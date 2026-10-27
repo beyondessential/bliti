@@ -64,30 +64,12 @@ export default function Readings({ entries, history }) {
 	)
 }
 
-/// The header naming the device, alone: what is kept on screen while the device carries an act out,
-/// in place of the tiles (WEB).
-export function Identity({ entries }) {
-	const single = (name) => entries.find((entry) => entry.name === name)
-	return <Header single={single} />
-}
-
 /// The header names the device from the facts that say which device this is. They get no tiles of
 /// their own (VIEW).
 function Header({ single }) {
 	const hostname = single('hostname')
-	const board = single('board')
-	const revision = single('board-revision')
-	const os = single('os')
-	const kernel = single('kernel')
-	if (!hostname && !board && !os && !kernel) return null
-
-	const sub = [
-		board && [textOf(board), revision && textOf(revision)].filter(Boolean).join(' '),
-		os && textOf(os),
-		kernel && textOf(kernel),
-	]
-		.filter(Boolean)
-		.join(' · ')
+	const sub = softwareOf(single)
+	if (!hostname && !sub) return null
 
 	return (
 		<div className="device">
@@ -95,6 +77,22 @@ function Header({ single }) {
 			{sub && <div className="sub muted">{sub}</div>}
 		</div>
 	)
+}
+
+/// The device's software identity, from its board with the board's revision, its operating system
+/// and its kernel, as one line. Empty where it reports none of them.
+export function softwareOf(single) {
+	const board = single('board')
+	const revision = single('board-revision')
+	const os = single('os')
+	const kernel = single('kernel')
+	return [
+		board && [textOf(board), revision && textOf(revision)].filter(Boolean).join(' '),
+		os && textOf(os),
+		kernel && textOf(kernel),
+	]
+		.filter(Boolean)
+		.join(' · ')
 }
 
 function textOf(entry) {

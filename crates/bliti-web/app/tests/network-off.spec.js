@@ -3,7 +3,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { emit, message, openNetwork, sent } from './fake-client.js'
+import { feed, message, openNetwork, sent } from './fake-client.js'
 import { IN_FORCE, PI, STATES, bar, open, proposals, row } from './network-fixtures.js'
 
 const toggle = (page, name) => page.locator('.candidate').getByRole('button', { name, exact: true })
@@ -61,7 +61,7 @@ test('a connection the device reports off is shown off', async ({ page }) => {
 
 test('turning off the connection a hotspot cannot run beside takes the notice away', async ({ page }) => {
 	await openNetwork(page, { document: IN_FORCE, capabilities: PI })
-	await emit(
+	await feed(
 		page,
 		message({
 			type: 'fact',
@@ -119,7 +119,7 @@ test('a hotspot turned off says nothing about the connection it cannot run besid
 	const document = structuredClone(IN_FORCE)
 	document.hotspot.enabled = false
 	await openNetwork(page, { document, capabilities: PI })
-	await emit(
+	await feed(
 		page,
 		message({
 			type: 'fact',

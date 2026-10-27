@@ -5,7 +5,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { emit, openChannel } from './fake-client.js'
+import { feed, openChannel, openReadings } from './fake-client.js'
 
 const msg = (message) => ({ kind: 'message', message })
 const reading = (measurement, extra = {}) =>
@@ -19,7 +19,8 @@ test.describe('rendering from the entry alone', () => {
 	// that has never heard of it, from its own name and kind (VIEW).
 	test('a reading this build has never heard of renders from its own description', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12 }))
+		await openReadings(page)
+		await feed(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12 }))
 		await expect(page.getByText('Radiation')).toBeVisible()
 		// The unrecognised unit is written out as it was sent (VIEW).
 		await expect(page.getByText('0.12 µSv/h')).toBeVisible()
@@ -29,14 +30,16 @@ test.describe('rendering from the entry alone', () => {
 	// one (VIEW).
 	test('a value of an unknown kind renders stringified with its unit', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('pressure', { kind: 'barometric', value: 101325, unit: 'pascal' }))
+		await openReadings(page)
+		await feed(page, reading('pressure', { kind: 'barometric', value: 101325, unit: 'pascal' }))
 		await expect(page.getByText('101325 pascal')).toBeVisible()
 	})
 
 	test('each value kind is rendered in its own terms', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 48.5, traits: { status: { is: 'passed' }, sensor: 'cpu' } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 48.5, traits: { status: { is: 'passed' }, sensor: 'cpu' } }))
 		await expect(page.getByText('12%')).toBeVisible()
 		await expect(page.getByText('48.5 °C')).toBeVisible()
 	})
@@ -46,12 +49,13 @@ test.describe('the header', () => {
 	// The header names the device from hostname, board, os and kernel, which get no tiles (VIEW).
 	test('names the device and gives those facts no tiles', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
-		await emit(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5' }))
-		await emit(page, fact('board-revision', { kind: 'text', value: 'Rev 1.0' }))
-		await emit(page, fact('os', { kind: 'text', value: 'Debian 12' }))
-		await emit(page, fact('kernel', { kind: 'text', value: '6.6.20' }))
-		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await openReadings(page)
+		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
+		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5' }))
+		await feed(page, fact('board-revision', { kind: 'text', value: 'Rev 1.0' }))
+		await feed(page, fact('os', { kind: 'text', value: 'Debian 12' }))
+		await feed(page, fact('kernel', { kind: 'text', value: '6.6.20' }))
+		await feed(page, reading('cpu-usage', fraction(0.12)))
 
 		await expect(page.locator('.device .name')).toHaveText('tamanu-iti')
 		await expect(page.locator('.device .sub')).toContainText('Raspberry Pi 5 Rev 1.0')
@@ -63,8 +67,9 @@ test.describe('the header', () => {
 	// An unrecognised fact is a tile, not a header entry (VIEW).
 	test('an unrecognised fact renders as a tile rather than in the header', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
-		await emit(page, fact('firmware', { kind: 'text', value: '2026-04-17' }))
+		await openReadings(page)
+		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
+		await feed(page, fact('firmware', { kind: 'text', value: '2026-04-17' }))
 		await expect(page.locator('.device')).not.toContainText('2026-04-17')
 		await expect(page.locator('.tile')).toContainText('2026-04-17')
 	})
@@ -73,7 +78,8 @@ test.describe('the header', () => {
 test.describe('the face and the reveal', () => {
 	test('a scale is behind the tap, not on the face', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
 		await expect(page.locator('.tile .bar')).toHaveCount(0)
 		await page.getByRole('button', { name: /Processor/ }).click()
 		await expect(page.locator('.tile .bar')).toHaveCount(1)
@@ -82,7 +88,8 @@ test.describe('the face and the reveal', () => {
 	// A reading the device declared but could not take shows it failed, with why (VIEW).
 	test('a broken reading shows it is unavailable, with its reason', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', { kind: 'fraction', traits: { status: { is: 'broken', reason: 'no answer from /proc/stat' } } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', { kind: 'fraction', traits: { status: { is: 'broken', reason: 'no answer from /proc/stat' } } }))
 		await expect(page.getByText('unavailable')).toBeVisible()
 		await page.getByRole('button', { name: /Processor/ }).click()
 		await expect(page.getByText('no answer from /proc/stat')).toBeVisible()
@@ -92,21 +99,24 @@ test.describe('the face and the reveal', () => {
 	// it is unavailable (VIEW).
 	test('a skipped reading is distinguishable from a broken one', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('humidity', { kind: 'fraction', traits: { status: { is: 'skipped', reason: 'no sensor warmed up' } } }))
+		await openReadings(page)
+		await feed(page, reading('humidity', { kind: 'fraction', traits: { status: { is: 'skipped', reason: 'no sensor warmed up' } } }))
 		await expect(page.locator('.tile .value').first()).toHaveText('—')
 	})
 
 	// A state this build does not know must not make an older application cry wolf.
 	test('an unknown status is not treated as trouble', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', { kind: 'fraction', value: 0.12, traits: { status: { is: 'degraded' } } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', { kind: 'fraction', value: 0.12, traits: { status: { is: 'degraded' } } }))
 		await expect(page.locator('.tile .value').first()).not.toHaveClass(/bad|warn/)
 	})
 
 	test('trouble colours the face, and a passed face carries no colour', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, reading('cpu-frequency', { kind: 'quantity', unit: 'hertz', value: 600000000, traits: { status: { is: 'warning', reason: 'the platform is limiting the processor' } } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, reading('cpu-frequency', { kind: 'quantity', unit: 'hertz', value: 600000000, traits: { status: { is: 'warning', reason: 'the platform is limiting the processor' } } }))
 		await expect(page.locator('.tile .value.warn')).toHaveCount(1)
 		await expect(page.locator('.tile .value:not(.warn):not(.bad)')).not.toHaveCount(0)
 	})
@@ -114,7 +124,8 @@ test.describe('the face and the reveal', () => {
 	// A tile with nothing behind its headline is not a tap target (VIEW).
 	test('a tile with nothing to reveal is not tappable', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('fan-speed', { kind: 'quantity', unit: 'revolutions/minute', value: 3113, traits: { status: { is: 'passed' }, fan: 'cpu' } }))
+		await openReadings(page)
+		await feed(page, reading('fan-speed', { kind: 'quantity', unit: 'revolutions/minute', value: 3113, traits: { status: { is: 'passed' }, fan: 'cpu' } }))
 		await expect(page.getByRole('button', { name: /Fan/ })).toHaveCount(0)
 		await expect(page.locator('.tile.flat')).toHaveCount(1)
 	})
@@ -125,15 +136,16 @@ test.describe('aggregation', () => {
 	// reveal (VIEW).
 	test('storage headlines the fullest non-boot filesystem', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const fs = (mount, value, role) =>
 			reading('filesystem-usage', {
 				kind: 'fraction',
 				value,
 				traits: { status: { is: 'passed' }, filesystem: { mount, device: mount, ...(role ? { role } : {}) } },
 			})
-		await emit(page, fs('/boot/firmware', 0.94, 'boot'))
-		await emit(page, fs('/', 0.78))
-		await emit(page, fs('/mnt/data', 0.31))
+		await feed(page, fs('/boot/firmware', 0.94, 'boot'))
+		await feed(page, fs('/', 0.78))
+		await feed(page, fs('/mnt/data', 0.31))
 
 		// The boot partition is fuller, but the headline is the fullest non-boot one.
 		await expect(page.locator('.tile').filter({ hasText: 'Storage' }).locator('.value').first()).toHaveText('78%')
@@ -146,6 +158,7 @@ test.describe('aggregation', () => {
 	// mirrored graph per interface (VIEW).
 	test('network sums the headline and draws per-interface mirrored graphs', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const throughput = (name, direction, value, at) =>
 			msg({
 				type: 'reading',
@@ -157,8 +170,8 @@ test.describe('aggregation', () => {
 				traits: { status: { is: 'passed' }, interface: { name, route: name === 'end0' ? 'default' : undefined }, direction },
 			})
 		for (const at of [1000, 2000]) {
-			await emit(page, throughput('end0', 'in', 1200000, at))
-			await emit(page, throughput('end0', 'out', 84000, at))
+			await feed(page, throughput('end0', 'in', 1200000, at))
+			await feed(page, throughput('end0', 'out', 84000, at))
 		}
 
 		await expect(page.locator('.tile').filter({ hasText: 'Network' }).locator('.value').first()).toHaveText('1.28 MB/s')
@@ -171,11 +184,12 @@ test.describe('aggregation', () => {
 	// A failed network direction shows its reason in the reveal, alongside the other interfaces (VIEW).
 	test('a broken network direction shows why', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const throughput = (name, direction, extra) =>
 			msg({ type: 'reading', at: 1, measurement: 'network-throughput', kind: 'quantity', unit: 'bytes/second', traits: { status: { is: 'passed' }, interface: { name }, direction }, ...extra })
-		await emit(page, throughput('end0', 'in', { value: 1000 }))
-		await emit(page, throughput('end0', 'out', { value: 2000 }))
-		await emit(page, throughput('wlan0', 'out', { traits: { status: { is: 'broken', reason: 'no counters while associating' }, interface: { name: 'wlan0' }, direction: 'out' } }))
+		await feed(page, throughput('end0', 'in', { value: 1000 }))
+		await feed(page, throughput('end0', 'out', { value: 2000 }))
+		await feed(page, throughput('wlan0', 'out', { traits: { status: { is: 'broken', reason: 'no counters while associating' }, interface: { name: 'wlan0' }, direction: 'out' } }))
 
 		await page.getByRole('button', { name: /^Network \d/ }).click()
 		await expect(page.getByText('no counters while associating')).toBeVisible()
@@ -185,11 +199,12 @@ test.describe('aggregation', () => {
 	// address in the reveal (VIEW).
 	test('address headlines the default route and the overlay, and reveals all', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const addr = (name, value, extra) =>
 			fact('network-address', { kind: 'ipv4', value, traits: { status: { is: 'passed' }, interface: { name, ...extra } } })
-		await emit(page, addr('end0', '192.168.1.42', { route: 'default' }))
-		await emit(page, addr('tailscale0', '100.101.102.103', { overlay: 'tailscale' }))
-		await emit(page, addr('wlan0', '10.0.0.5', {}))
+		await feed(page, addr('end0', '192.168.1.42', { route: 'default' }))
+		await feed(page, addr('tailscale0', '100.101.102.103', { overlay: 'tailscale' }))
+		await feed(page, addr('wlan0', '10.0.0.5', {}))
 
 		const tile = page.locator('.tile').filter({ hasText: 'Address' })
 		await expect(tile).toContainText('192.168.1.42')
@@ -202,15 +217,16 @@ test.describe('aggregation', () => {
 	// showed. Each is its own entry, and one that ends goes alone (NFO, VIEW).
 	test('every address an interface holds is revealed, and one that ends goes alone', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const addr = (kind, value, is = 'passed') =>
 			fact('network-address', {
 				kind,
 				value,
 				traits: { status: { is, ...(is === 'ended' ? { reason: 'no longer applies' } : {}) }, interface: { name: 'end0', route: 'default' } },
 			})
-		await emit(page, addr('ipv4', '10.0.101.3'))
-		await emit(page, addr('ipv6', '2407:8b00::3'))
-		await emit(page, addr('ipv6', 'fd6d::3'))
+		await feed(page, addr('ipv4', '10.0.101.3'))
+		await feed(page, addr('ipv6', '2407:8b00::3'))
+		await feed(page, addr('ipv6', 'fd6d::3'))
 
 		const tile = page.locator('.tile').filter({ hasText: 'Address' })
 		await tile.click()
@@ -219,7 +235,7 @@ test.describe('aggregation', () => {
 		await expect(detail).toContainText('2407:8b00::3')
 		await expect(detail).toContainText('fd6d::3')
 
-		await emit(page, addr('ipv6', '2407:8b00::3', 'ended'))
+		await feed(page, addr('ipv6', '2407:8b00::3', 'ended'))
 		await expect(detail).not.toContainText('2407:8b00::3')
 		await expect(detail).toContainText('10.0.101.3')
 		await expect(detail).toContainText('fd6d::3')
@@ -230,31 +246,34 @@ test.describe('aggregation', () => {
 	// interface (VIEW).
 	test('address headlines one address each for the default route and the overlay', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const addr = (name, kind, value, extra) =>
 			fact('network-address', { kind, value, traits: { status: { is: 'passed' }, interface: { name, ...extra } } })
-		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
-		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
-		await emit(page, addr('wlan0', 'ipv4', '10.0.101.10', {}))
-		await emit(page, addr('tailscale0', 'ipv6', 'fd7a:115c:a1e0::1', { overlay: 'tailscale' }))
-		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+		await feed(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await feed(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+		await feed(page, addr('wlan0', 'ipv4', '10.0.101.10', {}))
+		await feed(page, addr('tailscale0', 'ipv6', 'fd7a:115c:a1e0::1', { overlay: 'tailscale' }))
+		await feed(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
 
 		const face = page.locator('.tile').filter({ hasText: 'Address' }).locator('.value .addresses > span')
 		await expect(face).toHaveText(['2407:8b00::3', '100.93.132.114'])
 
 		// An IPv4 address on the default route comes before any IPv6 one.
-		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await feed(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
 		await expect(face).toHaveText(['10.0.101.3', '100.93.132.114'])
 
 		// Where no interface is named as carrying the default route, the headline takes the first choice
 		// among the rest.
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
 		await page.getByRole('button', { name: 'Disconnect' }).click()
 		await openChannel(page)
-		await emit(page, addr('wlan0', 'ipv6', '2407:8b00::10', {}))
-		await emit(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
+		await openReadings(page)
+		await feed(page, addr('wlan0', 'ipv6', '2407:8b00::10', {}))
+		await feed(page, addr('tailscale0', 'ipv4', '100.93.132.114', { overlay: 'tailscale' }))
 		await expect(face).toHaveText(['2407:8b00::10', '100.93.132.114'])
-		await emit(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
-		await emit(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
-		await emit(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
+		await feed(page, addr('end0', 'ipv4', '10.0.101.3', { route: 'default' }))
+		await feed(page, addr('end0', 'ipv6', 'fd6d::3', { route: 'default' }))
+		await feed(page, addr('end0', 'ipv6', '2407:8b00::3', { route: 'default' }))
 
 		// The reveal names the overlay's interface without repeating the overlay its name says.
 		const tile = page.locator('.tile').filter({ hasText: 'Address' })
@@ -268,8 +287,9 @@ test.describe('history', () => {
 	// A history accumulates for a reading, and a graph is drawn from it (VIEW).
 	test('a reading accumulates a history and draws a graph', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, msg({ type: 'reading', at: 1000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.1 }))
-		await emit(page, msg({ type: 'reading', at: 2000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.5 }))
+		await openReadings(page)
+		await feed(page, msg({ type: 'reading', at: 1000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.1 }))
+		await feed(page, msg({ type: 'reading', at: 2000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.5 }))
 		await page.getByRole('button', { name: /Processor/ }).click()
 		await expect(page.locator('.tile .spark polyline').first()).toBeVisible()
 	})
@@ -277,8 +297,9 @@ test.describe('history', () => {
 	// A boolean has no number to draw, however often it is reported.
 	test('a boolean reading never draws a graph', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, msg({ type: 'reading', at: 1000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: false }))
-		await emit(page, msg({ type: 'reading', at: 2000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: true }))
+		await openReadings(page)
+		await feed(page, msg({ type: 'reading', at: 1000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: false }))
+		await feed(page, msg({ type: 'reading', at: 2000, measurement: 'lid-open', traits: { status: { is: 'passed' } }, kind: 'boolean', value: true }))
 		await expect(page.getByText('Yes')).toBeVisible()
 		await expect(page.locator('.tile .spark')).toHaveCount(0)
 		await expect(page.locator('.tile button, button.tile')).toHaveCount(0)
@@ -287,9 +308,10 @@ test.describe('history', () => {
 	// A later reading replaces the headline (VIEW).
 	test('a later reading replaces the headline', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, msg({ type: 'reading', at: 1000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.1 }))
+		await openReadings(page)
+		await feed(page, msg({ type: 'reading', at: 1000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.1 }))
 		await expect(page.getByText('10%')).toBeVisible()
-		await emit(page, msg({ type: 'reading', at: 2000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.9 }))
+		await feed(page, msg({ type: 'reading', at: 2000, measurement: 'cpu-usage', traits: { status: { is: 'passed' } }, kind: 'fraction', value: 0.9 }))
 		await expect(page.getByText('90%')).toBeVisible()
 		await expect(page.getByText('10%')).toBeHidden()
 	})
@@ -313,10 +335,11 @@ test.describe('batteries', () => {
 	// direction folded in beneath (VIEW).
 	test('a single battery folds its voltage and direction into the reveal', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const about = battery('DELL T453X', { model: 'DELL T453X', vendor: 'LGC', serial: '109' })
-		await emit(page, charge(about, 1))
-		await emit(page, volts(about, 12.887))
-		await emit(page, direction(about, 'idle'))
+		await feed(page, charge(about, 1))
+		await feed(page, volts(about, 12.887))
+		await feed(page, direction(about, 'idle'))
 
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('100%')
 		await page.getByRole('button', { name: /Battery/ }).click()
@@ -328,14 +351,15 @@ test.describe('batteries', () => {
 	// reveal with its own voltage and direction (VIEW).
 	test('the built-in cell headlines and every battery is revealed', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const internal = battery('built-in', { vendor: 'SupTronics' })
 		const ups = battery('Eaton 3S', { model: 'Eaton 3S', vendor: 'Eaton' })
-		await emit(page, charge(ups, 1))
-		await emit(page, charge(internal, 0.62))
-		await emit(page, volts(internal, 4.156))
-		await emit(page, direction(internal, 'discharging'))
-		await emit(page, noVolts(ups))
-		await emit(page, direction(ups, 'idle'))
+		await feed(page, charge(ups, 1))
+		await feed(page, charge(internal, 0.62))
+		await feed(page, volts(internal, 4.156))
+		await feed(page, direction(internal, 'discharging'))
+		await feed(page, noVolts(ups))
+		await feed(page, direction(ups, 'idle'))
 
 		// The UPS arrived first and sorts earlier, and the built-in cell still headlines.
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('62%')
@@ -349,14 +373,15 @@ test.describe('batteries', () => {
 	// Each battery's voltage belongs to that battery, not to whichever arrived first (VIEW).
 	test('voltage and direction pair with their own battery', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const first = battery('DELL T453X')
 		const second = battery('Eaton 3S')
-		await emit(page, charge(first, 1))
-		await emit(page, charge(second, 0.5))
-		await emit(page, volts(first, 12.887))
-		await emit(page, noVolts(second))
-		await emit(page, direction(first, 'charging'))
-		await emit(page, direction(second, 'discharging'))
+		await feed(page, charge(first, 1))
+		await feed(page, charge(second, 0.5))
+		await feed(page, volts(first, 12.887))
+		await feed(page, noVolts(second))
+		await feed(page, direction(first, 'charging'))
+		await feed(page, direction(second, 'discharging'))
 
 		await page.getByRole('button', { name: /Battery/ }).click()
 		// The skipped voltage says why rather than borrowing the other battery's figure.
@@ -374,11 +399,12 @@ test.describe('batteries', () => {
 	// their own unit, and get no tiles of their own (VIEW).
 	test('time left and time to full fold into the reveal with their margins', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const about = battery('built-in')
-		await emit(page, charge(about, 0.18))
-		await emit(page, volts(about, 3.41))
-		await emit(page, direction(about, 'discharging'))
-		await emit(page, time('battery-time-to-empty', about, 3240, 480))
+		await feed(page, charge(about, 0.18))
+		await feed(page, volts(about, 3.41))
+		await feed(page, direction(about, 'discharging'))
+		await feed(page, time('battery-time-to-empty', about, 3240, 480))
 
 		await expect(page.locator('.tile')).toHaveCount(1)
 		await page.getByRole('button', { name: /Battery/ }).click()
@@ -388,12 +414,12 @@ test.describe('batteries', () => {
 		await expect(reveal.locator('dd').last().locator('.margin')).toHaveText('±8m')
 
 		// Charging: time left ends and time to full takes its place.
-		await emit(
+		await feed(
 			page,
 			reading('battery-time-to-empty', { kind: 'duration', traits: { status: { is: 'ended' }, battery: about } }),
 		)
-		await emit(page, direction(about, 'charging'))
-		await emit(page, time('battery-time-to-full', about, 5100, 1200))
+		await feed(page, direction(about, 'charging'))
+		await feed(page, time('battery-time-to-full', about, 5100, 1200))
 		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time to full'])
 		await expect(reveal.locator('dd').last()).toHaveText('1h 25m±20m')
 		await expect(page.locator('.tile')).toHaveCount(1)
@@ -402,9 +428,10 @@ test.describe('batteries', () => {
 	// Each battery's times are its own where there are several.
 	test('time left pairs with its own battery', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, charge(battery('built-in'), 0.5))
-		await emit(page, charge(battery('Eaton 3S'), 1))
-		await emit(page, time('battery-time-to-empty', battery('Eaton 3S'), 7200, 600))
+		await openReadings(page)
+		await feed(page, charge(battery('built-in'), 0.5))
+		await feed(page, charge(battery('Eaton 3S'), 1))
+		await feed(page, time('battery-time-to-empty', battery('Eaton 3S'), 7200, 600))
 		await page.getByRole('button', { name: /Battery/ }).click()
 		const ups = page.locator('.tile.expanded .revealed').filter({ hasText: 'Eaton 3S' })
 		await expect(ups).toContainText('Time left')
@@ -415,8 +442,9 @@ test.describe('batteries', () => {
 	// With no built-in cell the headline is settled by name rather than by arrival order (VIEW).
 	test('with no built-in cell the first by name headlines', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, charge(battery('Eaton 3S'), 0.5))
-		await emit(page, charge(battery('APC Back-UPS'), 0.9))
+		await openReadings(page)
+		await feed(page, charge(battery('Eaton 3S'), 0.5))
+		await feed(page, charge(battery('APC Back-UPS'), 0.9))
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('90%')
 	})
 
@@ -424,8 +452,9 @@ test.describe('batteries', () => {
 	// name says which battery it is (VIEW).
 	test('a changing model does not split one battery into two', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, charge(battery('BAT0', { model: 'DELL T453X' }), 0.5))
-		await emit(page, charge(battery('BAT0', { model: 'DELL T453X (refurbished)' }), 0.9))
+		await openReadings(page)
+		await feed(page, charge(battery('BAT0', { model: 'DELL T453X' }), 0.5))
+		await feed(page, charge(battery('BAT0', { model: 'DELL T453X (refurbished)' }), 0.9))
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' })).toHaveCount(1)
 		await expect(page.locator('.tile').filter({ hasText: 'Battery' }).locator('.value').first()).toHaveText('90%')
 	})
@@ -435,7 +464,8 @@ test.describe('margins', () => {
 	// Any reading carrying a margin shows it beside its value, in the reading's unit (VIEW).
 	test('a reading carrying a margin shows it beside its value', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
+		await openReadings(page)
+		await feed(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
 		await expect(page.locator('.tile .value')).toHaveText('0.12 µSv/h±0.03 µSv/h')
 		await expect(page.locator('.tile .value .margin')).toHaveText('±0.03 µSv/h')
 	})
@@ -444,8 +474,9 @@ test.describe('margins', () => {
 	// split it into two (NFO).
 	test('a changing margin does not split one reading into two', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
-		await emit(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.14, traits: { status: { is: 'passed' }, margin: 0.02 } }))
+		await openReadings(page)
+		await feed(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.12, traits: { status: { is: 'passed' }, margin: 0.03 } }))
+		await feed(page, reading('radiation', { kind: 'quantity', unit: 'µSv/h', value: 0.14, traits: { status: { is: 'passed' }, margin: 0.02 } }))
 		await expect(page.locator('.tile')).toHaveCount(1)
 		await expect(page.locator('.tile .value')).toHaveText('0.14 µSv/h±0.02 µSv/h')
 	})
@@ -456,10 +487,11 @@ test.describe('what it does not recognise', () => {
 	// values as the qualifier rather than dropped (VIEW).
 	test('two unknown readings differing only in traits are told apart', async ({ page }) => {
 		await openChannel(page)
+		await openReadings(page)
 		const modem = (tech, value) =>
 			reading('modem-signal', { kind: 'quantity', unit: 'decibel-milliwatts', value, traits: { status: { is: 'passed' }, modem: { name: tech === 'lte' ? 'cdc-wdm0' : 'cdc-wdm1', technology: tech } } })
-		await emit(page, modem('lte', -71))
-		await emit(page, modem('nr5g', -84))
+		await feed(page, modem('lte', -71))
+		await feed(page, modem('nr5g', -84))
 		await expect(page.getByText('-71 decibel-milliwatts')).toBeVisible()
 		await expect(page.getByText('-84 decibel-milliwatts')).toBeVisible()
 		await expect(page.locator('.tile').filter({ hasText: 'cdc-wdm0' })).toHaveCount(1)
@@ -479,8 +511,9 @@ test.describe('wireless', () => {
 	// a shared-channel hotspot following the client onto a new channel must not leave two tiles (VIEW).
 	test('a wireless-network fact whose channel changes replaces its tile rather than adding a second', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, joined(6, '2ghz'))
-		await emit(page, joined(36, '5ghz'))
+		await openReadings(page)
+		await feed(page, joined(6, '2ghz'))
+		await feed(page, joined(36, '5ghz'))
 		const tile = page.locator('.tile').filter({ hasText: 'Wireless' })
 		await expect(tile).toHaveCount(1)
 		await tile.click()
@@ -492,11 +525,12 @@ test.describe('wireless', () => {
 	// The new entries take the places VIEW's order gives them, after the address and before the processor.
 	test('the wireless and hotspot tiles sit where the order puts them', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
-		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
-		await emit(page, joined(6, '2ghz'))
-		await emit(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'wlan0', route: 'default' } } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
+		await feed(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await feed(page, joined(6, '2ghz'))
+		await feed(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'wlan0', route: 'default' } } }))
 		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Wireless', 'Hotspot', 'Hotspot clients', 'Processor'])
 		await expect(page.getByText('3 clients')).toBeVisible()
 	})
@@ -505,14 +539,15 @@ test.describe('wireless', () => {
 	// once more as ended and its tiles go (NFO, VIEW).
 	test('a hotspot that has stopped loses its tiles', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
-		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await feed(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', value: 3 }))
 		await expect(page.locator('.tile .label')).toHaveText(['Hotspot', 'Hotspot clients', 'Processor'])
 
 		const ended = { status: { is: 'ended', reason: 'no longer applies' } }
-		await emit(page, fact('hotspot', { kind: 'text', traits: { ...ended, channel: { number: 11 } } }))
-		await emit(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', traits: ended }))
+		await feed(page, fact('hotspot', { kind: 'text', traits: { ...ended, channel: { number: 11 } } }))
+		await feed(page, reading('hotspot-clients', { kind: 'quantity', unit: 'clients', traits: ended }))
 		await expect(page.locator('.tile .label')).toHaveText(['Processor'])
 	})
 
@@ -522,7 +557,8 @@ test.describe('wireless', () => {
 
 	test('the hotspot reveals its passphrase and a code to join it by', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, running('harbour-kettle-47'))
+		await openReadings(page)
+		await feed(page, running('harbour-kettle-47'))
 		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
 		await expect(tile.getByRole('img', { name: 'QR code to join iti-setup' })).toHaveCount(0)
 		await tile.click()
@@ -535,12 +571,13 @@ test.describe('wireless', () => {
 
 	test('a changed passphrase redraws the code', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, running('harbour-kettle-47'))
+		await openReadings(page)
+		await feed(page, running('harbour-kettle-47'))
 		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
 		await tile.click()
 		const path = tile.locator('.qr svg path')
 		const before = await path.getAttribute('d')
-		await emit(page, running('lighthouse-oar-12'))
+		await feed(page, running('lighthouse-oar-12'))
 		await expect(tile).toContainText('lighthouse-oar-12')
 		await expect(path).not.toHaveAttribute('d', before)
 		await expect(page.locator('.tile .label')).toHaveText(['Hotspot'])
@@ -548,7 +585,8 @@ test.describe('wireless', () => {
 
 	test('a hotspot with no value offers no code', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('hotspot', { kind: 'text', traits: { status: { is: 'broken', reason: 'hostapd is not answering' }, passphrase: 'harbour-kettle-47' } }))
+		await openReadings(page)
+		await feed(page, fact('hotspot', { kind: 'text', traits: { status: { is: 'broken', reason: 'hostapd is not answering' }, passphrase: 'harbour-kettle-47' } }))
 		const tile = page.locator('.tile').filter({ hasText: 'Hotspot' })
 		await tile.click()
 		await expect(tile).toContainText('hostapd is not answering')
@@ -560,9 +598,10 @@ test.describe('wireless', () => {
 	// other unrecognised one: a tile of its own, appended, with no mark on the network tiles (VIEW).
 	test('a network-configuration fact is an unrecognised fact like any other', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
-		await emit(page, fact('network-configuration', { kind: 'text', value: 'provisional' }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, fact('hotspot', { kind: 'text', value: 'iti-setup', traits: { status: { is: 'passed' }, channel: { number: 6 } } }))
+		await feed(page, fact('network-configuration', { kind: 'text', value: 'provisional' }))
 		await expect(page.locator('.tile .label')).toHaveText(['Hotspot', 'Processor', 'Network Configuration'])
 		await expect(page.locator('.tile.provisional')).toHaveCount(0)
 		await expect(page.locator('.tile .trial')).toHaveCount(0)
@@ -575,8 +614,9 @@ test.describe('connected clients', () => {
 	// Every open channel, this page's among them, out of the most the device can hold (VIEW).
 	test('are headlined out of the most the device can hold', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('channel-clients-max', { kind: 'quantity', unit: 'clients', value: 8 }))
-		await emit(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 2 }))
+		await openReadings(page)
+		await feed(page, fact('channel-clients-max', { kind: 'quantity', unit: 'clients', value: 8 }))
+		await feed(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 2 }))
 		await expect(page.locator('.tile', { hasText: 'Connected' })).toContainText('2/8 clients')
 		await expect(page.locator('.tile', { hasText: 'Room for' })).toHaveCount(0)
 	})
@@ -595,8 +635,9 @@ test.describe('wired carrier', () => {
 	// One line a port, naming it, with the cable in words (VIEW).
 	test('is headlined as a line for each port, naming it', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, port('end1', false))
-		await emit(page, port('end0', true))
+		await openReadings(page)
+		await feed(page, port('end1', false))
+		await feed(page, port('end0', true))
 
 		await expect(page.locator('.tile')).toHaveCount(1)
 		const lines = cable(page).locator('.addresses span')
@@ -605,16 +646,18 @@ test.describe('wired carrier', () => {
 
 	test('sits directly after the address tile', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, reading('cpu-usage', fraction(0.12)))
-		await emit(page, port('end0', true))
-		await emit(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'end0' } } }))
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', fraction(0.12)))
+		await feed(page, port('end0', true))
+		await feed(page, fact('network-address', { kind: 'ipv4', value: '10.0.0.5', traits: { status: { is: 'passed' }, interface: { name: 'end0' } } }))
 		await expect(page.locator('.tile .label')).toHaveText(['Address', 'Cable', 'Processor'])
 	})
 
 	test('the reveal repeats each port', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, port('end0', true))
-		await emit(page, port('end1', false))
+		await openReadings(page)
+		await feed(page, port('end0', true))
+		await feed(page, port('end1', false))
 		await cable(page).click()
 		const detail = cable(page).locator('.detail')
 		await expect(detail.locator('dt')).toHaveText(['end0', 'end1'])
@@ -623,35 +666,39 @@ test.describe('wired carrier', () => {
 
 	test('a later value for a port replaces its line', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, port('end0', false))
+		await openReadings(page)
+		await feed(page, port('end0', false))
 		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · No cable'])
-		await emit(page, port('end0', true))
+		await feed(page, port('end0', true))
 		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · Plugged in'])
 	})
 
 	test('a port sent as ended loses its line and leaves the other', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, port('end0', true))
-		await emit(page, port('end1', false))
-		await emit(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end1' } } }))
+		await openReadings(page)
+		await feed(page, port('end0', true))
+		await feed(page, port('end1', false))
+		await feed(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end1' } } }))
 		await expect(cable(page).locator('.addresses span')).toHaveText(['end0 · Plugged in'])
 
-		await emit(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end0' } } }))
+		await feed(page, fact('wired-carrier', { kind: 'boolean', traits: { status: { is: 'ended', reason: 'no longer applies' }, interface: { name: 'end0' } } }))
 		await expect(page.locator('.tile')).toHaveCount(0)
 	})
 
 	// No cable is an ordinary state, not a fault (NFO).
 	test('a passed face is not coloured, for either value', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, port('end0', true))
-		await emit(page, port('end1', false))
+		await openReadings(page)
+		await feed(page, port('end0', true))
+		await feed(page, port('end1', false))
 		await expect(cable(page).locator('.value .warn, .value .bad')).toHaveCount(0)
 		await expect(cable(page).locator('.value.warn, .value.bad')).toHaveCount(0)
 	})
 
 	test('a broken port shows no value, with its reason', async ({ page }) => {
 		await openChannel(page)
-		await emit(
+		await openReadings(page)
+		await feed(
 			page,
 			fact('wired-carrier', {
 				kind: 'boolean',
@@ -667,8 +714,9 @@ test.describe('wired carrier', () => {
 	// The generic path: a boolean this build does not recognise renders from its name (VIEW).
 	test('a boolean of an unrecognised name renders as yes or no under its own name', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('lid-open', { kind: 'boolean', value: true }))
-		await emit(page, fact('door-open', { kind: 'boolean', value: false }))
+		await openReadings(page)
+		await feed(page, fact('lid-open', { kind: 'boolean', value: true }))
+		await feed(page, fact('door-open', { kind: 'boolean', value: false }))
 		await expect(page.locator('.tile').filter({ hasText: 'Lid Open' })).toContainText('Yes')
 		await expect(page.locator('.tile').filter({ hasText: 'Door Open' })).toContainText('No')
 	})

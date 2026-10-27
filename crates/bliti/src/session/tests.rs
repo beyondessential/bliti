@@ -586,7 +586,7 @@ async fn going_away_on(feed: &mut Stream) -> (String, String) {
 	loop {
 		match next(feed).await {
 			Message::GoingAway { act, cause } => return (act, cause),
-			Message::Fact(_) | Message::Reading(_) => continue,
+			Message::Fact(_) | Message::Reading(_) | Message::EndOfBatch => continue,
 			other => panic!("unexpected {other:?} on the feed"),
 		}
 	}
@@ -848,4 +848,102 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 			.count()
 	};
 	assert_eq!(names(&facts_now(&Tailscale::none(), &Tamanu::none())), 3);
+}
+
+/// The feed's messages split at each `end-of-batch`, until `within` has passed. What came after the last marker is
+/// left out, as a batch not yet ended.
+async fn batches_on(feed: &mut Stream, within: Duration) -> Vec<Vec<Message>> {
+	let deadline = tokio::time::Instant::now() + within;
+	let mut batches = vec![Vec::new()];
+	while let Ok(message) = tokio::time::timeout_at(deadline, next(feed)).await {
+		match message {
+			Message::EndOfBatch => batches.push(Vec::new()),
+			other => batches.last_mut().unwrap().push(other),
+		}
+	}
+	batches.pop();
+	batches
+}
+
+/// The feed opens on one batch of every fact and the current readings, facts first, and each
+/// sampler tick after it is a batch of its own (NFO, "Batches").
+#[tokio::test]
+async fn the_feed_is_sent_in_batches() {
+	let mut streams = paired(&keys(0x42)).await;
+	let mut one = streams.accept().await.unwrap();
+	let mut two = streams.accept().await.unwrap();
+	let first = next(&mut one).await;
+	let mut feed = if matches!(first, Message::Hello { .. }) {
+		two
+	} else {
+		let _ = next(&mut two).await;
+		one
+	};
+	let mut batches = batches_on(&mut feed, Duration::from_millis(2500)).await;
+	if !matches!(first, Message::Hello { .. }) {
+		batches[0].insert(0, first);
+	}
+
+	let opening = &batches[0];
+	let facts = opening
+		.iter()
+		.take_while(|m| matches!(m, Message::Fact(_)))
+		.count();
+	assert!(
+		opening
+			.iter()
+			.any(|m| matches!(m, Message::Fact(entry) if entry.name == "channel-clients-max")),
+		"the first batch carries the facts"
+	);
+	assert!(
+		opening[facts..]
+			.iter()
+			.all(|m| matches!(m, Message::Reading(_))),
+		"then the current readings, and nothing else"
+	);
+	assert!(
+		batches[1..].iter().any(
+			|batch| !batch.is_empty() && batch.iter().all(|m| matches!(m, Message::Reading(_)))
+		),
+		"a sampler tick is a batch of readings"
+	);
+}
+
+/// A change of facts is one batch: the facts it ends, then the facts now (NFO, "Batches").
+#[test]
+fn a_change_of_facts_carries_what_it_ends_and_what_replaces_it() {
+	let address = |at: u64, interface: &str| {
+		Entry::text(at, "network-address", "192.0.2.4/24")
+			.with_trait("interface", serde_json::json!({ "name": interface }))
+	};
+	let before = [carrier(1, "end0", true), address(1, "end0")];
+	let after = [carrier(3, "end0", true), address(3, "wlan0")];
+
+	let batch = changed_facts(&before, &after, 5);
+	let entries: Vec<&Entry> = batch
+		.iter()
+		.map(|m| match m {
+			Message::Fact(entry) => entry,
+			other => panic!("a change of facts carries facts, not {other:?}"),
+		})
+		.collect();
+	assert_eq!(entries.len(), 3);
+	assert_eq!(entries[0].name, "network-address");
+	assert_eq!(entries[0].status(), Some("ended"));
+	assert_eq!(entries[0].reason(), Some(ENDED));
+	assert_eq!(*entries[1], after[0]);
+	assert_eq!(*entries[2], after[1]);
+}
+
+/// The sampler gathers the wireless network and the hotspot with the readings, and they go out as the
+/// facts NFO catalogues them as; what else it gathers goes out as readings.
+#[test]
+fn the_sampled_wireless_network_and_hotspot_are_facts() {
+	let joined = Entry::text(1, "wireless-network", "Clinic-Staff")
+		.with_trait("interface", serde_json::json!({ "name": "wlan0" }));
+	let hotspot = Entry::text(1, "hotspot", "Clinic-Field-05");
+	let clients = Entry::quantity(1, "hotspot-clients", "clients", 2.0);
+	assert_eq!(sampled(joined.clone()), Message::Fact(joined));
+	assert_eq!(sampled(hotspot.clone()), Message::Fact(hotspot));
+	assert_eq!(sampled(clients.clone()), Message::Reading(clients));
 }

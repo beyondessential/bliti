@@ -21,7 +21,7 @@ use bliti_core::{
 	advertisement::{Advertised, Heard, local_names},
 	channel::{
 		capabilities,
-		envelope::{Reading, read},
+		envelope::{Reading, Refusal, read},
 		messages::Message,
 		stream::{Mode, Opener, Stream, connect_initiator, multiplex, read_message, write_message},
 	},
@@ -781,7 +781,8 @@ fn call_closed(on_closed: &Function, ended: Option<String>) {
 /// The three outcomes of MSG are kept apart here rather than in the application, so every client
 /// surface inherits the same reading of the wire. `message` is what this build understood, `skipped`
 /// is a device newer than this build saying something safe to pass over, `refused` is one saying
-/// something that must not be half read, and `fault` is a device not speaking the protocol.
+/// something that must not be half read, and `fault` is a device not speaking the protocol. A
+/// refusal names the message type it refused, so the application can say so once per type (STAT).
 fn describe(raw: &[u8]) -> (String, Option<String>) {
 	match read::<Message>(raw) {
 		Ok(Reading::Message(message)) => (
@@ -792,10 +793,22 @@ fn describe(raw: &[u8]) -> (String, Option<String>) {
 			serde_json::json!({ "kind": "skipped", "detail": skip.to_string() }).to_string(),
 			None,
 		),
-		Ok(Reading::Refused(refusal)) => (
-			serde_json::json!({ "kind": "refused", "detail": refusal.to_string() }).to_string(),
-			None,
-		),
+		Ok(Reading::Refused(refusal)) => {
+			let type_name = match &refusal {
+				Refusal::CriticalType(type_name) | Refusal::CriticalMembers { type_name, .. } => {
+					type_name
+				}
+			};
+			(
+				serde_json::json!({
+					"kind": "refused",
+					"type": type_name,
+					"detail": refusal.to_string(),
+				})
+				.to_string(),
+				None,
+			)
+		}
 		Err(fault) => (
 			serde_json::json!({ "kind": "fault", "detail": fault.to_string() }).to_string(),
 			Some(fault.to_string()),

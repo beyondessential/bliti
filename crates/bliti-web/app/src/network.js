@@ -169,6 +169,8 @@ export function opening() {
 		selected: null,
 		notice: null,
 		why: null,
+		// The operator's edits, kept while the session opens again on a reconnected channel.
+		kept: null,
 	}
 }
 
@@ -243,6 +245,8 @@ export function reduce(state, action) {
 			return fromDevice(state, action.event)
 		case 'restart':
 			return { ...opening(), retried: true }
+		case 'resume':
+			return resumed(state)
 		case 'edit':
 			if (!writable(state)) return state
 			return { ...state, edit: action.change(state.edit), problem: null }
@@ -282,6 +286,17 @@ export function reduce(state, action) {
 		default:
 			return state
 	}
+}
+
+/// A session opening again on a channel reconnected under the screen, keeping the operator's edits
+/// to hold against what the device holds once it is open (NSCR, WEB).
+function resumed(state) {
+	const edited =
+		(state.stage === 'editing' || state.stage === 'errored') &&
+		state.inForce !== null &&
+		changes(state.edit, state.inForce, state.inForceKeys) > 0
+	const kept = edited ? { edit: state.edit, inForceKeys: state.inForceKeys, selected: state.selected } : null
+	return { ...opening(), kept }
 }
 
 /// One outcome off the session stream, as the protocol half described it.
@@ -385,7 +400,15 @@ function reported(received, message) {
 		states: readState(message),
 		capabilities: message.capabilities ?? received.capabilities,
 	}
-	if (state.status === 'opening') return state.inForce ? editing({ ...state, status: 'open' }) : state
+	if (state.status === 'opening') {
+		if (!state.inForce) return state
+		const open = editing({ ...state, status: 'open', kept: null })
+		// Edits kept across a reconnect stay where the session lets the operator edit (NSCR).
+		const { kept } = state
+		return kept && writable(open)
+			? { ...open, edit: kept.edit, inForceKeys: kept.inForceKeys, selected: kept.selected }
+			: open
+	}
 	// A state before the configuration after a proposal speaks of the one before it.
 	if (state.awaiting) return state
 	if (state.busy !== received.busy) return editing(state)

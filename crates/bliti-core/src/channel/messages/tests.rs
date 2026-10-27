@@ -452,7 +452,10 @@ fn an_unknown_critical_member_nested_in_a_reading_is_refused() {
 	let json = r#"{"type":"reading","at":1,"measurement":"cpu-usage","traits":{"status":{"is":"passed"}},"kind":"fraction","value":0.1,"SCOPE":"site"}"#;
 	assert_eq!(
 		parse(json).unwrap(),
-		Reading::Refused(Refusal::CriticalMembers(vec!["scope".to_owned()]))
+		Reading::Refused(Refusal::CriticalMembers {
+			type_name: "reading".to_owned(),
+			members: vec!["scope".to_owned()],
+		})
 	);
 }
 
@@ -601,6 +604,21 @@ fn secrets_do_not_debug() {
 	for message in [act, link] {
 		assert!(!format!("{message:?}").contains("hunter2"));
 	}
+}
+
+/// `end-of-batch` carries nothing beyond its type, and round trips (NFO).
+#[test]
+fn end_of_batch_round_trips() {
+	let json = Message::EndOfBatch.to_json();
+	assert_eq!(
+		String::from_utf8(json.clone()).unwrap(),
+		r#"{"type":"end-of-batch"}"#
+	);
+	assert_eq!(read(&json).unwrap(), Reading::Message(Message::EndOfBatch));
+	assert_eq!(
+		round_trip_omissions(&Message::EndOfBatch),
+		Vec::<String>::new()
+	);
 }
 
 /// The Tamanu stream's messages round trip (TMU).

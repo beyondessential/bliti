@@ -50,6 +50,10 @@ pub enum Message {
 	/// A measurement whose history is worth keeping, named against the reading catalogue (NFO).
 	Reading(Entry),
 
+	/// The end of a batch of facts and readings on a feed: what came since the last one is taken
+	/// together (NFO).
+	EndOfBatch,
+
 	/// A client opening a configuration session, first on the stream it opens for it (CFG).
 	Configure,
 
@@ -329,6 +333,9 @@ impl Message {
 				map.insert("type".to_owned(), "fact".into());
 				entry.write_into("fact", &mut map);
 			}
+			Self::EndOfBatch => {
+				map.insert("type".to_owned(), "end-of-batch".into());
+			}
 			Self::Reading(entry) => {
 				map.insert("type".to_owned(), "reading".into());
 				entry.write_into("measurement", &mut map);
@@ -571,6 +578,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"reading" => Entry::read_from("measurement", &map)
 				.map(Message::Reading)
 				.map_err(de::Error::custom),
+			"end-of-batch" => Ok(Message::EndOfBatch),
 			"configure" => Ok(Message::Configure),
 			"configuration" => Ok(Message::Configuration {
 				document: object(&map, "document")?,
@@ -764,6 +772,7 @@ impl MessageSet for Message {
 			"subscribe",
 			"fact",
 			"reading",
+			"end-of-batch",
 			"configure",
 			"configuration",
 			"state",

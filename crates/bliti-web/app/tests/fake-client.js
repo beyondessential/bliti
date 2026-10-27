@@ -44,8 +44,9 @@ window.__blitiPowerStreams = []
 window.__blitiCurveStreams = []
 window.__blitiReturns = []
 window.__blitiReconnects = 0
-// Short enough that coming back, giving up and the power-off hold all happen within a test.
-window.__blitiTimings = { retry: 50, giveUp: 1500, hold: 400 }
+// Short enough that coming back, giving up, reaching a device again and the power-off hold all happen
+// within a test.
+window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, grace: 1000, hold: 400 }
 window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {
@@ -217,13 +218,25 @@ window.__blitiClient = {
 }
 `
 
-/// Take the application to an open channel, with the code read and the device found.
-export async function openChannel(page) {
+/// Take the application to an open channel, with the code read, the device found, and its feed's
+/// first batch ended with `facts` in it. The Status screen is titled with the code's last four
+/// characters, unless one of `facts` is its hostname (STAT).
+export async function openChannel(page, ...facts) {
+	await openChecking(page)
+	await feed(page, ...facts)
+}
+
+/// Take the application to an open channel whose feed has not yet ended its first batch.
+export async function openChecking(page) {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')
 	await typeCode(page, 'BLITI:AHFYTP4T6K2M9WQX')
 	await page.getByRole('button', { name: 'Find my Iti' }).click()
+	await page.getByRole('button', { name: 'Disconnect' }).waitFor()
 }
+
+/// The title of the Status screen of the device `openChannel` reaches, where it reports no hostname.
+export const UNNAMED = '9WQX'
 
 /// Enter a code's text under Advanced, opening it first where it is closed (WEB).
 export async function typeCode(page, text) {
@@ -241,6 +254,17 @@ export async function devMode(page) {
 /// Feed one message or outcome, as the protocol half would have described it.
 export async function emit(page, event) {
 	await page.evaluate((event) => window.__blitiEmit(event), event)
+}
+
+/// Feed one batch of facts and readings: each event, then `end-of-batch` (NFO).
+export async function feed(page, ...events) {
+	await page.evaluate(
+		(events) => {
+			for (const event of events) window.__blitiEmit(event)
+			window.__blitiEmit({ kind: 'message', message: { type: 'end-of-batch' } })
+		},
+		events,
+	)
 }
 
 /// Close the channel the way the connection ending does, optionally with a reason.
@@ -321,9 +345,28 @@ export async function openNetwork(page, { document, capabilities, states, busy, 
 	await page.getByRole('heading', { name: 'Connections' }).waitFor()
 }
 
-/// Go from the device view to the network settings screen (VIEW).
+/// Open Advanced on the Status screen, where it is closed (STAT).
+export async function openAdvanced(page) {
+	const advanced = page.getByRole('button', { name: 'Advanced' })
+	if ((await advanced.getAttribute('aria-expanded')) !== 'true') await advanced.click()
+}
+
+/// Go from the Status screen to the network settings screen, under Advanced (STAT).
 export async function openNetworkScreen(page) {
+	await openAdvanced(page)
 	await page.getByRole('button', { name: 'Network settings' }).click()
+}
+
+/// Go from the Status screen to all the readings, under Advanced (STAT).
+export async function openReadings(page) {
+	await openAdvanced(page)
+	await page.getByRole('button', { name: 'All readings' }).click()
+}
+
+/// Go from the Status screen to the power and battery screen, under Advanced (STAT).
+export async function openPower(page) {
+	await openAdvanced(page)
+	await page.getByRole('button', { name: 'Power and battery' }).click()
 }
 
 /// Every message the page has sent on power streams, in order.

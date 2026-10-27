@@ -120,13 +120,13 @@ The application MUST treat `accepted` for an act it asked for as it treats `goin
 
 On either, the application MUST say that the act is under way, as restarting bliti, rebooting or shutting down, and MUST keep the QR code it read.
 On a `going-away` whose cause is `low-battery`, the application MUST also say that the device is shutting down because its battery is low.
-While it says so, the application MUST keep the device view's title and the header naming the device, as [VIEW](device-view.md) has them, MUST show the act under way in place of the tiles, and MUST offer to disconnect beside the title.
+While it says so, the application MUST show the Status screen of [STAT](status-screen.md), keeping its title and the device's software identity, MUST show the act under way in place of its rows and Advanced, and MUST offer to disconnect beside the title.
 The application MUST NOT say that an act has completed.
 
 After a `restart` or a `reboot`, the application MUST reconnect to the same device on its own once the channel has closed, without offering the chooser, and MUST go on trying until the channel is open again.
 While it tries, the application MUST go on saying that the act is under way.
 Disconnecting MUST stop it trying.
-Once the channel is open again, the application MUST stop saying so and show the device view.
+Once the channel is open again, the application MUST stop saying so and show the Status screen.
 The application MUST stop trying once a device that has not come back is unlikely to, and MUST then say that the device has not come back and offer to find it again.
 Where the browser cannot reach the device again without the chooser, the application MUST offer to find it again.
 
@@ -137,6 +137,17 @@ The application MUST NOT reconnect on its own after a `power-off`.
 > The browser keeps the device the operator picked, so reaching it again needs no chooser and no tap, provided it comes back under the same Bluetooth address. One that comes back under another is a device the browser has not been given, and only the chooser can give it.
 > An act accepted is not an act done: the device may fail to carry it out after it has said it is going, and nothing is left connected to say so. Saying only that the act is under way stays true either way.
 > A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
+
+## While the page is hidden
+
+Where the channel closes while the page is hidden, or within a moment of it being shown again, other than as [When the device goes away](#when-the-device-goes-away) has it, the application MUST hold the screen the operator was on and what it showed, and MUST NOT say the device was lost.
+Once the page is shown again, the application MUST reconnect to the same device on its own, without offering the chooser, saying that it is reconnecting, and MUST return the operator to the screen they were on once the channel is open again.
+Disconnecting MUST stop it reconnecting.
+The application MUST stop trying once a device that has not answered is unlikely to, and MUST then say that the device was lost and offer to find it again.
+Where the browser cannot reach the device again without the chooser, the application MUST say that the device was lost and offer to find it again.
+
+> [!NOTE]
+> A phone may end the Bluetooth link of a browser it has put in the background, and a page cannot hold it open. A browser that froze the page may end it only as the page comes back, which is why a drop just after the page is shown counts too. Without this, a technician who steps into another app and back would meet a lost device.
 
 ## Moving between screens
 

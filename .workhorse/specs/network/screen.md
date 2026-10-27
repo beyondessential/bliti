@@ -9,7 +9,7 @@ The screen an operator configures a device from: the document of [NET](overview.
 [NET](overview.md) and [CFG](session.md) bind every implementation.
 This spec covers how ours handles them, and binds nothing else that configures a bliti device.
 
-The application MUST title the screen Network settings, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the device view beside it.
+The application MUST title the screen Network settings, and MUST carry that title where the device view carries its own, as [VIEW](../device-view.md) has it, with the way back to the Status screen of [STAT](../status-screen.md) beside it.
 
 ## Editing is the application's own
 
@@ -37,6 +37,8 @@ The application MUST NOT let the operator edit a field while a proposal is being
 The application MUST show that it is waiting on the device while a proposal is being verified, a scan or survey is running, or a session is opening.
 
 The application MUST close the session when the operator leaves the screen, and MUST drop the operator's edits with it.
+
+Where the application reconnects as [WEB](../web-app.md#while-the-page-is-hidden) has it while this screen is open, it MUST open a session again, and MUST keep the operator's edits, held against the configuration the device holds then, where that session lets the operator edit.
 
 Edits are not applied while the application is editing or errored and the fields differ from the configuration the device holds.
 

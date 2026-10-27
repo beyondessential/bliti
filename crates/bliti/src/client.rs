@@ -356,6 +356,7 @@ pub async fn connect(
 					Ok(Reading::Message(Message::Fact(entry) | Message::Reading(entry))) => {
 						println!("{}", render(&entry));
 					}
+					Ok(Reading::Message(Message::EndOfBatch)) => println!("--"),
 					Ok(Reading::Message(Message::Subscribe { topic })) => {
 						println!("subscribe: {topic}");
 					}

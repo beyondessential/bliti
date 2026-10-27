@@ -30,21 +30,31 @@ export function useDevMode() {
 	return [on, tap]
 }
 
-export function Title({ title, children }) {
+/// A screen's title, with `sub` beneath it where there is one and the screen's actions beside it.
+export function Title({ title, sub, children }) {
 	const tap = useContext(TitleTaps)
+	const heading = <h1 onClick={tap}>{title}</h1>
 	return (
 		<div className="heading title">
-			<h1 onClick={tap}>{title}</h1>
+			{sub ? (
+				<div>
+					{heading}
+					<p className="muted software">{sub}</p>
+				</div>
+			) : (
+				heading
+			)}
 			{children && <div className="actions">{children}</div>}
 		</div>
 	)
 }
 
+/// The activity record, shown whenever dev mode is on, so turning it on shows at once that it is.
 export function Activity({ log }) {
-	if (log.length === 0) return null
 	return (
 		<section>
 			<h2>Activity</h2>
+			{log.length === 0 && <p className="muted">Nothing yet.</p>}
 			<div className="log">
 				{log.map((line, index) => (
 					<p key={index} className={`line ${line.direction}`}>
