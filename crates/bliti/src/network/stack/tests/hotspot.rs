@@ -308,7 +308,7 @@ async fn the_hotspot_follows_the_station_onto_a_new_channel() {
 		"{}",
 		rig.read("hostapd/ap0.conf")
 	);
-	assert_eq!(rig.calls(), ["hostapd Restart ap0"]);
+	assert_eq!(rig.calls(), ["open firewall on ap0", "hostapd Restart ap0"]);
 }
 
 /// A wireless candidate turned off takes no radio, so the hotspot has no client to wait for and

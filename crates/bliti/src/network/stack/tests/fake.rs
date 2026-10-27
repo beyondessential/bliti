@@ -82,6 +82,14 @@ impl System for FakeSystem {
 		self.call(format!("hostapd {action:?} {interface}"))
 	}
 
+	fn open_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		self.call(format!("open firewall on {interface}"))
+	}
+
+	fn close_firewall(&mut self, interface: &str) -> anyhow::Result<()> {
+		self.call(format!("close firewall on {interface}"))
+	}
+
 	fn restart_iwd(&mut self) -> anyhow::Result<()> {
 		self.call("restart iwd".into())
 	}
