@@ -22,7 +22,7 @@ What verifies the Network, Cable, Join wifi and Share hotspot screens.
 
 - [x] The three ways in order, each one in use marked, with how each stands from the facts (verifies spec: NSET)
 - [x] With the cable and wifi both on, only the one the Status screen names is marked, and the other says only that it is on (verifies spec: NSET)
-- [x] A cable plugged in is not mentioned while wifi is in use (verifies spec: NSET)
+- [x] A cable plugged in is not mentioned while wifi is in use, and one not plugged in reads as no cable (verifies spec: NSET)
 - [x] Outside the simple states, only the way to the network settings is offered (verifies spec: NSET)
 
 ## The Cable screen

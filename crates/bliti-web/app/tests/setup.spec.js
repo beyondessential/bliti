@@ -291,6 +291,11 @@ test.describe('the ways of the Network screen', () => {
 		})
 	})
 
+	test('says there is no cable while wifi is in use and none is plugged in', () => {
+		expect(says(BOTH, joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4')).cable).toEqual([false, 'No cable'])
+		expect(says(ON_WIFI, carrier('eth0', false), joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4')).cable).toEqual([false, 'No cable'])
+	})
+
 	test('says nothing of a cable plugged in while wifi is in use', () => {
 		expect(says(ON_WIFI, carrier('eth0', true), joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4'))).toEqual({
 			cable: [false, 'Off'],

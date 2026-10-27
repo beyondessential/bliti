@@ -186,10 +186,9 @@ export function waysOf(document, entries) {
 	const plugged = cablePlugged(entries)
 	const cable = (() => {
 		if (way === 'cable') return ['Connected']
+		if (!plugged) return ['No cable']
 		if (way === 'wifi') return [on.cable ? 'On' : 'Off']
-		if (on.cable && plugged) return ['Plugged in, no connection']
-		if (plugged) return ['Plugged in']
-		return ['No cable']
+		return [on.cable ? 'Plugged in, no connection' : 'Plugged in']
 	})()
 	const wifi = (() => {
 		if (way === 'wifi') return ['Connected', using.network]

@@ -122,10 +122,10 @@ The application MUST show against each way how it stands now, from [NFO](../devi
 | way | is | shows |
 | --- | --- | --- |
 | the cable | in use | connected |
+| the cable | with no wired interface's `wired-carrier` `true` | no cable |
 | the cable | not in use, with wifi in use | on or off |
-| the cable | on, with a wired interface's `wired-carrier` `true` | plugged in, no connection |
-| the cable | off, with a wired interface's `wired-carrier` `true` | plugged in |
-| the cable | otherwise | no cable |
+| the cable | on | plugged in, no connection |
+| the cable | off | plugged in |
 | wifi | in use | connected, with the network's name |
 | wifi | not in use, with the cable in use | on, with the network's name, or off |
 | wifi | on | not connected |
