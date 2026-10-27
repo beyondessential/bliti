@@ -522,6 +522,10 @@ a { color: var(--accent); }
 .row.inline { flex-wrap: nowrap; }
 .row.inline input { flex: 1 1 auto; min-width: 0; }
 .row.inline button { flex: 0 0 auto; min-height: 0; }
+.input-show { position: relative; }
+.input-show input { padding-right: 4rem; }
+.input-show .link { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
 .form .scan { width: 100%; margin-top: 8px; }
 .form .go { margin-top: 16px; }
 .form .alt { margin: 12px 0 0; text-align: center; }
@@ -599,12 +603,12 @@ a { color: var(--accent); }
 <ul class="relays"><li><span>Sydney</span><span>32 ms</span></li><li><span>Auckland</span><span>41 ms</span></li><li><span>Singapore</span><span>118 ms</span></li></ul></section>
 <section><h2>Ping</h2><label class="flabel" for="peer">Machine</label><div class="row inline"><input id="peer" placeholder="Chosen by the Iti"><button class="secondary">Ping</button></div>
 <p class="verdict">tamanu-central answered</p><dl class="facts"><dt>Path</dt><dd>Through a relay, Sydney</dd><dt>Round trip</dt><dd>58 ms</dd></dl></section></main></div></figure><figure><figcaption><b>Connect</b>. Auth key first. Scan fills the field.</figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
-<section class="form"><label class="flabel" for="key">Auth key</label><div class="row inline"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="secondary">Show</button></div>
+<section class="form"><label class="flabel" for="key">Auth key</label><div class="input-show"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="link">Show</button></div>
 <button class="secondary scan">Scan a QR code</button>
 <label class="flabel" for="name">Device name</label><input id="name" value="clinic-iti-07">
 <div class="row go"><button>Connect</button></div>
 <p class="muted alt">No key? <a href="#">Use a login link</a></p></section></main></div></figure><figure><figcaption><b>Key rejected</b></figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
-<section class="form"><label class="flabel" for="key">Auth key</label><div class="row inline"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="secondary">Show</button></div>
+<section class="form"><label class="flabel" for="key">Auth key</label><div class="input-show"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="link">Show</button></div>
 <button class="secondary scan">Scan a QR code</button>
 <label class="flabel" for="name">Device name</label><input id="name" value="clinic-iti-07">
 <p class="why reason">Invalid auth key: key has expired.</p><div class="row go"><button>Connect</button></div>

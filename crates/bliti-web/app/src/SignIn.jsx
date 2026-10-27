@@ -78,7 +78,7 @@ function ByKey({ stream, nameField, named, onLink }) {
 			<label className="flabel" htmlFor="auth-key">
 				Auth key
 			</label>
-			<div className="row inline">
+			<div className="input-show">
 				<input
 					id="auth-key"
 					type={shown ? 'text' : 'password'}
@@ -87,7 +87,7 @@ function ByKey({ stream, nameField, named, onLink }) {
 					spellCheck={false}
 					onChange={(event) => setKey(event.target.value)}
 				/>
-				<button className="secondary" onClick={() => setShown(!shown)}>
+				<button className="link" onClick={() => setShown(!shown)}>
 					{shown ? 'Hide' : 'Show'}
 				</button>
 			</div>
