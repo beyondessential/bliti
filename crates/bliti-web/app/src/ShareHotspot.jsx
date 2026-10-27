@@ -71,7 +71,7 @@ export default function ShareHotspot({ session, entries, name, onBack, guard, ..
 		setChanging(null)
 	}
 
-	const wifi = waysOn(state.inForce).wifi && wifiOf(state.inForce).candidate
+	const wifi = waysOn(state.inForce)?.wifi && wifiOf(state.inForce).candidate
 	const clients = hotspotClients(entries)
 	const why = (what) => (problem?.what === what ? problem.reason : changing === what ? failed : null)
 

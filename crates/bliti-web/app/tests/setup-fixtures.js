@@ -19,8 +19,9 @@ const off = (thing) => ({ ...thing, enabled: false })
 export const ON_CABLE = { attachments: [WIRED, off(STAFF)] }
 export const SHARING = { attachments: [WIRED, off(STAFF)], hotspot: HOTSPOT }
 export const ON_WIFI = { attachments: [off(WIRED), STAFF], hotspot: off(HOTSPOT) }
-// Both uplinks on: an ordering only the network settings present.
-export const OUTSIDE = { attachments: [WIRED, STAFF] }
+export const BOTH = { attachments: [WIRED, STAFF], hotspot: off(HOTSPOT) }
+// Two wireless networks: an ordering only the network settings present.
+export const OUTSIDE = { attachments: [WIRED, STAFF, { ...STAFF, label: 'BackupLink', ssid: 'BackupLink' }] }
 
 const passed = { status: { is: 'passed' } }
 const on = (iface) => ({ interface: { name: iface } })

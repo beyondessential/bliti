@@ -48,9 +48,8 @@ test.describe('choosing a network', () => {
 		await expect(page.locator('.choices .name').first()).toHaveText('Clinic-Staff')
 	})
 
-	test('says joining stops using the cable, and turns the hotspot off', async ({ page }) => {
+	test('says joining turns the hotspot off', async ({ page }) => {
 		await openJoin(page, { document: SHARING })
-		await expect(page.getByText('Joining stops using the cable.')).toBeVisible()
 		await expect(page.getByText('Joining turns the hotspot off.')).toBeVisible()
 	})
 
@@ -58,7 +57,7 @@ test.describe('choosing a network', () => {
 		await openJoin(page, { document: ON_WIFI, facts: [joined('Clinic-Staff'), address('wlan0')] })
 		await expect(page.locator('.choices button.joined .name')).toHaveText(['Clinic-Staff'])
 		await expect(choice(page, 'Clinic-Staff')).toContainText('Connected')
-		await expect(page.getByText('Joining stops using the cable.')).toHaveCount(0)
+		await expect(page.getByText('Joining turns the hotspot off.')).toHaveCount(0)
 	})
 
 	test('shows a network the device cannot join, and does not let it be picked', async ({ page }) => {
@@ -104,7 +103,7 @@ test.describe('the password and connecting', () => {
 		await expect(password(page)).toHaveValue('')
 	})
 
-	test('replaces wifi in place, turning the cable and hotspot off, and returns to the Status screen', async ({ page }) => {
+	test('replaces wifi in place, turning the hotspot off and leaving the cable on, and returns to the Status screen', async ({ page }) => {
 		await openJoin(page, { document: SHARING })
 		await answer(page, 'configuration', [{ echo: true }, stateOf({ outcome: 'verifying' })])
 		await choice(page, 'Clinic-Guest').click()
@@ -115,7 +114,7 @@ test.describe('the password and connecting', () => {
 		await expect(page.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
 		const [proposed] = await proposals(page)
 		expect(proposed.attachments).toEqual([
-			{ ...SHARING.attachments[0], enabled: false },
+			SHARING.attachments[0],
 			{
 				kind: 'wireless',
 				label: 'Clinic-Guest',

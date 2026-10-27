@@ -15,8 +15,6 @@ The application MUST show the operator where they are in joining, as three steps
 
 The application MUST open the screen on the network step.
 
-While the cable is on, the application MUST say on the network step that joining stops using the cable.
-
 While the hotspot is on, the application MUST say on the network step that joining turns the hotspot off.
 
 Edits are not applied on this screen while a network name or password the operator has typed has not been proposed.

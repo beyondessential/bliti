@@ -7,9 +7,6 @@ import { expect, test } from '@playwright/test'
 
 import { validate } from '../src/network.js'
 import {
-	CABLE,
-	CABLE_HOTSPOT,
-	WIFI,
 	freshHotspot,
 	joinFailure,
 	joinWifi,
@@ -17,12 +14,12 @@ import {
 	networksHeard,
 	setHotspotPassphrase,
 	signalOf,
-	simpleState,
 	ssidOf,
 	startHotspot,
 	stopHotspot,
 	useCable,
 	waysOf,
+	waysOn,
 	wifiCandidate,
 } from '../src/setup.js'
 import { initSync } from '../src/wasm/bliti_web.js'
@@ -59,46 +56,53 @@ const FRESH = { enabled: false, ssid: 'clinic-iti-07', passphrase: 'amber-basil-
 const CABLED = doc([dynamic(), fixed(), wireless(false)])
 const SHARING = doc([dynamic(), fixed(), wireless(false)], { hotspot: hotspot() })
 const ON_WIFI = doc([dynamic(false), fixed(false), wireless()], { hotspot: hotspot(false) })
+const BOTH = doc([dynamic(), fixed(), wireless()], { hotspot: hotspot(false) })
+
+// What is on, as `waysOn` gives it, in a line.
+const on = (document) => {
+	const ways = waysOn(document)
+	return ways && ['cable', 'wifi', 'hotspot'].filter((way) => ways[way]).join(' and ')
+}
 
 const JOINING = wifiCandidate(PI, { ssid: 'Clinic-Guest', kind: 'psk', passphrase: 'guest-pass-1', named: false })
 
 test.describe('the simple states', () => {
-	test('are told apart by the cable, wifi and the hotspot', () => {
-		expect(simpleState(CABLED)).toBe(CABLE)
-		expect(simpleState(SHARING)).toBe(CABLE_HOTSPOT)
-		expect(simpleState(ON_WIFI)).toBe(WIFI)
+	test('take the cable, wifi and the hotspot on or off, the cable and wifi together', () => {
+		expect(on(CABLED)).toBe('cable')
+		expect(on(SHARING)).toBe('cable and hotspot')
+		expect(on(ON_WIFI)).toBe('wifi')
+		expect(on(BOTH)).toBe('cable and wifi')
+		expect(on(doc([dynamic(false), wireless(false)]))).toBe('')
 	})
 
-	test('take a configuration never saved as the cable', () => {
-		expect(simpleState({ attachments: [dynamic()] })).toBe(CABLE)
+	test('take a configuration never saved as the cable on', () => {
+		expect(on({ attachments: [dynamic()] })).toBe('cable')
 	})
 
 	test('take an absent wifi and hotspot as off', () => {
-		expect(simpleState(doc([dynamic()]))).toBe(CABLE)
-		expect(simpleState(doc([dynamic(false), wireless()]))).toBe(WIFI)
+		expect(on(doc([dynamic()]))).toBe('cable')
+		expect(on(doc([dynamic(false), wireless()]))).toBe('wifi')
 	})
 
 	test('leave out a configuration a technician set up', () => {
 		const outside = {
 			'two wireless candidates': doc([dynamic(false), wireless(), wireless(false, 'BackupLink')]),
-			'the cable and wifi both on': doc([dynamic(), wireless()]),
 			'wifi and the hotspot both on': doc([dynamic(false), wireless()], { hotspot: hotspot() }),
 			'wired candidates partly on': doc([dynamic(), fixed(false)]),
 			'no wired candidate': doc([wireless()]),
-			'nothing on': doc([dynamic(false), wireless(false)]),
 			'a kind this build does not know': doc([dynamic(), { kind: 'cellular', label: 'SIM', enabled: true }]),
 		}
-		for (const [what, document] of Object.entries(outside)) expect(simpleState(document), what).toBeNull()
+		for (const [what, document] of Object.entries(outside)) expect(waysOn(document), what).toBeNull()
 	})
 })
 
 test.describe('moving between states', () => {
-	const STATES = { cable: CABLED, 'cable and hotspot': SHARING, wifi: ON_WIFI }
+	const STATES = { cable: CABLED, 'cable and hotspot': SHARING, wifi: ON_WIFI, 'cable and wifi': BOTH }
 	const LANDS = {
-		join: { cable: WIFI, 'cable and hotspot': WIFI, wifi: WIFI },
-		cable: { cable: CABLE, 'cable and hotspot': CABLE_HOTSPOT, wifi: CABLE },
-		'hotspot on': { cable: CABLE_HOTSPOT, 'cable and hotspot': CABLE_HOTSPOT, wifi: CABLE_HOTSPOT },
-		'hotspot off': { cable: CABLE, 'cable and hotspot': CABLE, wifi: WIFI },
+		join: { cable: 'cable and wifi', 'cable and hotspot': 'cable and wifi', wifi: 'wifi', 'cable and wifi': 'cable and wifi' },
+		cable: { cable: 'cable', 'cable and hotspot': 'cable and hotspot', wifi: 'cable and wifi', 'cable and wifi': 'cable and wifi' },
+		'hotspot on': { cable: 'cable and hotspot', 'cable and hotspot': 'cable and hotspot', wifi: 'cable and hotspot', 'cable and wifi': 'cable and hotspot' },
+		'hotspot off': { cable: 'cable', 'cable and hotspot': 'cable', wifi: 'wifi', 'cable and wifi': 'cable and wifi' },
 	}
 	const MOVES = {
 		join: (document) => joinWifi(document, JOINING),
@@ -110,17 +114,22 @@ test.describe('moving between states', () => {
 	test('lands every move from every simple state where NSET has it', () => {
 		for (const [move, lands] of Object.entries(LANDS)) {
 			for (const [from, document] of Object.entries(STATES)) {
-				expect(simpleState(MOVES[move](document)), `${move} from ${from}`).toBe(lands[from])
+				expect(on(MOVES[move](document)), `${move} from ${from}`).toBe(lands[from])
 			}
 		}
 	})
 
 	test('turns things off by enabled, keeping their settings', () => {
-		const moved = useCable(ON_WIFI)
+		const moved = startHotspot(BOTH, FRESH)
 		expect(moved.attachments[2]).toEqual({ ...wireless(), enabled: false })
-		expect(moved.attachments[1]).toEqual(fixed())
 		expect(stopHotspot(SHARING).hotspot).toEqual(hotspot(false))
-		expect(joinWifi(SHARING, JOINING).attachments.slice(0, 2)).toEqual([dynamic(false), fixed(false)])
+		expect(useCable(ON_WIFI).attachments[1]).toEqual(fixed())
+	})
+
+	test('leaves the other uplink as it is', () => {
+		expect(joinWifi(CABLED, JOINING).attachments.slice(0, 2)).toEqual([dynamic(), fixed()])
+		expect(joinWifi(ON_WIFI, JOINING).attachments.slice(0, 2)).toEqual([dynamic(false), fixed(false)])
+		expect(useCable(ON_WIFI).attachments[2]).toEqual(wireless())
 	})
 
 	test('leaves every other member as it is', () => {
@@ -132,7 +141,7 @@ test.describe('moving between states', () => {
 
 	test('replaces wifi in place, dropping the old network', () => {
 		const document = doc([dynamic(false), wireless(), fixed(false)])
-		const moved = joinWifi(useCable(document), JOINING)
+		const moved = joinWifi(document, JOINING)
 		expect(moved.attachments.map((each) => each.kind)).toEqual(['wired-dynamic', 'wireless', 'wired-static'])
 		expect(moved.attachments[1]).toEqual(JOINING)
 	})
@@ -154,7 +163,7 @@ test.describe('moving between states', () => {
 		expect(setHotspotPassphrase(ON_WIFI, 'new-pass-word', FRESH).hotspot.enabled).toBe(false)
 		const fresh = setHotspotPassphrase(CABLED, 'new-pass-word', FRESH)
 		expect(fresh.hotspot).toEqual({ ...FRESH, passphrase: 'new-pass-word' })
-		expect(simpleState(fresh)).toBe(CABLE)
+		expect(on(fresh)).toBe('cable')
 	})
 })
 
@@ -255,8 +264,9 @@ test.describe('the ways of the Network screen', () => {
 	const clients = (count) => ({ fact: false, name: 'hotspot-clients', kind: 'quantity', value: count, traits: passed })
 	const says = (document, ...entries) => {
 		const ways = waysOf(document, entries)
-		return Object.fromEntries(Object.entries(ways).map(([way, { on, says }]) => [way, [on, says.join(' · ')]]))
+		return Object.fromEntries(Object.entries(ways).map(([way, { inUse, says }]) => [way, [inUse, says.join(' · ')]]))
 	}
+	const route = (fact) => ({ ...fact, traits: { ...fact.traits, interface: { ...fact.traits.interface, route: 'default' } } })
 
 	test('marks the cable in use, and the hotspot beside it with its devices', () => {
 		expect(says(SHARING, carrier('eth0', true), address('eth0', '10.4.2.20'), clients(3))).toEqual({
@@ -266,18 +276,34 @@ test.describe('the ways of the Network screen', () => {
 		})
 	})
 
-	test('says wifi is connected with its name, and a cable plugged in beside it', () => {
-		expect(says(ON_WIFI, carrier('eth0', true), joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4'))).toEqual({
-			cable: [false, 'Plugged in'],
+	test('marks only the uplink in use where the cable and wifi are both on, saying the other is on', () => {
+		const cable = [carrier('eth0', true), address('eth0', '10.4.2.20')]
+		const wifi = [joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4')]
+		expect(says(BOTH, route(cable[1]), ...cable.slice(0, 1), ...wifi)).toEqual({
+			cable: [true, 'Connected'],
+			wifi: [false, 'On · Clinic-Staff'],
+			hotspot: [false, 'Off'],
+		})
+		expect(says(BOTH, ...cable, wifi[0], route(wifi[1]))).toEqual({
+			cable: [false, 'On'],
 			wifi: [true, 'Connected · Clinic-Staff'],
 			hotspot: [false, 'Off'],
 		})
 	})
 
-	test('says what is on and not connecting', () => {
-		expect(says(CABLED, carrier('eth0', true)).cable).toEqual([true, 'Plugged in, no connection'])
-		expect(says(CABLED, carrier('eth0', false)).cable).toEqual([true, 'No cable'])
-		expect(says(ON_WIFI).wifi).toEqual([true, 'Not connected'])
+	test('says nothing of a cable plugged in while wifi is in use', () => {
+		expect(says(ON_WIFI, carrier('eth0', true), joined('wlan0', 'Clinic-Staff'), address('wlan0', '10.0.0.4'))).toEqual({
+			cable: [false, 'Off'],
+			wifi: [true, 'Connected · Clinic-Staff'],
+			hotspot: [false, 'Off'],
+		})
+	})
+
+	test('says how each link stands where neither is in use', () => {
+		expect(says(CABLED, carrier('eth0', true)).cable).toEqual([false, 'Plugged in, no connection'])
+		expect(says(ON_WIFI, carrier('eth0', true)).cable).toEqual([false, 'Plugged in'])
+		expect(says(CABLED, carrier('eth0', false)).cable).toEqual([false, 'No cable'])
+		expect(says(ON_WIFI).wifi).toEqual([false, 'Not connected'])
 		expect(says(SHARING).hotspot).toEqual([true, 'On'])
 		expect(says(SHARING, clients(0)).hotspot).toEqual([true, 'On · No devices'])
 	})

@@ -21,21 +21,14 @@ This spec, [WIFI](wifi.md) and [SHARE](share.md) use these terms of a configurat
 | wifi | the `wireless` candidate the configuration carries, where it carries exactly one |
 | on | for the cable, carrying at least one candidate, every one with `enabled` true; for wifi and the hotspot, present with `enabled` true |
 | off | for the cable, carrying at least one candidate, none with `enabled` true; for wifi and the hotspot, absent or with `enabled` false |
+| in use | for the cable and wifi, whichever [STAT](../status-screen.md#the-network-row) names on the network row; for the hotspot, on |
 
-A configuration MUST be in one of the simple states where it matches a row of this table, and outside them otherwise:
-
-| state | the cable | wifi | the hotspot |
-| --- | --- | --- | --- |
-| cable | on | off | off |
-| cable and hotspot | on | off | on |
-| wifi | off | on | off |
-
-A configuration carrying more than one `wireless` candidate MUST be outside the simple states.
+A configuration MUST be within the simple states where the cable is on or off, it carries at most one `wireless` candidate, it carries no candidate of another kind, and wifi and the hotspot are not both on.
+A configuration MUST be outside the simple states otherwise.
 
 > [!NOTE]
-> The uplink is the cable or wifi, and the hotspot is an addition to the cable alone. A hotspot with no cable plugged in is the cable and hotspot state.
-> A device that has never saved a configuration holds the cable state, as [CFG](session.md) gives it.
-> A configuration with both uplinks on is an ordering of [LINK](attachment.md), which only [NSCR](screen.md) presents.
+> The cable and wifi may be on together, and [LINK](attachment.md) uses whichever its ordering puts first among those that connect. The hotspot runs off wifi alone, as the device's radio either joins a network or runs the hotspot.
+> A device that has never saved a configuration has the cable on, as [CFG](session.md) gives it.
 
 ## Moving between states
 
@@ -43,8 +36,8 @@ The application MUST put a way into use by proposing the configuration the devic
 
 | the operator | the cable | wifi | the hotspot |
 | --- | --- | --- | --- |
-| joins a wireless network, as [WIFI](wifi.md) has it | off | the network joined, on | off |
-| uses the cable, as the Cable screen has it | on | off | unchanged |
+| joins a wireless network, as [WIFI](wifi.md) has it | unchanged | the network joined, on | off |
+| uses the cable, as the Cable screen has it | on | unchanged | unchanged |
 | turns the hotspot on, as [SHARE](share.md) has it | on | off | on |
 | turns the hotspot off, as [SHARE](share.md) has it | unchanged | unchanged | off |
 
@@ -59,7 +52,7 @@ The application MUST NOT propose, from a simple network screen, a configuration 
 
 ## Outside the simple states
 
-While the configuration the device holds is outside the simple states, the Network screen MUST say that the device's network is set up under Advanced, MUST offer the way to [NSCR](screen.md), and MUST NOT offer the cable, wifi or the hotspot.
+While the configuration the device holds is outside the simple states, the Network screen MUST say that the device's network uses an advanced setup, and that only an operator who knows what they are doing or is following instructions should go on, MUST offer the way to [NSCR](screen.md), and MUST NOT offer the cable, wifi or the hotspot.
 
 > [!NOTE]
 > A technician's configuration is one the simple network screens cannot express, so they leave it alone rather than overwrite it.
@@ -122,21 +115,28 @@ The application MUST offer the three ways in this order, each opening a screen o
 | wifi | Wifi | the Join wifi screen of [WIFI](wifi.md) |
 | the hotspot | Iti hotspot | the Share hotspot screen of [SHARE](share.md) |
 
-The application MUST mark each way that is on, with a check and a highlight.
+The application MUST mark each way in use, with a check and a highlight.
 
-The application MUST show against each way how it stands now, from [NFO](../device-info.md), counting a way as in use as [STAT](../status-screen.md#the-network-row) counts it:
+The application MUST show against each way how it stands now, from [NFO](../device-info.md):
 
 | way | is | shows |
 | --- | --- | --- |
 | the cable | in use | connected |
-| the cable | on, with a wired interface's `wired-carrier` `true` and not in use | plugged in, no connection |
+| the cable | not in use, with wifi in use | on or off |
+| the cable | on, with a wired interface's `wired-carrier` `true` | plugged in, no connection |
 | the cable | off, with a wired interface's `wired-carrier` `true` | plugged in |
 | the cable | otherwise | no cable |
 | wifi | in use | connected, with the network's name |
-| wifi | on and not in use | not connected |
+| wifi | not in use, with the cable in use | on, with the network's name, or off |
+| wifi | on | not connected |
 | wifi | off | off |
 | the hotspot | on | on, with how many devices are joined from `hotspot-clients` where it carries a value |
 | the hotspot | off | off |
+
+The application MUST show against each way the first row of the table that applies to it.
+
+> [!NOTE]
+> With the cable and wifi both on, the one not in use is a fallback, so its row says only that it is on rather than how its link stands.
 
 ## The Cable screen
 
@@ -157,5 +157,5 @@ While the cable is on and in use, the application MUST say that the device is co
 While the cable is on, a wired interface reports `wired-carrier` `true`, and the cable is not in use, the application MUST say that the cable is plugged in and the network it reaches has not given the device a connection.
 
 > [!NOTE]
-> A device on wifi has its wired candidates off, and `wired-carrier` is how the screen learns a cable is in before using it, as [NFO](../device-info.md) has it.
-> Waiting for a cable before using it keeps the device on wifi until there is something to move to.
+> The configuration session says nothing of a wired candidate that is off, so `wired-carrier` is how the screen learns a cable is in before using it, as [NFO](../device-info.md) has it.
+> Turning the cable on before one is plugged in would fail the change at the link, so the screen waits for one.

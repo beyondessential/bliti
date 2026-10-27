@@ -7,20 +7,16 @@
 import { joinWith, offersHotspotSetting, offersMember, securityKinds } from './capabilities.js'
 import { pathOf, within } from './path.js'
 import { hasValue, isEnded } from './readings.js'
-import { waysInUse } from './status.js'
+import { uplinkOf, waysInUse } from './status.js'
 
 const WIRED = new Set(['wired-dynamic', 'wired-static'])
 
-/// The simple states of NSET.
-export const CABLE = 'cable'
-export const CABLE_HOTSPOT = 'cable-hotspot'
-export const WIFI = 'wifi'
-
 const isOn = (thing) => !!thing && thing.enabled === true
 
-/// The simple state `document` is in, or null where it is outside them. A configuration carrying no
-/// wired candidate is outside them, as none can use the cable.
-export function simpleState(document) {
+/// Whether the cable, wifi and the hotspot are on in `document`, as NSET's terms have them, or null
+/// where it is outside the simple states. A configuration carrying no wired candidate is outside them,
+/// as nothing in it can use the cable.
+export function waysOn(document) {
 	const attachments = document?.attachments ?? []
 	if (attachments.some((each) => !WIRED.has(each?.kind) && each?.kind !== 'wireless')) return null
 	const wired = attachments.filter((each) => WIRED.has(each.kind))
@@ -28,18 +24,8 @@ export function simpleState(document) {
 	if (wired.length === 0 || wireless.length > 1) return null
 	const on = wired.filter(isOn).length
 	if (on !== 0 && on !== wired.length) return null
-	const cable = on > 0
-	const wifi = isOn(wireless[0])
-	const hotspot = isOn(document.hotspot)
-	if (cable && !wifi) return hotspot ? CABLE_HOTSPOT : CABLE
-	if (!cable && wifi && !hotspot) return WIFI
-	return null
-}
-
-/// Whether the cable, wifi and the hotspot are on in `document`, as NSET's terms have them.
-export function waysOn(document) {
-	const state = simpleState(document)
-	return { cable: state === CABLE || state === CABLE_HOTSPOT, wifi: state === WIFI, hotspot: state === CABLE_HOTSPOT }
+	const ways = { cable: on > 0, wifi: isOn(wireless[0]), hotspot: isOn(document.hotspot) }
+	return ways.wifi && ways.hotspot ? null : ways
 }
 
 /// The one wireless candidate of `document`, and where it sits in the ordering. Index -1 where there
@@ -64,10 +50,10 @@ function withWays(document, { cable, wifi, hotspot }) {
 	return next
 }
 
-/// Join a wireless network: the cable and the hotspot off, and `candidate` in wifi's place, or at the
-/// end where there is no wifi (WIFI).
+/// Join a wireless network: the hotspot off, the cable as it is, and `candidate` in wifi's place, or
+/// at the end where there is no wifi (WIFI).
 export function joinWifi(document, candidate) {
-	const next = withWays(document, { cable: false, hotspot: false })
+	const next = withWays(document, { hotspot: false })
 	const { index } = wifiOf(next)
 	const attachments = [...next.attachments]
 	if (index === -1) attachments.push(candidate)
@@ -75,9 +61,9 @@ export function joinWifi(document, candidate) {
 	return { ...next, attachments }
 }
 
-/// Use the cable: the cable on and wifi off, the hotspot as it is.
+/// Use the cable: the cable on, wifi and the hotspot as they are.
 export function useCable(document) {
-	return withWays(document, { cable: true, wifi: false })
+	return withWays(document, { cable: true })
 }
 
 /// Turn the hotspot on, from `fresh` where the configuration carries none: the cable on and wifi off.
@@ -185,27 +171,37 @@ export function joinedNetworks(entries) {
 		.map((entry) => String(entry.value))
 }
 
-/// Each way of the Network screen: whether it is on, and how it stands now as parts of a line (NSET).
+/// The cable or wifi, whichever the Status screen's network row names, with the network joined for
+/// wifi, or null where neither is in use.
+export function uplink(entries) {
+	return uplinkOf(waysInUse(entries))
+}
+
+/// Each way of the Network screen: whether it is in use, which marks it, and how it stands now as
+/// parts of a line (NSET).
 export function waysOf(document, entries) {
 	const on = waysOn(document)
-	const inUse = waysInUse(entries)
+	const using = uplink(entries)
+	const way = using?.way ?? null
 	const plugged = cablePlugged(entries)
 	const cable = (() => {
-		if (inUse.cable.length > 0) return ['Connected']
+		if (way === 'cable') return ['Connected']
+		if (way === 'wifi') return [on.cable ? 'On' : 'Off']
 		if (on.cable && plugged) return ['Plugged in, no connection']
 		if (plugged) return ['Plugged in']
 		return ['No cable']
 	})()
 	const wifi = (() => {
-		if (inUse.wifi.length > 0) return ['Connected', inUse.wifi[0].network]
+		if (way === 'wifi') return ['Connected', using.network]
+		if (way === 'cable') return on.wifi ? ['On', wifiOf(document).candidate.ssid] : ['Off']
 		return on.wifi ? ['Not connected'] : ['Off']
 	})()
 	const clients = hotspotClients(entries)
 	const hotspot = on.hotspot ? ['On', clients !== null && devices(clients)].filter(Boolean) : ['Off']
 	return {
-		cable: { on: on.cable, says: cable },
-		wifi: { on: on.wifi, says: wifi },
-		hotspot: { on: on.hotspot, says: hotspot },
+		cable: { inUse: way === 'cable', says: cable },
+		wifi: { inUse: way === 'wifi', says: wifi },
+		hotspot: { inUse: on.hotspot, says: hotspot },
 	}
 }
 

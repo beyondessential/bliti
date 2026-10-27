@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test'
 import { PI } from './network-fixtures.js'
 import { UNNAMED, answer, feed, message, say, sent, stateOf } from './fake-client.js'
 import {
+	BOTH,
 	ON_CABLE,
 	ON_WIFI,
 	OUTSIDE,
@@ -13,6 +14,7 @@ import {
 	address,
 	carrier,
 	clients,
+	fact,
 	joined,
 	openSetup,
 	openWay,
@@ -39,14 +41,21 @@ test.describe('the Network screen', () => {
 		await expect(way(page, 'Iti hotspot').locator('.now')).toHaveText('On·3 devices')
 	})
 
-	test('names the network wifi is connected to, and a cable plugged in beside it', async ({ page }) => {
+	test('names the network wifi is connected to, saying nothing of a cable plugged in beside it', async ({ page }) => {
 		await openSetup(page, {
 			document: ON_WIFI,
 			capabilities: PI,
 			facts: [carrier(), joined('Clinic-Staff'), address('wlan0', '10.0.0.4')],
 		})
 		await expect(marked(page)).toHaveText(['Wifi'])
-		await expect(page.locator('.ways .now')).toHaveText(['Plugged in', 'Connected·Clinic-Staff', 'Off'])
+		await expect(page.locator('.ways .now')).toHaveText(['Off', 'Connected·Clinic-Staff', 'Off'])
+	})
+
+	test('marks only the one in use where the cable and wifi are both on', async ({ page }) => {
+		const routed = fact('network-address', '10.0.0.4', { interface: { name: 'wlan0', route: 'default' } }, 'ipv4')
+		await openSetup(page, { document: BOTH, capabilities: PI, facts: [carrier(), joined('Clinic-Staff'), routed] })
+		await expect(marked(page)).toHaveText(['Wifi'])
+		await expect(page.locator('.ways .now')).toHaveText(['On', 'Connected·Clinic-Staff', 'Off'])
 	})
 
 	test('follows the facts as they change', async ({ page }) => {
@@ -86,7 +95,7 @@ test.describe('the Cable screen', () => {
 		expect(await proposals(page)).toEqual([])
 	})
 
-	test('uses the cable once one is plugged in, turning wifi off, and returns to the Status screen', async ({ page }) => {
+	test('uses the cable once one is plugged in, leaving wifi on, and returns to the Status screen', async ({ page }) => {
 		await openSetup(page, { document: ON_WIFI, capabilities: PI, facts: [joined('Clinic-Staff'), address('wlan0')] })
 		await answer(page, 'configuration', [{ echo: true }, stateOf({ outcome: 'verifying' })])
 		await openWay(page, 'Cable')
@@ -96,7 +105,7 @@ test.describe('the Cable screen', () => {
 		const [proposed] = await proposals(page)
 		expect(proposed.attachments.map((each) => [each.kind, each.enabled])).toEqual([
 			['wired-dynamic', true],
-			['wireless', false],
+			['wireless', true],
 		])
 		expect(proposed.hotspot).toEqual(ON_WIFI.hotspot)
 		await say(page, stateOf({ outcome: 'applied' }))

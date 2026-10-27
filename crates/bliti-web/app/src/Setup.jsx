@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import { writable } from './network.js'
 import { Title } from './Screen.jsx'
-import { cablePlugged, simpleState, useCable, waysOf, waysOn } from './setup.js'
+import { cablePlugged, uplink, useCable, waysOf, waysOn } from './setup.js'
 import { Way } from './Status.jsx'
-import { waysInUse } from './status.js'
 
 /// A simple network screen: `children` once the session is open, and in its place what it is doing
 /// while it is not. `leaving` is the confirmation shown before the operator leaves with edits not
@@ -92,15 +91,15 @@ const WAYS = [
 /// network settings where the configuration is outside the simple states.
 export function NetworkScreen({ session, entries, onBack, onOpen, onSettings, ...frame }) {
 	const document = session.state.inForce
-	const ways = waysOf(document, entries)
+	const ways = waysOn(document) && waysOf(document, entries)
 	return (
 		<SetupFrame title="Network" onBack={onBack} session={session} {...frame}>
 			<section>
 				<p className="muted intro">Phones and laptops must be on the same network as the Iti.</p>
-				{simpleState(document) === null ? (
+				{!ways ? (
 					<>
 						<p className="lead">Set up under Advanced</p>
-						<p className="muted">This Iti's network is set up in a way these screens can't change.</p>
+						<p className="muted">This Iti is using an advanced network setup. Proceed only if you know what you're doing or are following instructions.</p>
 						<button className="block" onClick={onSettings}>
 							Open network settings
 						</button>
@@ -108,10 +107,10 @@ export function NetworkScreen({ session, entries, onBack, onOpen, onSettings, ..
 				) : (
 					<ul className="ways">
 						{WAYS.map(({ way, title, screen }) => {
-							const { on, says } = ways[way]
+							const { inUse, says } = ways[way]
 							return (
 								<li key={way}>
-									<button className={on ? 'on' : undefined} onClick={() => onOpen(screen)}>
+									<button className={inUse ? 'on' : undefined} onClick={() => onOpen(screen)}>
 										<Way way={way} />
 										<span className="body">
 											<span className="name">{title}</span>
@@ -124,7 +123,7 @@ export function NetworkScreen({ session, entries, onBack, onOpen, onSettings, ..
 												))}
 											</span>
 										</span>
-										{on && <span className="tick" role="img" aria-label="On" />}
+										{inUse && <span className="tick" role="img" aria-label="In use" />}
 										<span className="chevron" aria-hidden="true">
 											›
 										</span>
@@ -145,9 +144,9 @@ export function CableScreen({ session, entries, onBack, onDone, ...frame }) {
 	const own = useOwnProposal(session)
 	const done = useDone(onDone)
 	const [problem, setProblem] = useState(null)
-	const on = waysOn(state.inForce).cable
+	const on = !!waysOn(state.inForce)?.cable
 	const plugged = cablePlugged(entries)
-	const inUse = waysInUse(entries).cable.length > 0
+	const inUse = uplink(entries)?.way === 'cable'
 	const [inUseAtOpen] = useState(inUse)
 	const proposed = own.phase !== null
 

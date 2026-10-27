@@ -7,6 +7,7 @@ The work is all client-side: the device side (K3's one-step apply, L3's `wired-c
 
 - The simple states and the moves between them (NSET) live in a pure module beside `network.js`: the classifier, which returns a simple state or "outside"; one function per move (join wifi, use the cable, hotspot on, hotspot off, change the hotspot passphrase), each taking the configuration the device holds and returning the document to propose; and the way each row of the Network screen shows. Tested without a page, as `capabilities.spec.js` is.
 - The security kind for a scanned network reuses `joinWith` in `capabilities.js`.
+- The cable and wifi may be on together; only wifi and the hotspot exclude each other, as the one radio does one or the other. Joining wifi and using the cable leave the other uplink as it is. Showing one uplink is the UI's: the Network screen marks the one the Status row names.
 - A configuration carrying no wired candidate is outside the simple states: nothing in it can use the cable, so no move from it could stay simple.
 - The session hook closes its stream at once on `close()`, not on the next render, so a session the network settings screen opens straight after is not busy behind it. Coming back to a simple screen from the network settings opens the session again.
 - The session is lifted out of `Network.jsx`'s mount into something App owns, so Change can open it, read the first `state`, and either show the busy note or go on to the Network screen. The four simple screens share that one session. NSCR keeps its own.
@@ -21,14 +22,14 @@ The work is all client-side: the device side (K3's one-step apply, L3's `wired-c
 
 ## The pure module
 
-- [x] `src/setup.js`: `simpleState(document)` returning `cable`, `cable-hotspot`, `wifi` or `null` for outside, by NSET's "the cable", "wifi", "on" and "off"
-- [x] `src/setup.js`: the moves `joinWifi(document, network)`, `useCable(document)`, `hotspotOn(document, fresh)`, `hotspotOff(document)` and `hotspotPassphrase(document, passphrase, fresh)`, each turning things off by `enabled` false and leaving every other member as it is; `fresh` is the SSID and generated passphrase for a hotspot not yet set up
+- [x] `src/setup.js`: `waysOn(document)` giving whether the cable, wifi and the hotspot are on, or `null` outside the simple states, by NSET's "the cable", "wifi", "on" and "off"
+- [x] `src/setup.js`: the moves `joinWifi(document, candidate)`, `useCable(document)`, `startHotspot(document, fresh)`, `stopHotspot(document)` and `setHotspotPassphrase(document, passphrase, fresh)`, each turning things off by `enabled` false and leaving every other member as it is; `fresh` is the SSID and generated passphrase for a hotspot not yet set up
 - [x] `joinWifi` replaces wifi at its index with only the members WIFI's table lists, adds it at the end where there is none, and sets `hidden` only where capabilities offer it
 - [x] `src/setup.js`: `networksHeard` reading a scan's security by `joinWith`, and `namedSecurity(capabilities)` taking the first of `psk-sae`, `psk` and `sae` offered
-- [x] `src/setup.js`: `waysOf(document, entries)` giving each way's on/off mark and what it shows, per NSET's table
+- [x] `src/setup.js`: `waysOf(document, entries)` marking the way in use, the cable or wifi as the Status row names it, and what each shows, per NSET's table
 - [x] `src/setup.js`: `joinFailure(failure, index)` sorting a failure into passphrase, out of range (stopped at `carrier`) or other
 - [x] `src/network.js`: export the passphrase length check for WIFI and SHARE
-- [x] `tests/setup.spec.js`: every move from every simple state lands in the state NSET's table gives and stays simple; the outside cases (two wireless candidates, cable and wifi both on, wifi and hotspot both on, wired candidates partly on, no wired candidate); turned-off members keep their settings; wifi replaced in place, added at the end, `hidden` only where offered; the security kind for each advertised set; failure sorting
+- [x] `tests/setup.spec.js`: every move from every simple state lands in the state NSET's table gives and stays simple; the outside cases (two wireless candidates, wifi and hotspot both on, wired candidates partly on, no wired candidate); turned-off members keep their settings; wifi replaced in place, added at the end, `hidden` only where offered; the security kind for each advertised set; failure sorting
 
 ## The session
 

@@ -4,8 +4,8 @@ What verifies the Network, Cable, Join wifi and Share hotspot screens.
 
 ## The simple states
 
-- [x] Cable, cable and hotspot, and wifi are told apart; a configuration never saved is the cable (verifies spec: NSET)
-- [x] Two wireless candidates, both uplinks on, wifi beside the hotspot, wired candidates partly on, and no wired candidate are outside the simple states (verifies spec: NSET)
+- [x] The cable and wifi are each on or off, together or apart, and the hotspot on only off wifi; a configuration never saved has the cable on (verifies spec: NSET)
+- [x] Two wireless candidates, wifi beside the hotspot, wired candidates partly on, and no wired candidate are outside the simple states (verifies spec: NSET)
 - [x] Every move from every simple state lands where NSET's table has it, and stays simple (verifies spec: NSET)
 - [x] A move turns things off by `enabled` false, keeping their settings, and leaves every other member as it is (verifies spec: NSET)
 
@@ -20,13 +20,15 @@ What verifies the Network, Cable, Join wifi and Share hotspot screens.
 
 ## The Network screen
 
-- [x] The three ways in order, each on one marked, with how each stands from the facts (verifies spec: NSET)
+- [x] The three ways in order, each one in use marked, with how each stands from the facts (verifies spec: NSET)
+- [x] With the cable and wifi both on, only the one the Status screen names is marked, and the other says only that it is on (verifies spec: NSET)
+- [x] A cable plugged in is not mentioned while wifi is in use (verifies spec: NSET)
 - [x] Outside the simple states, only the way to the network settings is offered (verifies spec: NSET)
 
 ## The Cable screen
 
 - [x] Waits for a cable and proposes nothing before one is plugged in (verifies spec: NSET)
-- [x] Uses the cable once one is in, wifi off and the hotspot as it is, with no Cancel, and returns to the Status screen once applied (verifies spec: NSET)
+- [x] Uses the cable once one is in, wifi and the hotspot as they are, with no Cancel, and returns to the Status screen once applied (verifies spec: NSET)
 - [x] A failure says the network gave no connection, with the device's reason (verifies spec: NSET)
 - [x] With the cable on, proposes nothing; says it is connected, or not connecting, and returns once a cable starts working (verifies spec: NSET)
 
@@ -34,11 +36,11 @@ What verifies the Network, Cable, Join wifi and Share hotspot screens.
 
 - [x] Scans on opening, lists networks once each by SSID with signal as a word, strongest first, and says where none were heard (verifies spec: WIFI)
 - [x] Marks the network joined, and shows one the device cannot join as not pickable (verifies spec: WIFI)
-- [x] Says joining stops using the cable and turns the hotspot off (verifies spec: WIFI)
+- [x] Says joining turns the hotspot off (verifies spec: WIFI)
 - [x] An enterprise network goes to the network settings or back to the list (verifies spec: WIFI)
 - [x] A network named by the operator is joined hidden, by the first of `psk-sae`, `psk` and `sae` offered (verifies spec: WIFI)
 - [x] The password shows and hides, is filled in for the network wifi names, and is held to 8 to 63 characters (verifies spec: WIFI)
-- [x] Connecting replaces wifi in place with the members WIFI lists, and returns to the Status screen once applied (verifies spec: WIFI)
+- [x] Connecting replaces wifi in place with the members WIFI lists, leaving the cable as it is, and returns to the Status screen once applied (verifies spec: WIFI)
 - [x] A refused password returns to the password step with the field marked (verifies spec: WIFI)
 - [x] Out of range waits with no Try again, and returns once the candidate is the default route (verifies spec: WIFI)
 - [x] Other failures and refusals show the device's reason, with another network and another password offered (verifies spec: WIFI, NSET)

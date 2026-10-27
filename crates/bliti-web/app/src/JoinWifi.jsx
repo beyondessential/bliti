@@ -127,8 +127,7 @@ export default function JoinWifi({ session, entries, onBack, onDone, onSettings,
 			body = (
 				<>
 					<p className="lead">Choose a wifi network</p>
-					{ways.cable && <p className="muted">Joining stops using the cable.</p>}
-					{ways.hotspot && <p className="muted">Joining turns the hotspot off.</p>}
+					{ways?.hotspot && <p className="muted">Joining turns the hotspot off.</p>}
 					{scanning && (
 						<p className="muted looking">
 							<span className="spinner" aria-hidden="true" />
