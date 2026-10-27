@@ -38,7 +38,7 @@ The application MUST render in this order:
 
 | position | from |
 | --- | --- |
-| a header naming the device | `hostname`, `board` with `board-revision`, `os`, `kernel` |
+| a header naming the device | `hostname`, `product`, `board` with `board-revision`, `os`, `kernel` |
 | tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max` |
 | appended | everything it does not recognise |
@@ -54,6 +54,10 @@ The application MUST render a `boolean` as words of its own for `true` and for `
 The application MUST render a `reason` as the sender wrote it.
 
 The application MUST render `last-boot` as an elapsed time.
+
+The application MUST render the facts in the header by their values, and MUST NOT shorten them to their `short` traits.
+
+Where `product` is `broken`, the application MUST show its reason in the header in place of its value.
 
 > [!NOTE]
 > A layout that rearranged while an operator was looking at it would cost the screen its familiarity, and a device with several marginal readings would reshuffle as they crossed back and forth. Trouble is found by colour instead.
