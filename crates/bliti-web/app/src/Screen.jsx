@@ -49,11 +49,12 @@ export function Title({ title, sub, children }) {
 	)
 }
 
+/// The activity record, shown whenever dev mode is on, so turning it on shows at once that it is.
 export function Activity({ log }) {
-	if (log.length === 0) return null
 	return (
 		<section>
 			<h2>Activity</h2>
+			{log.length === 0 && <p className="muted">Nothing yet.</p>}
 			<div className="log">
 				{log.map((line, index) => (
 					<p key={index} className={`line ${line.direction}`}>

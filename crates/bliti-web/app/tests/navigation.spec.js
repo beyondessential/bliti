@@ -112,6 +112,14 @@ test.describe('dev mode', () => {
 		await expect(page.locator('.log')).toHaveCount(0)
 	})
 
+	test('shows the record as soon as it is on, before anything is recorded', async ({ page }) => {
+		await page.addInitScript(installFakeClient)
+		await page.goto('/')
+		await devMode(page)
+		await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible()
+		await expect(page.getByText('Nothing yet.')).toBeVisible()
+	})
+
 	test('lasts for the life of the tab', async ({ page }) => {
 		await page.addInitScript(installFakeClient)
 		await page.goto('/')
