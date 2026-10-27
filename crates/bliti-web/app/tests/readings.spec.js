@@ -67,9 +67,10 @@ test.describe('the header', () => {
 	// The header keeps the full board and os where they carry short forms (NFO, VIEW).
 	test('names the device in full where its facts carry short forms', async ({ page }) => {
 		await openChannel(page)
-		await emit(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
-		await emit(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5 Model B Rev 1.0', traits: { status: { is: 'passed' }, short: 'Raspberry Pi 5' } }))
-		await emit(page, fact('os', { kind: 'text', value: 'Ubuntu 26.04 LTS', traits: { status: { is: 'passed' }, short: 'Ubuntu 26.04' } }))
+		await openReadings(page)
+		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
+		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5 Model B Rev 1.0', traits: { status: { is: 'passed' }, short: 'Raspberry Pi 5' } }))
+		await feed(page, fact('os', { kind: 'text', value: 'Ubuntu 26.04 LTS', traits: { status: { is: 'passed' }, short: 'Ubuntu 26.04' } }))
 
 		await expect(page.locator('.device .sub')).toHaveText('Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
 		await expect(page.locator('.tile')).toHaveCount(0)
