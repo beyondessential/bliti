@@ -5,8 +5,9 @@
 // renders bespoke, in the order and wording it prefers; what it does not it renders generically, from
 // the entry's own name, kind and traits, appended after everything recognised (VIEW).
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
+import JoinCode from './JoinCode.jsx'
 import {
 	HEADER,
 	IN_REVEAL,
@@ -26,8 +27,6 @@ import {
 	seriesKey,
 	statusOf,
 } from './readings.js'
-import { loadProtocol } from './protocol.js'
-import { hotspot_qr as hotspotQr } from './wasm/bliti_web.js'
 import { channelText, securityName } from './wireless.js'
 
 export default function Readings({ entries, history }) {
@@ -450,34 +449,8 @@ function LinkTile({ entry }) {
 					{channel && <Line label="Channel" value={channelText(channel)} />}
 				</dl>
 			</div>
-			{joinable && <JoinCode ssid={String(entry.value)} passphrase={passphrase} />}
+			{joinable && <JoinCode ssid={String(entry.value)} passphrase={passphrase} className="revealed" />}
 		</Tile>
-	)
-}
-
-/// The QR code a phone joins the hotspot by. It is drawn by the protocol module, so it appears once
-/// that has loaded (VIEW).
-function JoinCode({ ssid, passphrase }) {
-	const [drawn, setDrawn] = useState(null)
-	useEffect(() => {
-		let current = true
-		setDrawn(null)
-		loadProtocol()
-			.then(() => current && setDrawn({ svg: hotspotQr(ssid, passphrase) }))
-			.catch((error) => current && setDrawn({ failed: String(error?.message ?? error) }))
-		return () => {
-			current = false
-		}
-	}, [ssid, passphrase])
-
-	if (!drawn) return null
-	if (drawn.failed) return <p className="bad">The join code cannot be drawn: {drawn.failed}</p>
-	return (
-		<div className="revealed join">
-			{/* The SVG is the protocol module's own drawing of the code, and carries no text. */}
-			<div className="qr" role="img" aria-label={`QR code to join ${ssid}`} dangerouslySetInnerHTML={{ __html: drawn.svg }} />
-			<div className="caption">Scan to join</div>
-		</div>
 	)
 }
 

@@ -17,6 +17,7 @@ import {
 	returns,
 	stateOf,
 } from './fake-client.js'
+import { ON_CABLE, carrier, networkRow, openSetup, openWay } from './setup-fixtures.js'
 
 const title = (page) => page.getByRole('heading', { level: 1 })
 const reconnects = (page) => page.evaluate(() => window.__blitiReconnects)
@@ -171,4 +172,34 @@ test('power and battery opens its streams again on the reconnected channel', asy
 	await setHidden(page, false)
 	await expect(page.getByRole('button', { name: 'Reboot' })).toBeVisible()
 	expect(await page.evaluate(() => window.__blitiPowerStreams.length)).toBe(2)
+})
+
+test('a simple network screen keeps the password typed across the reconnect, on a session opened again', async ({ page }) => {
+	await openSetup(page, { document: ON_CABLE, capabilities: PI, facts: [carrier()] })
+	await openWay(page, 'Wifi')
+	await page.getByRole('button', { name: "My network isn't listed" }).click()
+	await page.getByLabel('Network name').fill('Clinic-Private')
+	await page.getByRole('button', { name: 'Continue' }).click()
+	await page.getByLabel('Password', { exact: true }).fill('half-typed')
+	await dropWhileHidden(page)
+
+	await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf()])
+	await returns(page, 'ok')
+	await setHidden(page, false)
+
+	await expect(page.getByLabel('Password', { exact: true })).toHaveValue('half-typed')
+	expect(await page.evaluate(() => window.__blitiSessions.length)).toBe(2)
+})
+
+test('a simple network screen returns to the Status screen where the session opened again is busy', async ({ page }) => {
+	await openSetup(page, { document: ON_CABLE, capabilities: PI, facts: [carrier()] })
+	await openWay(page, 'Iti hotspot')
+	await dropWhileHidden(page)
+
+	await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf({ busy: true })])
+	await returns(page, 'ok')
+	await setHidden(page, false)
+
+	await expect(title(page)).toHaveText(UNNAMED)
+	await expect(networkRow(page)).toContainText('Someone else is making changes')
 })

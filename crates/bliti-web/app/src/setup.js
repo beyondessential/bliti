@@ -178,6 +178,13 @@ export function cablePlugged(entries) {
 	return entries.some((entry) => entry.fact && entry.name === 'wired-carrier' && entry.value === true && !isEnded(entry))
 }
 
+/// The networks the device's wireless interfaces are joined to, from `wireless-network`.
+export function joinedNetworks(entries) {
+	return entries
+		.filter((entry) => entry.fact && entry.name === 'wireless-network' && hasValue(entry) && !isEnded(entry))
+		.map((entry) => String(entry.value))
+}
+
 /// Each way of the Network screen: whether it is on, and how it stands now as parts of a line (NSET).
 export function waysOf(document, entries) {
 	const on = waysOn(document)

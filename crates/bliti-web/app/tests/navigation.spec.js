@@ -3,7 +3,7 @@
 
 import { expect, test } from '@playwright/test'
 
-import { IN_FORCE, PI } from './network-fixtures.js'
+import { IN_FORCE, PI, ap } from './network-fixtures.js'
 import {
 	UNNAMED,
 	answer,
@@ -15,8 +15,10 @@ import {
 	openNetwork,
 	openNetworkScreen,
 	openPower,
+	stateOf,
 	typeCode,
 } from './fake-client.js'
+import { ON_CABLE, openWay } from './setup-fixtures.js'
 
 const title = (page) => page.getByRole('heading', { level: 1 })
 
@@ -173,4 +175,39 @@ test('a browser that cannot open a channel says so and offers nothing else', asy
 	await expect(page.getByText('Open this page in Chrome on an Android phone.')).toBeVisible()
 	await expect(page.locator('.steps')).toHaveCount(0)
 	await expect(page.getByRole('button')).toHaveCount(0)
+})
+
+test.describe('the simple network screens', () => {
+	test('go up one level at a time by the browser’s way back, closing the session at the Status screen', async ({ page }) => {
+		await openFromBlank(page)
+		await answer(page, 'configure', [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf()])
+		await page.locator('.health li').first().getByRole('button').click()
+		await expect(title(page)).toHaveText('Network')
+		await openWay(page, 'Cable')
+		await expect(title(page)).toHaveText('Cable')
+		await page.goBack()
+		await expect(title(page)).toHaveText('Network')
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([false])
+		await page.goBack()
+		await expect(title(page)).toHaveText(UNNAMED)
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true])
+		await page.goBack()
+		await expect(page).toHaveURL('about:blank')
+	})
+
+	test('come back from the network settings on a session opened again', async ({ page }) => {
+		await openFromBlank(page)
+		const answered = [message({ type: 'configuration', document: ON_CABLE, capabilities: PI }), stateOf()]
+		await answer(page, 'configure', answered, answered, answered)
+		await answer(page, 'scan', message({ type: 'networks', 'access-points': [ap({ ssid: 'Clinic-Corp', signal: -50, security: ['enterprise'] })] }))
+		await page.locator('.health li').first().getByRole('button').click()
+		await openWay(page, 'Wifi')
+		await page.locator('.choices button').first().click()
+		await page.getByRole('button', { name: 'Open network settings' }).click()
+		await expect(title(page)).toHaveText('Network settings')
+		await page.getByRole('button', { name: 'Back', exact: true }).click()
+		await expect(title(page)).toHaveText('Join wifi')
+		await expect(page.getByText('Choose a wifi network')).toBeVisible()
+		expect(await page.evaluate(() => window.__blitiSessions.map((each) => each.closedByPage))).toEqual([true, true, false])
+	})
 })
