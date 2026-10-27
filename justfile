@@ -46,6 +46,40 @@ build: build-wasm
 	# and to its own directory, and nothing ever serves that one.
 	cd {{web-app}} && node precompress.js
 
+# Build the daemon for a 64-bit Arm device, in a container with the libraries it links (see
+# crates/bliti/Containerfile), under podman or docker, whichever is present. CONTAINER_ENGINE picks
+# one. The binary is target/device/aarch64-unknown-linux-gnu/release/bliti.
+build-device:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	engine=${CONTAINER_ENGINE:-$(command -v podman || command -v docker || true)}
+	if [[ -z $engine ]]; then
+		echo "build-device needs podman or docker" >&2
+		exit 1
+	fi
+	image=bliti-build-device
+	"$engine" build -q -t "$image" -f crates/bliti/Containerfile crates/bliti >/dev/null
+	# Run as the invoking user, so the build is theirs. Rootless podman maps the container's root to
+	# them already, and keep-id keeps that mapping for their own uid.
+	case $(basename "$engine") in
+		podman) user=(--userns=keep-id) ;;
+		*) user=(--user "$(id -u):$(id -g)") ;;
+	esac
+	# Its own target directory: the build scripts it compiles link the container's glibc, not the
+	# host's, so they cannot share one with a host build.
+	"$engine" run --rm "${user[@]}" \
+		-v "$PWD:/bliti:z" -w /bliti \
+		-v bliti-build-device-cargo:/cargo \
+		-e BLITI_BUILD -e CARGO_TARGET_DIR=target/device \
+		"$image" cargo build --release --locked --target aarch64-unknown-linux-gnu -p bliti
+
+# Build the daemon and install it on a device as the one its service runs, then restart that.
+install-device host: build-device
+	ssh {{host}} 'cat >/tmp/bliti-new' <target/device/aarch64-unknown-linux-gnu/release/bliti
+	ssh {{host}} 'set -e; sudo -n systemctl stop bliti; \
+		sudo -n install -m755 /tmp/bliti-new /usr/local/bin/bliti; rm -f /tmp/bliti-new; \
+		sudo -n systemctl start bliti'
+
 # Rasterise the application's icons from icon.svg, the one master beside them.
 icons:
 	#!/usr/bin/env bash

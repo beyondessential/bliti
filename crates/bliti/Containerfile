@@ -1,0 +1,42 @@
+# The environment `just build-device` builds the daemon in for a 64-bit Arm device: Ubuntu's own arm64
+# builds of the libraries it links, dbus and tpm2-tss. It is an older release than the device runs,
+# because a binary linked against an older glibc runs on a newer one and not the other way round.
+FROM docker.io/library/ubuntu:24.04
+
+# Ubuntu publishes arm64 packages on its ports archive, not the one the image points at, so on any
+# other host the image's sources are pinned to its own architecture and ports added for arm64. On an
+# arm64 host the same packages are native, and the native gcc is the target's.
+RUN set -eu; \
+	arch=$(dpkg --print-architecture); \
+	if [ "$arch" = arm64 ]; then \
+		cross=; \
+	else \
+		sed -i "/^Types:/a Architectures: $arch" /etc/apt/sources.list.d/ubuntu.sources; \
+		printf '%s\n' \
+			'Types: deb' \
+			'URIs: http://ports.ubuntu.com/ubuntu-ports' \
+			'Suites: noble noble-updates noble-security' \
+			'Components: main universe' \
+			'Architectures: arm64' \
+			'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+			>/etc/apt/sources.list.d/ports.sources; \
+		dpkg --add-architecture arm64; \
+		cross=gcc-aarch64-linux-gnu; \
+	fi; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev pkg-config $cross \
+		libdbus-1-dev:arm64 libtss2-dev:arm64; \
+	rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+	PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+		| CARGO_HOME=/usr/local/cargo sh -s -- -y --no-modify-path --profile minimal \
+			--default-toolchain stable --target aarch64-unknown-linux-gnu
+
+# The registry is a volume the build runs with, shared by every user it may run as.
+RUN mkdir -m 1777 /cargo
+ENV CARGO_HOME=/cargo \
+	CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+	PKG_CONFIG_ALLOW_CROSS=1 \
+	PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
