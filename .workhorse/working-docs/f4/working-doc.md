@@ -120,6 +120,36 @@ A HAT-identified board reports as "Tamanu Iti v" followed by its major.minor ver
 The third generation carries no EEPROM to tell revisions apart, and stays "Tamanu Iti v3".
 This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generation), which this card amends once C4 merges.
 
+### The HAT, rev B (silkscreened "ITI 4.0")
+
+| part | what | notes |
+| --- | --- | --- |
+| U1 | the HAT EEPROM (SOIC-8, presumably) | beside R1/R2, marked 392 (3.9 kΩ, the HAT spec's ID-pin pull-ups) and the ID WP pads |
+| ID WP | two round pads, centre right | bridged to make the EEPROM writable |
+| U2 | TPM, ST part on SPI | the BID board-ID source |
+| U3 | AIR: Bosch BME680 | rev C is expected to carry a cheaper air sensor instead (possibly a "590") |
+| U4 | LIGHT: ambient light sensor ("ALS 308") | |
+| USER | tactile button | the button the assembler presses to select a board in provisioning |
+| SW1 | CASE: lever switch, held pressed while the case is closed | case-open detection |
+| J3 | 2×10 header | |
+
+The sensors are not on I²C bus 1 (where the backup supply's gauge sits).
+Which bus, and which GPIOs the buttons use, are to come from the user.
+
+### Inferring the version, and where it stops
+
+Provisioning tells rev B from later revisions by which air sensor answers: a BME680 means v4.0.
+This kind of detection by positive markers is what C4 avoided, because a dead or missing part misreads.
+Here it is used only once, at provisioning, to decide what to write; from then on the EEPROM is authoritative and the running system never infers from parts.
+Where provisioning can't place the board as a known version (the sensor that tells revisions apart doesn't answer, or a combination it doesn't know), the EEPROM step stops and says the board needs looking at, without guessing.
+
+### Checking the hardware
+
+Proposed step: before the label is printed, provisioning exercises the HAT so a bad board is caught on the bench and not in the field.
+The assembler presses USER, then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
+Each check passes or fails in the client.
+Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
+
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
@@ -136,9 +166,11 @@ This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generat
 - [ ] Does the firmware publish `custom_data` atoms under `/proc/device-tree/hat/`? If not, matching on a custom-atom UUID means reading the EEPROM over I²C, which C4 avoids in the facts poll
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
-- [ ] The two buttons: which GPIOs, and what else they are for
-- [ ] What rev B carries on its I²C bus, and which device tells it apart from later revisions
+- [ ] Which bus the sensors are on, and which GPIOs USER and CASE use (user is gathering)
+- [ ] U1's exact part, for its size and write page size
+- [ ] The "bridge here" picture: a render from the PCB design files, or a cleaned-up photo
+- [ ] The hardware check step: agreed?
+- [x] What tells rev B apart: the BME680 air sensor
 - [ ] Mapping from EEPROM to version: a well-known UUID per board version in a `custom_data` atom, and how major.minor is read from it
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [ ] Vendor and product strings, and the `product_id` values
-- [ ] Investigate the HAT's other hardware: its I²C bus and devices
