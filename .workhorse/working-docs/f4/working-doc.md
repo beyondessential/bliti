@@ -38,7 +38,7 @@ The EEPROM is write-protected unless two test pads are bridged (the HAT design g
 The flow:
 
 1. Detect the EEPROM, and whether it is already programmed
-2. Tell the assembler to bridge the pads, with a picture of the board showing where
+2. Tell the assembler to bridge the pads, with a picture of the board showing where: the rev B photo with the ID WP pads circled and labelled (`.workhorse/design/assets/iti-hat-rev-b-wp-pads.jpg`), shipped with the provisioning client
 3. Repeatedly try to write until a write succeeds
 4. Tell the assembler they can let go
 5. Read back and verify
@@ -188,7 +188,7 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
 - [ ] Which bus the sensors are on, and which GPIOs USER and CASE use (user is gathering)
 - [ ] U1's exact part, for its size and write page size
-- [ ] The "bridge here" picture: a render from the PCB design files, or a cleaned-up photo
+- [x] The "bridge here" picture: the user's rev B photo, labelled
 - [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
 - [ ] Mapping from EEPROM to version: a well-known UUID per board version in a `custom_data` atom, and how major.minor is read from it
