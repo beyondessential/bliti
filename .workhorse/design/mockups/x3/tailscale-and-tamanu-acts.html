@@ -1,0 +1,623 @@
+<!-- spec: status-screen.md, control/tailscale-screen.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<title>Tailscale and Tamanu acts</title>
+<style>
+/* The shipped client's stylesheet, as it stands. */
+/* The visual language of the client: the prototype page's shapes, in Tamanu Iti's colours. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #326699;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button:disabled { background: var(--muted); opacity: 0.5; cursor: default; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+input {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > * { flex: 1 1 auto; }
+.code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.good { color: var(--good); }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+dt { color: var(--muted); font-size: 0.9rem; }
+dd { margin: 0; }
+video { width: 100%; border-radius: 6px; background: #000; }
+.log { max-height: 9rem; overflow-y: auto; }
+.log p { margin: 0 0 4px; }
+
+/* A device newer than this build, or one not speaking the protocol. Neither blanks the view: what
+   the application did understand is still on screen beneath it (BLI-MSG). */
+.notice {
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 4px;
+	padding: 8px 12px;
+	margin: 0 0 12px;
+	font-size: 0.9rem;
+}
+.notice.fault { border-left-color: var(--bad); }
+
+/* Tiles. The face carries a label and the headline value and nothing else; the rest is revealed by
+   tapping, so one surface serves a non-technician at a glance and a technician who needs the
+   figures behind it (BLI-SYS). */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	min-height: 0;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	width: 100%;
+	display: block;
+	cursor: pointer;
+}
+.tile.wide { grid-column: 1 / -1; }
+.tile.expanded { border-color: var(--accent); }
+.tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+/* A tile showing settings the device is trying rather than has recorded (VIEW). */
+.tile .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.tile .value.small { font-size: 1rem; line-height: 1.5; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.tile .value .addresses { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.5; }
+.tile .value .part { color: var(--muted); font-size: 0.8rem; }
+.tile .value .margin { font-size: 0.8rem; }
+.tile .value .warn { color: var(--warn); }
+.tile .value .bad { color: var(--bad); }
+.tile .value.warn { color: var(--warn); }
+.tile .value.bad { color: var(--bad); }
+
+.detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.revealed + .revealed { margin-top: 12px; }
+.detail dl { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.detail dt { color: var(--muted); font-size: 0.85rem; }
+.detail dd { margin: 0; font-size: 0.85rem; }
+.detail .note { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+/* How far either way a reading may be off, beside its value (VIEW). */
+.margin { color: var(--muted); margin-left: 6px; }
+
+/* The code a phone joins the hotspot by. It draws in the text colour over nothing, so its quiet zone
+   is whatever the surface behind it is, in any theme. */
+.join { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.join .qr {
+	width: 12rem;
+	max-width: 100%;
+	aspect-ratio: 1;
+	background: var(--surface);
+	color: var(--text);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+}
+.join .qr svg { display: block; width: 100%; height: 100%; }
+.join .caption { font-size: 0.85rem; color: var(--muted); }
+
+.bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; overflow: visible; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.bar.warn > span { background: var(--warn); }
+.bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
+.spark { display: block; width: 100%; height: 32px; margin-top: 8px; }
+
+.mirror { position: relative; margin-top: 10px; }
+.mirror .spark { height: 68px; }
+.axis-label { position: absolute; left: 0; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.04em; }
+.axis-label.up { top: 0; }
+.axis-label.down { bottom: 0; }
+
+.sr-only {
+	position: absolute;
+	width: 1px; height: 1px;
+	padding: 0; margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* An address or a board name has no spaces to break at, so it must be allowed to break anywhere
+   rather than running out past the edge of its tile. */
+.tile .value, .detail dd, .detail .note, .detail p { overflow-wrap: anywhere; }
+/* A tile with nothing behind its headline is not a tap target. */
+.tile.flat { cursor: default; }
+
+/* A section heading with an action beside it. */
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading h2 { margin: 0 0 12px; }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }
+
+/* The activity log doubles as a debug surface, so it reads as a record of the conversation: when,
+   which way, and what. Oldest first, because that is the order things happened in. */
+.log { max-height: 16rem; overflow-y: auto; font-size: 0.8rem; }
+.log .line {
+	display: grid;
+	grid-template-columns: auto auto 1fr;
+	gap: 8px;
+	margin: 0 0 2px;
+	align-items: baseline;
+}
+.log time { color: var(--muted); font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.log .arrow { color: var(--muted); }
+.log .said { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.log .in .arrow { color: var(--accent); }
+.log .out .arrow { color: var(--good); }
+.log .note { color: var(--muted); }
+
+/* The tiles are no longer inside a section, so they carry the spacing a section would have given
+   them and keep the rhythm with whatever follows. */
+.tiles { margin-bottom: 12px; }
+
+/* An opened tile takes the whole row: the detail is figures and graphs, and reading those through a
+   half-width column is what the tap was avoiding. */
+.tile.expanded { grid-column: 1 / -1; }
+
+/* A reading whose detail lists several things separates them, so a figure sits under the thing it
+   belongs to rather than against the one above. */
+.detail dl + dl { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.detail dt { white-space: pre; }
+
+/* Which line is which, on a graph with one above the axis and one below. */
+.axis-label .key {
+	display: inline-block;
+	width: 10px;
+	height: 2px;
+	vertical-align: middle;
+	margin-right: 4px;
+}
+.axis-label .key.out { background: var(--good); }
+.axis-label .key.in { background: var(--accent); }
+
+/* Two actions beside a heading. */
+.heading .actions { display: flex; gap: 8px; }
+
+/* A screen's title, with its actions beside it. Every screen of a connected device carries one in
+   the same place, so moving between them keeps the operator at one level (VIEW). */
+.heading.title { margin-bottom: 16px; }
+.heading.title h1 { margin: 0; }
+/* Taps on a title count towards dev mode, so a row of them must not select its text or zoom (WEB). */
+.heading.title h1 { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.heading.title button.small { margin-bottom: 0; padding: 6px 10px; }
+.heading.title .offline { color: var(--bad); font-size: 0.9rem; }
+
+/* The acts of the Control screen, one row each: what it does, and the button that asks for it. The
+   confirmation takes the list's place, so it reads as the answer to the button pressed (CSCR). */
+.acts { list-style: none; margin: 0; padding: 0; }
+.acts li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.acts li:first-child { border-top: 0; padding-top: 0; }
+.acts li > div { flex: 1 1 auto; }
+.acts .name { display: block; }
+.acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
+button.secondary.danger { color: var(--bad); border-color: var(--bad); }
+
+/* What the device gives for its battery, above the battery section's rows (CSCR). */
+.learnt { margin: 0 0 10px; }
+
+/* A confirmation takes its act's button's place, beneath the act it asks about (CSCR). */
+.acts li.asking { display: block; }
+.acts .bar-state { margin: 10px 0 0; }
+.acts .bar-state .row.fill > * { flex: 1 1 auto; }
+
+/* The devices this tab has reached are laid out as the acts are: which device, and the button that
+   holds its code again (WEB). */
+.device-name { display: block; margin: 0 0 4px; }
+button.danger-fill { background: var(--bad); }
+.bar-state[role="alertdialog"] .row > * { flex: 0 1 auto; }
+
+/* The network configuration screen. Its component shapes are the design's (network-configuration),
+   scoped here so the device view keeps the ones it already has. */
+select, textarea {
+	font: inherit;
+	width: 100%;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--text);
+}
+textarea { min-height: 6rem; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+input:disabled, select:disabled, textarea:disabled { color: var(--muted); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+.network .heading { margin: 0 0 12px; }
+.network .heading h2 { margin: 0; }
+.network .heading.title h1 { margin: 0; }
+.network .heading.title { margin-bottom: 16px; }
+.network button.small { padding: 6px 10px; margin-bottom: 0; }
+
+/* The ordering. Each row is a candidate the device may attach by, in the order it tries them. The
+   handle is the whole point of the row, so it reads as a list that is meant to be rearranged. */
+.order { list-style: none; margin: 0; padding: 0; }
+.order li {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px solid var(--line);
+}
+.order li:first-child { border-top: 0; }
+.order button.grip, .order button.what {
+	background: transparent;
+	color: inherit;
+	padding: 0;
+	min-height: 0;
+	border: 0;
+	border-radius: 0;
+	text-align: left;
+	font: inherit;
+}
+.order button.grip { color: var(--muted); cursor: grab; font-size: 0.9rem; letter-spacing: -1px; touch-action: none; }
+.order button.grip:disabled { cursor: default; opacity: 0.4; background: transparent; }
+.order button.what { flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.order li.selected .what .name { color: var(--accent); }
+/* The candidate being edited, and its fields below, are unmistakably the same one. */
+.order li.selected {
+	background: #eef3f8;
+	box-shadow: inset 3px 0 0 var(--accent);
+	margin: 0 -12px;
+	padding-left: 12px;
+	padding-right: 12px;
+}
+section.candidate { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.what .name { overflow-wrap: anywhere; }
+.what .kind { color: var(--muted); font-size: 0.8rem; }
+.state { font-size: 0.8rem; white-space: nowrap; }
+.state.good { color: var(--good); }
+.state.muted { color: var(--muted); }
+.state.bad { color: var(--bad); }
+.adding { margin: 0 0 12px; }
+.adding > * { flex: 0 1 auto; }
+
+/* Where a change failed. The stages are the device's own account of how far it got, so an operator
+   reads "the key was right, the network is not routing" without being told it in prose. */
+.stages { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; font-size: 0.8rem; }
+.stages span::before { margin-right: 4px; }
+.stages .done { color: var(--good); }
+.stages .done::before { content: "\2713"; }
+.stages .failed { color: var(--bad); }
+.stages .failed::before { content: "\2717"; }
+.stages .untried { color: var(--muted); }
+/* A candidate not checked when applied: offered where its checking failed, and said wherever it is
+   off, so an operator never loses track of which ones can fail without stopping a change. */
+.network .unchecked { margin: 0 0 12px; }
+.network .unchecked p { margin: 0 0 8px; font-size: 0.85rem; }
+.field-fault { border-color: var(--bad); }
+.why { color: var(--bad); font-size: 0.85rem; margin: 6px 0 0; }
+.why.reason { margin-bottom: 12px; }
+
+.network label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+.network label:first-of-type { margin-top: 0; }
+.network details label:first-of-type, .network .absent + label { margin-top: 12px; }
+.network .check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
+.network .check input { width: auto; padding: 0; }
+/* The bands a wireless connection may use, one box each, reading as the field labels do. */
+.network .bands legend { padding: 0; font-size: 0.8rem; color: var(--muted); margin: 12px 0 0; }
+.network .bands { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.network .bands legend { flex-basis: 100%; }
+.network details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.network summary { font-size: 0.85rem; color: var(--accent); cursor: pointer; }
+.pair { display: flex; gap: 8px; }
+.pair > * { flex: 1 1 0; }
+.pair > button { flex: 0 0 auto; }
+.network .hint { margin: 6px 0 0; }
+/* The countries a scan heard named. Unset, the suggestion is the next thing to do, so it carries the
+   primary button; set to another country, it is a line beneath the field. */
+.network .suggest { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.network .suggest > p:first-child { margin: 0 0 8px; font-size: 0.9rem; }
+.network .suggest .row > * { flex: 0 1 auto; }
+.network .aside, .network .also { margin: 6px 0 0; font-size: 0.85rem; }
+.network .suggest .also { margin-top: 8px; }
+.network .aside button.link { margin-left: 4px; }
+.network .aside button.link + button.link::before, .network .also button.link + button.link::before {
+	content: "\00b7";
+	color: var(--muted);
+	margin: 0 6px;
+}
+.network .absent { margin: 12px 0 0; }
+.network .survey { margin-top: 12px; }
+
+.networks, .spectrum, .points { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.85rem; }
+.networks li, .spectrum li, .points li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; }
+
+/* A scan, read by network or for siting. A network's row opens onto the access points behind it,
+   which sit indented beneath it so they read as its own. */
+.scan { margin-top: 12px; }
+.scan .views { gap: 6px; }
+.scan .views > * { flex: 0 1 auto; }
+.scan .views button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.networks li.network-row { display: block; border-top: 1px solid var(--line); }
+.networks li.network-row:first-child { border-top: 0; }
+.network-row .line { display: flex; align-items: baseline; gap: 8px; }
+.network-row .line > .muted { flex: 1 1 auto; }
+.network-row .points { margin: 4px 0 4px 12px; }
+.points li > :first-child { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.points li > :last-child { text-align: right; }
+.points .code { font-size: 0.8rem; }
+/* A BSSID is read whole: two access points from one vendor differ only at the end. The detail
+   beside it wraps instead. */
+.points li > .code { flex: none; overflow: visible; }
+.scan .check { margin-top: 10px; }
+button.link { background: transparent; color: var(--accent); padding: 0; min-height: 0; border: 0; font-size: 0.85rem; }
+.siting h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 0; }
+
+/* The action bar. It says which stage the operator is in and offers only what that stage allows,
+   because the four are easy to confuse: a change being edited, a change being checked, a change that
+   failed, and a change running but not saved all look alike otherwise. Pinned to the bottom of the
+   viewport, so whether what runs is saved never scrolls out of sight. */
+.bar-state {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 8px;
+	padding: 12px 16px;
+}
+.bar-state.working { border-left-color: var(--accent); }
+.bar-state.failed { border-left-color: var(--bad); }
+.bar-state p { margin: 0 0 10px; font-size: 0.9rem; }
+.bar-state .row > * { flex: 0 1 auto; }
+.bar-state.sticky { position: sticky; bottom: 8px; z-index: 1; }
+
+/* Something under way: an apply being checked, a scan, a survey, the session opening. */
+.spinner {
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-right: 6px;
+	vertical-align: -0.05em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* Where the operator is in reaching a device: done steps ticked, the current one named in full, so
+   how much is left is answered without reading anything else (WEB). */
+.steps { list-style: none; display: flex; margin: 0 0 16px; padding: 0; }
+.steps li { flex: 1 1 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted); text-align: center; }
+.steps li + li::before { content: ""; position: absolute; top: 11px; right: 50%; width: 100%; height: 2px; background: var(--line); }
+.steps li.done::before, .steps li.current::before { background: var(--accent); }
+.steps .dot { position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 0.75rem; font-weight: 600; }
+.steps li.current .dot { border-color: var(--accent); color: var(--accent); }
+.steps li.done .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steps li.current .name { color: var(--text); font-weight: 600; }
+
+/* The one instruction a step carries: what to do, in a line, with a sentence of help beneath. */
+.lead { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+.lead + .muted { margin: 0 0 12px; }
+.lead.problem { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.alert { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #fbeaea; color: var(--bad); display: grid; place-items: center; font-size: 0.85rem; font-weight: 400; line-height: 1; }
+.done-line { color: var(--good); font-size: 0.85rem; font-weight: 600; margin: 0 0 8px; }
+.done-line::before { content: "\2713"; margin-right: 6px; }
+.chip { display: block; text-align: center; font-family: ui-monospace, monospace; font-size: 1rem; letter-spacing: 0.05em; padding: 8px 10px; margin: 8px 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--page); overflow-wrap: anywhere; }
+button.block { width: 100%; }
+.links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
+.steps-body video { margin: 0 0 12px; aspect-ratio: 4 / 3; object-fit: cover; }
+.steps-body .why { margin: 0 0 12px; }
+
+/* What only technical staff need, behind a section that stays closed until opened (WEB). */
+details.advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+details.advanced > summary { display: flex; align-items: center; justify-content: space-between; padding: 16px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; list-style: none; }
+details.advanced > summary::-webkit-details-marker { display: none; }
+details.advanced > summary::after { content: ""; width: 7px; height: 7px; margin: -4px 4px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+details.advanced[open] > summary { border-bottom: 1px solid var(--line); }
+details.advanced[open] > summary::after { margin-top: 4px; transform: rotate(-135deg); }
+details.advanced .inside { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+details.advanced label { font-size: 0.8rem; color: var(--muted); }
+details.advanced input { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+details.advanced .why { margin: 0; }
+
+/* A title's actions wrap among themselves rather than squeezing it, where there are several. */
+.heading.title h1 { flex: 0 0 auto; }
+.heading.title .actions { flex: 1 1 0; flex-wrap: wrap; justify-content: flex-end; }
+
+/* The Status screen (STAT). Its title carries the device's software identity beneath it. */
+.heading.title:has(.software) { align-items: flex-start; }
+.heading.title .software { margin: 2px 0 0; font-size: 0.8rem; }
+
+/* A row each for the network, Tailscale and Tamanu: a mark, what it says, and the detail beneath. */
+.health { list-style: none; margin: 0; padding: 0; }
+.health li { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.health li:first-child { border-top: 0; padding-top: 0; }
+.health li:last-child { padding-bottom: 0; }
+.health .mark { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1; }
+.health .mark.good { background: #e8f5ec; color: var(--good); }
+.health .mark.good::before { content: "\2713"; }
+.health .mark.warn { background: #fdf3e1; color: var(--warn); }
+.health .mark.warn::before { content: "!"; font-weight: 700; }
+.health .mark.bad { background: #fbeaea; color: var(--bad); }
+.health .mark.bad::before { content: "\2717"; }
+.health .mark.wait { color: var(--accent); }
+.health .mark.wait .spinner { margin: 0; }
+.health .body { flex: 1 1 0; min-width: 0; }
+.health .name { display: block; font-weight: 600; }
+.health .detail { display: block; border: 0; margin: 0; padding: 0; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+.health .detail.reason { color: var(--bad); }
+.health .detail.reason.warn { color: var(--warn); }
+.health .detail.fact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.health .sep { margin: 0 5px; opacity: 0.5; }
+.health .detail.fact .sep { margin: 0 2px; }
+.health .way { flex: 0 0 auto; width: 16px; height: 16px; color: var(--accent); }
+.health .way svg { display: block; width: 100%; height: 100%; }
+.health .k { margin-right: 6px; opacity: 0.75; }
+.health li > button { flex: 1 0 calc(100% - 1.5rem - 10px); margin-left: calc(1.5rem + 10px); min-height: 0; padding: 6px 12px; font-size: 0.85rem; }
+
+/* Advanced: closed, a heading that opens it; open, the ways to every other screen beneath. */
+.advanced { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+.advanced .summary { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 0; padding: 14px 16px; background: transparent; border-radius: 8px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: left; }
+.advanced .summary::after { content: ""; width: 7px; height: 7px; margin: -4px 4px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+.advanced.open .summary { border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+.advanced.open .summary::after { margin-top: 4px; transform: rotate(-135deg); }
+.advanced .inside { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.advanced .inside button { width: 100%; }
+
+
+/* The canvas: phone frames in a row, each standing in for the page. */
+body { padding: 32px; background: #efede8; }
+.canvas { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+figure { margin: 0; width: 360px; }
+figcaption { font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; min-height: 2.6em; }
+figcaption b { color: var(--text); }
+.phone { background: var(--page); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.phone main { max-width: none; }
+
+/* New for this card. */
+a { color: var(--accent); }
+.health li > .bar-state { flex: 1 0 calc(100% - 1.5rem - 10px); margin-left: calc(1.5rem + 10px); }
+.health li > .busy { flex: 1 0 calc(100% - 1.5rem - 10px); margin-left: calc(1.5rem + 10px); color: var(--accent); font-size: 0.85rem; }
+.advanced .inside button.new { box-shadow: 0 0 0 2px #fdf3e1; }
+.facts { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 0.85rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.verdict { margin: 0; font-weight: 600; }
+.relays { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line); font-size: 0.85rem; }
+.relays li { display: flex; justify-content: space-between; padding: 2px 0; }
+.relays li span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+.flabel { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+.flabel:first-child { margin-top: 0; }
+.row.inline { flex-wrap: nowrap; }
+.row.inline input { flex: 1 1 auto; min-width: 0; }
+.row.inline button { flex: 0 0 auto; min-height: 0; }
+.form .scan { width: 100%; margin-top: 8px; }
+.form .go { margin-top: 16px; }
+.form .alt { margin: 12px 0 0; text-align: center; }
+.join.link { margin: 16px 0 8px; }
+.form .code { text-align: center; margin: 0 0 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="canvas">
+<figure><figcaption><b>Status</b>. Tailscale not signed in, Tamanu stopped. Each row offers what the device lists for its state.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tailscale not signed in</span></div><button class="secondary">Connect</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tamanu stopped</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><button class="secondary">Start</button></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Confirm</b>. In place of the button. Other rows stay in view.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tailscale not signed in</span></div><button class="secondary">Connect</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tamanu stopped</span><span class="detail reason">Facility server exited unexpectedly.</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><div class="bar-state" role="alertdialog" aria-label="Start Tamanu?"><p><strong>Start Tamanu?</strong></p><div class="row"><button>Start</button><button class="secondary">Cancel</button></div></div></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Under way</b>. Tamanu restarting, from the feed. A network check running in place.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><span class="busy"><span class="spinner" aria-hidden="true"></span>Checking…</span></li>
+<li><span class="mark wait" role="img"><span class="spinner" aria-hidden="true"></span></span><div class="body"><span class="name">Tamanu restarting</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Network check</b>. Can connect, through a relay or directly alike.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span><span class="detail">Can connect<span class="sep">·</span><a href="#">Details</a></span></div><button class="secondary">Network check</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tamanu running</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Blocked</b>. No relay answered. Why, as far as the result says.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tailscale state unknown</span><span class="detail reason">tailscaled is not responding.</span><span class="detail reason">Blocked: the network asks for a sign-in<span class="sep">·</span><a href="#">Details</a></span></div><button class="secondary">Network check</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tamanu running</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Restart refused</b>. The device's own reason, as it wrote it, until the operator asks again or leaves.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Network check</button></li>
+<li><span class="mark warn" role="img"></span><div class="body"><span class="name">Tamanu partly running</span><span class="detail reason warn">Facility server is not running.</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span><span class="detail reason">An update is being installed.</span></div><button class="secondary">Restart</button></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Confirm restart</b></figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tailscale connected</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Network check</button></li>
+<li><span class="mark warn" role="img"></span><div class="body"><span class="name">Tamanu partly running</span><span class="detail reason warn">Facility server is not running.</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><div class="bar-state" role="alertdialog" aria-label="Restart Tamanu?"><p><strong>Restart Tamanu?</strong></p><p>Tamanu may be unavailable while it restarts.</p><div class="row"><button>Restart</button><button class="secondary">Cancel</button></div></div></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Waiting for approval</b>. Cancel logs the sign-in out, confirmed.</figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tailscale waiting for approval</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><div class="bar-state" role="alertdialog" aria-label="Cancel the sign-in?"><p><strong>Cancel the sign-in?</strong></p><div class="row"><button>Cancel sign-in</button><button class="secondary">Keep waiting</button></div></div></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tamanu running</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul></section>
+<div class="advanced"><button class="summary" aria-expanded="false">Advanced</button></div></main></div></figure><figure><figcaption><b>Turned off</b></figcaption><div class="phone"><main><div class="heading title"><div><h1>clinic-iti-07</h1><p class="muted software">Raspberry Pi 5 · Ubuntu 26.04</p></div><div class="actions"><button class="secondary small">Disconnect</button></div></div>
+<section><h2>Status</h2><ul class="health">
+<li><span class="mark good" role="img" aria-label="Working"></span><div class="body"><span class="name">Network connected</span><span class="detail fact"><span class="way"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg></span>Wifi<span class="sep">·</span>Clinic-Staff</span></div><button class="secondary">Change</button></li>
+<li><span class="mark bad" role="img"></span><div class="body"><span class="name">Tailscale turned off</span><span class="detail"><span class="k">Device name</span>clinic-iti-07</span></div><button class="secondary">Turn on</button></li>
+<li><span class="mark good" role="img"></span><div class="body"><span class="name">Tamanu running</span><span class="detail"><span class="k">Web</span>2.34.1<span class="sep">·</span><span class="k">Facility server</span>2.34.0</span></div><button class="secondary">Restart</button></li>
+</ul></section>
+<div class="advanced open"><button class="summary" aria-expanded="true">Advanced</button><div class="inside">
+<button class="secondary">All readings</button><button class="secondary">Network settings</button><button class="secondary new">Tailscale</button><button class="secondary">Power and battery</button></div></div></main></div></figure><figure><figcaption><b>Tailscale screen</b>. Under Advanced. Every act the device lists, the full network check and ping.</figcaption><div class="phone"><main><div class="heading title"><h1>Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
+<section><h2>Details</h2><ul class="health"><li><span class="mark good" role="img"></span><div class="body"><span class="name">Connected</span></div></li></ul>
+<dl class="facts"><dt>Device name</dt><dd>clinic-iti-07</dd><dt>Tailnet</dt><dd>example-health.ts.net</dd><dt>Sign-in lapses</dt><dd>12 Mar 2027, in 4 months</dd></dl></section>
+<section><h2>Acts</h2><ul class="acts">
+<li><div><span class="name">Turn off</span><span class="muted">Stays signed in.</span></div><button class="secondary">Turn off</button></li>
+<li class="asking"><div><span class="name">Log out</span><span class="muted">Removes the sign-in.</span></div><div class="bar-state" role="alertdialog" aria-label="Log out?"><p><strong>Log out?</strong></p><p>The fleet can't reach the Iti through Tailscale until it is signed in again.</p><div class="row"><button class="danger-fill">Log out</button><button class="secondary">Cancel</button></div></div></li>
+</ul></section>
+<section><div class="heading"><h2>Network check</h2><button class="secondary small">Run again</button></div>
+<p class="verdict">Can connect</p>
+<dl class="facts"><dt>UDP</dt><dd>Yes</dd><dt>IPv4</dt><dd>Yes</dd><dt>IPv6</dt><dd>No</dd><dt>Address varies</dt><dd>Yes</dd><dt>Asks for sign-in</dt><dd>No</dd></dl>
+<ul class="relays"><li><span>Sydney</span><span>32 ms</span></li><li><span>Auckland</span><span>41 ms</span></li><li><span>Singapore</span><span>118 ms</span></li></ul></section>
+<section><h2>Ping</h2><label class="flabel" for="peer">Machine</label><div class="row inline"><input id="peer" placeholder="Chosen by the Iti"><button class="secondary">Ping</button></div>
+<p class="verdict">tamanu-central answered</p><dl class="facts"><dt>Path</dt><dd>Through a relay, Sydney</dd><dt>Round trip</dt><dd>58 ms</dd></dl></section></main></div></figure><figure><figcaption><b>Connect</b>. Auth key first. Scan fills the field.</figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
+<section class="form"><label class="flabel" for="key">Auth key</label><div class="row inline"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="secondary">Show</button></div>
+<button class="secondary scan">Scan a QR code</button>
+<label class="flabel" for="name">Device name</label><input id="name" value="clinic-iti-07">
+<div class="row go"><button>Connect</button></div>
+<p class="muted alt">No key? <a href="#">Use a login link</a></p></section></main></div></figure><figure><figcaption><b>Key rejected</b></figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
+<section class="form"><label class="flabel" for="key">Auth key</label><div class="row inline"><input id="key" type="password" value="tskey-auth-kQ9xxxxxxxxxxxxxxxx"><button class="secondary">Show</button></div>
+<button class="secondary scan">Scan a QR code</button>
+<label class="flabel" for="name">Device name</label><input id="name" value="clinic-iti-07">
+<p class="why reason">Invalid auth key: key has expired.</p><div class="row go"><button>Connect</button></div>
+<p class="muted alt">No key? <a href="#">Use a login link</a></p></section></main></div></figure><figure><figcaption><b>Login link</b>. Scan on another device, share to someone with an account, or open here.</figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
+<section class="form"><label class="flabel" for="name2">Device name</label><input id="name2" value="clinic-iti-07" disabled>
+<div class="join link"><div class="qr"><svg viewBox="-2 -2 29 29" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="7" height="7"/><rect x="1" y="1" width="5" height="5" fill="#fff"/><rect x="2" y="2" width="3" height="3"/><rect x="18" y="0" width="7" height="7"/><rect x="19" y="1" width="5" height="5" fill="#fff"/><rect x="20" y="2" width="3" height="3"/><rect x="0" y="18" width="7" height="7"/><rect x="1" y="19" width="5" height="5" fill="#fff"/><rect x="2" y="20" width="3" height="3"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="8" y="17" width="1" height="1"/><rect x="8" y="22" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="10" y="24" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="11" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="19" width="1" height="1"/><rect x="16" y="20" width="1" height="1"/><rect x="16" y="21" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="17" y="17" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="18" y="9" width="1" height="1"/><rect x="18" y="10" width="1" height="1"/><rect x="18" y="11" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="18" y="24" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="19" y="9" width="1" height="1"/><rect x="19" y="11" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="20" y="23" width="1" height="1"/><rect x="20" y="24" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="21" y="9" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="21" y="17" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="21" y="20" width="1" height="1"/><rect x="21" y="23" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="22" y="24" width="1" height="1"/><rect x="23" y="8" width="1" height="1"/><rect x="23" y="9" width="1" height="1"/><rect x="23" y="11" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="23" y="13" width="1" height="1"/><rect x="23" y="17" width="1" height="1"/><rect x="23" y="18" width="1" height="1"/><rect x="23" y="19" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="23" y="22" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="24" y="10" width="1" height="1"/><rect x="24" y="12" width="1" height="1"/><rect x="24" y="13" width="1" height="1"/><rect x="24" y="14" width="1" height="1"/><rect x="24" y="15" width="1" height="1"/><rect x="24" y="18" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="24" y="22" width="1" height="1"/><rect x="24" y="23" width="1" height="1"/><rect x="24" y="24" width="1" height="1"/></svg></div><span class="caption">The Iti connects once someone approves this link.</span></div>
+<p class="code">https://login.tailscale.com/a/1f2e3d4c5b6a</p>
+<div class="row"><button>Open</button><button class="secondary">Share</button><button class="secondary">Copy</button></div>
+<p class="muted alt"><a href="#">Use an auth key</a></p></section></main></div></figure><figure><figcaption><b>Link lapsed</b></figcaption><div class="phone"><main><div class="heading title"><h1>Connect to Tailscale</h1><div class="actions"><button class="secondary small">Back</button></div></div>
+<section class="form"><label class="flabel" for="name3">Device name</label><input id="name3" value="clinic-iti-07">
+<p class="why reason">The login link was not approved in time.</p>
+<div class="row go"><button>Get a new link</button></div>
+<p class="muted alt"><a href="#">Use an auth key</a></p></section></main></div></figure>
+</div>
+</body>
+</html>

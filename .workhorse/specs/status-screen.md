@@ -32,7 +32,7 @@ The application MUST read the rows from the batches of [NFO](device-info.md#batc
 
 Until the first batch has ended, the application MUST show the network row and the Tailscale row in progress, saying it is checking each.
 
-Each row MUST carry a mark, the name of what it is about, what it says of how that stands, and beneath them, where there is any, its detail.
+Each row MUST carry a mark, the name of what it is about, what it says of how that stands, beside them its act, where it has one, and beneath them, where there is any, its detail.
 
 A row's mark MUST be one of:
 
@@ -50,6 +50,24 @@ The application MUST render a `reason` as the device wrote it.
 The application MUST supply its own wording for every state it recognises.
 
 The application MUST render a state it does not recognise by the mark its `status` gives, `passed` as well, `warning` as warning and any other as not well, saying the state's value as the device sent it, with the device's `reason`.
+
+## Acts on the rows
+
+The application MUST open a Tailscale stream of [TSC](control/tailscale.md) and a Tamanu stream of [TMU](control/tamanu.md) when it shows the Status screen, and MUST close both when the operator leaves it.
+
+The application MUST offer on the Tailscale row and the Tamanu row only an act the device lists on that row's stream, as the sections below have it, and MUST leave the row without an act until the device has listed its acts.
+
+Where an act is to be confirmed, the application MUST ask the operator to confirm it, each time, before asking the device for it, showing the confirmation beneath the row in place of its act and leaving the other rows in view.
+
+A confirmation MUST name the act in the words of the act's button.
+
+The application MUST NOT offer a row's act again from asking the device for it until the device refuses it, sends its result or its failure, or lists its acts anew.
+
+The application MUST show in the row's detail the reason of a `cannot-act`, or of a `tailscale-failed` or `tamanu-failed`, as the device wrote it, until the operator asks for an act on that row again or leaves the Status screen.
+
+> [!NOTE]
+> A device older than the application skips `tailscale` and `tamanu` as it skips anything else it does not recognise, and never answers, so its rows read as they would with nothing to offer.
+> An act that changes Tailscale or Tamanu shows as the row's state changing on the `default` feed, which is why the rows need nothing more than the feed to show it under way or done.
 
 ## The network row
 
@@ -104,6 +122,32 @@ The application MUST show as the row's detail the name the device is reached by,
 
 Where `tailscale-key-expiry` is `warning`, the application MUST show the row's mark as warning where it would otherwise be well, and MUST show in the row's detail when the sign-in lapses, as a time from now.
 
+The application MUST offer on the Tailscale row, where the device lists the act, the act this table gives for `tailscale-state`, and no act in any other state:
+
+| `tailscale-state` | act | button | confirmed |
+| --- | --- | --- | --- |
+| `needs-login`, `expired` | `sign-in` | Connect | no |
+| `stopped` | `turn-on` | Turn on | no |
+| `running`, `broken` | `netcheck` | Network check | no |
+| `needs-approval` | `log-out` | Cancel | yes |
+
+Connect MUST open the sign-in screen of [TSCR](control/tailscale-screen.md#signing-in).
+
+The confirmation of Cancel MUST ask whether to cancel the sign-in.
+
+While a network check is under way, the application MUST show the row's act as under way, saying it is checking.
+
+Once the device sends `tailscale-result` for a network check, the application MUST show in the row's detail one of:
+
+- that the device can connect, where any relay answered;
+- that the device is blocked, where none did, with why: that the network asks for a sign-in where `captive-portal` is true, that there is no internet where `ipv4` and `ipv6` are both false, and otherwise that Tailscale cannot be reached from this network.
+
+The application MUST offer beside it the way to the full result on the Tailscale screen of [TSCR](control/tailscale-screen.md#network-check), and MUST keep it in the row's detail until the operator runs the check again or leaves the Status screen.
+
+> [!NOTE]
+> A relay is how most devices reach their tailnet, and Tailscale works through one, so a device that reaches only relays can connect.
+> A network check tests the network beneath Tailscale, which is what an operator with a device that is on but not reachable needs to know first.
+
 > [!NOTE]
 > A sign-in that lapses takes a device out of reach of the fleet, and the Status screen is where an operator who can renew it will see the warning.
 
@@ -125,14 +169,29 @@ The application MUST otherwise render the Tamanu row from `tamanu-state` by this
 
 The application MUST show as the row's detail the version of each of Tamanu's web application and facility server, from `tamanu-web-version` and `tamanu-facility-server-version`, each labelled and only where it carries a value.
 
+The application MUST offer on the Tamanu row, where the device lists the act, the act this table gives for `tamanu-state`, and no act in any other state:
+
+| `tamanu-state` | act | button | confirmed |
+| --- | --- | --- | --- |
+| `stopped` | `start` | Start | yes |
+| `running`, `degraded` | `restart` | Restart | yes |
+
+The confirmation of Start MUST ask whether to start Tamanu.
+
+The confirmation of Restart MUST ask whether to restart Tamanu, and MUST say that Tamanu may be unavailable while it restarts.
+
 > [!NOTE]
 > A device reports none of the Tamanu facts until its first look at Tamanu has ended, as [NFO](device-info.md) has it, so the row says it is checking rather than leaving a gap.
 
 ## Advanced
 
-The application MUST gather, beneath the rows, under a disclosure headed Advanced, the ways to the full readings of [VIEW](device-view.md), the network settings of [NSCR](network/screen.md), and the power and battery controls of [CSCR](control/screen.md).
+The application MUST gather, beneath the rows, under a disclosure headed Advanced, in this order, the ways to the full readings of [VIEW](device-view.md), the network settings of [NSCR](network/screen.md), the Tailscale screen of [TSCR](control/tailscale-screen.md) where the device reports `tailscale-state`, and the power and battery controls of [CSCR](control/screen.md).
 
 The application MUST show the disclosure closed when the operator opens a channel to a device, and MUST keep it open or closed as the operator left it until they do again.
+
+## Wording
+
+The application MUST supply its own wording for every act and every result, and MUST NOT put the vocabulary of [TSC](control/tailscale.md) or [TMU](control/tamanu.md) in front of an operator.
 
 ## While a power act is under way
 
