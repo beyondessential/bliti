@@ -32,11 +32,13 @@ const NOTHING_HELD = { entries: new Map(), history: new Map() }
 const UNDER_WAY = { restart: 'Restarting bliti…', reboot: 'Rebooting…', 'power-off': 'Shutting down…' }
 
 // How long to wait between attempts to reach a device coming back, how long to go on trying before
-// saying it has not come back, and how long "Shutting down…" stays up once the channel has closed.
-// The harness shortens them, which is the only thing it changes.
+// saying it has not come back, how long to go on trying a device the phone let go of while the page
+// was hidden, and how long "Shutting down…" stays up once the channel has closed. The harness
+// shortens them, which is the only thing it changes.
 const TIMINGS = {
 	retry: 3_000,
 	giveUp: 180_000,
+	away: 30_000,
 	hold: 3_000,
 	...(__TEST_SEAM__ ? window.__blitiTimings : undefined),
 }
@@ -87,6 +89,12 @@ export default function App() {
 	// The attempt to reach a device coming back, and the hold on "Shutting down…", either of which
 	// disconnecting cancels.
 	const returning = useRef(null)
+	// Where the channel closed while the page was hidden: `hidden` until the page is shown again, then
+	// `reconnecting` until the device answers or is unlikely to (WEB, "While the page is hidden").
+	const [away, setAway] = useState(null)
+	const away_ = useRef(null)
+	// How many channels have opened, so a screen holding a stream of its own opens it again on the next.
+	const [channel, setChannel] = useState(0)
 	const holding_ = useRef(null)
 	// Every fact and reading the device has sent, the latest of each kept under its identity, and the
 	// history each reading accumulates forward from when the feed opened (VIEW). No history is sent by
@@ -129,20 +137,20 @@ export default function App() {
 	)
 
 	// A channel about to open: its feed's first batch still to come, which replaces whatever is held,
-	// no notices, and Advanced closed (STAT). Called before the channel opens, so nothing it sends is
-	// lost to it.
+	// and no notices (STAT). Called before the channel opens, so nothing it sends is lost to it.
 	const opening = useCallback(() => {
 		pending_.current = []
 		first_.current = true
 		refused_.current = new Set()
 		setSettled(false)
 		setNotices([])
-		setAdvanced(false)
 	}, [])
-	// A channel let go of: nothing of the device held any more.
+	// A channel let go of: nothing of the device held any more, and not reaching for it either.
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
+		away_.current = null
+		setAway(null)
 	}, [opening])
 
 	// Opening a screen goes one level down from the status, and the browser's way back brings the
@@ -173,7 +181,7 @@ export default function App() {
 			const confirmed = leaving_.current
 			leaving_.current = false
 			// An entry gone forward to with no device to show it on is nothing to go to.
-			if (!connected_.current || going_.current) {
+			if ((!connected_.current && !away_.current) || going_.current) {
 				if (next !== 'status') window.history.replaceState(null, '')
 				return
 			}
@@ -299,8 +307,8 @@ export default function App() {
 	}, [recent])
 
 	// The device the page is on, for as long as a reload should come back to it: while the channel is
-	// open, and while the device carries out an act.
-	const on = code && (connected || going) ? code.text : null
+	// open, while the device carries out an act, and while it is being reached again.
+	const on = code && (connected || going || away) ? code.text : null
 	useEffect(() => saveOn(on), [on])
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
@@ -371,44 +379,97 @@ export default function App() {
 			comeBack()
 			return
 		}
+		if (document.hidden) {
+			// A phone ends the link of a browser it has put away. The operator is held where they were,
+			// and the device reached again once they are back (WEB).
+			away_.current = 'hidden'
+			setAway('hidden')
+			return
+		}
 		toLanding()
 		letGo()
 		setProblem({ kind: 'lost', detail: why })
 	}
 
-	// Reach the device again once it is back, on its own and without the chooser, until it answers
-	// or is unlikely to (WEB).
-	async function comeBack() {
-		const attempt = {}
-		returning.current = attempt
-		const deadline = Date.now() + TIMINGS.giveUp
-		while (Date.now() < deadline) {
-			await sleep(TIMINGS.retry)
-			if (returning.current !== attempt) return
-			// What the device was is kept on screen while it comes back, and replaced by its first batch.
+	// A channel open, a first or a reconnected one.
+	function opened() {
+		setConnected(true)
+		setChannel((count) => count + 1)
+	}
+
+	// Reach the device again on its own and without the chooser, until it answers or is unlikely to
+	// (WEB). True once it answered, false where it did not or needs the chooser, and null where
+	// something else took over from this attempt meanwhile.
+	async function reachAgain(attempt, giveUp, { waitFirst }) {
+		const deadline = Date.now() + giveUp
+		for (let tries = 0; Date.now() < deadline; tries++) {
+			if (waitFirst || tries > 0) await sleep(TIMINGS.retry)
+			if (returning.current !== attempt) return null
+			// What the device was is kept on screen while it is reached, and replaced by its first batch.
 			opening()
 			try {
 				await client.reconnect(code_.current.qr, handlers())
 			} catch (error) {
-				if (returning.current !== attempt) return
-				if (error.name === NEEDS_CHOOSER) {
-					endGoing({ kind: 'lost' })
-					return
-				}
+				if (returning.current !== attempt) return null
+				if (error.name === NEEDS_CHOOSER) return false
 				note('note', `not back yet: ${error.message ?? error}`)
 				continue
 			}
-			if (returning.current !== attempt) return
+			if (returning.current !== attempt) return null
 			returning.current = null
-			going_.current = null
-			setGoing(null)
-			toLanding()
-			setConnected(true)
-			note('note', 'the device is back')
+			return true
+		}
+		return returning.current === attempt ? false : null
+	}
+
+	// Reach the device again once it is back from a restart or a reboot (WEB).
+	async function comeBack() {
+		const attempt = {}
+		returning.current = attempt
+		const back = await reachAgain(attempt, TIMINGS.giveUp, { waitFirst: true })
+		if (back === null) return
+		if (!back) {
+			endGoing({ kind: 'lost' })
 			return
 		}
-		if (returning.current === attempt) endGoing({ kind: 'lost' })
+		going_.current = null
+		setGoing(null)
+		toLanding()
+		opened()
+		note('note', 'the device is back')
 	}
+
+	// Reach the device again once the page is shown, back on the screen the operator was on (WEB).
+	async function reconnectAway() {
+		const attempt = {}
+		returning.current = attempt
+		away_.current = 'reconnecting'
+		setAway('reconnecting')
+		note('note', 'reconnecting to the device')
+		const back = await reachAgain(attempt, TIMINGS.away, { waitFirst: false })
+		if (back === null) return
+		away_.current = null
+		setAway(null)
+		if (!back) {
+			client.disconnect()
+			toLanding()
+			letGo()
+			setProblem({ kind: 'lost' })
+			return
+		}
+		opened()
+		note('note', 'the device is back')
+	}
+
+	useEffect(() => {
+		if (away !== 'hidden') return
+		const onVisibility = () => {
+			if (!document.hidden) reconnectAway()
+		}
+		onVisibility()
+		document.addEventListener('visibilitychange', onVisibility)
+		return () => document.removeEventListener('visibilitychange', onVisibility)
+	}, [away])
 
 	async function connect() {
 		const attempt = {}
@@ -416,6 +477,7 @@ export default function App() {
 		setPhase('choosing')
 		setProblem(null)
 		opening()
+		setAdvanced(false)
 		const picked = () => attempt_.current === attempt && setPhase('connecting')
 		try {
 			await client.connect(code.qr, { ...handlers(), onPicked: picked })
@@ -438,7 +500,7 @@ export default function App() {
 		attempt_.current = null
 		setPhase(null)
 		toLanding()
-		setConnected(true)
+		opened()
 	}
 
 	// Cancelling abandons the attempt, back at finding the device (WEB).
@@ -488,7 +550,19 @@ export default function App() {
 
 	if (unsupported) return shell(<Connect unsupported={unsupported} />)
 
-	if (connected && !going && screen === 'network') {
+	// A device reached or being reached again: every screen of it stays up while it is (WEB).
+	const live = connected || away
+	// Said while the device is reached again, in place of what needs the channel to show.
+	const reconnecting = (
+		<section className="bar-state working" role="status">
+			<p>
+				<span className="spinner" aria-hidden="true" />
+				Reconnecting to your Iti…
+			</p>
+		</section>
+	)
+
+	if (live && !going && screen === 'network') {
 		return shell(
 			<Network
 				client={client}
@@ -498,6 +572,8 @@ export default function App() {
 				onDisconnect={disconnect}
 				joined={joined}
 				guard={guard}
+				channel={channel}
+				reconnecting={!!away}
 			/>,
 		)
 	}
@@ -546,19 +622,24 @@ export default function App() {
 		)
 	}
 
-	if (connected && screen === 'power') {
+	if (live && screen === 'power') {
 		return screenOf(
 			'Power and battery',
 			back,
-			<Power client={client} onActivity={note} onEvent={noteSession} onAccepted={startGoing} />,
+			away ? (
+				reconnecting
+			) : (
+				<Power key={channel} client={client} onActivity={note} onEvent={noteSession} onAccepted={startGoing} />
+			),
 		)
 	}
 
-	if (connected && screen === 'readings') {
+	if (live && screen === 'readings') {
 		return screenOf(
 			'All readings',
 			back,
 			<>
+				{away && reconnecting}
 				<h2>Device</h2>
 				{device && (
 					<p className="muted software">
@@ -569,6 +650,8 @@ export default function App() {
 			</>,
 		)
 	}
+
+	if (away) return statusOf(reconnecting)
 
 	if (connected) {
 		return statusOf(

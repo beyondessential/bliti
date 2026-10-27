@@ -138,6 +138,17 @@ The application MUST NOT reconnect on its own after a `power-off`.
 > An act accepted is not an act done: the device may fail to carry it out after it has said it is going, and nothing is left connected to say so. Saying only that the act is under way stays true either way.
 > A client told of a restart or reboot reconnects whether or not it asked for the act, so every operator watching a device is watching it again once it is back.
 
+## While the page is hidden
+
+Where the channel closes while the page is hidden, other than as [When the device goes away](#when-the-device-goes-away) has it, the application MUST hold the screen the operator was on and what it showed, and MUST NOT say the device was lost.
+Once the page is shown again, the application MUST reconnect to the same device on its own, without offering the chooser, saying that it is reconnecting, and MUST return the operator to the screen they were on once the channel is open again.
+Disconnecting MUST stop it reconnecting.
+The application MUST stop trying once a device that has not answered is unlikely to, and MUST then say that the device was lost and offer to find it again.
+Where the browser cannot reach the device again without the chooser, the application MUST say that the device was lost and offer to find it again.
+
+> [!NOTE]
+> A phone ends the Bluetooth link of a browser it has put in the background, and a page cannot hold it open. Without this, a technician who steps into another app and back would meet a lost device every time.
+
 ## Moving between screens
 
 Opening a screen of a connected device from the one a channel opens on MUST add an entry to the browser's history, so that the browser's way back leaves that screen as the screen's own way back does.

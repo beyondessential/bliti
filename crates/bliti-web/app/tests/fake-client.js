@@ -44,8 +44,9 @@ window.__blitiPowerStreams = []
 window.__blitiCurveStreams = []
 window.__blitiReturns = []
 window.__blitiReconnects = 0
-// Short enough that coming back, giving up and the power-off hold all happen within a test.
-window.__blitiTimings = { retry: 50, giveUp: 1500, hold: 400 }
+// Short enough that coming back, giving up, reaching a device again and the power-off hold all happen
+// within a test.
+window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, hold: 400 }
 window.__blitiClient = {
 	unsupported: () => null,
 	async readCode(text) {

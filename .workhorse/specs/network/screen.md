@@ -38,6 +38,8 @@ The application MUST show that it is waiting on the device while a proposal is b
 
 The application MUST close the session when the operator leaves the screen, and MUST drop the operator's edits with it.
 
+Where the application reconnects as [WEB](../web-app.md#while-the-page-is-hidden) has it while this screen is open, it MUST open a session again, and MUST keep the operator's edits, held against the configuration the device holds then, where that session lets the operator edit.
+
 Edits are not applied while the application is editing or errored and the fields differ from the configuration the device holds.
 
 The application MUST ask the operator to confirm leaving the screen while edits are not applied, by its way back or by the browser's, saying that they will be lost.

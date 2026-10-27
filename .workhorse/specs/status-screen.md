@@ -132,7 +132,7 @@ The application MUST show as the row's detail the version of each of Tamanu's we
 
 The application MUST gather, beneath the rows, under a disclosure headed Advanced, the ways to the full readings of [VIEW](device-view.md), the network settings of [NSCR](network/screen.md), and the power and battery controls of [CSCR](control/screen.md).
 
-The application MUST show the disclosure closed when a channel opens, and MUST keep it open or closed as the operator left it while the channel stays open.
+The application MUST show the disclosure closed when the operator opens a channel to a device, and MUST keep it open or closed as the operator left it until they do again.
 
 ## While a power act is under way
 
