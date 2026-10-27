@@ -81,7 +81,7 @@ function Header({ single }) {
 
 /// The device's software identity, from its board with the board's revision, its operating system
 /// and its kernel, as one line. Empty where it reports none of them.
-export function softwareOf(single) {
+function softwareOf(single) {
 	const board = single('board')
 	const revision = single('board-revision')
 	const os = single('os')
@@ -91,6 +91,16 @@ export function softwareOf(single) {
 		os && textOf(os),
 		kernel && textOf(kernel),
 	]
+		.filter(Boolean)
+		.join(' · ')
+}
+
+/// The device's identity in short, its board and its operating system, each by its short form and by
+/// its value where it carries none (STAT). Empty where it reports neither.
+export function identityOf(single) {
+	return [single('board'), single('os')]
+		.filter(Boolean)
+		.map((entry) => entry.traits?.short ?? textOf(entry))
 		.filter(Boolean)
 		.join(' · ')
 }

@@ -177,9 +177,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `fact` | kind | traits | reports |
 | --- | --- | --- | --- |
 | `hostname` | `text` | — | the name the system answers to, from the kernel |
-| `board` | `text` | — | the board's model, falling back to the machine's vendor and product |
+| `board` | `text` | `short` | the board's model, falling back to the machine's vendor and product |
 | `board-revision` | `text` | — | the board's revision, or the machine's version |
-| `os` | `text` | — | the operating system and its version |
+| `os` | `text` | `short` | the operating system and its version |
 | `kernel` | `text` | — | the kernel version |
 | `last-boot` | `datetime` | — | the instant the device booted |
 | `network-address` | `ipv4`, `ipv6` | `interface` | one entry per address held |
@@ -234,12 +234,25 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 | `margin` | — | how far either way the reading's value may be off, in its unit |
+| `short` | — | a short form of the fact's value, as [Identity](#identity) has it |
 
-`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits` and `margin` are descriptive.
+`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits`, `margin` and `short` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
 > The default route moves between interfaces, and a reading goes in and out of difficulty constantly. Neither says anything about which thing is being measured, so neither separates one instance of a measurement from another.
+
+## Identity
+
+A device MUST carry the `short` trait on `board` as "Raspberry Pi 5" where the board type its Raspberry Pi revision code carries is of the Pi 5 generation, the Compute Module 5 and the Pi 500 among them, and MUST omit it otherwise.
+
+A device MUST NOT derive the board's `short` by shortening the model.
+
+A device MUST carry the `short` trait on `os`, as the operating system's name followed by its version number where it declares one, from `NAME` and `VERSION_ID` of its os-release file, as "Ubuntu 26.04" is, and as its name alone where it declares none.
+
+> [!NOTE]
+> A short form is for a reader with room for little more than which board and which system, and it lets that reader show one without guessing at how to cut down a string whose shape varies by board and distribution.
+> The Pi 5 generation is the only one devices ship on. Any other board, Pi or not, has no `short`, and a reader with none shows the fact's value.
 
 ## Storage
 

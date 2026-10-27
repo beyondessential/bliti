@@ -4,7 +4,7 @@ import Connect from './Connect.jsx'
 import Network from './Network.jsx'
 import { useOfflineReady } from './offline.js'
 import Power from './Power.jsx'
-import Readings, { softwareOf } from './Readings.jsx'
+import Readings, { identityOf } from './Readings.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from './Screen.jsx'
 import Status from './Status.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
@@ -610,7 +610,7 @@ export default function App() {
 	)
 
 	// The Status screen: titled with the device's hostname, or the end of its code where it reports
-	// none, its software identity beneath and Disconnect beside it (STAT).
+	// none, its identity in short beneath and Disconnect beside it (STAT).
 	const statusOf = (body) =>
 		screenOf(
 			hostname ?? suffix(code.text),
@@ -618,7 +618,7 @@ export default function App() {
 				Disconnect
 			</button>,
 			body,
-			softwareOf((name) => all.find((entry) => entry.name === name)),
+			identityOf((name) => all.find((entry) => entry.name === name)),
 		)
 
 	// The device carrying an act out: what it is doing in place of the rows and Advanced, until it is
