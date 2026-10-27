@@ -96,6 +96,24 @@ fn health_is_a_warning_only_while_running() {
 	assert_eq!(standing(Observed::from_status(&stopped)).warning, None);
 }
 
+/// Peers advertising routes the device does not accept is advice, not a problem with its connection.
+#[test]
+fn routes_not_accepted_are_no_warning() {
+	let advice: Status = serde_json::from_str(
+		r#"{"BackendState":"Running","Health":["Some peers are advertising routes but --accept-routes is false"]}"#,
+	)
+	.unwrap();
+	assert_eq!(standing(Observed::from_status(&advice)).warning, None);
+	let both: Status = serde_json::from_str(
+		r#"{"BackendState":"Running","Health":["Some peers are advertising routes but --accept-routes is false","no relay"]}"#,
+	)
+	.unwrap();
+	assert_eq!(
+		standing(Observed::from_status(&both)).warning.as_deref(),
+		Some("no relay")
+	);
+}
+
 #[test]
 fn a_zero_key_expiry_does_not_lapse() {
 	let status: Status = serde_json::from_str(

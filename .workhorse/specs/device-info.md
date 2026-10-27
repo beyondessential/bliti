@@ -302,6 +302,9 @@ A device that runs Tailscale MUST report `tailscale-state`, `tailscale-name`, `t
 
 A device MUST report `tailscale-state` as `warning` while `running` where Tailscale reports a problem with its connection, with Tailscale's own words as the reason.
 
+> [!NOTE]
+> Tailscale's health list also carries advice on the device's configuration, as peers advertising routes the device does not accept. That is no problem with its connection.
+
 A device MUST report a change in `tailscale-state` as soon as it observes the change.
 
 A device MUST report `tailscale-state` as `broken`, with a reason, where it runs Tailscale and Tailscale does not answer.

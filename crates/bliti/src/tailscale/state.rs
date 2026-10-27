@@ -11,6 +11,11 @@ use super::{
 	relays::Names,
 };
 
+/// What Tailscale lists among its health messages when peers advertise routes the device does not
+/// accept. Advice on its configuration rather than a problem with its connection, so it is no warning
+/// (NFO).
+const ACCEPT_ROUTES_OFF: &str = "Some peers are advertising routes but --accept-routes is false";
+
 /// How long to wait before looking for tailscaled again after it stopped answering.
 const RECONNECT: Duration = Duration::from_secs(2);
 
@@ -109,7 +114,14 @@ impl Observed {
 			// Go's zero time, which is how a sign-in that does not lapse is written.
 			.filter(|expiry| expiry.as_second() > -62_000_000_000);
 		let warning = (state == State::Running)
-			.then(|| status.health.as_ref()?.first().cloned())
+			.then(|| {
+				status
+					.health
+					.as_ref()?
+					.iter()
+					.find(|message| *message != ACCEPT_ROUTES_OFF)
+					.cloned()
+			})
 			.flatten();
 		Self::Standing(Snapshot {
 			state,
