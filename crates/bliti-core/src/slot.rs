@@ -37,7 +37,17 @@ impl Slot {
 	}
 }
 
-/// What a read of the allocation characteristic answers.
+/// The smallest ATT_MTU a link can have, which every link starts at (CHN, "Transport").
+pub const MIN_ATT_MTU: u16 = 23;
+
+/// The most a write or a notification may carry on a link whose ATT_MTU is `mtu`: the MTU less the
+/// three-byte ATT header (CHN, "Transport"). An MTU below the smallest a link can have is taken as
+/// that smallest.
+pub fn payload(mtu: usize) -> usize {
+	mtu.max(MIN_ATT_MTU.into()) - 3
+}
+
+/// The device's decision on a client reading the allocation characteristic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Allocation {
 	Given(Slot),
@@ -46,18 +56,36 @@ pub enum Allocation {
 }
 
 impl Allocation {
-	pub fn to_value(self) -> Vec<u8> {
+	/// What the read answers, carrying the ATT_MTU negotiated with the reading client where a slot is
+	/// given.
+	pub fn to_value(self, mtu: u16) -> Vec<u8> {
 		match self {
-			Self::Given(slot) => vec![slot.0],
+			Self::Given(slot) => {
+				let [high, low] = mtu.to_be_bytes();
+				vec![slot.0, high, low]
+			}
 			Self::Full => Vec::new(),
 		}
 	}
+}
 
+/// What a client reads from the allocation characteristic: its slot and the link's ATT_MTU, or that
+/// every slot is held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Allocated {
+	Given { slot: Slot, mtu: u16 },
+	Full,
+}
+
+impl Allocated {
 	pub fn from_value(value: &[u8]) -> Result<Self, BadAllocation> {
 		match value {
 			[] => Ok(Self::Full),
-			[number] => Slot::new(*number)
-				.map(Self::Given)
+			[number, high, low] => Slot::new(*number)
+				.map(|slot| Self::Given {
+					slot,
+					mtu: u16::from_be_bytes([*high, *low]),
+				})
 				.ok_or(BadAllocation::NoSuchSlot(*number)),
 			_ => Err(BadAllocation::Length(value.len())),
 		}
@@ -68,7 +96,7 @@ impl Allocation {
 pub enum BadAllocation {
 	#[error("the device gave slot {0}, which it does not offer")]
 	NoSuchSlot(u8),
-	#[error("the device's slot allocation is {0} bytes rather than one")]
+	#[error("the device's slot allocation is {0} bytes rather than three")]
 	Length(usize),
 }
 
@@ -85,24 +113,33 @@ mod tests {
 	}
 
 	#[test]
-	fn allocation_round_trips() {
-		for allocation in Slot::all().map(Allocation::Given).chain([Allocation::Full]) {
+	fn allocation_round_trips_with_the_mtu() {
+		for slot in Slot::all() {
 			assert_eq!(
-				Allocation::from_value(&allocation.to_value()),
-				Ok(allocation)
+				Allocated::from_value(&Allocation::Given(slot).to_value(517)),
+				Ok(Allocated::Given { slot, mtu: 517 })
 			);
 		}
+		assert_eq!(Allocation::Given(Slot(2)).to_value(517), [2, 0x02, 0x05]);
+		assert_eq!(
+			Allocated::from_value(&Allocation::Full.to_value(517)),
+			Ok(Allocated::Full)
+		);
 	}
 
 	#[test]
 	fn a_slot_the_device_does_not_offer_is_refused() {
 		assert_eq!(
-			Allocation::from_value(&[COUNT]),
+			Allocated::from_value(&[COUNT, 0, 23]),
 			Err(BadAllocation::NoSuchSlot(COUNT))
 		);
-		assert_eq!(
-			Allocation::from_value(&[0, 0]),
-			Err(BadAllocation::Length(2))
-		);
+		assert_eq!(Allocated::from_value(&[0]), Err(BadAllocation::Length(1)));
+	}
+
+	#[test]
+	fn a_payload_is_the_mtu_less_the_att_header() {
+		assert_eq!(payload(517), 514);
+		assert_eq!(payload(23), 20);
+		assert_eq!(payload(0), 20, "no link is smaller than the smallest MTU");
 	}
 }

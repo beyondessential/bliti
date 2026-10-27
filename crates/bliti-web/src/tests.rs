@@ -347,3 +347,12 @@ fn a_tamanu_act_carries_its_act_critical() {
 		r#"{"ACT":"restart","type":"tamanu-act"}"#
 	);
 }
+
+/// A write fills what the link carries, less the ATT header, but never more than Web Bluetooth
+/// writes in one value (CHN).
+#[test]
+fn a_write_fills_the_link_as_far_as_web_bluetooth_allows() {
+	assert_eq!(super::write_chunk(23), 20);
+	assert_eq!(super::write_chunk(247), 244);
+	assert_eq!(super::write_chunk(517), 512);
+}

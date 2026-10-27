@@ -17,11 +17,6 @@ use std::{
 use bluer::Address;
 use futures::{AsyncRead, AsyncWrite, SinkExt, StreamExt, channel::mpsc};
 
-/// How many bytes to put in one notification. The negotiated attribute size is usually larger, but a
-/// message is framed and reassembled above this layer, so a conservative chunk costs only a few extra
-/// notifications and works on every peer.
-const NOTIFY_CHUNK: usize = 20;
-
 /// How many chunks to buffer in each direction before applying backpressure.
 const QUEUE_DEPTH: usize = 64;
 
@@ -67,6 +62,8 @@ impl InboundSink {
 /// A byte stream over the two characteristics, for one client.
 pub struct GattTransport {
 	client: Address,
+	/// The most one notification carries on this client's link.
+	chunk: usize,
 	inbound: mpsc::Receiver<Vec<u8>>,
 	outbound: mpsc::Sender<Vec<u8>>,
 	sink: InboundSink,
@@ -75,15 +72,20 @@ pub struct GattTransport {
 }
 
 impl GattTransport {
-	/// Open a transport for one client's session, returning it alongside the receiver a notifier task
-	/// drains.
-	pub fn open(sink: &InboundSink, client: Address) -> (Self, mpsc::Receiver<Vec<u8>>) {
+	/// Open a transport for one client's session, notifying in chunks of at most `chunk` bytes,
+	/// returning it alongside the receiver a notifier task drains.
+	pub fn open(
+		sink: &InboundSink,
+		client: Address,
+		chunk: usize,
+	) -> (Self, mpsc::Receiver<Vec<u8>>) {
 		let (inbound_tx, inbound_rx) = mpsc::channel(QUEUE_DEPTH);
 		let (outbound_tx, outbound_rx) = mpsc::channel(QUEUE_DEPTH);
 		sink.install(client, inbound_tx);
 		(
 			Self {
 				client,
+				chunk,
 				inbound: inbound_rx,
 				outbound: outbound_tx,
 				sink: sink.clone(),
@@ -149,7 +151,7 @@ impl AsyncWrite for GattTransport {
 			Poll::Ready(Err(_)) => return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())),
 			Poll::Pending => return Poll::Pending,
 		}
-		let chunk = &buf[..buf.len().min(NOTIFY_CHUNK)];
+		let chunk = &buf[..buf.len().min(this.chunk)];
 		this.outbound
 			.start_send(chunk.to_vec())
 			.map_err(|_| io::Error::from(io::ErrorKind::BrokenPipe))?;
@@ -177,13 +179,16 @@ mod tests {
 
 	use super::*;
 
+	/// A notification's payload on a link at the smallest ATT_MTU.
+	const CHUNK: usize = 20;
+
 	const A: Address = Address::new([0, 0, 0, 0, 0, 1]);
 	const B: Address = Address::new([0, 0, 0, 0, 0, 2]);
 
 	#[tokio::test]
 	async fn bytes_written_by_a_client_are_read_from_the_transport() {
 		let sink = InboundSink::default();
-		let (mut transport, _outbound) = GattTransport::open(&sink, A);
+		let (mut transport, _outbound) = GattTransport::open(&sink, A, CHUNK);
 		sink.deliver(A, b"hello".to_vec());
 
 		let mut buf = [0u8; 5];
@@ -194,8 +199,8 @@ mod tests {
 	#[tokio::test]
 	async fn each_client_reaches_only_its_own_session() {
 		let sink = InboundSink::default();
-		let (mut a, _a_out) = GattTransport::open(&sink, A);
-		let (mut b, _b_out) = GattTransport::open(&sink, B);
+		let (mut a, _a_out) = GattTransport::open(&sink, A, CHUNK);
+		let (mut b, _b_out) = GattTransport::open(&sink, B, CHUNK);
 		sink.deliver(B, b"from b".to_vec());
 		sink.deliver(A, b"from a".to_vec());
 
@@ -209,8 +214,8 @@ mod tests {
 	#[tokio::test]
 	async fn one_session_ending_leaves_another_clients_running() {
 		let sink = InboundSink::default();
-		let (a, _a_out) = GattTransport::open(&sink, A);
-		let (mut b, _b_out) = GattTransport::open(&sink, B);
+		let (a, _a_out) = GattTransport::open(&sink, A, CHUNK);
+		let (mut b, _b_out) = GattTransport::open(&sink, B, CHUNK);
 		drop(a);
 		sink.deliver(B, b"still".to_vec());
 
@@ -222,8 +227,8 @@ mod tests {
 	#[tokio::test]
 	async fn a_replaced_session_ending_leaves_its_replacement_running() {
 		let sink = InboundSink::default();
-		let (mut first, _first_out) = GattTransport::open(&sink, A);
-		let (mut second, _second_out) = GattTransport::open(&sink, A);
+		let (mut first, _first_out) = GattTransport::open(&sink, A, CHUNK);
+		let (mut second, _second_out) = GattTransport::open(&sink, A, CHUNK);
 
 		let mut buf = [0u8; 4];
 		assert_eq!(
@@ -240,19 +245,16 @@ mod tests {
 	#[tokio::test]
 	async fn writes_are_chunked_for_notification() {
 		let sink = InboundSink::default();
-		let (mut transport, mut outbound) = GattTransport::open(&sink, A);
+		let (mut transport, mut outbound) = GattTransport::open(&sink, A, CHUNK);
 
-		let payload = vec![7u8; NOTIFY_CHUNK * 2 + 5];
+		let payload = vec![7u8; CHUNK * 2 + 5];
 		transport.write_all(&payload).await.unwrap();
 		transport.flush().await.unwrap();
 		drop(transport);
 
 		let mut seen = Vec::new();
 		while let Some(chunk) = outbound.next().await {
-			assert!(
-				chunk.len() <= NOTIFY_CHUNK,
-				"a notification must fit the chunk"
-			);
+			assert!(chunk.len() <= CHUNK, "a notification must fit the chunk");
 			seen.extend_from_slice(&chunk);
 		}
 		assert_eq!(seen, payload);
@@ -261,7 +263,7 @@ mod tests {
 	#[tokio::test]
 	async fn a_finished_session_stops_receiving_client_bytes() {
 		let sink = InboundSink::default();
-		let (transport, _outbound) = GattTransport::open(&sink, A);
+		let (transport, _outbound) = GattTransport::open(&sink, A, CHUNK);
 		drop(transport);
 		// Delivering after the session ended must not panic, and must go nowhere.
 		sink.deliver(A, b"late".to_vec());

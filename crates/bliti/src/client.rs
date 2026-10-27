@@ -22,7 +22,7 @@ use bliti_core::{
 		stream::{Mode, Streams, connect_initiator, multiplex, read_message, write_message},
 	},
 	qr::QrPayload,
-	slot::{Allocation, CHARACTERISTIC_UUID_ALLOCATION},
+	slot::{self, Allocated, CHARACTERISTIC_UUID_ALLOCATION},
 };
 use bluer::gatt::remote::Characteristic;
 use futures::{
@@ -33,15 +33,13 @@ use futures::{
 /// How long to wait for the host to discover what the peer offers, after the link is up.
 const SERVICE_RESOLUTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// How many bytes to put in one write. Messages are framed and reassembled above this, so a
-/// conservative chunk costs only extra writes and works against any negotiated attribute size.
-const WRITE_CHUNK: usize = 20;
-
 /// A byte stream over a device's two characteristics: notifications in, writes out.
 ///
 /// The mirror image of the device's own transport, and the same shape as far as everything above is
 /// concerned.
 struct GattClientTransport {
+	/// The most one write carries on this link.
+	chunk: usize,
 	inbound: mpsc::Receiver<Vec<u8>>,
 	outbound: mpsc::Sender<Vec<u8>>,
 	pending: Vec<u8>,
@@ -94,7 +92,7 @@ impl AsyncWrite for GattClientTransport {
 			Poll::Ready(Err(_)) => return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())),
 			Poll::Pending => return Poll::Pending,
 		}
-		let chunk = &buf[..buf.len().min(WRITE_CHUNK)];
+		let chunk = &buf[..buf.len().min(this.chunk)];
 		this.outbound
 			.start_send(chunk.to_vec())
 			.map_err(|_| io::Error::from(io::ErrorKind::BrokenPipe))?;
@@ -117,8 +115,10 @@ impl AsyncWrite for GattClientTransport {
 }
 
 /// Find the characteristic this client writes on a connected device, and be given the slot it is
-/// notified on (CHN, "Transport").
-async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Characteristic)> {
+/// notified on, with the most one write may carry on the link (CHN, "Transport").
+async fn characteristics(
+	device: &bluer::Device,
+) -> Result<(Characteristic, Characteristic, usize)> {
 	for service in device.services().await? {
 		if service.uuid().await? != SERVICE_UUID {
 			continue;
@@ -133,22 +133,22 @@ async fn characteristics(device: &bluer::Device) -> Result<(Characteristic, Char
 		) else {
 			continue;
 		};
-		let slot = match Allocation::from_value(&allocation.read().await?)? {
-			Allocation::Given(slot) => slot,
-			Allocation::Full => {
+		let (slot, mtu) = match Allocated::from_value(&allocation.read().await?)? {
+			Allocated::Given { slot, mtu } => (slot, mtu),
+			Allocated::Full => {
 				return Err(anyhow!(
 					"the device is serving as many clients as it can; try again later"
 				));
 			}
 		};
-		tracing::debug!(slot = slot.number(), "given a slot");
+		tracing::debug!(slot = slot.number(), mtu, "given a slot");
 		let from_device = found.remove(&slot.uuid()).ok_or_else(|| {
 			anyhow!(
 				"the device gave slot {}, which it does not carry",
 				slot.number()
 			)
 		})?;
-		return Ok((to_device, from_device));
+		return Ok((to_device, from_device, slot::payload(mtu.into())));
 	}
 	Err(anyhow!("the device does not carry the bliti service"))
 }
@@ -270,7 +270,7 @@ async fn open(
 	}
 	let device = device.ok_or_else(|| anyhow!("the device's services were never resolved"))?;
 
-	let (to_device, from_device) = characteristics(&device).await?;
+	let (to_device, from_device, chunk) = characteristics(&device).await?;
 	let notifications = from_device.notify().await?;
 
 	// Pump notifications in and writes out, so the transport sees an ordinary byte stream.
@@ -286,6 +286,7 @@ async fn open(
 	});
 
 	let transport = GattClientTransport {
+		chunk,
 		inbound: inbound_rx,
 		outbound: outbound_tx,
 		pending: Vec::new(),

@@ -16,16 +16,13 @@ use js_sys::{Function, Promise, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 
-/// How many bytes to put in one write. Messages are framed and reassembled above this layer, so a
-/// conservative chunk costs only extra writes and works against any negotiated attribute size. The
-/// same figure the daemon and the command-line client use.
-const WRITE_CHUNK: usize = 20;
-
 /// How many chunks to buffer in each direction before applying backpressure.
 const QUEUE_DEPTH: usize = 64;
 
 /// A byte stream over the two characteristics.
 pub struct WebTransport {
+	/// The most one write carries.
+	chunk: usize,
 	inbound: mpsc::Receiver<Vec<u8>>,
 	outbound: mpsc::Sender<Vec<u8>>,
 	pending: Vec<u8>,
@@ -34,9 +31,10 @@ pub struct WebTransport {
 
 impl WebTransport {
 	/// Open a transport, returning it alongside the sender that feeds it bytes arriving from the
-	/// device. `write` is the JavaScript function that writes a chunk to the device, returning a
-	/// promise; writes are serialised through one task so they reach the device in order.
-	pub fn new(write: Function) -> (Self, mpsc::Sender<Vec<u8>>) {
+	/// device. `write` is the JavaScript function that writes a chunk of at most `chunk` bytes to the
+	/// device, returning a promise; writes are serialised through one task so they reach the device in
+	/// order.
+	pub fn new(write: Function, chunk: usize) -> (Self, mpsc::Sender<Vec<u8>>) {
 		let (inbound_tx, inbound_rx) = mpsc::channel(QUEUE_DEPTH);
 		let (outbound_tx, mut outbound_rx) = mpsc::channel::<Vec<u8>>(QUEUE_DEPTH);
 
@@ -61,6 +59,7 @@ impl WebTransport {
 
 		(
 			Self {
+				chunk,
 				inbound: inbound_rx,
 				outbound: outbound_tx,
 				pending: Vec::new(),
@@ -118,7 +117,7 @@ impl AsyncWrite for WebTransport {
 			Poll::Ready(Err(_)) => return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())),
 			Poll::Pending => return Poll::Pending,
 		}
-		let chunk = &buf[..buf.len().min(WRITE_CHUNK)];
+		let chunk = &buf[..buf.len().min(this.chunk)];
 		this.outbound
 			.start_send(chunk.to_vec())
 			.map_err(|_| io::Error::from(io::ErrorKind::BrokenPipe))?;

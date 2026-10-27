@@ -69,13 +69,19 @@ GATT is specified in Volume 3, Part G of the [Bluetooth Core Specification](http
 The device MUST accept both a write with response and a write without response on the client transmit characteristic, and a client MAY use either.
 
 The device MUST offer eight device transmit characteristics, the slots, each UUID ending in its slot number.
-A read of the slot allocation characteristic MUST answer one byte, the number of the slot given to the reading client, or an empty value where no slot is free.
+A read of the slot allocation characteristic MUST answer three bytes, the number of the slot given to the reading client, then the ATT_MTU the device has negotiated with that client as two bytes, big-endian, or an empty value where no slot is free.
 A client MUST read the slot allocation characteristic before subscribing, and MUST subscribe only to the slot it was given.
 Subscribing to its slot opens a client's channel.
 
 Each direction is a stream of bytes.
 The sender MUST chunk it into writes or notifications whose payload is at most the negotiated ATT_MTU less the three-byte ATT header.
+A sender SHOULD fill each chunk to that size where it has the bytes to.
+A client that cannot learn the negotiated ATT_MTU from its own stack MUST take it from the slot allocation.
 The receiver MUST concatenate the chunks in the order they arrive and read messages out of the result; a chunk boundary is not a message boundary.
+
+> [!NOTE]
+> A client waits for each write with response to be acknowledged before the next, so a chunk far smaller than the link allows costs a round trip per few bytes, and what a client sends while the device is notifying heavily arrives seconds late.
+> A browser is told nothing of the ATT_MTU, which is why the device says it in the allocation, read once the link is up and its MTU exchanged.
 
 Within that byte stream, each Noise message, handshake or transport, MUST be prefixed with its length as two bytes, big-endian, giving the number of bytes that follow.
 A Noise message is at most 65535 bytes, including its 16-byte authentication tag.

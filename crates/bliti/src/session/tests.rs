@@ -986,6 +986,12 @@ async fn streams_opened_with_the_channel_are_each_answered() {
 	for mut closed in opened {
 		closed.close().await.unwrap();
 	}
-	assert!(matches!(next(&mut kept[0]).await, Message::TailscaleActs { .. }));
-	assert!(matches!(next(&mut kept[1]).await, Message::TamanuActs { .. }));
+	assert!(matches!(
+		next(&mut kept[0]).await,
+		Message::TailscaleActs { .. }
+	));
+	assert!(matches!(
+		next(&mut kept[1]).await,
+		Message::TamanuActs { .. }
+	));
 }

@@ -68,14 +68,48 @@ pub fn allocation_uuid() -> String {
 	bliti_core::slot::CHARACTERISTIC_UUID_ALLOCATION.to_string()
 }
 
-/// The characteristic the device notifies this client on, read from what the allocation
-/// characteristic answered, or null where the device has no slot free (CHN, "Transport").
+/// What the allocation characteristic answered, read: the characteristic the device notifies this
+/// client on and the most one write may carry, or null where the device has no slot free (CHN,
+/// "Transport").
 #[wasm_bindgen]
-pub fn slot_uuid(allocation: &[u8]) -> Result<Option<String>, JsError> {
-	use bliti_core::slot::Allocation;
-	match Allocation::from_value(allocation).map_err(|why| JsError::new(&why.to_string()))? {
-		Allocation::Given(slot) => Ok(Some(slot.uuid().to_string())),
-		Allocation::Full => Ok(None),
+pub fn read_allocation(allocation: &[u8]) -> Result<Option<Allocation>, JsError> {
+	use bliti_core::slot::Allocated;
+	match Allocated::from_value(allocation).map_err(|why| JsError::new(&why.to_string()))? {
+		Allocated::Given { slot, mtu } => Ok(Some(Allocation {
+			slot: slot.uuid().to_string(),
+			chunk: write_chunk(mtu),
+		})),
+		Allocated::Full => Ok(None),
+	}
+}
+
+/// The largest value Web Bluetooth writes to a characteristic.
+const WEB_BLUETOOTH_MAX_WRITE: usize = 512;
+
+/// The most one write carries on a link whose ATT_MTU is `mtu`, as far as Web Bluetooth allows.
+fn write_chunk(mtu: u16) -> usize {
+	bliti_core::slot::payload(mtu.into()).min(WEB_BLUETOOTH_MAX_WRITE)
+}
+
+/// A slot the device gave this client.
+#[wasm_bindgen]
+pub struct Allocation {
+	slot: String,
+	chunk: usize,
+}
+
+#[wasm_bindgen]
+impl Allocation {
+	/// The characteristic the device notifies this client on.
+	#[wasm_bindgen(getter)]
+	pub fn slot(&self) -> String {
+		self.slot.clone()
+	}
+
+	/// The most one write carries on this client's link, for [`Channel::new`].
+	#[wasm_bindgen(getter)]
+	pub fn chunk(&self) -> usize {
+		self.chunk
 	}
 }
 
@@ -318,10 +352,11 @@ pub struct Channel {
 #[wasm_bindgen]
 impl Channel {
 	/// Prepare a channel for a device, given the function that writes a chunk to the device's write
-	/// characteristic. The handshake does not run until [`Channel::connect`] is called.
+	/// characteristic and the most one chunk may carry, as the allocation gave it. The handshake does
+	/// not run until [`Channel::connect`] is called.
 	#[wasm_bindgen(constructor)]
-	pub fn new(code: &QrCode, write: Function) -> Channel {
-		let (transport, inbound) = WebTransport::new(write);
+	pub fn new(code: &QrCode, write: Function, chunk: usize) -> Channel {
+		let (transport, inbound) = WebTransport::new(write, chunk);
 		Channel {
 			inner: Rc::new(Inner {
 				payload: code.payload.clone(),

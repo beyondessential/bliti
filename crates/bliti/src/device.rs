@@ -13,7 +13,7 @@ use bliti_core::{
 	advertisement::{Advertised, Heard},
 	key_schedule::{DeviceKeys, Handle},
 	qr::QrPayload,
-	slot::{Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
+	slot::{self, Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
 };
 use bluer::{
 	adv::{Advertisement, AdvertisementHandle},
@@ -442,7 +442,7 @@ fn allocation(
 						readvertise.notify_one();
 					}
 				}
-				Ok(allocation.to_value())
+				Ok(allocation.to_value(request.mtu))
 			})
 		}),
 		..Default::default()
@@ -558,7 +558,8 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 	// it is the point at which a handshake can run.
 	tracing::info!("client subscribed; opening a session");
 	readvertise.notify_one();
-	let (transport, mut outbound) = GattTransport::open(&sink, client);
+	let (transport, mut outbound) =
+		GattTransport::open(&sink, client, slot::payload(notifier.mtu()));
 
 	// Pump the device's bytes out as notifications for as long as the client is subscribed, and notice
 	// when it stops being subscribed.
