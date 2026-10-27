@@ -225,6 +225,12 @@ impl Supply {
 		self.state().seen.clone()
 	}
 
+	/// Whether a backup board is fitted, as the last look found it: a gauge that answered, or one that
+	/// was there and failed. Not that it has been looked at yet, nor a bus with nothing on it.
+	pub fn fitted(&self) -> bool {
+		matches!(self.state().seen, Seen::Gauge(_) | Seen::Unanswered { .. })
+	}
+
 	/// Whether this device manages a backup supply: whether a gauge has answered.
 	pub fn managed(&self) -> bool {
 		self.state().stored.is_some()

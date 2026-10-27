@@ -790,7 +790,7 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 		Options::default(),
 	)
 	.await;
-	let before = facts_now(&tailscale, &Tamanu::none());
+	let before = facts_now(&tailscale, &Tamanu::none(), &Supply::default());
 	let state = |facts: &[Entry]| {
 		facts
 			.iter()
@@ -801,13 +801,16 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 
 	fake.move_to("Stopped");
 	tokio::time::sleep(Duration::from_millis(100)).await;
-	let after = facts_now(&tailscale, &Tamanu::none());
+	let after = facts_now(&tailscale, &Tamanu::none(), &Supply::default());
 	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
 	assert!(!same_facts(&before, &after));
-	assert!(same_facts(&after, &facts_now(&tailscale, &Tamanu::none())));
+	assert!(same_facts(
+		&after,
+		&facts_now(&tailscale, &Tamanu::none(), &Supply::default())
+	));
 
 	assert!(
-		facts_now(&Tailscale::none(), &Tamanu::none())
+		facts_now(&Tailscale::none(), &Tamanu::none(), &Supply::default())
 			.iter()
 			.all(|fact| !fact.name.starts_with("tailscale"))
 	);
@@ -832,12 +835,12 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 			.find(|fact| fact.name == "tamanu-state")
 			.and_then(|fact| fact.value.clone())
 	};
-	let before = facts_now(&Tailscale::none(), &tamanu);
+	let before = facts_now(&Tailscale::none(), &tamanu, &Supply::default());
 	assert_eq!(state(&before), Some(serde_json::json!("running")));
 
 	fake.set_status(STOPPED);
 	tokio::time::sleep(Duration::from_secs(6)).await;
-	let after = facts_now(&Tailscale::none(), &tamanu);
+	let after = facts_now(&Tailscale::none(), &tamanu, &Supply::default());
 	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
 	assert!(!same_facts(&before, &after));
 
@@ -847,7 +850,14 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 			.filter(|fact| fact.name.starts_with("tamanu"))
 			.count()
 	};
-	assert_eq!(names(&facts_now(&Tailscale::none(), &Tamanu::none())), 3);
+	assert_eq!(
+		names(&facts_now(
+			&Tailscale::none(),
+			&Tamanu::none(),
+			&Supply::default()
+		)),
+		3
+	);
 }
 
 /// The feed's messages split at each `end-of-batch`, until `within` has passed. What came after the last marker is

@@ -210,6 +210,7 @@ async fn converse(
 		let controller = controller.clone();
 		let tailscale = tailscale.clone();
 		let tamanu = tamanu.clone();
+		let supply = supply.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
@@ -220,6 +221,7 @@ async fn converse(
 					&controller,
 					&tailscale,
 					&tamanu,
+					&supply,
 				)
 				.await
 				{
@@ -322,7 +324,10 @@ where
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
-				return serve_default(stream, sampler, served, controller, tailscale, tamanu).await;
+				return serve_default(
+					stream, sampler, served, controller, tailscale, tamanu, supply,
+				)
+				.await;
 			}
 			Ok(Reading::Message(Message::Subscribe { topic })) => {
 				// A topic this device does not serve is skipped: it sends nothing and leaves the stream
@@ -425,6 +430,7 @@ async fn serve_default<S>(
 	controller: &Controller,
 	tailscale: &Tailscale,
 	tamanu: &Tamanu,
+	supply: &Supply,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -439,7 +445,7 @@ where
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds. Together
 	// they are the first batch: everything the device holds (NFO).
-	let mut last_facts = facts_now(tailscale, tamanu);
+	let mut last_facts = facts_now(tailscale, tamanu, supply);
 	let (sampled_facts, readings): (Vec<Message>, Vec<Message>) = sampler
 		.current()
 		.into_iter()
@@ -505,7 +511,7 @@ where
 			},
 
 			_ = facts_poll.tick() => {
-				let current = facts_now(tailscale, tamanu);
+				let current = facts_now(tailscale, tamanu, supply);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					let batch = changed_facts(&last_facts, &current, now());
@@ -558,9 +564,9 @@ async fn write_batch<W: AsyncWrite + Unpin>(
 }
 
 /// The facts the device reports now: what it reads off the system (NFO).
-fn facts_now(tailscale: &Tailscale, tamanu: &Tamanu) -> Vec<Entry> {
+fn facts_now(tailscale: &Tailscale, tamanu: &Tamanu, supply: &Supply) -> Vec<Entry> {
 	let at = now();
-	let mut facts = facts::facts(at);
+	let mut facts = facts::facts(at, supply);
 	facts.extend(facts::tailscale::entries(
 		at,
 		tailscale.observed().as_ref(),

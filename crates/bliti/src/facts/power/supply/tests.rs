@@ -202,6 +202,31 @@ fn a_gauge_with_no_power_line_never_powers_off() {
 	);
 }
 
+/// A backup board counts as fitted once a look has found its gauge there, answering or not, and not
+/// before a look has been made nor where the bus has nothing on it (NFO "Product").
+#[test]
+fn a_backup_board_is_fitted_where_its_gauge_was_found() {
+	let scratch = Scratch::new();
+	let supply = scratch.supply();
+	let now = Instant::now();
+	let observe = |gauge| {
+		supply.observe(
+			Look {
+				gauge,
+				external: None,
+			},
+			now,
+			0,
+			None,
+		);
+		supply.fitted()
+	};
+	assert!(!supply.fitted());
+	assert!(!observe(Err(Unanswered::NoGauge)));
+	assert!(observe(Err(Unanswered::Failed("timed out".to_owned()))));
+	assert!(observe(Ok(gauge(3.9, 70.0))));
+}
+
 /// With no gauge there is no backup supply: nothing to hold, nothing loaded, and no curve to load
 /// or reset (CRV, LOW).
 #[test]

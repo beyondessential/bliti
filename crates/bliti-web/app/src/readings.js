@@ -44,7 +44,7 @@ export function hasValue(entry) {
 
 // The order our application renders the catalogue it recognises in, and the wording it gives each
 // name. The order is fixed and does not move when a reading goes into difficulty (VIEW).
-export const HEADER = ['hostname', 'board', 'board-revision', 'os', 'kernel']
+export const HEADER = ['hostname', 'product', 'board', 'board-revision', 'os', 'kernel']
 
 export const TILE_ORDER = [
 	'network-address',

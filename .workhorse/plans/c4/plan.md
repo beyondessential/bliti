@@ -12,8 +12,9 @@ Which `vendor`/`product` values mean "Tamanu Iti", and which field records the g
 
 ## Build
 
-- [ ] `facts::product` module: read the HAT node, probe the TPM node, take backup-supply presence; decide `product` per NFO §Product; unit-tested against a fake root for each row and for none holding
-- [ ] Backup-supply presence without a second I²C owner: reuse the gauge probe `facts::power` already makes, rather than opening the bus again on every facts poll
-- [ ] Add `product` to `facts::facts`, `// spec: NFO`
-- [ ] Web client: Status identity line takes `product`'s value where it has one, else `board` short, then `os` short (STAT); Device view header adds `product` by value, shows its reason where broken, and keeps every header fact by value (VIEW); `product` recognised in `readings.js` so it is not appended as a tile
-- [ ] Deploy to v4 and check it reports `product` broken (EEPROM unprogrammed); check v3 reports "Tamanu Iti v3" once it is back online
+- [x] `facts::product` module: read the HAT node, probe the TPM node, take backup-supply presence; decide `product` per NFO §Product; unit-tested for each row and for none holding
+- [x] Backup-supply presence without a second I²C owner: `Supply::fitted()` reports what the record thread's last look of the gauge found, so the facts poll never touches the bus
+- [x] Add `product` to `facts::facts`, `// spec: NFO`
+- [x] Web client: Status identity line takes `product`'s value where it has one, else `board` short, then `os` short (STAT); Device view header adds `product` by value, shows its reason where broken, and keeps every header fact by value (VIEW); `product` is a header fact, so it gets no tile
+- [x] Deploy to v4 and check it reports `product` broken (EEPROM unprogrammed)
+- [ ] Check v3 reports "Tamanu Iti v3" once the v3 test device is back online
