@@ -11,6 +11,7 @@
 
 import { Channel, QrCode, allocation_uuid, client_tx_uuid, service_uuid, slot_uuid } from './wasm/bliti_web.js'
 import { loadProtocol as protocol } from './protocol.js'
+import { tailscaleActSaid } from './services.js'
 
 /// What this client calls itself to a device. Opaque to the device, which logs it (BLI-MSG).
 export const CLIENT_NAME = 'bliti-web'
@@ -332,6 +333,63 @@ export function createClient() {
 					if (closed) return
 					closed = true
 					say('end of the curve stream')
+					handle.close()
+					handle.free()
+				},
+			}
+		},
+
+		// Open a Tailscale stream (BLI-TSC): the acts the device can carry out now, its answer to each
+		// asked for, and what a sign-in, network check or ping sends back. Every message the device
+		// sends on it reaches onEvent as a feed's messages do; onClosed is called once the stream ends.
+		// The record of what was sent never carries an auth key.
+		async tailscale({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('tailscale')
+			const handle = await channel.tailscale(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			return {
+				act: (act, { method, key, name, peer } = {}) => {
+					if (closed) throw new Error('The Tailscale stream has ended.')
+					say(tailscaleActSaid(act, { method, name, peer }))
+					handle.act(act, method, key, name, peer)
+				},
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the Tailscale stream')
+					handle.close()
+					handle.free()
+				},
+			}
+		},
+
+		// Open a Tamanu stream (BLI-TMU): the acts the device can carry out now, and its answer to each
+		// asked for. Every message the device sends on it reaches onEvent as a feed's messages do;
+		// onClosed is called once the stream ends.
+		async tamanu({ onEvent, onClosed, onActivity }) {
+			if (!channel) throw new Error('Not connected to a device.')
+			const say = (text) => onActivity?.('out', text)
+			say('tamanu')
+			const handle = await channel.tamanu(
+				(json) => onEvent(JSON.parse(json)),
+				(why) => onClosed?.(why),
+			)
+			let closed = false
+			return {
+				act: (act) => {
+					if (closed) throw new Error('The Tamanu stream has ended.')
+					say(`tamanu-act  ${act}`)
+					handle.act(act)
+				},
+				close: () => {
+					if (closed) return
+					closed = true
+					say('end of the Tamanu stream')
 					handle.close()
 					handle.free()
 				},

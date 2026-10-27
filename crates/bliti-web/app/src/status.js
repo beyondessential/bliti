@@ -25,7 +25,7 @@ export function statusRows(entries, settled, now = Date.now()) {
 }
 
 function checking(name) {
-	return { mark: IN_PROGRESS, headline: `Checking ${name}`, reason: null, lines: [] }
+	return { mark: IN_PROGRESS, headline: `Checking ${name}`, reason: null, lines: [], checking: true }
 }
 
 // The network.
@@ -124,20 +124,22 @@ const TAMANU = {
 }
 
 /// A state as a row's mark, headline and reason, by `table`, or by its `status` where the table does
-/// not recognise it (STAT, "The rows").
+/// not recognise it (STAT, "The rows"). `says` is the headline without the name, and `state` the
+/// state's value, or its status where it carries none, which is what a row's act is chosen by.
 export function stateRow(name, state, table) {
+	const status = statusOf(state)
 	if (!hasValue(state)) {
-		return { mark: NOT_WELL, headline: `${name} state unknown`, reason: reasonOf(state), lines: [] }
+		const says = 'state unknown'
+		return { mark: NOT_WELL, headline: `${name} ${says}`, says, reason: reasonOf(state), lines: [], state: status }
 	}
 	const value = String(state.value)
-	const status = statusOf(state)
 	const known = table[`${value}/${status}`] ?? table[value]
 	if (known) {
 		const reason = known.reason ? reasonOf(state) : null
-		return { mark: known.mark, headline: `${name} ${known.says}`, reason, lines: [] }
+		return { mark: known.mark, headline: `${name} ${known.says}`, says: known.says, reason, lines: [], state: value }
 	}
 	const mark = status === 'passed' ? WELL : status === 'warning' ? WARNING : NOT_WELL
-	return { mark, headline: `${name} ${value}`, reason: reasonOf(state), lines: [] }
+	return { mark, headline: `${name} ${value}`, says: value, reason: reasonOf(state), lines: [], state: value }
 }
 
 function tailscaleRow(single, settled, now) {

@@ -9,9 +9,11 @@ import Readings, { identityOf } from './Readings.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from './Screen.jsx'
 import { CableScreen, NetworkScreen } from './Setup.jsx'
 import ShareHotspot from './ShareHotspot.jsx'
+import SignIn from './SignIn.jsx'
 import Status from './Status.jsx'
+import Tailscale from './Tailscale.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
-import { applyBatch, entryOf, hasValue, isEnded } from './readings.js'
+import { applyBatch, entryOf, hasValue, isEnded, statusOf as statusIs } from './readings.js'
 import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
 import { useSetupSession } from './session.js'
 import { statusRows } from './status.js'
@@ -78,9 +80,10 @@ export default function App() {
 	connected_.current = connected
 	const [device, setDevice] = useState(null)
 	// Which screen of a connected device is showing: its status, all its readings, its power and
-	// battery, its network settings, or one of the simple network screens. Every screen but the status
-	// has a history entry of its own, carrying how many levels below the status it is (WEB, "Moving
-	// between screens"), and the ref is what the browser's way back is checked against.
+	// battery, its network settings, one of the simple network screens, its Tailscale, or signing it in
+	// to Tailscale. Every screen but the status has a history entry of its own, carrying how many levels
+	// below the status it is (WEB, "Moving between screens"), and the ref is what the browser's way
+	// back is checked against.
 	const [screen, setScreen] = useState('status')
 	const screen_ = useRef('status')
 	// Whether Advanced is open on the Status screen, kept while the operator goes down a level and back,
@@ -125,6 +128,9 @@ export default function App() {
 	// still checking (STAT).
 	const [settled, setSettled] = useState(false)
 	const [notices, setNotices] = useState([])
+	// The latest network check the device sent while the channel has been open, from whichever screen
+	// ran it (TSCR).
+	const [netcheck, setNetcheck] = useState(null)
 	// The message types a notice has been raised for since the channel opened (STAT).
 	const refused_ = useRef(new Set())
 	const [log, setLog] = useState([])
@@ -160,6 +166,7 @@ export default function App() {
 		refused_.current = new Set()
 		setSettled(false)
 		setNotices([])
+		setNetcheck(null)
 	}, [])
 	// A channel let go of: nothing of the device held any more, and not reaching for it either.
 	const letGo = useCallback(() => {
@@ -176,10 +183,10 @@ export default function App() {
 		screen_.current = next
 		setScreen(next)
 	}, [])
-	const goBack = () => {
+	const goBack = useCallback(() => {
 		leaving_.current = true
 		window.history.back()
-	}
+	}, [])
 	// Back at the status however the operator got there, with the entries of the screens they were on
 	// taken out of the history.
 	const toLanding = useCallback(() => {
@@ -631,6 +638,9 @@ export default function App() {
 
 	const all = [...entries.values()]
 
+	// A network check's result kept for the Tailscale screen, from whichever screen ran it (TSCR).
+	const keepNetcheck = (held) => held.act === 'netcheck' && setNetcheck(held)
+
 	if (unsupported) return shell(<Connect unsupported={unsupported} />)
 
 	// A device reached or being reached again: every screen of it stays up while it is (WEB).
@@ -719,6 +729,47 @@ export default function App() {
 		)
 	}
 
+	if (live && screen === 'tailscale') {
+		return screenOf(
+			'Tailscale',
+			back,
+			<>
+				{away && reconnecting}
+				<Tailscale
+					client={client}
+					channel={channel}
+					onActivity={note}
+					onEvent={noteSession}
+					row={statusRows(all, settled).tailscale}
+					facts={tailscaleFacts(all)}
+					hostname={hostname ?? suffix(code.text)}
+					netcheck={netcheck}
+					onResult={keepNetcheck}
+					onSignIn={() => openScreen('sign-in')}
+				/>
+			</>,
+		)
+	}
+
+	if (live && screen === 'sign-in') {
+		return screenOf(
+			'Connect to Tailscale',
+			back,
+			<>
+				{away && reconnecting}
+				<SignIn
+					client={client}
+					channel={channel}
+					onActivity={note}
+					onEvent={noteSession}
+					hostname={hostname}
+					state={tailscaleState(all)}
+					onDone={goBack}
+				/>
+			</>,
+		)
+	}
+
 	if (live && screen === 'power') {
 		return screenOf(
 			'Power and battery',
@@ -759,6 +810,7 @@ export default function App() {
 					</p>
 				))}
 				<Status
+					key={channel}
 					rows={statusRows(all, settled)}
 					onChange={changeNetwork}
 					opening={asking === 'open'}
@@ -766,6 +818,11 @@ export default function App() {
 					advanced={advanced}
 					onAdvanced={setAdvanced}
 					onOpen={openScreen}
+					client={client}
+					channel={channel}
+					onActivity={note}
+					onEvent={noteSession}
+					onResult={keepNetcheck}
 				/>
 			</>,
 		)
@@ -793,9 +850,27 @@ export default function App() {
 	)
 }
 
+/// The value of `tailscale-state`, or its status where it carries none (STAT).
+function tailscaleState(entries) {
+	const state = entries.find((entry) => entry.name === 'tailscale-state')
+	return state ? (hasValue(state) ? String(state.value) : statusIs(state)) : null
+}
+
+/// The Tailscale facts the Tailscale screen details, each where it carries a value (TSCR).
+function tailscaleFacts(entries) {
+	const value = (name) => {
+		const entry = entries.find((each) => each.name === name)
+		return hasValue(entry) ? entry.value : null
+	}
+	const expiry = value('tailscale-key-expiry')
+	return { name: value('tailscale-name'), tailnet: value('tailnet'), expiry: expiry ? new Date(expiry) : null }
+}
+
 /// One message, summarised for the log: its type and enough to tell one from another, without
-/// reprinting the traits or value of every reading.
+/// reprinting the traits or value of every reading. A login link is a credential, and is never
+/// recorded (TSC).
 function describe(message) {
+	if (message.type === 'tailscale-login-link') return message.type
 	const { type, at, ...rest } = message
 	const name = rest.fact ?? rest.measurement
 	if (name) return `${type}  ${name}`
