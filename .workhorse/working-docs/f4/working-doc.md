@@ -91,7 +91,7 @@ The image copy on the SD card is ideally carried in a dm-verity partition, as th
 
 Hybrid: provisioning enrols a TPM-only keyslot (no PCR policy), which works from the SD boot and ties the disk to this board, and replaces the empty placeholder passphrase.
 A first-boot enrolment on the NVMe system then rebinds with PCRs, if the Pi can measure anything worth binding to.
-A recovery passphrase is generated at provisioning. It is never included alongside the  on the outside of the device.
+A recovery passphrase is generated at provisioning. It is never included alongside the QR code, which would display on the outside of the device.
 
 What the TPM-only keyslot protects: the disk away from its board.
 It does not protect a whole stolen device. The bootloader tries SD before NVMe (`BOOT_ORDER=0xf61` in `linux-images`), so anyone can boot their own SD on the board and the TPM will unseal for them; with no measured boot on the Pi, a PCR policy cannot tell their OS from ours.
