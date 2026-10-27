@@ -125,9 +125,18 @@ $ sudo apt install libdbus-1-dev libtss2-dev
 
 The TPM feature is on by default, and deliberately: which board-ID sources a build can see decides
 which one wins the precedence, so a build without it derives a different secret on a board that has
-a TPM. Cross-compiling to a board with no TPM development files to hand, use `--no-default-features`
-and `--features vendored-dbus`; the daemon then refuses to derive on any board whose TPM it can see,
-rather than quietly deriving the wrong secret.
+a TPM. A build without it refuses to derive on any board whose TPM it can see, rather than quietly
+deriving the wrong secret.
+
+To build the daemon for a 64-bit Arm device from any host with podman or docker:
+
+```console
+$ just build-device                   # target/device/aarch64-unknown-linux-gnu/release/bliti
+$ just install-device ubuntu@<device> # and install it as the device's own, restarting it
+```
+
+It builds in a container carrying Ubuntu's arm64 dbus and tpm2-tss (`crates/bliti/Containerfile`),
+so the host needs no libraries of its own for the target.
 
 ```console
 $ cargo test

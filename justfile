@@ -46,9 +46,11 @@ build: build-wasm
 	# and to its own directory, and nothing ever serves that one.
 	cd {{web-app}} && node precompress.js
 
-# Build the daemon for a 64-bit Arm device, in a container with the libraries it links (see
-# crates/bliti/Containerfile), under podman or docker, whichever is present. CONTAINER_ENGINE picks
-# one. The binary is target/device/aarch64-unknown-linux-gnu/release/bliti.
+# Builds in a container with the libraries the daemon links (crates/bliti/Containerfile), under
+# podman or docker, whichever is present; CONTAINER_ENGINE picks one. The binary is
+# target/device/aarch64-unknown-linux-gnu/release/bliti.
+#
+# Build the daemon for a 64-bit Arm device.
 build-device:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -73,7 +75,7 @@ build-device:
 		-e BLITI_BUILD -e CARGO_TARGET_DIR=target/device \
 		"$image" cargo build --release --locked --target aarch64-unknown-linux-gnu -p bliti
 
-# Build the daemon and install it on a device as the one its service runs, then restart that.
+# Build the daemon, install it on a device as the one its service runs, and restart it.
 install-device host: build-device
 	ssh {{host}} 'cat >/tmp/bliti-new' <target/device/aarch64-unknown-linux-gnu/release/bliti
 	ssh {{host}} 'set -e; sudo -n systemctl stop bliti; \

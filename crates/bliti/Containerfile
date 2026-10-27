@@ -25,7 +25,7 @@ RUN set -eu; \
 	fi; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends ca-certificates curl gcc libc6-dev pkg-config $cross \
-		libdbus-1-dev:arm64 libtss2-dev:arm64; \
+		libc6-dev:arm64 libdbus-1-dev:arm64 libtss2-dev:arm64; \
 	rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
