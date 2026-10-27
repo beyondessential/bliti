@@ -947,3 +947,45 @@ fn the_sampled_wireless_network_and_hotspot_are_facts() {
 	assert_eq!(sampled(hotspot.clone()), Message::Fact(hotspot));
 	assert_eq!(sampled(clients.clone()), Message::Reading(clients));
 }
+
+/// Streams a client opens as soon as the channel is up, while the device is still sending the feed's
+/// first batch, are each answered, as the Status screen opens its Tailscale and Tamanu streams (STAT).
+#[tokio::test]
+async fn streams_opened_with_the_channel_are_each_answered() {
+	let mut streams = paired(&keys(0x42)).await;
+	let opener = streams.opener();
+	let mut hello = opener.open().await.unwrap();
+	write_message(
+		&mut hello,
+		&Message::Hello {
+			name: "test".to_owned(),
+			version: "0".to_owned(),
+		}
+		.to_json(),
+	)
+	.await
+	.unwrap();
+	tokio::spawn(async move {
+		while let Some(mut pushed) = streams.accept().await {
+			tokio::spawn(async move { while let Ok(Some(_)) = read_message(&mut pushed).await {} });
+		}
+	});
+
+	let mut opened = Vec::new();
+	for first in [
+		Message::Tailscale,
+		Message::Tamanu,
+		Message::Tailscale,
+		Message::Tamanu,
+	] {
+		let mut stream = opener.open().await.unwrap();
+		write_message(&mut stream, &first.to_json()).await.unwrap();
+		opened.push(stream);
+	}
+	let mut kept = opened.split_off(2);
+	for mut closed in opened {
+		closed.close().await.unwrap();
+	}
+	assert!(matches!(next(&mut kept[0]).await, Message::TailscaleActs { .. }));
+	assert!(matches!(next(&mut kept[1]).await, Message::TamanuActs { .. }));
+}
