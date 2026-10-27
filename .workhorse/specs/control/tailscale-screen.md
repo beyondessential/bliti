@@ -59,7 +59,7 @@ The application MUST show the result as the verdict the Tailscale row of [STAT](
 
 The application MUST offer to share the result as text, through the share sheet of the system where the browser offers one, and otherwise by copying it.
 
-The shared text MUST carry the device's `hostname`, when the check ran, and the result as the screen shows it.
+The shared text MUST carry the device's `hostname`, when the check ran, and the `result` as the device sent it, as JSON, with every member it carried, whether or not the application recognises it.
 
 ## Ping
 
