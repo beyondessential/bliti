@@ -6,6 +6,7 @@
 
 use bliti_core::channel::readings::Entry;
 use jiff::Timestamp;
+use serde_json::Value as Json;
 
 use super::{read_trimmed, uptime};
 
@@ -14,14 +15,23 @@ pub fn hostname() -> String {
 	read_trimmed("/proc/sys/kernel/hostname").unwrap_or_else(|| "unknown".to_owned())
 }
 
+/// The trait carrying a fact's short form (NFO).
+const SHORT: &str = "short";
+
 /// The board's model, and its revision as a second fact where the board carries one.
 ///
-/// A Pi answers from the device tree and carries a revision code; anything else answers from the
-/// firmware's own description of the machine.
+/// A Pi answers from the device tree and carries a revision code, from which its family is named as
+/// the board's short form; anything else answers from the firmware's own description of the machine,
+/// and has no short form.
 pub fn identity(at: u64) -> Vec<Entry> {
 	if let Some(model) = read_trimmed("/proc/device-tree/model") {
-		let mut entries = vec![Entry::text(at, "board", model)];
-		if let Some(revision) = revision() {
+		let revision = revision();
+		let mut board = Entry::text(at, "board", model);
+		if let Some(family) = revision.as_deref().and_then(family) {
+			board = board.with_trait(SHORT, Json::String(family.to_owned()));
+		}
+		let mut entries = vec![board];
+		if let Some(revision) = revision {
 			entries.push(Entry::text(at, "board-revision", revision));
 		}
 		return entries;
@@ -56,6 +66,22 @@ fn revision() -> Option<String> {
 		.filter(|value| !value.is_empty())
 }
 
+/// The family a Pi's revision code names, for the generations devices ship on (NFO).
+///
+/// A new-style code sets bit 23 and carries the board type in bits 4 to 11; an old-style code
+/// predates the field, and names no family.
+fn family(revision: &str) -> Option<&'static str> {
+	let code = u32::from_str_radix(revision.trim_start_matches("0x"), 16).ok()?;
+	if code & (1 << 23) == 0 {
+		return None;
+	}
+	match (code >> 4) & 0xff {
+		// 5, CM5, 500/500+, CM5 Lite.
+		0x17..=0x1a => Some("Raspberry Pi 5"),
+		_ => None,
+	}
+}
+
 /// The architecture, as a last resort where the machine describes itself no other way.
 fn machine() -> Option<String> {
 	read_trimmed("/proc/sys/kernel/arch")
@@ -66,15 +92,30 @@ fn machine() -> Option<String> {
 pub fn os(at: u64) -> Vec<Entry> {
 	let mut entries = Vec::new();
 	if let Ok(raw) = std::fs::read_to_string("/etc/os-release") {
-		let pretty = field(&raw, "PRETTY_NAME")
-			.or_else(|| field(&raw, "NAME"))
-			.unwrap_or_else(|| "Unknown".to_owned());
-		entries.push(Entry::text(at, "os", pretty));
+		entries.push(os_release(at, &raw));
 	}
 	if let Some(kernel) = read_trimmed("/proc/sys/kernel/osrelease") {
 		entries.push(Entry::text(at, "kernel", kernel));
 	}
 	entries
+}
+
+/// The `os` fact from a release file: its pretty name, with the name and version number as its short
+/// form (NFO).
+fn os_release(at: u64, raw: &str) -> Entry {
+	let name = field(raw, "NAME");
+	let pretty = field(raw, "PRETTY_NAME")
+		.or_else(|| name.clone())
+		.unwrap_or_else(|| "Unknown".to_owned());
+	let entry = Entry::text(at, "os", pretty);
+	let Some(name) = name else {
+		return entry;
+	};
+	let short = match field(raw, "VERSION_ID") {
+		Some(version) => format!("{name} {version}"),
+		None => name,
+	};
+	entry.with_trait(SHORT, Json::String(short))
 }
 
 /// The instant the device booted, as RFC 3339 in UTC.
@@ -140,6 +181,53 @@ mod tests {
 		);
 		assert_eq!(field(raw, "NAME").as_deref(), Some("Ubuntu"));
 		assert_eq!(field(raw, "MISSING"), None);
+	}
+
+	/// Every Pi 5-generation board type names one family, whatever its memory, maker or revision.
+	#[test]
+	fn a_pi_5_generation_revision_code_names_the_pi_5() {
+		// 5 (8 GB, rev 1.0), 5 (4 GB, rev 1.1), CM5, 500, CM5 Lite.
+		for code in ["d04170", "c04171", "d04180", "d04190", "c041a0"] {
+			assert_eq!(family(code), Some("Raspberry Pi 5"), "{code}");
+		}
+	}
+
+	#[test]
+	fn other_revision_codes_name_no_family() {
+		// 4B, CM4, 400, CM0.
+		for code in ["d03114", "a03140", "c03130", "c041b0"] {
+			assert_eq!(family(code), None, "{code}");
+		}
+		// An old-style code carries no type, even where its low bits would read as one.
+		assert_eq!(family("000170"), None);
+		assert_eq!(family("not a code"), None);
+	}
+
+	#[test]
+	fn the_os_short_form_is_its_name_and_version_number() {
+		let raw = "NAME=\"Ubuntu\"\nPRETTY_NAME=\"Ubuntu 26.04 LTS\"\nVERSION_ID=\"26.04\"\n";
+		let os = os_release(1, raw);
+		assert_eq!(os.value, Some(Json::String("Ubuntu 26.04 LTS".to_owned())));
+		assert_eq!(
+			os.traits.get(SHORT),
+			Some(&Json::String("Ubuntu 26.04".to_owned()))
+		);
+	}
+
+	/// A rolling distribution declares no version number, and its short form is its name alone.
+	#[test]
+	fn an_os_without_a_version_number_is_named_alone() {
+		let raw = "NAME=\"Arch Linux\"\nPRETTY_NAME=\"Arch Linux\"\nBUILD_ID=rolling\n";
+		assert_eq!(
+			os_release(1, raw).traits.get(SHORT),
+			Some(&Json::String("Arch Linux".to_owned()))
+		);
+	}
+
+	#[test]
+	fn an_os_without_a_name_has_no_short_form() {
+		let raw = "PRETTY_NAME=\"Something\"\nVERSION_ID=\"1\"\n";
+		assert_eq!(os_release(1, raw).traits.get(SHORT), None);
 	}
 
 	/// A prefix match must not let `VERSION_ID` answer for `VERSION`.
