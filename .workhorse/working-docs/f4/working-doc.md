@@ -106,12 +106,30 @@ Its advertised name carries a provisioning marker plus the last four characters 
 That suffix comes from the TPM board ID through the key fingerprint, is safe to broadcast, and is the same four characters STAT shows as a device's fallback name and that appear on the printed label.
 Several boards can be in provisioning at once. The client finds them by filtering on the well-known marker and lists them by suffix.
 
-To tell which physical board is which, the assembler presses one of the HAT's buttons (two are wired to GPIOs) on the board they want, and the client picks out the device that saw the press.
+To tell which physical board is which, the assembler presses one of the HAT's buttons (two are wired to GPIOs) on the board they want.
+For a short while after a press, the device advertises a "pressed" variant of its provisioning name, and the client opens the chooser filtered to that variant, so only the pressed board is listed.
+
+### The provisioning client
+
+The provisioning client is a second page in the existing web build, at its own path, not linked from the operator app.
+It shares the channel, protocol and wasm code with the operator app.
+
+### Reporting the version
+
+A HAT-identified board reports as "Tamanu Iti v" followed by its major.minor version: "Tamanu Iti v4.0" for rev B.
+The third generation carries no EEPROM to tell revisions apart, and stays "Tamanu Iti v3".
+This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generation), which this card amends once C4 merges.
 
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
 - `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, the save-recovery-keys option, and the `pi eeprom` SD image that configures the Pi 5 bootloader.
+
+## Trade-offs
+
+- **Second page over a separate app or a section of the operator app.** Above the channel, provisioning shares almost nothing with the operator flow: no QR code, its own discovery, a multi-step pipeline, label rendering, and a recovery passphrase on screen. A field operator should never meet the passphrase screen, and an assembler has no use for Status or Network, so they are kept apart. A second entry point in one Vite build costs one config line; a separate app would mean a second build and deploy to keep in step with the protocol, which is the complexity worth avoiding.
+- **"Pressed" name variant over confirming after connecting.** Web Bluetooth reaches a device only through the browser's chooser, filtered by name or prefix, so a page cannot listen to several boards and notice which saw a press. Confirming after connecting means a chooser pass and a handshake per guess, which scales badly with several boards on a bench. The variant gets the right board in one pass. Its risk is a host caching a device's name (ADV's note on the GAP Device Name), so selection should happen before a board's first connection; tech design checks how browsers behave.
+- **Version as major.minor.** Revisions within a generation differ in hardware bliti may need to know about, and the user's naming (rev B as v4.0, rev C as v4.1) makes the revision visible where it matters.
 
 ## Open questions
 
@@ -119,6 +137,8 @@ To tell which physical board is which, the assembler presses one of the HAT's bu
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
 - [ ] The two buttons: which GPIOs, and what else they are for
+- [ ] What rev B carries on its I²C bus, and which device tells it apart from later revisions
+- [ ] Mapping from EEPROM to version: a well-known UUID per board version in a `custom_data` atom, and how major.minor is read from it
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [ ] Vendor and product strings, and the `product_id` values
 - [ ] Investigate the HAT's other hardware: its I²C bus and devices
