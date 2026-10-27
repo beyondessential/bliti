@@ -20,6 +20,13 @@
 // device's first `curves`, and `load` and `reset` for its answers. window.__blitiCurveStream lets a
 // test have the device say anything else on it, such as a later `curves`.
 //
+// A Tailscale stream (TSC) and a Tamanu stream (TMU) are scripted the same way, with what the page
+// sends on them in window.__blitiTailscaleSent and window.__blitiTamanuSent, and the latest of each
+// reached through window.__blitiTailscaleStream and window.__blitiTamanuStream. A Tailscale act is
+// recorded with the members the wasm half would send, leaving out any not given or given empty.
+// window.__blitiStanding holds an answer given to every message of its type once that type's queue
+// is empty, for a stream the page opens each time a screen shows.
+//
 // The feed's going-away carries its cause as a test emits it.
 //
 // window.__blitiReturns scripts reconnecting to a device coming back: one entry per attempt, 'ok' to
@@ -38,10 +45,15 @@ window.__blitiFeeds = []
 window.__blitiSent = []
 window.__blitiPowerSent = []
 window.__blitiCurveSent = []
+window.__blitiTailscaleSent = []
+window.__blitiTamanuSent = []
 window.__blitiAnswers = {}
+window.__blitiStanding = {}
 window.__blitiSessions = []
 window.__blitiPowerStreams = []
 window.__blitiCurveStreams = []
+window.__blitiTailscaleStreams = []
+window.__blitiTamanuStreams = []
 window.__blitiReturns = []
 window.__blitiReconnects = 0
 // Short enough that coming back, giving up, reaching a device again and the power-off hold all happen
@@ -164,7 +176,7 @@ window.__blitiClient = {
 			if (!stream.open) throw new Error(\`The \${what} has ended.\`)
 			window[sent].push(message)
 			const queue = window.__blitiAnswers[message.type]
-			const next = Array.isArray(queue) ? queue.shift() : undefined
+			const next = (Array.isArray(queue) ? queue.shift() : undefined) ?? window.__blitiStanding[message.type]
 			if (next === undefined) return
 			setTimeout(() => {
 				for (const event of Array.isArray(next) ? next : [next]) if (stream.open) onEvent(event)
@@ -210,6 +222,32 @@ window.__blitiClient = {
 			reset: () => stream.send({ type: 'reset' }),
 			close: stream.close,
 		}
+	},
+	async tailscale(handlers) {
+		const stream = this._exchange(handlers, {
+			first: 'tailscale',
+			what: 'Tailscale stream',
+			sent: '__blitiTailscaleSent',
+			streams: '__blitiTailscaleStreams',
+			handle: '__blitiTailscaleStream',
+		})
+		return {
+			act: (act, members = {}) => {
+				const given = Object.fromEntries(Object.entries(members).filter(([, value]) => value))
+				stream.send({ type: 'tailscale-act', act, ...given })
+			},
+			close: stream.close,
+		}
+	},
+	async tamanu(handlers) {
+		const stream = this._exchange(handlers, {
+			first: 'tamanu',
+			what: 'Tamanu stream',
+			sent: '__blitiTamanuSent',
+			streams: '__blitiTamanuStreams',
+			handle: '__blitiTamanuStream',
+		})
+		return { act: (act) => stream.send({ type: 'tamanu-act', act }), close: stream.close }
 	},
 	disconnect() {
 		this._feed = null
@@ -388,4 +426,43 @@ export async function sayOnCurve(page, event) {
 /// Script the outcome of each attempt to reach a device coming back: 'ok', 'chooser', or a failure.
 export async function returns(page, ...outcomes) {
 	await page.evaluate((outcomes) => window.__blitiReturns.push(...outcomes), outcomes)
+}
+
+/// Have the device answer every `tailscale` and every `tamanu` the page opens with `tailscale` and
+/// `tamanu` as its acts, where each is given, so each screen that opens a stream is answered alike.
+export async function standingActs(page, { tailscale, tamanu }) {
+	await page.evaluate(
+		([tailscale, tamanu]) => {
+			if (tailscale) window.__blitiStanding.tailscale = { kind: 'message', message: { type: 'tailscale-acts', acts: tailscale } }
+			if (tamanu) window.__blitiStanding.tamanu = { kind: 'message', message: { type: 'tamanu-acts', acts: tamanu } }
+		},
+		[tailscale, tamanu],
+	)
+}
+
+/// Every message the page has sent on Tailscale streams, in order.
+export async function tailscaleSent(page) {
+	return page.evaluate(() => window.__blitiTailscaleSent)
+}
+
+/// Every message the page has sent on Tamanu streams, in order.
+export async function tamanuSent(page) {
+	return page.evaluate(() => window.__blitiTamanuSent)
+}
+
+/// Have the device say something on the latest Tailscale stream.
+export async function sayOnTailscale(page, body) {
+	await page.waitForFunction(() => window.__blitiTailscaleStream !== undefined)
+	await page.evaluate((event) => window.__blitiTailscaleStream.emit(event), message(body))
+}
+
+/// Have the device say something on the latest Tamanu stream.
+export async function sayOnTamanu(page, body) {
+	await page.waitForFunction(() => window.__blitiTamanuStream !== undefined)
+	await page.evaluate((event) => window.__blitiTamanuStream.emit(event), message(body))
+}
+
+/// The open and closed Tailscale and Tamanu streams, as `{ open, closedByPage }` each.
+export async function actStreams(page) {
+	return page.evaluate(() => ({ tailscale: window.__blitiTailscaleStreams, tamanu: window.__blitiTamanuStreams }))
 }

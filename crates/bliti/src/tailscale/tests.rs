@@ -68,6 +68,9 @@ impl Client {
 	}
 }
 
+/// What the fake `tailscale netcheck` prints, spaced as Tailscale's own output is.
+const NETCHECK_REPORT: &str = "{\n  \"UDP\": true,\n  \"IPv4\": true,\n  \"GlobalV4\": \"203.0.113.7:41641\",\n  \"RegionLatency\": {\"5\": 38400000}\n}\n";
+
 fn tailscale_with(
 	fake: &Arc<Fake>,
 	options: Options,
@@ -78,13 +81,8 @@ fn tailscale_with(
 		fn available(&self) -> bool {
 			true
 		}
-		async fn run(&self) -> Result<netcheck::Report, String> {
-			Ok(netcheck::Report {
-				udp: true,
-				ipv4: true,
-				region_latency: Some([("5".to_owned(), 38_400_000)].into()),
-				..netcheck::Report::default()
-			})
+		async fn run(&self) -> Result<String, String> {
+			Ok(NETCHECK_REPORT.to_owned())
 		}
 	}
 	Tailscale::start(fake.clone(), Arc::new(Netcheck), options)
@@ -390,6 +388,7 @@ async fn netcheck_runs_signed_out_and_names_relays_it_has_learned() {
 				result["relays"],
 				serde_json::json!([{"id": 5, "name": "Sydney", "latency": 0.0384}])
 			);
+			assert_eq!(result["report"], serde_json::json!(NETCHECK_REPORT));
 		}
 		other => panic!("{other:?}"),
 	}
@@ -403,7 +402,7 @@ async fn a_stream_ending_mid_netcheck_ends_it_and_frees_the_slot() {
 		fn available(&self) -> bool {
 			true
 		}
-		async fn run(&self) -> Result<netcheck::Report, String> {
+		async fn run(&self) -> Result<String, String> {
 			std::future::pending().await
 		}
 	}
@@ -430,11 +429,7 @@ async fn ping_uses_the_default_peer_and_names_it() {
 		endpoint: "192.0.2.1:41641".into(),
 		..client::Pong::default()
 	});
-	let options = Options {
-		ping_default: Some("canopy".to_owned()),
-		..Options::default()
-	};
-	let tailscale = tailscale_with(&fake, options).await;
+	let tailscale = tailscale_with(&fake, Options::default()).await;
 	let (mut client, _) = open(&tailscale).await;
 	client.act("ping", None, None).await;
 	assert_eq!(client.next().await, Message::TailscaleAccepted);
@@ -448,16 +443,32 @@ async fn ping_uses_the_default_peer_and_names_it() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn ping_with_no_peer_and_no_default_fails() {
+async fn ping_with_no_peer_tests_the_deployment_default() {
 	let fake = Fake::in_state("Running");
-	let tailscale = tailscale_with(&fake, Options::default()).await;
+	fake.peer("canopy");
+	fake.peer_named("b", "central", "100.64.0.9");
+	fake.pong(client::Pong {
+		latency_seconds: 0.002,
+		endpoint: "192.0.2.1:41641".into(),
+		..client::Pong::default()
+	});
+	let options = Options {
+		ping_default: "central".to_owned(),
+		..Options::default()
+	};
+	let tailscale = tailscale_with(&fake, options).await;
 	let (mut client, _) = open(&tailscale).await;
 	client.act("ping", None, None).await;
 	assert_eq!(client.next().await, Message::TailscaleAccepted);
-	assert!(matches!(
-		client.next().await,
-		Message::TailscaleFailed { .. }
-	));
+	match client.next().await {
+		Message::TailscaleResult { result } => {
+			assert!(
+				result["peer"].as_str().unwrap().starts_with("central"),
+				"{result:?}"
+			);
+		}
+		other => panic!("{other:?}"),
+	}
 }
 
 #[tokio::test(start_paused = true)]

@@ -24,6 +24,7 @@ pub mod channel;
 pub mod key_schedule;
 pub mod qr;
 pub mod slot;
+pub mod text_qr;
 pub mod version;
 pub mod wifi_qr;
 

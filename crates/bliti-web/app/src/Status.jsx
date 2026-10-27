@@ -1,22 +1,50 @@
 // The Status screen of STAT: the landing a channel opens on, answering whether the device is on a
-// network and how Tailscale and Tamanu stand, with the rest of the application under Advanced.
+// network and how Tailscale and Tamanu stand, with the act each row offers for how it stands, and
+// the rest of the application under Advanced.
 
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 
+import { useActs } from './acts.js'
+import { ROW_ACTS, tailscaleRowAct, tamanuRowAct, verdict } from './services.js'
 import { IN_PROGRESS, NOT_WELL, WARNING, WELL } from './status.js'
 
-/// The rows and Advanced, beneath the title the application gives the screen.
-/// `opening` says the session the network row opens is waiting on the device, and `note` is what the
-/// row says of it (NSET).
-export default function Status({ rows, onChange, opening, note, advanced, onAdvanced, onOpen }) {
+/// The rows and Advanced, beneath the title the application gives the screen. The Tailscale and
+/// Tamanu streams last as long as the screen shows (STAT). `opening` says the session the network row
+/// opens is waiting on the device, and `note` is what the row says of it (NSET).
+export default function Status({
+	rows,
+	onChange,
+	opening,
+	note,
+	advanced,
+	onAdvanced,
+	onOpen,
+	client,
+	channel,
+	onActivity,
+	onEvent,
+	onResult,
+}) {
+	const tailscale = useActs(client, 'tailscale', channel, { onActivity, onEvent, onResult })
+	const tamanu = useActs(client, 'tamanu', channel, { onActivity, onEvent })
+	const reported = rows.tailscale && !rows.tailscale.checking
+
 	return (
 		<>
 			<section>
 				<h2>Status</h2>
 				<ul className="health">
 					<Row row={rows.network} onAction={onChange} waiting={opening} note={note} />
-					{rows.tailscale && <Row row={rows.tailscale} />}
-					<Row row={rows.tamanu} />
+					{rows.tailscale && (
+						<ActRow
+							row={rows.tailscale}
+							stream={tailscale}
+							act={tailscaleRowAct(reported ? rows.tailscale.state : null, tailscale.acts)}
+							onSignIn={() => onOpen('sign-in')}
+							onDetails={() => onOpen('tailscale')}
+						/>
+					)}
+					<ActRow row={rows.tamanu} stream={tamanu} act={rows.tamanu.checking ? null : tamanuRowAct(rows.tamanu.state, tamanu.acts)} />
 				</ul>
 			</section>
 			<div className={`advanced${advanced ? ' open' : ''}`}>
@@ -31,6 +59,11 @@ export default function Status({ rows, onChange, opening, note, advanced, onAdva
 						<button className="secondary" onClick={() => onOpen('settings')}>
 							Network settings
 						</button>
+						{reported && (
+							<button className="secondary" onClick={() => onOpen('tailscale')}>
+								Tailscale
+							</button>
+						)}
 						<button className="secondary" onClick={() => onOpen('power')}>
 							Power and battery
 						</button>
@@ -41,6 +74,77 @@ export default function Status({ rows, onChange, opening, note, advanced, onAdva
 	)
 }
 
+/// A row offering `act` from its stream: confirmed beneath the row where the act is, held back while
+/// the device has yet to answer, and the device's reason for refusing or failing in the row's detail
+/// (STAT). Connect opens the sign-in screen rather than asking the device for anything.
+function ActRow({ row, stream, act, onSignIn, onDetails }) {
+	const [confirming, setConfirming] = useState(null)
+	const words = act && ROW_ACTS[act]
+	// A row whose state moves on offers its new act, so a confirmation of the old one goes with it.
+	const asked = confirming === act ? words : null
+
+	const ask = () => {
+		setConfirming(null)
+		stream.ask(act)
+	}
+	const press = () => {
+		if (act === 'sign-in') onSignIn?.()
+		else if (words.question) setConfirming(act)
+		else ask()
+	}
+
+	const checked = stream.result?.act === 'netcheck' && stream.awaiting !== 'netcheck' ? verdict(stream.result.result) : null
+	const extra = (
+		<>
+			{stream.reason && <span className="detail reason">{stream.reason.text}</span>}
+			{checked && (
+				<span className={`detail${checked.connects ? '' : ' reason'}`}>
+					{checked.text}
+					<span className="sep">·</span>
+					<button className="link" onClick={onDetails}>
+						Details
+					</button>
+				</span>
+			)}
+		</>
+	)
+
+	let action = null
+	if (stream.awaiting === 'netcheck') {
+		action = (
+			<span className="busy" role="status">
+				<span className="spinner" aria-hidden="true" />
+				Checking…
+			</span>
+		)
+	} else if (asked) {
+		action = (
+			<div className="bar-state" role="alertdialog" aria-label={asked.question}>
+				<p>
+					<strong>{asked.question}</strong>
+				</p>
+				{asked.warning && <p>{asked.warning}</p>}
+				<div className="row">
+					<button className={asked.keep ? 'secondary' : undefined} onClick={ask}>
+						{asked.confirm}
+					</button>
+					<button className={asked.keep ? undefined : 'secondary'} onClick={() => setConfirming(null)}>
+						{asked.keep ?? 'Cancel'}
+					</button>
+				</div>
+			</div>
+		)
+	} else if (words) {
+		action = (
+			<button className="secondary" onClick={press} disabled={stream.asking !== null}>
+				{words.button}
+			</button>
+		)
+	}
+
+	return <Row row={row} extra={extra} action={action} />
+}
+
 // The class each mark is drawn with, and what it says to a screen reader.
 const MARKS = {
 	[WELL]: ['good', 'Working'],
@@ -49,7 +153,7 @@ const MARKS = {
 	[IN_PROGRESS]: ['wait', 'In progress'],
 }
 
-function Row({ row, onAction, waiting, note }) {
+export function Row({ row, onAction, waiting, note, extra, action }) {
 	const [mark, said] = MARKS[row.mark]
 	return (
 		<li>
@@ -65,6 +169,7 @@ function Row({ row, onAction, waiting, note }) {
 					<Line key={index} parts={parts} />
 				))}
 				{note && <span className="detail">{note}</span>}
+				{extra}
 			</div>
 			{row.action && onAction && waiting && (
 				<span className="busy" role="status">
@@ -77,6 +182,7 @@ function Row({ row, onAction, waiting, note }) {
 					{row.action}
 				</button>
 			)}
+			{action}
 		</li>
 	)
 }

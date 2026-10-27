@@ -13,7 +13,7 @@ use bliti_core::{
 	advertisement::{Advertised, Heard},
 	key_schedule::{DeviceKeys, Handle},
 	qr::QrPayload,
-	slot::{Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
+	slot::{self, Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
 };
 use bluer::{
 	adv::{Advertisement, AdvertisementHandle},
@@ -433,7 +433,7 @@ fn allocation(
 					.await;
 				match allocation {
 					Allocation::Given(slot) => {
-						tracing::info!(%client, slot = slot.number(), "gave a client its slot");
+						tracing::info!(%client, slot = slot.number(), mtu = request.mtu, "gave a client its slot");
 					}
 					Allocation::Full => {
 						tracing::warn!(%client, "every slot is held; turning a client away");
@@ -442,7 +442,7 @@ fn allocation(
 						readvertise.notify_one();
 					}
 				}
-				Ok(allocation.to_value())
+				Ok(allocation.to_value(request.mtu))
 			})
 		}),
 		..Default::default()
@@ -556,9 +556,10 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
 	// it is the point at which a handshake can run.
-	tracing::info!("client subscribed; opening a session");
+	tracing::info!(mtu = notifier.mtu(), "client subscribed; opening a session");
 	readvertise.notify_one();
-	let (transport, mut outbound) = GattTransport::open(&sink, client);
+	let (transport, mut outbound) =
+		GattTransport::open(&sink, client, slot::payload(notifier.mtu()));
 
 	// Pump the device's bytes out as notifications for as long as the client is subscribed, and notice
 	// when it stops being subscribed.

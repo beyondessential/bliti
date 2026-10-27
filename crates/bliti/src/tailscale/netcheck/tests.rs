@@ -1,9 +1,5 @@
 use super::*;
 
-fn report(json: &str) -> Report {
-	serde_json::from_str(json).unwrap()
-}
-
 fn names() -> Names {
 	let names = Names::in_memory();
 	names.replace(BTreeMap::from([
@@ -16,12 +12,11 @@ fn names() -> Names {
 #[test]
 fn every_relay_answering_is_named_and_sorted_nearest_first() {
 	let result = result(
-		&report(
-			r#"{"UDP":true,"IPv4":true,"IPv6":true,"MappingVariesByDestIP":false,"CaptivePortal":false,
+		r#"{"UDP":true,"IPv4":true,"IPv6":true,"MappingVariesByDestIP":false,"CaptivePortal":false,
 			"RegionLatency":{"9":150000000,"5":38400000,"12":90000000}}"#,
-		),
 		&names(),
-	);
+	)
+	.unwrap();
 	assert_eq!(
 		result["relays"],
 		json!([
@@ -37,32 +32,30 @@ fn every_relay_answering_is_named_and_sorted_nearest_first() {
 #[test]
 fn https_only_relays_answer_with_udp_false() {
 	let result = result(
-		&report(r#"{"UDP":false,"IPv4":true,"RegionLatency":{"5":120000000}}"#),
+		r#"{"UDP":false,"IPv4":true,"RegionLatency":{"5":120000000}}"#,
 		&names(),
-	);
+	)
+	.unwrap();
 	assert_eq!(result["udp"], json!(false));
 	assert_eq!(result["relays"].as_array().unwrap().len(), 1);
 }
 
 #[test]
 fn no_relay_answering_is_a_result_with_udp_false() {
-	let result = result(
-		&report(r#"{"UDP":true,"IPv4":true,"RegionLatency":{}}"#),
-		&names(),
-	);
+	let result = result(r#"{"UDP":true,"IPv4":true,"RegionLatency":{}}"#, &names()).unwrap();
 	assert_eq!(
 		result["udp"],
 		json!(false),
 		"no relay means no UDP got through"
 	);
 	assert_eq!(result["relays"], json!([]));
-	let absent = super::result(&report(r#"{"IPv4":true}"#), &names());
+	let absent = super::result(r#"{"IPv4":true}"#, &names()).unwrap();
 	assert_eq!(absent["relays"], json!([]));
 }
 
 #[test]
 fn an_unknown_ipv6_and_nat_are_null_or_false_as_the_report_says() {
-	let result = result(&report(r#"{"UDP":true,"RegionLatency":{"5":1}}"#), &names());
+	let result = result(r#"{"UDP":true,"RegionLatency":{"5":1}}"#, &names()).unwrap();
 	assert_eq!(result["ipv6"], json!(false));
 	assert_eq!(result["nat-varies"], json!(null));
 	assert_eq!(result["captive-portal"], json!(null));
@@ -70,11 +63,51 @@ fn an_unknown_ipv6_and_nat_are_null_or_false_as_the_report_says() {
 
 #[test]
 fn a_captive_portal_is_reported() {
-	let result = result(
-		&report(r#"{"CaptivePortal":true,"RegionLatency":{}}"#),
-		&names(),
-	);
+	let result = result(r#"{"CaptivePortal":true,"RegionLatency":{}}"#, &names()).unwrap();
 	assert_eq!(result["captive-portal"], json!(true));
+}
+
+#[test]
+fn the_report_is_carried_as_tailscale_printed_it() {
+	let text = "{\n\t\"UDP\": false,\n\t\"PMP\": true,\n\t\"RegionLatency\": {}\n}\n";
+	assert_eq!(result(text, &names()).unwrap()["report"], json!(text));
+	let relayed = r#"{"UDP":true,"RegionLatency":{"5":1}}"#;
+	assert_eq!(result(relayed, &names()).unwrap()["report"], json!(relayed));
+}
+
+#[test]
+fn the_report_changes_none_of_the_members_read_from_it() {
+	let result = result(
+		r#"{"UDP":true,"IPv4":true,"IPv6":false,"MappingVariesByDestIP":true,"CaptivePortal":false,
+		"RegionLatency":{"5":38400000}}"#,
+		&names(),
+	)
+	.unwrap();
+	let mut members: Vec<&str> = result.keys().map(String::as_str).collect();
+	members.sort_unstable();
+	assert_eq!(
+		members,
+		[
+			"captive-portal",
+			"ipv4",
+			"ipv6",
+			"nat-varies",
+			"relays",
+			"report",
+			"udp"
+		]
+	);
+	assert_eq!(result["nat-varies"], json!(true));
+	assert_eq!(result["ipv6"], json!(false));
+}
+
+#[test]
+fn an_unreadable_report_is_a_failure() {
+	let reason = result("not json", &names()).unwrap_err();
+	assert!(
+		reason.starts_with("the network check gave something unreadable"),
+		"{reason}"
+	);
 }
 
 #[tokio::test]
