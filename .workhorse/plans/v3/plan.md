@@ -66,3 +66,12 @@ The device side is small and goes first, so the client can be built against real
 - [x] Add the network row's checking state to the Status screen mockup
 - [x] `cargo fmt`, `just clippy`, `just test`, `just test-web`
 - [ ] Put the build on the prototype device and check the screen against a real device
+
+## Reconnecting after the phone drops a hidden page
+
+A capture on the prototype showed the phone ending the link of a backgrounded page itself (Remote User Terminated), so the application reaches the device again once the page is shown, rather than holding the link.
+
+- [x] WEB "While the page is hidden", NSCR keeping edits across it, STAT's Advanced closing only when the operator opens a channel
+- [x] `App.jsx`: an away state held while hidden, reconnecting once shown through the loop shared with coming back after an act
+- [x] `network.js` and `Network.jsx`: a session opened again on the reconnected channel, keeping edits where it is writable
+- [x] `tests/hidden.spec.js`

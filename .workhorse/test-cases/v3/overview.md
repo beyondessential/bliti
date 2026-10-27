@@ -41,6 +41,19 @@ Scenarios for the Status screen landing and the `end-of-batch` marker it reads i
 - [x] Advanced stays as left across screens and closes on a new channel (verifies spec: STAT)
 - [x] A power act shows the Status screen's title and identity with the act in place of the rows and Advanced (verifies spec: STAT, WEB)
 
+## While the page is hidden
+
+- [x] A link dropped while hidden is reached again once shown, without the chooser, back on the screen the operator was on (verifies spec: WEB)
+- [x] Nothing is tried and nothing said lost while the page stays hidden (verifies spec: WEB)
+- [x] It says it is reconnecting while it tries, and keeps trying for a spell (verifies spec: WEB)
+- [x] A device that does not answer, or needs the chooser, is said to be lost (verifies spec: WEB)
+- [x] Disconnecting stops it reconnecting (verifies spec: WEB)
+- [x] A link dropped in view is lost at once (verifies spec: WEB)
+- [x] Network settings keep edits not applied across the reconnect, and follow the device where the session is read-only (verifies spec: NSCR)
+- [x] Power and battery opens its streams again on the reconnected channel
+- [x] Advanced stays as left across a reconnect (verifies spec: STAT)
+- [ ] On the phone: switch to another app for a minute and back, and land where you were
+
 ## On a real device
 
 - [ ] The screen against the prototype device: rows settle on the first batch, and the network row follows a cable pulled and plugged back in
