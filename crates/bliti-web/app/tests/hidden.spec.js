@@ -113,16 +113,18 @@ test('a link dropped just after the page is shown again is reached again', async
 	await setHidden(page, false)
 	await returns(page, 'ok')
 	await closeChannel(page)
+	// The reconnect starts from the render after the drop, so it is waited for rather than read at once.
+	await expect.poll(() => reconnects(page)).toBe(1)
 	await expect(title(page)).toHaveText('All readings')
+	await expect(page.getByRole('status')).toHaveCount(0)
 	await expect(page.getByText('Lost connection to your Iti')).toHaveCount(0)
-	expect(await reconnects(page)).toBe(1)
 })
 
 test('a link dropped once the page has been shown a while is lost at once', async ({ page }) => {
 	await openChannel(page)
 	await setHidden(page, true)
 	await setHidden(page, false)
-	await page.waitForTimeout(500)
+	await page.waitForTimeout(1_500)
 	await closeChannel(page)
 	await expect(page.getByText('Lost connection to your Iti')).toBeVisible()
 	expect(await reconnects(page)).toBe(0)
