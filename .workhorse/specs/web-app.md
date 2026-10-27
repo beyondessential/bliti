@@ -151,7 +151,7 @@ Where the browser cannot reach the device again without the chooser, the applica
 
 ## Moving between screens
 
-Opening a screen of a connected device from the one a channel opens on MUST add an entry to the browser's history, so that the browser's way back leaves that screen as the screen's own way back does.
+Opening a screen of a connected device from another MUST add an entry to the browser's history, so that the browser's way back returns to the screen it was opened from, as the screen's own way back does.
 
 Going back from the screen a channel opens on MUST leave the application, as it does where no channel is open.
 

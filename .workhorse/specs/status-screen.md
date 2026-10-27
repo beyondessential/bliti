@@ -76,7 +76,7 @@ The application MUST choose that interface as the one whose `interface` trait ca
 While the network row is not well, the application MUST say as its detail that a cable is plugged in with no address, where `wired-carrier` is `true` on an interface that holds none, and that the device is joined to a network with no address, naming it, where an interface joined by `wireless-network` holds none.
 
 The application MUST offer on the network row to change the network while the row is well, and to set it up while it is not.
-Either MUST open the screen of [NSCR](network/screen.md).
+Either MUST open the Network screen of [NSET](network/setup.md), through the configuration session [NSET](network/setup.md#the-session) opens.
 
 > [!NOTE]
 > A hotspot with nothing else is a way in use, so a device sharing its hotspot alone reads as connected: phones on the hotspot reach it.

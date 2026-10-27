@@ -87,3 +87,8 @@ Defined in [NET](network/overview.md).
 
 One way a device might attach to a network.
 Defined in [LINK](network/attachment.md).
+
+### Simple network screens
+
+The screens through which an operator puts a device on a network by cable, by joining a wireless network, or by sharing its hotspot.
+Defined in [NSET](network/setup.md).

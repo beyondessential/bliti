@@ -8,7 +8,7 @@ A client configures a device's network over the channel of [CHN](../channel.md):
 
 This spec covers the configuration document and the rules every part of it obeys.
 [LINK](attachment.md) specifies how a device attaches to a network, [WLAN](wireless.md) which wireless networks it may join, [HOT](hotspot.md) the hotspot, and [CFG](session.md) the exchange a client configures through.
-[NSCR](screen.md) specifies how our client handles all of it.
+[NSCR](screen.md) specifies how our client handles all of it, and [NSET](setup.md) the simple network screens our client offers over it.
 
 ## The document
 
