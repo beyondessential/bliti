@@ -71,8 +71,8 @@ enum Command {
 		tailnet: Option<String>,
 
 		/// The machine a Tailscale ping tests where the client names none.
-		#[arg(long)]
-		ping_default: Option<String>,
+		#[arg(long, default_value = tailscale::PING_DEFAULT)]
+		ping_default: String,
 	},
 
 	/// Write out the battery curve document in force, load one, or reset to the curve this build

@@ -429,11 +429,7 @@ async fn ping_uses_the_default_peer_and_names_it() {
 		endpoint: "192.0.2.1:41641".into(),
 		..client::Pong::default()
 	});
-	let options = Options {
-		ping_default: Some("canopy".to_owned()),
-		..Options::default()
-	};
-	let tailscale = tailscale_with(&fake, options).await;
+	let tailscale = tailscale_with(&fake, Options::default()).await;
 	let (mut client, _) = open(&tailscale).await;
 	client.act("ping", None, None).await;
 	assert_eq!(client.next().await, Message::TailscaleAccepted);
@@ -447,16 +443,32 @@ async fn ping_uses_the_default_peer_and_names_it() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn ping_with_no_peer_and_no_default_fails() {
+async fn ping_with_no_peer_tests_the_deployment_default() {
 	let fake = Fake::in_state("Running");
-	let tailscale = tailscale_with(&fake, Options::default()).await;
+	fake.peer("canopy");
+	fake.peer_named("b", "central", "100.64.0.9");
+	fake.pong(client::Pong {
+		latency_seconds: 0.002,
+		endpoint: "192.0.2.1:41641".into(),
+		..client::Pong::default()
+	});
+	let options = Options {
+		ping_default: "central".to_owned(),
+		..Options::default()
+	};
+	let tailscale = tailscale_with(&fake, options).await;
 	let (mut client, _) = open(&tailscale).await;
 	client.act("ping", None, None).await;
 	assert_eq!(client.next().await, Message::TailscaleAccepted);
-	assert!(matches!(
-		client.next().await,
-		Message::TailscaleFailed { .. }
-	));
+	match client.next().await {
+		Message::TailscaleResult { result } => {
+			assert!(
+				result["peer"].as_str().unwrap().starts_with("central"),
+				"{result:?}"
+			);
+		}
+		other => panic!("{other:?}"),
+	}
 }
 
 #[tokio::test(start_paused = true)]

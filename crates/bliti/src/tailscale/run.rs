@@ -232,9 +232,7 @@ impl Inner {
 	}
 
 	async fn ping(&self, daemon: &Daemon, peer: Option<&str>) -> Outcome {
-		let Some(peer) = peer.or(self.options.ping_default.as_deref()) else {
-			return Outcome::Failed("this device has no machine of its own to ping".to_owned());
-		};
+		let peer = peer.unwrap_or(&self.options.ping_default);
 		match ping::run(daemon.api.as_ref(), peer, &self.names).await {
 			Ok(result) => Outcome::Result(result),
 			Err(reason) => Outcome::Failed(reason),

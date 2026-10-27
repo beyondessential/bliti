@@ -43,15 +43,28 @@ pub mod state;
 #[cfg(test)]
 pub(crate) mod fake;
 
+/// The machine `ping` tests where a client names none and the deployment names none either.
+pub const PING_DEFAULT: &str = "canopy";
+
 /// What a device is configured with beyond tailscaled itself.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Options {
 	/// The one tailnet the device accepts, where it accepts one (TSC, "Signing in").
 	pub tailnet: Option<String>,
 	/// The machine `ping` tests where a client names none (TSC, "Ping").
-	pub ping_default: Option<String>,
+	pub ping_default: String,
 	/// Where what the device learns of Tailscale is kept, where it is kept at all.
 	pub state_dir: Option<PathBuf>,
+}
+
+impl Default for Options {
+	fn default() -> Self {
+		Self {
+			tailnet: None,
+			ping_default: PING_DEFAULT.to_owned(),
+			state_dir: None,
+		}
+	}
 }
 
 /// The one handle every session shares.
