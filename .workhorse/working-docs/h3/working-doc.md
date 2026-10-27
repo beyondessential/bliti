@@ -154,6 +154,8 @@ Created and merged:
 3. **Tailscale status and restart · M3.** The device reports whether Tailscale is up and the name the device is reached by, and restarts it on request without dropping the channel. Defines the restart exchange. Carries the overlay findings above.
 4. **Tamanu status and restart · N3.** The device reports Tamanu's web and facility server with their versions, and restarts both together. Reuses 3's restart exchange, so it follows 3. Carries the half-succeeded restart.
 
+Short board and OS names · A4: the device reports short forms of board and OS for the Status screen's identity line, beside the full `board` and `os`.
+
 Created after K3 merged:
 
 5. **Network configuration history · S3.** How a device keeps past configurations and offers undo back to one that worked.
@@ -164,7 +166,7 @@ Created after K3 merged:
 Mockup lanes: 1 connect, 2 status, 3 choose how the Iti connects, 4 join wifi, 5 share hotspot, 6 Advanced.
 
 7. **Restyle the existing screens for Tamanu Iti · U3** (lanes 1 and 6). Branding, renames, the shared screen shell, history navigation. First.
-8. **Status screen · V3** (lane 2). The landing, its rows showing state only, Advanced, and the busy note. Follows U3.
+8. **Status screen · V3** (lane 2). The landing, its rows showing state only, Advanced, and the busy note. Its identity line is short (board and OS only, "Raspberry Pi 5 · Ubuntu 26.04"); All readings keeps the full one. Follows U3 and A4.
 9. **Simple network screens · W3** (lanes 3 to 5). Network, Cable, Join wifi, Share hotspot. Follows V3.
 10. **Tailscale and Tamanu actions on the Status screen · X3.** The rows' acts over TSC and TMU, and Tailscale's sign-in design. Follows V3, independent of W3.
 
