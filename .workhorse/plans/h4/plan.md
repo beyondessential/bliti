@@ -34,6 +34,7 @@ infra#V3's to design; bliti relies on:
 
 - Host to prefix: `iti.tamanu.app` serves `prod/`, `pr-<number>.iti.tamanu.app` serves `pr/<number>/`.
 - Pages: `/` serves `index.html`, and any other path with no extension serves that path plus `.html`, so `/provision` is `provision.html`. The page-to-variant step comes after this one, so a page gets its encodings like any other `.html`.
+- Trailing slash: a path other than `/` ending in `/` is a permanent redirect to the same path without it, query kept, so `/provision/` goes to `/provision`. Each page has one URL, and so one history entry and one key in the service worker, while a slash typed or carried in a printed link still lands on the page.
 - A missing key is a 404, not the 403 S3 gives where the distribution cannot list the bucket, and never falls back to `index.html`: the client keeps its screens in history state, not in the URL, so there is nothing for a single-page fallback to catch, and one would answer a mistyped page with the operator app.
 - The precompressed variants served as WEB's Delivery section requires. How the distribution chooses among them is the infra side's.
 
@@ -44,7 +45,7 @@ The operator app is the only page now; F4's cards add the provisioning client at
 - Each page is an HTML file at the top of the app, `provision.html` beside `index.html`, listed as a Vite build input, and built to `dist/provision.html`. Shared code lands once under `assets/`.
 - Flat rather than `provision/index.html` because that is how Vite's dev server resolves `/provision`: it tries `provision.html` and otherwise falls back to `index.html`, so a directory page would be the operator app under the dev server and the provisioning client when deployed. The distribution's rule above is the dev server's, so a path means the same page on both.
 - The dev server's single-page fallback goes (`appType: 'mpa'`), so a path that is no page is a 404 under it too, as deployed.
-- The service worker answers every navigation with the precached `/` document. With more than one page it has to answer a navigation with that page's document: `sw-plugin.js` lists `provision.html` under `/provision`, as it lists `index.html` under `/`, and `sw.js` keys a navigation by its path rather than by `/`.
+- The service worker answers every navigation with the precached `/` document. With more than one page it has to answer a navigation with that page's document: `sw-plugin.js` lists `provision.html` under `/provision`, as it lists `index.html` under `/`, and `sw.js` keys a navigation by its path rather than by `/`, with a trailing slash dropped, so `/provision/` opens offline too, where the distribution's redirect cannot be reached.
 - Whether the operator app's worker precaches the other pages and their images, which every field phone would then download, is the first new page's card's to decide.
 - Nothing in the deploy is per page: the upload walks `dist`, and the distribution's rules are generic, so a new page needs no change to either.
 
