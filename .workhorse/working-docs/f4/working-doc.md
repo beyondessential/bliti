@@ -66,83 +66,98 @@ Where the EEPROM holds something else (another vendor's data, or another Iti ver
 
 The write retries for up to five minutes waiting for the pads to be bridged, then gives up, tells the assembler to check the bridge, and offers to try again.
 
-Provisioning mode exists only on the provisioning SD; an imaged board's own bliti never enters it.
-Two front ends drive the same device-side steps: the provisioning client over the channel, and a command on the SD's console (HDMI and keyboard, or the serial console the image already enables) for a bench without a browser.
+Provisioning mode exists only on the provisioning medium; an imaged board's own bliti never enters it.
+Two front ends drive the same device-side steps: the provisioning client over the channel, and a command on the provisioning system's console (HDMI and keyboard, or the serial console the image already enables) for a bench without a browser.
 The console command runs the same steps in the same order, with text prompts in place of the picture.
 
-### The provisioning SD card
+### The provisioning medium
 
-Provisioning happens from an SD card carrying an OS, bliti in provisioning mode, and a copy of the image for the Iti's NVMe.
+Provisioning happens from a medium carrying an OS, bliti in provisioning mode, and a copy of the image for the Iti's NVMe.
 Booted on a fresh Iti, it programs the EEPROM, flashes the NVMe, binds the LUKS partition to the TPM, and produces the QR code as a printable.
 It needs no QR code to start.
+
+One image serves as either medium:
+- **A USB stick, at the factory.** The Iti is built in its final form, case and all, with the case left open so CASE can be tested, and the stick goes in a free USB port. USER can be reached through the case anyway.
+- **An SD card, for repair.** The finished hardware physically blocks the Pi's SD slot, and a provisioned board no longer boots from USB (see Configuring the bootloader), so provisioning a board again means taking it apart to reach the slot. That is acceptable for a board coming back for repair, and it is what keeps a passer-by from booting their own system on a deployed Iti.
 
 Each step is offered separately and can be skipped, so a board that is already imaged (the v4 prototype, say) can have only its EEPROM programmed.
 
 #### Order of steps
 
+Before any step, a run started from a USB stick puts USB first in the boot order, so any reboot during the run comes back to the stick (see Configuring the bootloader).
+
 1. Check the hardware (first, so a bad board fails fast, and because the air sensor read places the board's version for the EEPROM step)
 2. Program the EEPROM
-3. Configure the bootloader
-4. Flash the NVMe and read it back
-5. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
+3. Flash the NVMe and read it back
+4. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
+5. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
 6. Render the label and save the board's record
 
 The assembler chooses which steps to run; the rest are skipped.
 A step that fails stops the run and says why, and the assembler can run it again without repeating the steps before it.
 The label and record are offered at the end of any run whose chosen steps all passed, since the QR code comes from the TPM board ID whichever steps ran.
-At the end the client tells the assembler to power the board off and remove the SD card.
+At the end the client tells the assembler to power the board off and remove the provisioning medium.
 
 #### The run belongs to the device
 
-Writing the image from the SD card to the NVMe is slow, so a run carries on whether or not a client is connected: the client starts it and watches it, and closing the page or walking away leaves it running.
-That lets an assembler start several boards, each on its own SD card, and check back on each, or do one at a time without keeping a phone beside it.
+Writing the image from the provisioning medium to the NVMe is slow, so a run carries on whether or not a client is connected: the client starts it and watches it, and closing the page or walking away leaves it running.
+That lets an assembler start several boards, each with its own stick, and check back on each, or do one at a time without keeping a phone beside it.
 
-The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (bootloader, NVMe, keys), so the assembler is needed only at the start.
+The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (NVMe, keys, bootloader), so the assembler is needed only at the start.
 The device watches for those actions itself (CASE's lever, the bridge), so a person can complete them with no client connected; only confirming an EEPROM overwrite needs an answer, from a client or the console.
 A run that fails stops at that step and waits.
 
 Pressing USER puts the board back on the air for five minutes whatever the run is doing, and connecting shows where it is: the step list with its states, or the finished record. Choosing steps only comes up when nothing is running.
-The finished record and label wait on the device for whichever client connects next, and the record is on the SD card regardless.
+The finished record and label wait on the device for whichever client connects next, and the record is on the provisioning medium regardless.
 While provisioning, the Pi's status LED shows the run's state, so a bench of boards can be read at a glance:
 
 | state | LED |
 | --- | --- |
-| booted from the provisioning SD, nothing running | amber, steady |
+| booted from the provisioning medium, nothing running | amber, steady |
 | working | green, slow blink |
 | waiting on a person (CASE, the bridge, an overwrite to confirm) | amber, blink |
 | failed | red, fast blink |
 | finished | green, steady |
 
-Amber is red and green on together, and marks a board running from the provisioning SD, so one that would otherwise ship with the SD still in stands out.
-A run is lost at power-off, so any later boot from the SD, including a finished board whose SD was left in, comes back as steady amber; green steady lasts only until the board is powered off, which is the next instruction anyway.
+Amber is red and green on together, and marks a board running from the provisioning medium, so one that would otherwise ship with it still in stands out.
+A run is lost at power-off, so any later boot from the medium, including an unfinished board whose stick was left in, comes back as steady amber; green steady lasts only until the board is powered off, which is the next instruction anyway.
 
-Only the provisioning SD drives the LED this way; the Iti's own system leaves it as the Pi sets it.
+Only the provisioning medium drives the LED this way; the Iti's own system leaves it as the Pi sets it.
 The Pi 5's one LED is two in Linux, green (ACT) and red (PWR), each with its own control; that bliti can drive them from the provisioning system is still to be checked on the prototype.
 
-A run does not survive the board losing power: the SD boots back into provisioning with nothing running, and the assembler starts again, choosing only the steps still to do.
+A run does not survive the board losing power: the board boots back into provisioning with nothing running (USB is first in the boot order for the run's duration), and the assembler starts again, choosing only the steps still to do.
 
-Each SD card keeps its own records file, so a bench of several SD cards spreads the records across them until they are gathered; the central register card is what fixes that properly.
+Each stick keeps its own records file, so a bench of several sticks spreads the records across them until they are gathered; the central register card is what fixes that properly.
 
+#### Flashing the NVMe
 
 The image is the `linux-images` `pi` variant.
 Its LUKS2 root ships with an empty placeholder passphrase and the image's own volume key; the volume key is rotated per board (`linux-images` already supports this: the `pi` image rekeys itself on first boot, `image.identity.luks-rekey`).
 After writing, provisioning reads the NVMe back and checks it against the image.
-The image copy on the SD card is ideally carried in a dm-verity partition, as the `linux-images` installer medium does; a plain checksum otherwise.
+The image copy on the provisioning medium is ideally carried in a dm-verity partition, as the `linux-images` installer medium does; a plain checksum otherwise.
 
 #### Binding to the TPM
 
-Hybrid: provisioning enrols a TPM-only keyslot (no PCR policy), which works from the SD boot and ties the disk to this board, and replaces the empty placeholder passphrase.
+Hybrid: provisioning enrols a TPM-only keyslot (no PCR policy), which works from the provisioning boot and ties the disk to this board, and replaces the empty placeholder passphrase.
 A first-boot enrolment on the NVMe system then rebinds with PCRs, if the Pi can measure anything worth binding to.
 A recovery passphrase is generated at provisioning. It is never included alongside the QR code, which would display on the outside of the device.
 
 What the TPM-only keyslot protects: the disk away from its board.
-It does not protect a whole stolen device. The bootloader tries SD before NVMe (`BOOT_ORDER=0xf61` in `linux-images`), so anyone can boot their own SD on the board and the TPM will unseal for them; with no measured boot on the Pi, a PCR policy cannot tell their OS from ours.
-NVMe-first would not close this (boot with the NVMe out, then attach it over USB) and would stop the provisioning SD taking over an imaged board, so the order stays SD first.
+Anyone who can boot their own system on the board can have the TPM unseal for them; with no measured boot on the Pi, a PCR policy cannot tell their OS from ours.
+A provisioned Iti boots only from SD and NVMe, and its SD slot is physically blocked, so booting another system on it means taking it apart; that keeps out someone passing by, but not someone who can take the device away.
+NVMe-first would not close the gap (boot with the NVMe out, then attach it over USB) and would stop a repair SD taking over an imaged board, so SD stays first.
 Closing it takes Raspberry Pi secure boot (signed boot images, a customer key burnt into OTP, irreversible per board). That is a separate card, though its OTP programming would naturally be another provisioning step.
 
 #### Configuring the bootloader
 
-A step that sets the Pi 5 bootloader up for the Iti, with the configuration the `linux-images` `pi eeprom` SD applies (`BOOT_ORDER=0xf61`, SD then NVMe), and updates the bootloader where it is older than the tryboot floor the `pi` image needs.
+The Pi 5's own default, as Raspberry Pi ships it, is `BOOT_ORDER=0xf461` (SD, NVMe, USB, then round again) with `NET_INSTALL_AT_POWER_ON=1`. A fresh board's NVMe is blank, so it falls through to a USB stick; but once a run has written the NVMe, the stock order would boot that over the stick.
+So the bootloader is touched twice:
+- **At the start of a run from a USB stick**, USB goes first, ahead of SD and NVMe, so a reboot once the NVMe is written (a power cut, or a failed run to be re-run) comes back to the stick.
+  A board that already boots from its NVMe and has never had a run put USB first (the v4 prototype, or a board imaged some other way) does not reach a USB stick at all, and goes through an SD card.
+- **As the run's last step**, it is set to the Iti's configuration, the one the `linux-images` `pi eeprom` SD applies: `BOOT_ORDER=0xf61` (SD, then NVMe), no USB and no network install. The bootloader is updated too where it is older than the tryboot floor the `pi` image needs.
+
+A run that fails before its last step leaves USB first, so the board can be re-run from the stick.
+A run from an SD card (a repair) needs neither change for itself, since SD is first in both orders, but still ends with the Iti's configuration.
 
 #### The QR label
 
@@ -159,14 +174,14 @@ Mockup: the QR label sheet (`.workhorse/design/mockups/f4/label-sheet.html`), at
 
 #### Board records
 
-At the end, each board's record is shown to the assembler in the client and appended to a file on the provisioning SD card's FAT partition, so it can be read on any computer.
+At the end, each board's record is shown to the assembler in the client and appended to a file on the provisioning medium's FAT partition, so it can be read on any computer.
 One line per board, tab-separated, in the manner of the `linux-images` installer's `recovery-keys.txt`: the QR suffix, the version, the UUID of the NVMe's LUKS partition (to match a disk to its passphrase), the recovery passphrase, and when it was provisioned.
 The recovery passphrase is made the way the `linux-images` installer makes one, so it is easy to type at a keyboard: six lowercase words of at least five letters, drawn from the miniLock diceware word list and joined by hyphens.
 Sending it to a central register is a separate card.
 
 #### Where it's built
 
-`linux-images` builds the provisioning SD image, beside the `pi eeprom` SD, with bliti packaged in provisioning mode.
+`linux-images` builds the provisioning image, beside the `pi eeprom` SD, for writing to a USB stick or an SD card, with bliti packaged in provisioning mode.
 This card specs bliti's side and the contract between the two repos; the image build is `linux-images` work.
 
 ### Reaching a provisioning device
@@ -207,7 +222,7 @@ Each board picture carries only an orange circle; the client captions it with wh
 Every running screen says the page can be closed and that pressing USER checks back.
 Finding a board that is mid-run goes straight to its step list.
 
-4. **Done.** The board's record, with the recovery passphrase and a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the SD card".
+4. **Done.** The board's record, with the recovery passphrase and a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the USB stick".
 
 Mockup: provisioning an Iti, every screen (`.workhorse/design/mockups/f4/provisioning.html`). It reuses the operator app's own components: the step dots of reaching a device, the Status screen's rows with their marks, and its bar-state panels; the only new pieces are a board picture inside a step, and a step's prompt beneath its row.
 
@@ -252,7 +267,7 @@ A sensor passes when it answers with its expected chip ID and returns a reading;
 Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
 
 The hardware check runs before the EEPROM is programmed, so on a fresh board the firmware has configured none of the HAT's devices.
-The provisioning SD's own `config.txt` therefore carries the HAT's configuration explicitly; it is a bench tool for known hardware, so it doesn't need the EEPROM to tell it.
+The provisioning image's own `config.txt` therefore carries the HAT's configuration explicitly; it is a bench tool for known hardware, so it doesn't need the EEPROM to tell it.
 
 ### The HAT's overlay
 
@@ -302,7 +317,7 @@ Run (28 Oct):
 
 ## Implementation options
 
-- The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
+- The Pi 5 has no firmware measured boot, so PCRs read from the provisioning boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
 - Volume key rotation: the `pi` image rekeys itself on first boot. If provisioning rotates instead (it can, while the volume is offline and before enrolment), the first-boot rekey must recognise that and not run again; or provisioning leaves rotation to first boot and enrols keyslots that survive it (LUKS2 reencryption keeps keyslots). Tech design picks.
 - `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, the save-recovery-keys option, and the `pi eeprom` SD image that configures the Pi 5 bootloader.
 
@@ -316,7 +331,7 @@ Run (28 Oct):
 
 - [x] How the firmware renders the fields: text, `product_id` as `0x0004`, `uuid` hyphenated
 - [x] The Iti overlay lives in `linux-images` only. It will grow as other cards bind sensor drivers and buttons, and upstreaming is a slower loop; revisit once it settles
-- [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
+- [x] Scope: the whole provisioning medium is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
 - [x] Sensor bus and button GPIOs: from the hardware handoff
 - [x] U1: CAT24C256, 32 KiB
@@ -325,8 +340,10 @@ Run (28 Oct):
 - [x] What tells rev B apart: the BME680 air sensor
 - [x] Mapping from EEPROM to version: Iti product UUID, then `product_id`.`product_ver`
 - [x] Iti product UUID: `9c2bcc02-123a-4d9d-80e0-72166bec3218`
-- [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
+- [x] Per-board records: shown in the client and saved to the provisioning medium; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
-- [ ] The contract between bliti and the `linux-images` provisioning SD: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
+- [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
+- [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
+- [ ] The contract between bliti and the `linux-images` provisioning image: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
