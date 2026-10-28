@@ -1,6 +1,7 @@
 //! The Bosch BME680: the temperature, humidity and pressure of the air inside the case.
 //!
-//! Driven through `bosch-bme680`, which does the datasheet's compensation. Its gas sensor is never
+//! Driven through `bosch-bme680`, which does the datasheet's compensation. Its pressure is in pascals,
+//! as Bosch's formula gives it, whatever the crate's documentation says. Its gas sensor is never
 //! run, so its heater stays off (NFO): it would warm the air being measured, and the resistance it
 //! yields means little without Bosch's closed air quality library.
 
@@ -103,12 +104,7 @@ fn entries(at: u64, data: &MeasurmentData) -> Vec<Entry> {
 			f64::from(data.temperature),
 		)),
 		Entry::fraction(at, "humidity", humidity.clamp(0.0, 1.0)),
-		Entry::quantity(
-			at,
-			"air-pressure",
-			"pascals",
-			f64::from(data.pressure) * 100.0,
-		),
+		Entry::quantity(at, "air-pressure", "pascals", f64::from(data.pressure)),
 	]
 }
 
@@ -136,7 +132,7 @@ mod tests {
 	// spec: NFO
 	#[test]
 	fn a_measurement_is_reported_in_the_catalogue_s_units() {
-		let entries = entries(1, &data(31.5, 42.25, 1013.25));
+		let entries = entries(1, &data(31.5, 42.25, 101_325.0));
 		let [temperature, humidity, pressure] = entries.as_slice() else {
 			panic!("{entries:?}");
 		};
@@ -162,8 +158,8 @@ mod tests {
 	/// The compensation can land a touch outside 0–100 % at the extremes, and a fraction can't.
 	#[test]
 	fn humidity_is_held_to_a_fraction() {
-		assert_eq!(value(&entries(1, &data(20.0, 100.4, 1000.0))[1]), 1.0);
-		assert_eq!(value(&entries(1, &data(20.0, -0.2, 1000.0))[1]), 0.0);
+		assert_eq!(value(&entries(1, &data(20.0, 100.4, 100_000.0))[1]), 1.0);
+		assert_eq!(value(&entries(1, &data(20.0, -0.2, 100_000.0))[1]), 0.0);
 	}
 
 	// spec: NFO
