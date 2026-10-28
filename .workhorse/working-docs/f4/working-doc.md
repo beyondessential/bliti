@@ -373,6 +373,7 @@ A write counts as done when the EEPROM reads back identical to the image, not wh
 
 Run (28 Oct):
 - Written first try once the pads were bridged, and read back identical after release
+- Bridging needs bare metal: coated tweezers don't conduct, scissors work well. The bridge prompt says so
 - Unbridged, the chip refuses the write and the kernel reports an I/O timeout, so "not bridged yet" shows as a failed write, not a silent no-op
 - The firmware publishes the fields as text: `uuid` `7c3b8a88-ad89-4d48-b709-2bd445729867`, `product_id` `0x0004`, `product_ver` `0x0000`, and the strings, each NUL-terminated
 - With both the EEPROM overlay and the `config.txt` line, the two TPM nodes collide on CE1 ("chipselect 1 already in use") and the first to register wins; harmless, but it is why the line has to go
@@ -418,7 +419,7 @@ Run (28 Oct):
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Obtain ST33KTPM firmware images from ST (they are not public)
-- [ ] Rewrite the prototype's EEPROM with the regenerated product UUID; it still carries the first one (`9c2bcc02-…`)
+- [x] Prototype's EEPROM rewritten with the regenerated product UUID
 - [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's credential, and whether a browser can mint auth keys from a Tailscale OAuth client (CORS)
 - [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
 - [x] The prototype's TPM: ST33KTPM firmware `0x00090101` (TPM spec revision 1.59); ST has published at least `0x00090200`, which needs the LMS-signed manifest path
