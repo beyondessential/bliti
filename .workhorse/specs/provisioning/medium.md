@@ -30,6 +30,8 @@ The medium's system MUST NOT install or run bliti's ordinary daemon.
 
 The medium's system MUST open the console command of [PCON](console.md) at boot on its text console and on its serial console, without asking for a login.
 
+When the console command exits, the medium's system MUST give that console a root shell, without asking for a login.
+
 > [!NOTE]
 > Whoever is at the console is at the bench, which is the same trust the provisioning token rests on.
 > A client over Bluetooth is the usual front end, and the console serves a bench without one.

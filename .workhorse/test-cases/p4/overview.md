@@ -17,6 +17,7 @@
 - [ ] A blank v4 board boots the stick into provisioning mode: LED steady amber, TPM up, sensors answering, EEPROM readable (verifies spec: PMED, PLED)
 - [ ] A programmed board (the prototype, from SD) boots the same way, with no SPI chip-select collision in the log (verifies spec: PMED)
 - [ ] tty1 and the serial console open the console command with no login (verifies spec: PMED, PCON)
+- [ ] Quitting the console command leaves a root shell on that console (verifies spec: PMED)
 - [ ] A run's state lands on `ITIPROV` and survives a reboot (verifies spec: PMED, RUN)
 - [ ] With a second provisioning stick inserted, the board uses the data partition of the stick it booted from (verifies spec: PMED)
 - [ ] A stick whose data partition is missing or will not mount reports it and does not start provisioning mode (verifies spec: PMED)

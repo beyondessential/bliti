@@ -12,7 +12,7 @@ A `just provision-image` recipe does the whole assembly with `sudo`, so it runs 
    - `bliti`, from `just build-device` (to `/usr/local/bin/bliti`, where the unit expects it)
    - `services/bliti-provision.service`, enabled, and `/etc/bliti/provision.env` with `--medium <data mount> --board-id-source tpm-endorsement-key`
    - the bluetoothd configuration from `services/` that provisioning mode needs (peripheral-only)
-   - getty autologin drop-ins for `tty1` and `serial-getty@ttyAMA10` (the Pi 5's `serial0`) that run `bliti provision`
+   - getty autologin drop-ins for `tty1` and `serial-getty@ttyAMA10` (the Pi 5's `serial0`) that log in as root and run `bliti provision`, leaving the root shell once it exits
    - a mount for the data partition found on the disk root came from, by partition number, and not by label or PARTUUID, which two sticks from the same image would share; the provisioning unit requires that mount, and the payload's partition, so it does not start without them
    - `/usr/share/bliti/provision/`: `pieeprom.bin`, `tamanu-iti-v4.dtbo`, `tamanu-iti-v4.0.eep` (`just hat-overlay`, `just hat-eeprom`), and `manifest`
    - the overlay also in `/etc/flash-kernel/dtbs/overlays/`
