@@ -16,7 +16,7 @@ const PRODUCT: &str = "Tamanu Iti";
 /// The firmware publishes a programmed HAT EEPROM here, and nothing where it is blank or absent.
 const HAT: &str = "/proc/device-tree/hat";
 
-/// Every Tamanu Iti's HAT EEPROM holds this UUID, which is how we know a board is one (HAT).
+/// The UUID in every Tamanu Iti's HAT EEPROM (HAT).
 const ITI_UUID: &str = "7c3b8a88-ad89-4d48-b709-2bd445729867";
 
 /// The TPM's device nodes, as the board ID looks for them.
