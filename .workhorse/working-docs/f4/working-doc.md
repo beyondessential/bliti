@@ -419,11 +419,15 @@ Run (28 Oct):
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Obtain ST33KTPM firmware images from ST (they are not public)
-- [x] Prototype's EEPROM rewritten with the regenerated product UUID
+- [x] Prototype's EEPROM rewritten with the regenerated product UUID, and published by the firmware on the next boot, with the TPM and I²C3 up
+- [x] USER (GPIO27) and CASE (GPIO17) read on the prototype: both active-low, CASE held low while pressed as a closed lid holds it
+- [x] The closed metal lid doesn't reach the CASE lever on its own and doesn't flex; with the 3D-printed lid shim (from the case repo) stuck over the switch, the closed lid holds CASE pressed on the prototype. The shim is part of every build (G4)
+- [x] USER can be pressed with the case closed, through the case with a thin tool such as the back of a pair of tweezers, so a closed Iti can still be put on the air for provisioning or checked back on
 - [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's credential, and whether a browser can mint auth keys from a Tailscale OAuth client (CORS)
 - [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
 - [x] The prototype's TPM: ST33KTPM firmware `0x00090101` (TPM spec revision 1.59); ST has published at least `0x00090200`, which needs the LMS-signed manifest path
 - [x] Both LEDs (ACT green, PWR red) are controllable from Linux, on/off only. Green is active-low: writing 1 turns it off. Tested by eye: green (ACT 0, PWR 0), red (ACT 1, PWR 1), amber (ACT 0, PWR 1, a distinct amber-ish), off (ACT 1, PWR 0); a 1 s blink reads clearly
+- [ ] The green LED in normal running: it follows SD card activity (lit when idle, dark on activity, by Raspberry Pi's design), and with no SD card on an Iti that trigger once stuck on "active", leaving the LED dark until reset. The Iti overlay takes the green LED off that trigger, so a running Iti shows steady green
 - [x] bliti can drive the LEDs from the provisioning system, and red and green together give a distinct amber, so the table above stands
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [x] Physically blocking the SD slot: the 3D-printed SD slot shim in the assembly (G4)
