@@ -162,6 +162,11 @@ impl DeviceKeys {
 pub struct DeviceStaticKey([u8; DEVICE_KEY_LEN]);
 
 impl DeviceStaticKey {
+	/// Wrap bytes already clamped as RFC 7748 requires, as a key generated at random is.
+	pub(crate) fn from_clamped(bytes: [u8; DEVICE_KEY_LEN]) -> Self {
+		Self(bytes)
+	}
+
 	/// The raw bytes of the private key.
 	pub fn as_bytes(&self) -> &[u8; DEVICE_KEY_LEN] {
 		&self.0

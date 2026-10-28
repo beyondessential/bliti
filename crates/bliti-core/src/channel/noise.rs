@@ -40,8 +40,9 @@ pub const MAX_PLAINTEXT: usize = MAX_NOISE_MESSAGE - TAG_LEN;
 
 /// What each end brings to the handshake beyond the pre-shared key.
 enum Role {
-	/// The client, checking the device against the key fingerprint from the QR code.
-	Initiator { fingerprint: KeyFingerprint },
+	/// The client, checking the device against the key fingerprint from the QR code, or against none
+	/// where the device is in provisioning mode (PRV, "The provisioning token").
+	Initiator { fingerprint: Option<KeyFingerprint> },
 	/// The device, sending its KEM key digest in the second message.
 	Responder { kem_key_digest: KemKeyDigest },
 }
@@ -71,8 +72,24 @@ impl Handshake {
 		Ok(Self {
 			state,
 			role: Role::Initiator {
-				fingerprint: *fingerprint,
+				fingerprint: Some(*fingerprint),
 			},
+			refused: false,
+		})
+	}
+
+	/// Build the initiating side for a device in provisioning mode, keyed by the provisioning token's
+	/// pre-shared key and comparing nothing against a fingerprint.
+	///
+	/// Such a device sends keys generated at random, so there is nothing to compare them with, and
+	/// completing the handshake authenticates neither end (PRV, "The provisioning token").
+	pub fn initiator_unauthenticated(psk: &PreSharedKey) -> Result<Self, ChannelError> {
+		let state = builder(psk)?
+			.build_initiator()
+			.map_err(|err| ChannelError::Handshake(err.to_string()))?;
+		Ok(Self {
+			state,
+			role: Role::Initiator { fingerprint: None },
 			refused: false,
 		})
 	}
@@ -130,7 +147,10 @@ impl Handshake {
 				"the first message carries a payload".to_owned(),
 			)),
 			Role::Responder { .. } => Ok(()),
-			Role::Initiator { fingerprint } => {
+			Role::Initiator { fingerprint: None } => Ok(()),
+			Role::Initiator {
+				fingerprint: Some(fingerprint),
+			} => {
 				let sent = self.sent_fingerprint(payload);
 				if sent.as_ref() == Some(fingerprint) {
 					Ok(())

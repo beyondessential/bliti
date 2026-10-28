@@ -1,0 +1,26 @@
+[Unit]
+Description=bliti provisioning mode
+# Installed only on the provisioning image, which is what makes a device booted from it a device in
+# provisioning mode (PRV). The installed system's `bliti daemon` has no path into provisioning mode,
+# and this unit is not part of it.
+After=bluetooth.service
+Requires=bluetooth.service
+# Provisioning mode is for a board booted from the medium, so a board without it never runs this.
+ConditionPathExists=/etc/bliti/provision.env
+
+[Service]
+# The mount point of the medium and the kind of board ID source this board is to name itself by come
+# from the image: BLITI_PROVISION_ARGS is `--medium <mount point> --board-id-source <kind>`.
+EnvironmentFile=/etc/bliti/provision.env
+ExecStart=/usr/local/bin/bliti provision-mode $BLITI_PROVISION_ARGS
+Restart=always
+RestartSec=10s
+
+# Root: the board ID sources are root-readable only, and the daemon drives the status LEDs and reads
+# the USER button's line. Creates /run/bliti, where the console reaches the daemon on provision.sock,
+# root-only as the socket is.
+RuntimeDirectory=bliti
+RuntimeDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

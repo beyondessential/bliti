@@ -1,40 +1,32 @@
 //! The daemon: advertising, the GATT server, and the sessions they let a client open.
 //!
-//! This is the only module that talks to BlueZ. Behaviour is specified in ADV and CHN.
+//! This and provisioning mode are the only modules that talk to BlueZ. Behaviour is specified in
+//! ADV and CHN.
 
-use std::{
-	path::Path,
-	sync::{Arc, Mutex},
-};
+use std::{path::Path, sync::Arc};
 
 use anyhow::{Context, Result};
 use bliti_core::{
-	CHARACTERISTIC_UUID_CLIENT_TX, SERVICE_UUID,
+	SERVICE_UUID,
 	advertisement::{Advertised, Heard},
-	key_schedule::{DeviceKeys, Handle},
+	key_schedule::Handle,
 	qr::QrPayload,
-	slot::{self, Allocation, CHARACTERISTIC_UUID_ALLOCATION, Slot},
+	slot,
 };
-use bluer::{
-	adv::{Advertisement, AdvertisementHandle},
-	gatt::{
-		CharacteristicWriter,
-		local::{
-			Application, Characteristic, CharacteristicControl, CharacteristicControlEvent,
-			CharacteristicControlHandle, CharacteristicNotify, CharacteristicNotifyMethod,
-			CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod, Service,
-			characteristic_control,
-		},
-	},
-};
-use futures::{StreamExt, stream};
-use tracing::Instrument;
+use futures::StreamExt;
 
-use self::slots::Slots;
+use self::{
+	server::{
+		ADVERTISE_RETRY, ADVERTISE_RETRY_MAX, ADVERTISE_SETTLE, Events, advertisement, application,
+		end_connections, serve_writes, shutdown, stop,
+	},
+	sessions::{Link, serve_sessions},
+	slots::Slots,
+};
 use crate::{
 	NetworkBackend,
 	facts::{Supply, case::Case, curve},
-	gatt::{GattTransport, InboundSink},
+	gatt::InboundSink,
 	identity,
 	network::{
 		session::{Configurator, Inert, Store},
@@ -47,7 +39,10 @@ use crate::{
 	tamanu::Tamanu,
 };
 
-mod slots;
+pub mod pacing;
+pub mod server;
+pub mod sessions;
+pub mod slots;
 
 /// Run the daemon until interrupted.
 pub async fn run(
@@ -146,44 +141,48 @@ pub async fn run(
 			tracing::warn!(%err, path = %socket.display(), "cannot listen for the command line; `bliti battery-curve` will change the curve file behind this daemon's back");
 		})
 		.ok();
-	let (writes, writes_handle) = characteristic_control();
-	let (subscriptions, subscription_handles): (Vec<_>, Vec<_>) = Slot::all()
-		.map(|slot| {
-			let (control, handle) = characteristic_control();
-			((slot, control), (slot, handle))
-		})
-		.unzip();
-	let slots = Arc::new(Slots::default());
+	let slots = Arc::new(Slots::new(slot::COUNT));
+	let events: Events = {
+		let readvertise = readvertise.clone();
+		Arc::new(move |_| readvertise.notify_one())
+	};
+	let (gatt, controls) = application(adapter.clone(), slots.clone(), events.clone());
 	let _application = adapter
-		.serve_gatt_application(application(
-			writes_handle,
-			allocation(adapter.clone(), slots.clone(), readvertise.clone()),
-			subscription_handles,
-		))
+		.serve_gatt_application(gatt)
 		.await
 		.context("registering the GATT application")?;
 	// Only once the service is back: a client still connected from before was told it had gone, and
 	// registering it tells that client it has returned before the connection ends (CHN).
 	end_connections(&adapter, "ending a connection made before this start").await?;
-	let _writes = AbortOnDrop(tokio::spawn(serve_writes(writes, sink.clone())).abort_handle());
+	let _writes =
+		AbortOnDrop(tokio::spawn(serve_writes(controls.writes, sink.clone())).abort_handle());
 	let _sessions = AbortOnDrop(
 		tokio::spawn(serve_sessions(
-			subscriptions,
-			Shared {
-				adapter: adapter.clone(),
-				slots,
-				sink,
-				keys: keys.clone(),
-				readvertise: readvertise.clone(),
-				sampler,
-				configurator,
-				controller,
-				supply,
-				tailscale,
-				tamanu,
-				case,
-				// One allowance for the whole device, since every session shares the one radio.
-				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
+			controls.subscriptions,
+			Link::new(adapter.clone(), slots, sink, events),
+			move |transport| {
+				let keys = keys.clone();
+				let sampler = sampler.clone();
+				let configurator = configurator.clone();
+				let controller = controller.clone();
+				let supply = supply.clone();
+				let tailscale = tailscale.clone();
+				let tamanu = tamanu.clone();
+				let case = case.clone();
+				async move {
+					session::run(
+						transport,
+						&keys,
+						sampler,
+						configurator,
+						controller,
+						supply,
+						tailscale,
+						tamanu,
+						case,
+					)
+					.await
+				}
 			},
 		))
 		.abort_handle(),
@@ -196,7 +195,10 @@ pub async fn run(
 	let mut shutdown = std::pin::pin!(shutdown());
 	let mut backoff = ADVERTISE_RETRY;
 	loop {
-		let registered = match adapter.advertise(advertisement(advertised)).await {
+		let registered = match adapter
+			.advertise(advertisement(advertised.to_local_name()))
+			.await
+		{
 			Ok(registered) => {
 				backoff = ADVERTISE_RETRY;
 				registered
@@ -246,97 +248,6 @@ pub async fn run(
 	}
 }
 
-/// Go off the air and end every connection, ahead of the caller dropping the GATT application.
-///
-/// A client still connected as the service is withdrawn is told it has gone, and keeps a record of the
-/// device without it, which some hosts then match in place of what the device advertises (CHN).
-async fn stop(adapter: &bluer::Adapter, advertisement: Option<AdvertisementHandle>) {
-	if let Some(advertisement) = advertisement {
-		drop(advertisement);
-		// Unregistering is asynchronous, and a client could connect again until it lands.
-		tokio::time::sleep(ADVERTISE_SETTLE).await;
-	}
-	if let Err(err) = end_connections(adapter, "ending a connection before stopping").await {
-		tracing::warn!(%err, "could not list the connections to end");
-	}
-	tracing::info!("stopping");
-}
-
-/// Resolve when the daemon is asked to stop, by either of the signals that mean it.
-///
-/// systemd stops a unit with `SIGTERM`, so waiting on ctrl-c alone would mean the ordinary way of
-/// stopping the daemon is the one way that skips unregistering from BlueZ.
-async fn shutdown() -> Result<()> {
-	use tokio::signal::unix::{SignalKind, signal};
-	let mut terminate = signal(SignalKind::terminate())?;
-	let mut interrupt = signal(SignalKind::interrupt())?;
-	tokio::select! {
-		_ = terminate.recv() => {}
-		_ = interrupt.recv() => {}
-	}
-	Ok(())
-}
-
-/// How long to leave BlueZ to withdraw an advertisement before registering the next.
-const ADVERTISE_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
-
-/// How long to wait before trying a failed advertisement registration again, and the ceiling that
-/// wait backs off to.
-const ADVERTISE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
-const ADVERTISE_RETRY_MAX: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// What a device may put on the air in any one second, across every session (CHN, "Send rate").
-///
-/// Payload bytes rather than a count of notifications: a peer may coalesce several of them into one
-/// ATT protocol data unit, so the same count occupies the link for very different lengths of time
-/// depending on how large each one is and on whether the peer coalesces at all, neither of which the
-/// device is told. A device with a backlog takes longer to clear it rather than taking the connection
-/// down, which is the outcome worth having: a slow reading beats a dropped session.
-const NOTIFY_BYTES_A_SECOND: usize = 40 * 1024;
-
-/// How far ahead of the pacing schedule a send may run before it waits.
-///
-/// One small notification is worth a few hundred microseconds of the allowance, and sleeping for that
-/// rounds up to the timer's granularity and throttles far below the ceiling. Letting sends bunch this
-/// far ahead and then waiting off the whole debt at once keeps the long-run rate exact. It costs a
-/// burst of `NOTIFY_BYTES_A_SECOND` times this, a couple of hundred bytes.
-const NOTIFY_PACING_SLACK: std::time::Duration = std::time::Duration::from_millis(5);
-
-/// How much of the second's allowance a payload of this size spends.
-fn notify_pacing(len: usize) -> std::time::Duration {
-	std::time::Duration::from_nanos((len as u64 * 1_000_000_000) / NOTIFY_BYTES_A_SECOND as u64)
-}
-
-/// Holds the device to the send rate of CHN, by payload rather than by counting notifications.
-///
-/// Paced rather than windowed: clearing a counter each second lets one second's allowance land at its
-/// end and the next at its start, putting twice the ceiling on the air across the boundary, which is
-/// the region the ceiling exists to stay out of.
-struct Pacer {
-	next_send: std::time::Instant,
-}
-
-impl Pacer {
-	fn new(now: std::time::Instant) -> Self {
-		Self { next_send: now }
-	}
-
-	/// How long to hold `len` payload bytes back before putting them on the air, if at all.
-	fn wait_for(&mut self, now: std::time::Instant, len: usize) -> Option<std::time::Duration> {
-		let wait = match self.next_send.checked_duration_since(now) {
-			Some(wait) if wait >= NOTIFY_PACING_SLACK => Some(wait),
-			Some(_) => None,
-			None => {
-				// A quiet stretch is not credit towards a later burst.
-				self.next_send = now;
-				None
-			}
-		};
-		self.next_send += notify_pacing(len);
-		wait
-	}
-}
-
 /// A handle rendered for a person to read in a log line.
 fn hex(handle: Handle) -> String {
 	handle
@@ -344,303 +255,6 @@ fn hex(handle: Handle) -> String {
 		.iter()
 		.map(|b| format!("{b:02x}"))
 		.collect()
-}
-
-/// The advertisement a device registers.
-///
-/// The service UUID goes in the advertisement, because filtering a scan by service UUID is the only
-/// filtering some client platforms offer and it is applied to the advertisement. The version and handle
-/// ride in the local name, which is the one element a host will place in the scan response,
-/// and so the only way the whole thing fits a controller that does only legacy advertising.
-fn advertisement(advertised: Advertised) -> Advertisement {
-	Advertisement {
-		advertisement_type: bluer::adv::Type::Peripheral,
-		service_uuids: [SERVICE_UUID].into_iter().collect(),
-		local_name: Some(advertised.to_local_name()),
-		discoverable: Some(true),
-		// A short interval so a scanning client finds the device quickly and reliably. The default is
-		// over a second, which on a legacy controller leaves a client's scan window catching an
-		// advertisement only now and then, so the first attempt after a device comes on the air often
-		// hears nothing. These are hints the controller rounds to what it supports.
-		min_interval: Some(std::time::Duration::from_millis(100)),
-		max_interval: Some(std::time::Duration::from_millis(150)),
-		..Default::default()
-	}
-}
-
-/// The GATT application: one service with the characteristic a client writes, the one it reads for
-/// its slot, and the slots the device notifies on.
-///
-/// Writes and notifications run over sockets BlueZ acquires for each client: one carrying that
-/// client's writes in the order it made them, the other what the device notifies to that client
-/// alone. Each arrives on the characteristic's control, `writes` and one per slot in `slots` (CHN,
-/// "Several clients at once").
-fn application(
-	writes: CharacteristicControlHandle,
-	allocation: CharacteristicRead,
-	slots: Vec<(Slot, CharacteristicControlHandle)>,
-) -> Application {
-	let client_tx = Characteristic {
-		uuid: CHARACTERISTIC_UUID_CLIENT_TX,
-		write: Some(CharacteristicWrite {
-			write: true,
-			write_without_response: true,
-			method: CharacteristicWriteMethod::Io,
-			..Default::default()
-		}),
-		control_handle: writes,
-		..Default::default()
-	};
-	let allocation = Characteristic {
-		uuid: CHARACTERISTIC_UUID_ALLOCATION,
-		read: Some(allocation),
-		..Default::default()
-	};
-	let device_tx = slots
-		.into_iter()
-		.map(|(slot, subscriptions)| Characteristic {
-			uuid: slot.uuid(),
-			notify: Some(CharacteristicNotify {
-				notify: true,
-				method: CharacteristicNotifyMethod::Io,
-				..Default::default()
-			}),
-			control_handle: subscriptions,
-			..Default::default()
-		});
-	Application {
-		services: vec![Service {
-			uuid: SERVICE_UUID,
-			primary: true,
-			characteristics: [client_tx, allocation]
-				.into_iter()
-				.chain(device_tx)
-				.collect(),
-			..Default::default()
-		}],
-		..Default::default()
-	}
-}
-
-/// Answer a read of the allocation characteristic with the reading client's slot (CHN, "Transport").
-fn allocation(
-	adapter: bluer::Adapter,
-	slots: Arc<Slots>,
-	readvertise: Arc<tokio::sync::Notify>,
-) -> CharacteristicRead {
-	CharacteristicRead {
-		read: true,
-		fun: Box::new(move |request| {
-			let (adapter, slots, readvertise) =
-				(adapter.clone(), slots.clone(), readvertise.clone());
-			Box::pin(async move {
-				let client = request.device_address;
-				let allocation = slots
-					.allocate(client, |holder| is_connected(&adapter, holder))
-					.await;
-				match allocation {
-					Allocation::Given(slot) => {
-						tracing::info!(%client, slot = slot.number(), mtu = request.mtu, "gave a client its slot");
-					}
-					Allocation::Full => {
-						tracing::warn!(%client, "every slot is held; turning a client away");
-						// Its connecting stopped the controller advertising, and it opens no session
-						// whose opening would resume it.
-						readvertise.notify_one();
-					}
-				}
-				Ok(allocation.to_value(request.mtu))
-			})
-		}),
-		..Default::default()
-	}
-}
-
-/// Whether a client is connected, as far as BlueZ knows. One BlueZ cannot name has gone.
-async fn is_connected(adapter: &bluer::Adapter, client: bluer::Address) -> bool {
-	match adapter.device(client) {
-		Ok(device) => device.is_connected().await.unwrap_or(false),
-		Err(_) => false,
-	}
-}
-
-/// Hand each client's writes to its session, in the order the client made them.
-///
-/// One socket per client, read by one task, is what keeps them in order: handled one call at a time,
-/// writes a client makes without waiting for a response can be taken up out of order.
-async fn serve_writes(mut writes: CharacteristicControl, sink: InboundSink) {
-	while let Some(event) = writes.next().await {
-		let CharacteristicControlEvent::Write(request) = event else {
-			continue;
-		};
-		let client = request.device_address();
-		let reader = match request.accept() {
-			Ok(reader) => reader,
-			Err(err) => {
-				tracing::warn!(%client, %err, "could not take a client's writes");
-				continue;
-			}
-		};
-		let sink = sink.clone();
-		tokio::spawn(async move {
-			// An empty read is the socket closing, as the client disconnects.
-			while let Ok(bytes) = reader.recv().await {
-				if bytes.is_empty() {
-					break;
-				}
-				sink.deliver(client, bytes);
-			}
-		});
-	}
-	tracing::error!("BlueZ stopped reporting writes; clients can no longer reach a session");
-}
-
-/// What every session on the device shares.
-///
-/// `readvertise` is fired as a session opens and as it ends, so the daemon can resume advertising: a
-/// client connecting stops the controller advertising, and only re-registering the advertisement
-/// brings it back.
-#[derive(Clone)]
-struct Shared {
-	adapter: bluer::Adapter,
-	slots: Arc<Slots>,
-	sink: InboundSink,
-	keys: Arc<DeviceKeys>,
-	readvertise: Arc<tokio::sync::Notify>,
-	sampler: crate::sampler::Sampler,
-	configurator: Configurator,
-	controller: Controller,
-	supply: Supply,
-	tailscale: Tailscale,
-	tamanu: Tamanu,
-	case: Case,
-	pacer: Arc<Mutex<Pacer>>,
-}
-
-/// Open a session for each client that subscribes to its slot, and run them side by side.
-async fn serve_sessions(subscriptions: Vec<(Slot, CharacteristicControl)>, shared: Shared) {
-	let mut subscriptions = stream::select_all(
-		subscriptions
-			.into_iter()
-			.map(|(slot, control)| control.map(move |event| (slot, event))),
-	);
-	while let Some((slot, event)) = subscriptions.next().await {
-		let CharacteristicControlEvent::Notify(notifier) = event else {
-			continue;
-		};
-		// Every line a session logs names its client, so sessions running side by side read apart.
-		let span = tracing::info_span!(
-			"session",
-			client = %notifier.device_address(),
-			slot = slot.number()
-		);
-		tokio::spawn(serve_session(slot, notifier, shared.clone()).instrument(span));
-	}
-	tracing::error!("BlueZ stopped reporting subscriptions; no further sessions can open");
-}
-
-/// Serve one client's session, from its subscribing to its leaving or the session ending.
-async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Shared) {
-	let client = notifier.device_address();
-	// Dropping the notifier closes only this client's socket, so the slot's holder is untouched.
-	if !shared.slots.holds(slot, client).await {
-		tracing::warn!("client subscribed to a slot it was not given; opening no session");
-		return;
-	}
-
-	let Shared {
-		adapter,
-		slots: _,
-		sink,
-		keys,
-		readvertise,
-		sampler,
-		configurator,
-		controller,
-		supply,
-		tailscale,
-		tamanu,
-		case,
-		pacer,
-	} = shared;
-	// A client subscribing is what opens a session: it is the point at which the device can send, so
-	// it is the point at which a handshake can run.
-	tracing::info!(mtu = notifier.mtu(), "client subscribed; opening a session");
-	readvertise.notify_one();
-	let (transport, mut outbound) =
-		GattTransport::open(&sink, client, slot::payload(notifier.mtu()));
-
-	// Pump the device's bytes out as notifications for as long as the client is subscribed, and notice
-	// when it stops being subscribed.
-	//
-	// Noticing matters: nothing else tells the device the client has gone. The session reads until its
-	// transport ends, and the transport only ends when the session drops it, so without this the two
-	// wait on each other and the device stays busy with a client that left.
-	let (left, gone) = tokio::sync::oneshot::channel();
-	let mut pump = tokio::spawn(async move {
-		loop {
-			tokio::select! {
-				chunk = outbound.next() => {
-					let Some(chunk) = chunk else { break };
-
-					// Out of allowance: hold the rest back rather than pushing on and swamping the
-					// link. Nothing is dropped, only delayed (CHN, "Send rate").
-					let wait = pacer
-						.lock()
-						.expect("the pacer is never held across a panic")
-						.wait_for(std::time::Instant::now(), chunk.len());
-					if let Some(wait) = wait {
-						tokio::time::sleep(wait).await;
-					}
-
-					if notifier.send(&chunk).await.is_err() {
-						break;
-					}
-				}
-				_ = notifier.closed() => break,
-			}
-		}
-		let _ = left.send(());
-	});
-
-	// A failed handshake is an ordinary outcome: anyone in range can connect and try, and the device
-	// stays reachable afterwards.
-	tokio::select! {
-		result = session::run(
-			transport,
-			&keys,
-			sampler,
-			configurator,
-			controller,
-			supply,
-			tailscale,
-			tamanu,
-			case,
-			) => {
-			match result {
-				Ok(()) => tracing::info!("session ended"),
-				Err(err) => tracing::info!(%err, "session ended"),
-			}
-			// What the session last wrote may still be held back by the pacer, and it is often what
-			// the client most needs, as `going-away` is (CTL). The pump ends once it has sent it all.
-			if tokio::time::timeout(DRAIN_TIMEOUT, &mut pump).await.is_err() {
-				tracing::debug!("the last notifications did not go out in time; dropping them");
-			}
-		},
-		_ = gone => tracing::info!("client unsubscribed; session ended"),
-	}
-	pump.abort();
-	// A client left connected with no channel would wait on one nothing answers, and would go on
-	// holding its slot (CHN).
-	if is_connected(&adapter, client).await {
-		tracing::info!("ending the connection of a client whose channel has ended");
-		if let Ok(device) = adapter.device(client) {
-			if let Err(error) = device.disconnect().await {
-				tracing::debug!(%error, "could not end the connection; it may already be going");
-			}
-		}
-	}
-	readvertise.notify_one();
 }
 
 /// Scan for bliti devices and report which one the QR code in hand belongs to.
@@ -725,9 +339,6 @@ pub async fn scan(payload: &QrPayload, seconds: u64, adapter_name: Option<&str>)
 	Ok(())
 }
 
-/// How long a session's last notifications may take to go out once it has ended.
-const DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
-
 /// The acts this device offers, and what drops its connections before it carries one out (CTL).
 ///
 /// A device whose systemd cannot be reached offers none, and says why.
@@ -762,113 +373,4 @@ async fn controller(adapter: &bluer::Adapter) -> Controller {
 			})
 		}),
 	)
-}
-
-/// End every connection to the adapter.
-///
-/// As a device starts, a connection made before it was served by an earlier daemon, and its client
-/// would otherwise wait on it with nothing to tell it the channel is gone (CHN). As a device goes away,
-/// a connection is ended so its client reads the channel closing rather than the link dying (CTL).
-async fn end_connections(adapter: &bluer::Adapter, why: &str) -> Result<()> {
-	for address in adapter.device_addresses().await? {
-		let device = adapter.device(address)?;
-		if !device.is_connected().await.unwrap_or(false) {
-			continue;
-		}
-		tracing::info!(%address, "{why}");
-		if let Err(error) = device.disconnect().await {
-			tracing::warn!(%address, %error, "could not end a connection");
-		}
-	}
-	Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-	use std::time::{Duration, Instant};
-
-	use super::*;
-
-	/// The chunk the transport actually hands the pump (`NOTIFY_CHUNK` in `gatt.rs`).
-	const CHUNK: usize = 20;
-
-	/// What the slack buys a sender on top of the second's allowance.
-	fn burst_allowance() -> usize {
-		(NOTIFY_BYTES_A_SECOND as f64 * NOTIFY_PACING_SLACK.as_secs_f64()) as usize + CHUNK
-	}
-
-	/// Run `chunks` payloads through the pacer, advancing a simulated clock by whatever it asks
-	/// for, and return the time each one went out.
-	fn schedule(chunks: usize, len: usize) -> (Instant, Vec<Instant>) {
-		let start = Instant::now();
-		let mut pacer = Pacer::new(start);
-		let mut now = start;
-		let mut sent = Vec::with_capacity(chunks);
-		for _ in 0..chunks {
-			if let Some(wait) = pacer.wait_for(now, len) {
-				now += wait;
-			}
-			sent.push(now);
-		}
-		(start, sent)
-	}
-
-	#[test]
-	fn a_seconds_allowance_takes_a_second() {
-		let (start, sent) = schedule(NOTIFY_BYTES_A_SECOND / CHUNK, CHUNK);
-		let elapsed = sent.last().expect("sent something").duration_since(start);
-		assert!(
-			elapsed >= Duration::from_millis(980),
-			"a second of payload drained in {elapsed:?}"
-		);
-	}
-
-	#[test]
-	fn no_one_second_window_exceeds_the_ceiling() {
-		// Three seconds of continuous offering, so a window straddles every boundary.
-		let (_, sent) = schedule(3 * NOTIFY_BYTES_A_SECOND / CHUNK, CHUNK);
-		let ceiling = NOTIFY_BYTES_A_SECOND + burst_allowance();
-		for (i, from) in sent.iter().enumerate() {
-			let in_window = sent[i..]
-				.iter()
-				.take_while(|at| at.duration_since(*from) < Duration::from_secs(1))
-				.count() * CHUNK;
-			assert!(
-				in_window <= ceiling,
-				"{in_window} bytes went out in one second, over the {ceiling} allowed"
-			);
-		}
-	}
-
-	#[test]
-	fn a_quiet_stretch_is_not_saved_up() {
-		let start = Instant::now();
-		let mut pacer = Pacer::new(start);
-		let idle = start + Duration::from_secs(5);
-
-		// The first payload after the lull goes straight out, however long the lull was.
-		assert_eq!(pacer.wait_for(idle, NOTIFY_BYTES_A_SECOND), None);
-
-		// Having just spent the whole allowance, the next one waits about a second, rather than
-		// drawing on five seconds of silence.
-		let wait = pacer.wait_for(idle, CHUNK).expect("must be held back");
-		assert!(
-			wait >= Duration::from_millis(980),
-			"held back only {wait:?}"
-		);
-	}
-
-	#[test]
-	fn the_ceiling_is_the_same_in_bytes_whatever_the_payload_size() {
-		// A count-based ceiling would let the larger payload put far more on the air.
-		let small = schedule(NOTIFY_BYTES_A_SECOND / CHUNK, CHUNK);
-		let large = schedule(NOTIFY_BYTES_A_SECOND / 500, 500);
-		let small_span = small.1.last().unwrap().duration_since(small.0);
-		let large_span = large.1.last().unwrap().duration_since(large.0);
-		let difference = small_span.abs_diff(large_span);
-		assert!(
-			difference < Duration::from_millis(50),
-			"same bytes took {small_span:?} at {CHUNK}B but {large_span:?} at 500B"
-		);
-	}
 }

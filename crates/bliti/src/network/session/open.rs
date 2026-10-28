@@ -270,7 +270,11 @@ impl Open {
 			| Message::TamanuActs { .. }
 			| Message::TamanuAct { .. }
 			| Message::TamanuAccepted
-			| Message::TamanuFailed { .. } => {
+			| Message::TamanuFailed { .. }
+			| Message::Provision
+			| Message::ProvisionState { .. }
+			| Message::ProvisionAct { .. }
+			| Message::ProvisionAccepted => {
 				// Nothing a configuration session does anything about, which MSG makes a no-op.
 				tracing::debug!("a message the configuration session has nothing to do about");
 			}

@@ -24,7 +24,7 @@ pub const PAYLOAD_LEN: usize = 1 + PRESENCE_TOKEN_LEN + KEY_FINGERPRINT_LEN;
 pub const ENCODED_LEN: usize = (PAYLOAD_LEN * 8).div_ceil(5);
 
 /// How many characters at the end of the encoded payload name a device.
-const SUFFIX_LEN: usize = 4;
+pub(crate) const SUFFIX_LEN: usize = 4;
 
 const _: () = {
 	// A whole number of base32 blocks, so there are no padding bits.

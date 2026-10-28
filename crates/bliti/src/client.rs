@@ -424,6 +424,15 @@ pub async fn connect(
 					)) => {
 						println!("tamanu:   a Tamanu-stream message");
 					}
+					// The provisioning stream of PRS. This diagnostic client opens none.
+					Ok(Reading::Message(
+						Message::Provision
+						| Message::ProvisionState { .. }
+						| Message::ProvisionAct { .. }
+						| Message::ProvisionAccepted,
+					)) => {
+						println!("provision: a provisioning-stream message");
+					}
 					// A device newer than this build: passed over, or not acted on, but never fatal.
 					Ok(Reading::Skipped(skip)) => println!("skipped:  {skip}"),
 					Ok(Reading::Refused(refusal)) => println!("refused:  {refusal}"),

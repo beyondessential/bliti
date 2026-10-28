@@ -82,6 +82,24 @@ every later start reads the cache. The derivation wants 2 GiB of memory at once,
 kills a process that asks for more than there is rather than failing the allocation, so the daemon
 establishes there is room before it begins.
 
+## Provisioning mode
+
+A device booted from a provisioning medium runs provisioning mode in place of the daemon: it is
+silent until the USER button (GPIO27) is pressed, then advertises for five minutes as
+`ITI_PROVISION_<marker>_<suffix>`, the suffix being the last four characters of the board's QR
+payload, and stops advertising when a client connects. A client or the console drives a run of the
+steps an operator chooses, and the run carries on when either leaves, and across a reboot.
+
+```console
+$ bliti provision-mode --medium /media/provisioning --board-id-source raspberry-pi-serial
+$ bliti provision    # on the device's console: choose the steps, answer prompts, watch the run
+```
+
+Only the provisioning image runs `provision-mode`, from `services/bliti-provision.service`. The
+status LED shows the run: steady amber when no run is held, green blinking while it works, amber
+blinking when it waits on a person, red blinking fast when it has failed, steady green when it has
+finished.
+
 ## Generating a QR code
 
 ```console

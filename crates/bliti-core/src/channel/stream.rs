@@ -338,11 +338,17 @@ where
 /// The handshake reads exactly its two framed messages, leaving no bytes buffered, so the returned
 /// [`NoiseStream`] takes over a clean transport.
 pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
-	mut inner: S,
+	inner: S,
 	psk: &PreSharedKey,
 	fingerprint: &KeyFingerprint,
 ) -> Result<NoiseStream<S>, ChannelError> {
-	let mut handshake = Handshake::initiator(psk, fingerprint)?;
+	initiate(inner, Handshake::initiator(psk, fingerprint)?).await
+}
+
+async fn initiate<S: AsyncRead + AsyncWrite + Unpin>(
+	mut inner: S,
+	mut handshake: Handshake,
+) -> Result<NoiseStream<S>, ChannelError> {
 	let msg1 = handshake.write_message()?;
 	write_delimited::<TRANSPORT_PREFIX, _>(&mut inner, &msg1)
 		.await
@@ -353,6 +359,16 @@ pub async fn connect_initiator<S: AsyncRead + AsyncWrite + Unpin>(
 		.ok_or_else(|| ChannelError::Handshake("peer closed during handshake".to_owned()))?;
 	handshake.read_message(&msg2)?;
 	Ok(NoiseStream::new(inner, handshake.into_transport()?))
+}
+
+/// Run the `NXpsk0` handshake as the initiator against a device in provisioning mode, which has no
+/// key fingerprint to be checked against (PRV, "The provisioning token"). Otherwise as
+/// [`connect_initiator`].
+pub async fn connect_initiator_unauthenticated<S: AsyncRead + AsyncWrite + Unpin>(
+	inner: S,
+	psk: &PreSharedKey,
+) -> Result<NoiseStream<S>, ChannelError> {
+	initiate(inner, Handshake::initiator_unauthenticated(psk)?).await
 }
 
 /// Run the `NXpsk0` handshake as the responder over a byte transport and return the encrypted stream.

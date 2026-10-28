@@ -24,8 +24,9 @@ use tokio::{
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tracing::Instrument;
 
-use super::{Carrier, incoming, serve};
+use super::serve;
 use crate::{
+	carrier::{Carrier, incoming},
 	facts::Supply,
 	session::{AbortOnDrop, Peer, SessionError},
 };

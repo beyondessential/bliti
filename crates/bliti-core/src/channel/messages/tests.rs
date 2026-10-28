@@ -3,6 +3,7 @@ use super::{
 	super::envelope::{Fault, Reading, Refusal, Skip, read, round_trip_omissions},
 	*,
 };
+use crate::provisioning::report::{DoneState, PromptKind, StepState};
 
 fn parse(json: &str) -> Result<Reading<Message>, Fault> {
 	read(json.as_bytes())
@@ -679,4 +680,176 @@ fn tamanu_failed_requires_its_reason() {
 #[test]
 fn tailscale_failed_requires_its_reason() {
 	assert!(parse(r#"{"type":"tailscale-failed"}"#).is_err());
+}
+
+fn step(id: &str, state: StepState) -> StepReport {
+	StepReport {
+		id: id.to_owned(),
+		title: "Write the disk".to_owned(),
+		done: DoneState::NotDone,
+		why: None,
+		state,
+		progress: None,
+		reason: None,
+		result: None,
+	}
+}
+
+/// The provisioning stream's messages round trip, each optional member both present and absent
+/// (PRS).
+#[test]
+fn the_provision_messages_round_trip() {
+	let mut running = step("disk", StepState::Running);
+	running.progress = Some(0.5);
+	running.why = Some("Up to date".to_owned());
+	let mut failed = step("firmware", StepState::Failed);
+	failed.reason = Some("the stick was pulled".to_owned());
+	let mut passed = step("check", StepState::Passed);
+	passed.result = Some(object(r#"{"serial":"abc"}"#));
+	for message in [
+		Message::Provision,
+		Message::ProvisionAccepted,
+		Message::ProvisionState {
+			run: RunState::Idle,
+			steps: Vec::new(),
+			prompts: Vec::new(),
+		},
+		Message::ProvisionState {
+			run: RunState::Waiting,
+			steps: vec![running, failed, passed, step("net", StepState::Unchosen)],
+			prompts: vec![
+				PromptReport {
+					id: "p1".to_owned(),
+					step: "disk".to_owned(),
+					kind: PromptKind::Secret,
+					text: "Type the password".to_owned(),
+					blocking: true,
+				},
+				PromptReport {
+					id: "p2".to_owned(),
+					step: "disk".to_owned(),
+					kind: PromptKind::Other("photo".to_owned()),
+					text: "Take a picture".to_owned(),
+					blocking: false,
+				},
+			],
+		},
+		Message::ProvisionAct {
+			act: "start".to_owned(),
+			steps: Some(vec!["disk".to_owned(), "net".to_owned()]),
+			prompt: None,
+			value: None,
+		},
+		Message::ProvisionAct {
+			act: "answer".to_owned(),
+			steps: None,
+			prompt: Some("p1".to_owned()),
+			value: Some(Answer::boolean(true)),
+		},
+		Message::ProvisionAct {
+			act: "answer".to_owned(),
+			steps: None,
+			prompt: Some("p2".to_owned()),
+			value: Some(Answer::text("hunter2")),
+		},
+		Message::ProvisionAct {
+			act: "retry".to_owned(),
+			steps: None,
+			prompt: None,
+			value: None,
+		},
+	] {
+		let json = message.to_json();
+		assert_eq!(read(&json).unwrap(), Reading::Message(message.clone()));
+		assert_eq!(round_trip_omissions(&message), Vec::<String>::new());
+	}
+}
+
+fn object(json: &str) -> Map<String, Json> {
+	serde_json::from_str(json).unwrap()
+}
+
+/// `provision-act` writes every member it carries in upper case (PRS).
+#[test]
+fn provision_act_writes_its_members_critical() {
+	let answer = Message::ProvisionAct {
+		act: "answer".to_owned(),
+		steps: None,
+		prompt: Some("p1".to_owned()),
+		value: Some(Answer::boolean(false)),
+	};
+	assert_eq!(
+		String::from_utf8(answer.to_json()).unwrap(),
+		r#"{"ACT":"answer","PROMPT":"p1","VALUE":false,"type":"provision-act"}"#
+	);
+	let start = Message::ProvisionAct {
+		act: "start".to_owned(),
+		steps: Some(vec!["a".to_owned()]),
+		prompt: None,
+		value: None,
+	};
+	assert_eq!(
+		String::from_utf8(start.to_json()).unwrap(),
+		r#"{"ACT":"start","STEPS":["a"],"type":"provision-act"}"#
+	);
+}
+
+/// A `provision-act` carrying a critical member this build does not know is not acted on, and one
+/// carrying an ignorable member is (PRS).
+#[test]
+fn provision_act_refuses_a_critical_member_it_does_not_know() {
+	assert!(matches!(
+		parse(r#"{"type":"provision-act","ACT":"stop","FORCE":true}"#).unwrap(),
+		Reading::Refused(_)
+	));
+	assert!(matches!(
+		parse(r#"{"type":"provision-act","ACT":"stop","force":true}"#).unwrap(),
+		Reading::Message(Message::ProvisionAct { .. })
+	));
+}
+
+/// A `provision-act` whose members are not written critical is not read as the act it names (PRS).
+#[test]
+fn provision_act_read_without_its_members_critical_is_a_member_it_lacks() {
+	let Reading::Message(Message::ProvisionAct { act, .. }) =
+		parse(r#"{"type":"provision-act","act":"stop"}"#).unwrap()
+	else {
+		panic!("an act written in lower case is still the act");
+	};
+	assert_eq!(act, "stop");
+}
+
+/// A `provision-state` states the whole run, so every member of it is required (PRS).
+#[test]
+fn provision_state_requires_its_members() {
+	assert!(parse(r#"{"type":"provision-state","steps":[],"prompts":[]}"#).is_err());
+	assert!(parse(r#"{"type":"provision-state","run":"idle","prompts":[]}"#).is_err());
+	assert!(parse(r#"{"type":"provision-state","run":"idle","steps":[]}"#).is_err());
+	assert!(parse(r#"{"type":"provision-state","run":"paused","steps":[],"prompts":[]}"#).is_err());
+}
+
+/// A step or a prompt carrying a member this build does not know is read, ignoring it (PRS).
+#[test]
+fn a_step_and_a_prompt_may_carry_further_members() {
+	let read = parse(
+		r#"{"type":"provision-state","run":"running","steps":[{"id":"a","title":"A","done":"unknown","state":"running","eta":9}],"prompts":[{"id":"p","step":"a","kind":"photo","text":"Look","blocking":false,"hint":"x"}]}"#,
+	)
+	.unwrap();
+	let Reading::Message(Message::ProvisionState { steps, prompts, .. }) = read else {
+		panic!("a state with further members is still a state");
+	};
+	assert_eq!(steps[0].id, "a");
+	assert_eq!(prompts[0].kind, PromptKind::Other("photo".to_owned()));
+}
+
+/// The answer to a prompt does not reach a log through a message's debug output (PRS).
+#[test]
+fn an_answer_does_not_show_in_a_messages_debug_output() {
+	let answer = Message::ProvisionAct {
+		act: "answer".to_owned(),
+		steps: None,
+		prompt: Some("p1".to_owned()),
+		value: Some(Answer::text("hunter2")),
+	};
+	assert!(!format!("{answer:?}").contains("hunter2"));
 }
