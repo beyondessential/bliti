@@ -126,23 +126,39 @@ impl Tailscale {
 		)
 	}
 
-	/// The Tailscale of this machine: tailscaled where its socket is, and none where there is not.
+	/// The Tailscale of this machine: tailscaled where the device runs Tailscale, and none where it
+	/// runs none.
 	///
 	/// Refuses where the device is signed in to a tailnet other than the one it accepts.
 	pub async fn connect(options: Options) -> anyhow::Result<Self> {
 		let netcheck: Arc<dyn Runner> = Arc::new(netcheck::Command::on_path());
 		#[cfg(unix)]
 		{
-			let socket = client::socket_path();
-			// Found by the socket's absence at startup, so a daemon that is down is `broken` and one that
-			// was never there is nothing (NFO).
-			if socket.exists() {
-				let api: Arc<dyn LocalApi> = Arc::new(client::Unix::new(socket));
-				restriction::check_at_startup(&*api, options.tailnet.as_deref()).await?;
-				return Ok(Self::start(api, netcheck, options).await);
-			}
+			Self::connect_at(client::socket_path(), netcheck, options).await
 		}
-		Ok(Self::without_tailscaled(netcheck, options))
+		#[cfg(not(unix))]
+		{
+			Ok(Self::without_tailscaled(netcheck, options))
+		}
+	}
+
+	/// [`Self::connect`], with tailscaled's socket at `socket`.
+	///
+	/// The socket's absence is not the absence of Tailscale: tailscaled may be down, or not yet up
+	/// when the daemon starts. A device that carries the `tailscale` package runs Tailscale, so it
+	/// reports `broken` until tailscaled answers, and is picked up when it does (NFO, "Tailscale").
+	#[cfg(unix)]
+	async fn connect_at(
+		socket: PathBuf,
+		netcheck: Arc<dyn Runner>,
+		options: Options,
+	) -> anyhow::Result<Self> {
+		if !socket.exists() && !netcheck.available() {
+			return Ok(Self::without_tailscaled(netcheck, options));
+		}
+		let api: Arc<dyn LocalApi> = Arc::new(client::Unix::new(socket));
+		restriction::check_at_startup(&*api, options.tailnet.as_deref()).await?;
+		Ok(Self::start(api, netcheck, options).await)
 	}
 
 	/// A device that runs no Tailscale, and so reports none and lists no act but `netcheck`.
