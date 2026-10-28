@@ -2,6 +2,10 @@
 
 F4 stays as the umbrella and closes without merging, so each card below carries what it needs in its own description, and copies anything else it needs (board photos, mockups) from the `workhorse/f4` branch, whose working doc holds the full design. The assembly manual is already its own card (G4). The `linux-images` side (dropping its HAT-only `config.txt` lines, retiring its `pi eeprom` SD) needs a card in that repository, once provisioning installs the HAT overlay and writes the bootloader configuration itself.
 
+## Deploy the web app
+
+The web app is a static single-page app: host it in an S3 bucket behind CloudFront in AWS, deployed by building and uploading, likely at iti.tamanu.app with the provisioning client at `/provision` and the assembly manual at `/assemble`. Add per-pull-request temporary deploys there, so every card after this one can be QA'd on a live deploy of its pull request; that is why it comes first.
+
 ## Identify a Tamanu Iti from its HAT EEPROM
 
 Fill in the placeholder C4 left in the `product` fact so a v4 identifies itself from the HAT information the Pi firmware publishes under `/proc/device-tree/hat/`. A board is a Tamanu Iti when its HAT+ `uuid` is the Iti product UUID `9c2bcc02-123a-4d9d-80e0-72166bec3218`; its version is `product_id`.`product_ver` (published as text, e.g. `0x0004`), so rev B reads as "Tamanu Iti v4.0" and the third generation stays "Tamanu Iti v3". Amend NFO's Product section to major.minor, and specify the EEPROM's contents (HAT+ format, vendor "BES International", product "Tamanu Iti v4.0", `product_id` 4, `product_ver` 0 for rev B and 1 for rev C, and the `tamanu-iti-v4` overlay name). Bring the `tamanu-iti-v4` overlay source into the repo (SPI0 with the TPM on CE1 as `tcg,tpm_tis-spi`, I²C3 on GPIO22/23, no sensor drivers bound) along with the EEPROM image definition; the v4 prototype is already programmed with both.
@@ -13,10 +17,6 @@ The device side of provisioning, without its steps: bliti in provisioning mode o
 ## Build the provisioning image
 
 Assemble the provisioning image in this repo from the `pi` image `linux-images` publishes, rather than building an OS: a starting sketch is to fetch the latest `pi` image, mount it, write the provisioning files into its `FIRMWARE` FAT partition, and pack it again, in GitHub Actions or a container build. The card settles how bliti in provisioning mode gets onto that system, where the NVMe payload (the same `pi` image) sits on the medium and how it is checked (ideally dm-verity, otherwise a checksum), and how the newest bootloader on Raspberry Pi's default channel and the HAT overlay travel with it. The one image is written to a USB stick for the factory or an SD card for repair.
-
-## Deploy the web app
-
-The web app is a static single-page app: host it in an S3 bucket behind CloudFront in AWS, deployed by building and uploading, likely at iti.tamanu.app with the provisioning client at `/provision` and the assembly manual at `/assemble`. Add per-pull-request temporary deploys there for QA and testing.
 
 ## Build the provisioning client page
 
