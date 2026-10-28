@@ -73,3 +73,5 @@ refer to #F4's working doc for any missing details
 ## Keep a central register of provisioned Itis
 
 Send each board's record to a central register, in place of gathering the records files from each provisioning medium.
+
+refer to #F4's working doc for any missing details
