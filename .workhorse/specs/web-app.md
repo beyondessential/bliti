@@ -184,6 +184,17 @@ The application MUST also be installable, such that a browser offers to add it t
 > Working offline makes a phone that has opened the application before useful at a site with no connectivity, and it costs nothing, because the only transport to a device is the BLE channel of [CHN](channel.md).
 > A browser offers to install the application before it is ready offline, so an operator who installs it and leaves coverage at once has an application that will not open until it is back. Saying so while it is not ready is what tells them to wait.
 
+## Pages
+
+The application MUST serve each of its pages at a path of its own, with the one that reaches a device at the root.
+
+A request for a path that is no page MUST be answered as not found, and MUST NOT be answered with a page.
+
+Once ready offline, the application MUST open each page at its path offline, whether or not the path ends in a slash.
+
+> [!NOTE]
+> The application keeps the screens of a page in history state, not in the URL, so a path that names no page has nothing for a fallback to catch, and one would answer a mistyped page with the page that reaches a device.
+
 ## Delivery
 
 The bundle MUST be built with a gzip, a brotli, and a zstd encoding beside each file those encodings make meaningfully smaller.

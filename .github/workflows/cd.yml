@@ -1,0 +1,194 @@
+name: CD
+
+# Production is iti.tamanu.app, deployed on every merge to main. Each pull request from this
+# repository is deployed to pr-<number>.iti.tamanu.app for as long as it is open, so a change can
+# be tried on a live origin of its own: a service worker, its caches and its Bluetooth permissions
+# belong to an origin, and a path under production's would share all of them.
+#
+# The bundle is built by a job with no credentials, because what it runs is the pull request's:
+# npm install scripts and a build. The jobs that hold a role only download what it made and upload
+# it.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+env:
+  AWS_REGION: ap-southeast-2
+  BUCKET: bes-bliti-web
+  PRODUCTION_ROLE: arn:aws:iam::143295493206:role/gha-bliti-web-prod
+  PREVIEW_ROLE: arn:aws:iam::143295493206:role/gha-bliti-web-preview
+
+# Per ref and never cancelled, so two uploads to one prefix do not interleave and a teardown does
+# not race a deploy. A run still waiting is replaced by a newer one, which is the one wanted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    # A pull request from a fork gets no token to assume a role with, and is not deployed. It is
+    # built and tested by CI.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.action != 'closed' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # The commit the pull request holds, not the merge commit the run checks out, which no one
+      # can find.
+      - id: commit
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: echo "short=${SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-web
+        with:
+          build: ${{ steps.commit.outputs.short }}
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: bliti-web
+          path: crates/bliti-web/app/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  production:
+    name: Deploy production
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    # The role trusts this environment's subject, and the environment allows deployments from main
+    # and from tags only, set in the repository's settings. A pull request names the environment
+    # in its own copy of this file all the same, and is refused there, not here.
+    environment:
+      name: production
+      url: https://iti.tamanu.app
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: bliti-web
+          path: crates/bliti-web/app/dist
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PRODUCTION_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      # Superseded hashed files are kept, so a page open across a deploy can still load the module
+      # it was built against.
+      - run: node deploy.js "s3://$BUCKET/prod/"
+        working-directory: crates/bliti-web/app
+
+  preview:
+    name: Deploy preview
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    needs: build
+    runs-on: ubuntu-24.04
+    # No environment: the preview role trusts the pull request subject, and a job in an
+    # environment carries that environment's subject instead.
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: bliti-web
+          path: crates/bliti-web/app/dist
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PREVIEW_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      # Everything is uploaded each time, for objects under previews/ expire a month after their
+      # upload; files the new bundle lacks are deleted after.
+      - run: node deploy.js "s3://$BUCKET/previews/pr-$PR/" --prune
+        working-directory: crates/bliti-web/app
+      # The job is in no environment, so the link to the preview is a deployment made through the
+      # API, which the pull request shows as "View deployment". Its task names the pull request, so
+      # the teardown can find every deployment this made.
+      - uses: actions/github-script@v9.0.0
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const pr = process.env.PR
+            const { owner, repo } = context.repo
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: process.env.SHA,
+              environment: 'preview',
+              task: `preview:pr-${pr}`,
+              description: `Preview of pull request #${pr}`,
+              auto_merge: false,
+              required_contexts: [],
+              transient_environment: true,
+            })
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: 'success',
+              environment_url: `https://pr-${pr}.iti.tamanu.app`,
+              log_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              auto_inactive: false,
+            })
+
+  teardown:
+    name: Tear down preview
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PREVIEW_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: aws s3 rm "s3://$BUCKET/previews/pr-$PR/" --recursive --only-show-errors
+      - uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const deployments = await github.paginate(github.rest.repos.listDeployments, {
+              owner,
+              repo,
+              environment: 'preview',
+              task: `preview:pr-${process.env.PR}`,
+              per_page: 100,
+            })
+            for (const deployment of deployments) {
+              await github.rest.repos.createDeploymentStatus({
+                owner,
+                repo,
+                deployment_id: deployment.id,
+                state: 'inactive',
+              })
+            }

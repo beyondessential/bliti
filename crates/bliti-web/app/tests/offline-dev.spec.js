@@ -64,6 +64,12 @@ test('the dev worker precaches the module graph and public/, answered from the n
 	for (const file of await readdir(PUBLIC)) expect(urls).toContain(`/${file}`)
 })
 
+test('the dev worker precaches every page, and the module graph of each', async ({ request }) => {
+	const { list } = await listOf(request)
+	const urls = list.entries.map((entry) => entry.url)
+	for (const url of ['/', '/tests/second-page', '/tests/second-page.js']) expect(urls).toContain(url)
+})
+
 test.describe('with no service worker to see the load', () => {
 	test.use({ serviceWorkers: 'block' })
 
