@@ -240,7 +240,8 @@ Sending it to a central register is a separate card.
 
 #### Where it's built
 
-Proposed, to confirm: bliti builds the provisioning image, for writing to a USB stick or an SD card, by assembling it from the `pi` image `linux-images` publishes rather than building an OS of its own.
+bliti builds the provisioning image, for writing to a USB stick or an SD card, by assembling it from the `pi` image `linux-images` publishes rather than building an OS of its own.
+A starting sketch, for the card that builds it to settle: fetch the latest `pi` image, mount it, write the provisioning files into its `FIRMWARE` FAT partition, and pack it again, in GitHub Actions or a container build. That card also settles how bliti in provisioning mode gets onto that system, and where the NVMe payload sits on the medium.
 The `pi` image is its OS (the same system, already booting on the Pi with its overlay and boot-slot plumbing), with bliti in provisioning mode and the provisioning boot configuration added, and a partition carrying the `pi` image again as what is written to the NVMe.
 Everything Iti-specific then lives in bliti (EEPROM contents, HAT overlay, bootloader settings, provisioning, the image, and the assembly manual of G4), changing together in one repo; `linux-images` stays a generic Pi OS that knows nothing of Itis, and retires its `pi eeprom` SD.
 The cost is an image-assembly build in bliti, far smaller than `linux-images`' own since it composes a published image.
@@ -379,6 +380,13 @@ Run (28 Oct):
 - The prototype keeps the line commented out (backup at `/boot/firmware/config.txt.f4-backup`). The overlay is also in `/etc/flash-kernel/dtbs/overlays/`, one of the paths `flash-kernel` copies overlays from when it stages a new boot slot on a kernel upgrade, so it survives slot switches
 - Wi-Fi was down after the first reboot and the device was off Tailscale until cabled; most likely the reboot reverting the prototype's dev deploy of bliti, unrelated to the EEPROM
 
+## Related work for the split
+
+- The assembly manual (G4), at `/assemble`, linking to and from the provisioning client.
+- Deploying the web app: it is a static single-page app, so an S3 bucket behind CloudFront in AWS, deployed by building and uploading. Per-pull-request temporary deploys there too, for QA and testing.
+- `linux-images`: drop the HAT-only `config.txt` lines and retire the `pi eeprom` SD.
+- Raspberry Pi secure boot, and a central register of provisioned boards: each its own card.
+
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the provisioning boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
@@ -416,6 +424,5 @@ Run (28 Oct):
 - [x] Both LEDs (ACT green, PWR red) are controllable from Linux, on/off only. Green is active-low: writing 1 turns it off. Tested by eye: green (ACT 0, PWR 0), red (ACT 1, PWR 1), amber (ACT 0, PWR 1, a distinct amber-ish), off (ACT 1, PWR 0); a 1 s blink reads clearly
 - [x] bliti can drive the LEDs from the provisioning system, and red and green together give a distinct amber, so the table above stands
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
-- [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
-- [ ] Confirm the provisioning image is assembled in bliti from the published `pi` image (proposed), rather than built in `linux-images`
-- [ ] The contract between bliti and the `linux-images` provisioning image: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
+- [x] Physically blocking the SD slot: the 3D-printed SD slot shim in the assembly (G4)
+- [x] The provisioning image is assembled in bliti from the published `pi` image; what crosses repos is only `linux-images` publishing that image, dropping its HAT-only `config.txt` lines, and retiring its `pi eeprom` SD
