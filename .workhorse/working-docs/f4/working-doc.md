@@ -195,6 +195,8 @@ One Iti overlay per hardware version that needs a different one (`tamanu-iti-v4`
 It enables the buses and does not bind the sensors' kernel drivers: a bound driver holds the address, which would stop provisioning (and anything else reading the chip directly) from reaching it.
 Whether the sensors get kernel drivers, and whether the buttons become `gpio-keys` input devices, is for the cards that use them; the overlay grows then.
 
+`linux-images` ships it in two places: in the image's `current/overlays/` at build time, and in `/etc/flash-kernel/dtbs/overlays/`, which `flash-kernel` searches (independent of kernel version) when it stages each new boot slot.
+
 With the overlay named in the EEPROM, `linux-images` can drop the lines only the HAT needs (`dtoverlay=tpm-slb9670`, and `dtparam=spi=on` if nothing else uses SPI).
 `dtparam=i2c_arm=on` stays: the backup supply's gauge on bus 1 is not on this HAT, and v3 has no EEPROM to name it.
 
@@ -224,7 +226,7 @@ Run (28 Oct):
 - The firmware publishes the fields as text: `uuid` `9c2bcc02-123a-4d9d-80e0-72166bec3218`, `product_id` `0x0004`, `product_ver` `0x0000`, and the strings, each NUL-terminated
 - With both the EEPROM overlay and the `config.txt` line, the two TPM nodes collide on CE1 ("chipselect 1 already in use") and the first to register wins; harmless, but it is why the line has to go
 - With the `config.txt` line removed, the TPM comes up from the Iti overlay alone (`tcg,tpm_tis-spi`, manufacturer STM), and I²C3 comes up with the light sensor at `0x53` (part ID `0xb1`) and the BME680 at `0x77`
-- The prototype keeps the line commented out (backup at `/boot/firmware/config.txt.f4-backup`). The overlay is only in the `current/` boot slot, so an OS update that switches slots loses it, and the TPM with it, until `linux-images` ships the overlay
+- The prototype keeps the line commented out (backup at `/boot/firmware/config.txt.f4-backup`). The overlay is also in `/etc/flash-kernel/dtbs/overlays/`, one of the paths `flash-kernel` copies overlays from when it stages a new boot slot on a kernel upgrade, so it survives slot switches
 - Wi-Fi was down after the first reboot and the device was off Tailscale until cabled; most likely the reboot reverting the prototype's dev deploy of bliti, unrelated to the EEPROM
 
 ## Implementation options
