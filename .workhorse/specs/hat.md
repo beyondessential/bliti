@@ -49,19 +49,20 @@ A Tamanu Iti's version is its major and minor versions, joined by a full stop: r
 
 ## Recognising a Tamanu Iti
 
-The Pi's firmware publishes a programmed HAT EEPROM under the `hat` node of the device tree, one property per field, each as text.
-It publishes `uuid` hyphenated, `product_id` and `product_ver` in hexadecimal with a `0x` prefix, as `0x0004`, and each string terminated with a NUL.
-It publishes nothing where no EEPROM is fitted or the EEPROM is blank.
+The Pi's firmware publishes a programmed HAT EEPROM as text files under `/proc/device-tree/hat/`, one per field: `uuid`, `product_id`, `product_ver`, `vendor` and `product`.
+It publishes `uuid` hyphenated, `product_id` and `product_ver` as `0x` followed by hexadecimal digits, as `0x0004`, and ends each file's text with a NUL.
+It publishes nothing under that path where no EEPROM is fitted or the EEPROM is blank.
 
-A reader MUST take a board for a Tamanu Iti where, and only where, the published `uuid` is the product UUID of [Contents](#contents).
+A reader MUST take a board for a Tamanu Iti where, and only where, `/proc/device-tree/hat/uuid` holds the product UUID of [Contents](#contents).
 
-A reader MUST take the board's version from the published `product_id` and `product_ver`, and MUST NOT read either from a board whose `uuid` is another.
+A reader MUST take the board's version from `/proc/device-tree/hat/product_id` and `/proc/device-tree/hat/product_ver`, and MUST NOT read either from a board whose `uuid` is another.
 
-A reader MUST NOT take a board for a Tamanu Iti where the published `product_id` or `product_ver` cannot be read as a number.
+A reader MUST NOT take a board for a Tamanu Iti where either of those files is absent, or holds text other than `0x` followed by hexadecimal digits.
 
 A reader MUST NOT use `vendor` or `product` to recognise a Tamanu Iti or to find its version.
 
 > [!NOTE]
+> The EEPROM holds `product_id` and `product_ver` as integers, so a board the firmware has read cannot publish anything else. The rule covers a path that is incomplete or text that is not the firmware's.
 > The strings are for whoever reads the board, and a reader that matched on them would tie recognition to a spelling.
 > A board whose `uuid` is the Tamanu Iti's and whose version cannot be read is not recognised, so [NFO](device-info.md#product) reports it as it does any board that carries a TPM and no identifying EEPROM.
 
