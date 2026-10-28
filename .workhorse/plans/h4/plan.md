@@ -21,22 +21,21 @@ What it costs is on the infra side: a wildcard certificate and DNS record for `*
 
 ## Contract with the infra side
 
-What bliti's upload writes and what infra#V3's distribution reads.
+The infra repository's Bliti web app hosting spec (BLWEB, on infra#V3) is the contract: bucket prefixes, host and path routing, variants, and the deploy roles' subjects and prefixes. What bliti relies on from it, and why:
 
 ### Bucket layout
 
-- Production at `prod/`, each pull request at `pr/<number>/`. Keeping production under a prefix of its own makes the two roles' write permissions disjoint.
+- Production at `prod/`, each pull request at `previews/pr-<number>/`. Keeping production under a prefix of its own makes the two roles' write permissions disjoint.
 - Within a prefix, the bundle as `dist` holds it, at the same relative paths.
+- Everything under `previews/` expires 30 days after its upload.
 
 ### What the distribution does with it
 
-infra#V3's to design; bliti relies on:
-
-- Host to prefix: `iti.tamanu.app` serves `prod/`, `pr-<number>.iti.tamanu.app` serves `pr/<number>/`.
+- Host to prefix: `iti.tamanu.app` serves `prod/`, `pr-<number>.iti.tamanu.app` serves `previews/pr-<number>/`.
 - Pages: `/` serves `index.html`, and any other path with no extension serves that path plus `.html`, so `/provision` is `provision.html`. The page-to-variant step comes after this one, so a page gets its encodings like any other `.html`.
 - Trailing slash: a path other than `/` ending in `/` is a permanent redirect to the same path without it, query kept, so `/provision/` goes to `/provision`. Each page has one URL, and so one history entry and one key in the service worker, while a slash typed or carried in a printed link still lands on the page.
 - A missing key is a 404, not the 403 S3 gives where the distribution cannot list the bucket, and never falls back to `index.html`: the client keeps its screens in history state, not in the URL, so there is nothing for a single-page fallback to catch, and one would answer a mistyped page with the operator app.
-- The precompressed variants served as WEB's Delivery section requires. How the distribution chooses among them is the infra side's.
+- The precompressed variants served as WEB's Delivery section requires, zstd preferred, then brotli, then gzip.
 
 ### Object metadata the upload sets
 
@@ -64,10 +63,11 @@ This card puts in what any page after the first needs, so adding one is adding i
 
 ### Roles and environments
 
-- Production: GitHub environment `production`, restricted to `main`. Its OIDC role is trusted for `repo:beyondessential/bliti:environment:production` and may write `prod/*`.
-- Previews: GitHub environment `preview`, unrestricted, with the deploy's URL set per run so the PR shows a "View deployment" link. Its role is trusted for `repo:beyondessential/bliti:environment:preview` and may write and delete `pr/*`.
-- A `pull_request` run takes its workflow from the PR head, so a PR could name `production` in its own copy of the workflow. The environment's branch restriction is what stops that, not the workflow file.
-- Neither role needs invalidation rights given the cache-control above.
+- Production: the deploy job runs in GitHub environment `production`, which allows deployments from `main` and tags only. Its role trusts the subject `repo:beyondessential/bliti:environment:production` and writes `prod/`.
+- Previews: the deploy and teardown jobs run in no environment, because the preview role trusts the subject `repo:beyondessential/bliti:pull_request`, and a job in an environment carries the environment's subject instead. It writes `previews/`, and cannot tell one PR's preview from another's.
+- A `pull_request` run takes its workflow from the PR head, so a PR could name `production` in its own copy of the workflow. The environment's branch restriction is what stops that, not the workflow file. The `production` environment, with that restriction, is set up in the bliti repository's settings.
+- Both roles may invalidate; nothing here does, given the cache-control above.
+- With no environment on the preview job, the link to a preview comes from a GitHub deployment the job creates through the API (environment `preview`, its URL on the deployment status), so the PR shows "View deployment" without changing the job's subject. Teardown marks it inactive. That needs `deployments: write`, beside `id-token: write`.
 
 ### Workflows
 
@@ -75,8 +75,8 @@ This card puts in what any page after the first needs, so adding one is adding i
 - `cd.yml` triggers on push to `main` (every merge deploys production until the first release; revisit for tags then) and on `pull_request` (opened, synchronize, reopened, closed).
   - Build: the composite action, skipped on `closed`.
   - Deploy production: on push to `main`, environment `production`, uploads to `prod/`.
-  - Deploy preview: on a same-repo PR not closed (`head.repo.full_name == github.repository`), environment `preview`, uploads to `pr/<number>/`.
-  - Tear down preview: on `closed`, environment `preview`, deletes `pr/<number>/`.
+  - Deploy preview: on a same-repo PR not closed (`head.repo.full_name == github.repository`), uploads to `previews/pr-<number>/`.
+  - Tear down preview: on `closed`, deletes `previews/pr-<number>/`.
   - Concurrency per ref, not cancelled in progress, so two uploads to one prefix never interleave and a teardown never races a deploy.
 - Fork PRs build in CI as now and do not deploy.
 
@@ -96,6 +96,7 @@ ci.yml's v4 pins move up with the composite action, since the two share those st
 ## Upload
 
 - Upload order: everything under `assets/` first, then the rest, `sw.js` and `index.html` last, so a client never loads a document that names files not yet uploaded.
+- Every deploy uploads every file, changed or not, rather than syncing only what differs. Preview objects expire 30 days after their upload, so a sync would leave a long-lived PR's unchanged files to expire under the rest of its preview. A PR left without a push for 30 days loses its preview, and its next push brings it back.
 - Previews delete files the new bundle no longer has, after uploading. Production keeps superseded hashed assets, so a page open across a deploy can still lazily load the wasm module it was built against; they are a few files per release.
 - Written as a script beside `precompress.js`, run by a `just deploy <s3 url>` recipe, so a deploy from a laptop with credentials is the same as one from CI. It shells out to the AWS CLI rather than taking on the AWS SDK as a dependency.
 
@@ -104,6 +105,13 @@ ci.yml's v4 pins move up with the composite action, since the two share those st
 A built bundle reports `package.json`'s version alone, `0.0.0`, which cannot tell one deploy from another.
 The deploy build tags it with the commit as build metadata (`0.0.0+<short sha>`), as the dev server already does and as `BLITI_BUILD` does for the daemon, so a tester can tell which commit a preview is serving and the device's log names it.
 
-## Open
+## AWS resources
 
-- Region and account for the bucket, the bucket name, and the role ARNs: from infra#V3.
+From infra#V3, in account 143295493206, region ap-southeast-2:
+
+- Bucket `bes-bliti-web`.
+- Distribution `E2STLUOPU1SHP5`. The workflows do not need it, as nothing invalidates.
+- Production role `arn:aws:iam::143295493206:role/gha-bliti-web-prod`, assumed under environment `production`.
+- Preview role `arn:aws:iam::143295493206:role/gha-bliti-web-preview`, assumed by a `pull_request` job in no environment.
+
+These go in `cd.yml`'s `env`, as linux-images keeps its role, rather than in repository variables: none of them is secret, and the workflow reads complete without a trip to the settings.
