@@ -161,7 +161,7 @@ Mockup: the QR label sheet (`.workhorse/design/mockups/f4/label-sheet.html`), at
 
 At the end, each board's record is shown to the assembler in the client and appended to a file on the provisioning SD card's FAT partition, so it can be read on any computer.
 One line per board, tab-separated, in the manner of the `linux-images` installer's `recovery-keys.txt`: the QR suffix, the version, the UUID of the NVMe's LUKS partition (to match a disk to its passphrase), the recovery passphrase, and when it was provisioned.
-The recovery passphrase follows the installer's rules: at least 25 printable ASCII characters, no whitespace.
+The recovery passphrase is made the way the `linux-images` installer makes one, so it is easy to type at a keyboard: six lowercase words of at least five letters, drawn from the miniLock diceware word list and joined by hyphens.
 Sending it to a central register is a separate card.
 
 #### Where it's built
