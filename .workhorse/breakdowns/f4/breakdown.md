@@ -55,7 +55,7 @@ refer to #F4's working doc for any missing details
 
 ## Sign the Iti in to Tailscale during provisioning
 
-Ask for a reusable Tailscale auth key with a week expiry (if one doesn't exist in local storage yet, and expire a saved one after a week) and the Iti's name right after the EEPROM step without holding the run up (the disk write starts at once), keep the key in local storage (client-side), and sign in against the new system's Tailscale state once its encrypted root is open, so the Iti's first boot comes up on the tailnet. A power cut before the sign-in loses the key, and the step then waits for it again. Only auth keys reach the device; where the tailnet uses an OAuth client, the browser mints the key. The card settles the naming scheme, how the client holds the credential for a session of boards, and whether a browser can mint keys.
+Ask for a reusable Tailscale auth key with a week expiry (if one doesn't exist in local storage yet, and expire a saved one after a week) and the Iti's name right after the EEPROM step without holding the run up (the disk write starts at once), keep the key in local storage (client-side), and sign in against the new system's Tailscale state once its encrypted root is open, so the Iti's first boot comes up on the tailnet. A power cut before the sign-in loses the key, and the step then waits for it again. The card settles the naming scheme, how the client holds the credential for a session of boards, and whether a browser can mint keys.
 
 refer to #F4's working doc for any missing details
 
