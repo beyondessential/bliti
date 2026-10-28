@@ -52,13 +52,17 @@ Ask for the Tailscale auth key and the Iti's name right after the EEPROM step wi
 refer to #F4's working doc for any missing details
 
 ## Print QR labels for provisioned Itis
+<!-- mockups: label-sheet -->
 
 The client produces an A4 PDF of 50 × 30 mm labels in a three-by-nine grid with cut lines, for sticker sheets on a laser printer, holding a label for each board this browser has provisioned since its last sheet. Each label carries the QR code (version 5 at level H, filling the height with its quiet zone), the four-character suffix, and "Tamanu Iti v4.0"; never the recovery passphrase. A production label printer is chosen later.
-<!-- mockups: label-sheet -->
+
+refer to #F4's working doc for any missing details
 
 ## Update the TPM firmware during provisioning
 
 Update the ST33KTPM's firmware wherever it is older than the image the medium carries, never downgrading, before anything takes the TPM's identity or keys; the reset is a reboot the run survives. The prototype runs `0x00090101`, and newer firmware needs the LMS-signed manifest path (wolfTPM's `st33_fw_update` handles both). Blocked until BES obtains the firmware images from ST, which are not public.
+
+refer to #F4's working doc for any missing details
 
 ## Lock the Iti's boot with Raspberry Pi secure boot
 
