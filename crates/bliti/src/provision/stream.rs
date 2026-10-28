@@ -33,6 +33,7 @@ where
 	serve(incoming, &mut writer, Carrier::Channel, provisioner, peer).await
 }
 
+// spec: PRS
 /// Serve a provisioning stream whose opening `provision` has been read, until it ends (PRS).
 ///
 /// Sends the state on opening and each time anything it carries changes, and answers every

@@ -95,7 +95,10 @@ impl Medium {
 	fn contents(&self) -> String {
 		let mut all = String::new();
 		for entry in walk(self.0.path()) {
-			all.push_str(&String::from_utf8_lossy(&std::fs::read(entry).unwrap()));
+			// A file may be renamed into place between listing it and reading it.
+			if let Ok(bytes) = std::fs::read(entry) {
+				all.push_str(&String::from_utf8_lossy(&bytes));
+			}
 		}
 		all
 	}
@@ -103,8 +106,11 @@ impl Medium {
 
 fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 	let mut files = Vec::new();
-	for entry in std::fs::read_dir(dir).unwrap() {
-		let path = entry.unwrap().path();
+	let Ok(entries) = std::fs::read_dir(dir) else {
+		return files;
+	};
+	for entry in entries.flatten() {
+		let path = entry.path();
 		if path.is_dir() {
 			files.extend(walk(&path));
 		} else {

@@ -113,6 +113,7 @@ async fn converse(streams: &mut Streams, provisioner: &Provisioner) -> Result<()
 	}
 }
 
+// spec: PRV
 /// Serve one stream a client opened, until it ends: the provisioning stream where its `provision`
 /// opens one, and nothing for any other role or topic. Whatever happens here leaves the other
 /// streams and the connection alive.

@@ -121,6 +121,7 @@ impl Kind {
 	}
 
 	/// Whether the device accepts this act in `state`.
+	// spec: RUN
 	fn accepted_in(self, state: RunState) -> bool {
 		use RunState::*;
 		match self {
@@ -531,6 +532,7 @@ impl Inner {
 	}
 }
 
+// spec: RUN
 /// Hold the run `stored` describes, where it matches the steps this device has.
 fn adopt(model: &mut Model, stored: &Stored) -> bool {
 	let known = |id: &String| model.index_of(id);
