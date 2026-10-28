@@ -16,7 +16,7 @@ Add facts for what the rev B HAT's sensors measure, on I²C3 (GPIO22/23) as the 
 
 ## Report whether the case is open · M4
 
-Add a fact for whether the Iti's case is closed, from the CASE switch on GPIO17 (low while the lid presses it). The card decides whether opening the case is also recorded as an event, with when it happened, beyond the current state.
+Add a fact for whether the Iti's case is closed, from the CASE switch on GPIO17 (low while the lid presses it). The card decides whether opening the case is also recorded as an event, with when it happened, beyond the current state. DONE.
 
 ## Run provisioning mode on the device · K4
 
