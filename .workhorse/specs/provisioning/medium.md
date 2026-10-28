@@ -25,6 +25,8 @@ The medium's system MUST run bliti in provisioning mode from boot, with the data
 
 The medium's system MUST NOT install or run bliti's ordinary daemon.
 
+The medium's system MUST NOT update its own software.
+
 > [!NOTE]
 > The ordinary daemon would hold the lines of the board's switches, advertise as an ordinary device, and keep its own state on the medium.
 
@@ -48,7 +50,7 @@ The medium's firmware configuration MUST NOT load any overlay, other than the HA
 > A fresh board's EEPROM names no overlay, and a programmed one names the HAT overlay.
 > Loading the overlay from the configuration alone gives both the same devices, and a second overlay declaring the TPM would collide with it.
 
-The medium's system MUST carry the HAT overlay among the overlays of its current boot slot, and among the overlays its kernel updates copy into a new boot slot.
+The medium's system MUST carry the HAT overlay among the overlays of its current boot slot.
 
 The medium's system MUST make the HAT EEPROM's bus, on GPIO0 and GPIO1, available to software.
 

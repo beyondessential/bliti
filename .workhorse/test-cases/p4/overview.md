@@ -8,7 +8,8 @@
 - [ ] Flipping a byte in the payload makes a read through verity fail (verifies spec: PMED)
 - [ ] The root holds `bliti`, the provisioning unit enabled, `/etc/bliti/provision.env` with the data mount and `tpm-endorsement-key`, and no `bliti.service` (verifies spec: PMED)
 - [ ] `/usr/share/bliti/provision/` holds the bootloader, overlay, EEPROM image and manifest; the overlay and EEPROM image match `just hat-overlay` and `just hat-eeprom` from the same commit (verifies spec: PMED)
-- [ ] `config.txt` sets `force_eeprom_read=0`, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` and `/etc/flash-kernel/dtbs/overlays/` (verifies spec: PMED)
+- [ ] `config.txt` sets `force_eeprom_read=0`, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` (verifies spec: PMED)
+- [ ] Nothing on the root upgrades packages unattended: `unattended-upgrades` and the `apt-daily` timers are masked (verifies spec: PMED)
 - [ ] The manifest has every entry in order, and `manifest.txt` on the data partition matches it (verifies spec: PMED)
 - [ ] A `pi` image whose checksum does not match fails the build (verifies spec: PMED)
 
