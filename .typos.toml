@@ -16,3 +16,5 @@ unparseable = "unparseable" # incredibly common typo and honestly idgaf
 Emitable = "Emitable" # upstream typo in wl-nl80211
 FILS = "FILS" # Fast Initial Link Setup
 Oif = "Oif" # route output interface
+ALS = "ALS" # ambient light sensor, in the LTR-308ALS's name and registers
+Measurment = "Measurment" # upstream typo in bosch-bme680

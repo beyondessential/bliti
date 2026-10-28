@@ -39,7 +39,7 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `product`, `board` with `board-revision`, `os`, `kernel` |
-| tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `case-closed`, `last-boot` |
+| tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `humidity`, `air-pressure`, `light`, `power-source`, `battery-charge`, `channel-clients`, `case-closed`, `last-boot` |
 | within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max`, `case-last-opened` |
 | appended | everything it does not recognise |
 

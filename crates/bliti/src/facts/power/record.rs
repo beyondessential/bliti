@@ -63,7 +63,10 @@ pub fn record_supply(supply: Supply, controller: Controller) -> io::Result<()> {
 /// unconnected pin reads as external power present.
 fn look() -> Look {
 	let gauge = read_gauge().map_err(|err| match err {
-		i2c::Error::NoDevice => Unanswered::NoGauge,
+		// None of these is a backup board in difficulty. An ordinary laptop carries a dozen I2C buses
+		// for its display connectors, all of them root-only; and a bus whose address goes
+		// unacknowledged is wired to something else entirely.
+		i2c::Error::NoBus | i2c::Error::Denied | i2c::Error::NoAnswer => Unanswered::NoGauge,
 		err => Unanswered::Failed(err.to_string()),
 	});
 	let external = match gauge {

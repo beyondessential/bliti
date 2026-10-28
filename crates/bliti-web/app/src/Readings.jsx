@@ -25,6 +25,7 @@ import {
 	headlineAddresses,
 	reasonOf,
 	scaleOf,
+	sensorLabelOf,
 	seriesKey,
 	statusOf,
 } from './readings.js'
@@ -612,7 +613,7 @@ function TemperatureTile({ sensors, history }) {
 }
 
 function sensorName(entry) {
-	return typeof entry.traits?.sensor === 'string' ? entry.traits.sensor : qualifierOf(entry)
+	return typeof entry.traits?.sensor === 'string' ? sensorLabelOf(entry.traits.sensor) : qualifierOf(entry)
 }
 
 /// An entry this build does not recognise, rendered from its own name, traits and value. A fact gets

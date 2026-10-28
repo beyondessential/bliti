@@ -218,6 +218,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `hotspot-clients` | `quantity`, `clients` | — | how many clients are joined to the hotspot |
 | `temperature` | `quantity`, `celsius` | `sensor` | each temperature sensor |
 | `fan-speed` | `quantity`, `revolutions/minute` | `fan` | fan speed |
+| `humidity` | `fraction` | — | the relative humidity of the air inside the case |
+| `air-pressure` | `quantity`, `pascals` | — | the air pressure inside the case |
+| `light` | `quantity`, `lux` | — | the light falling on the light sensor |
 | `power-source` | `text` | — | where the device's power is coming from |
 | `battery-charge` | `fraction` | `battery` | the charge left: as [CHG](battery/charge.md) estimates it for a backup supply the device manages, and the state of charge otherwise |
 | `battery-voltage` | `quantity`, `volts` | `battery` | cell voltage |
@@ -236,7 +239,7 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `passphrase` | — | the secret a client joins the hotspot with |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
-| `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
+| `sensor` | — | which temperature sensor, of which `cpu` is the processor core and `case` the air inside the case |
 | `fan` | — | which fan |
 | `battery` | `name`, `serial`, `model`, `vendor` | which battery, where a device holds more than one; `name` tells them apart and the rest describe the cell |
 | `status` | `is`, `reason` | how the datum stands, as above |
@@ -544,6 +547,29 @@ A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequen
 > [!NOTE]
 > Carrying the board's own thresholds draws the reading against the temperature the board considers hot, rather than against an invented scale.
 > Ordinary idle scaling lowers the frequency, so a device that inferred throttling from the two figures would report it on a device that is simply not busy.
+
+## Air and light
+
+A device MUST take the air and light sensors fitted to it from the version its HAT EEPROM records, as [HAT](hat.md) has it, and MUST NOT take them from which devices answer on the bus.
+
+| version | sensor | where | reports |
+| --- | --- | --- | --- |
+| 4.0 | Bosch BME680 | address `0x77` on the third I²C bus | `temperature` on the `case` sensor, `humidity`, `air-pressure` |
+| 4.0 | Lite-On LTR-308ALS | address `0x53` on the third I²C bus | `light` |
+
+A device whose board is not recognised as a Tamanu Iti, or whose version the table does not list, has none of these sensors fitted.
+
+A device MUST report every entry of a fitted sensor as `broken`, with a reason naming the sensor, where the sensor does not answer or answers as a different part.
+
+A device MUST NOT heat the BME680's gas sensor.
+
+`temperature` on the `case` sensor, `humidity`, `air-pressure` and `light` have no notion of being in difficulty.
+
+> [!NOTE]
+> Taking the fitted sensors from the version means a sensor that stops answering shows as broken rather than disappearing.
+> The BME680 sits on the HAT beside the Pi, so it reads warmer and drier than the room the device is in.
+> The LTR-308ALS is lit through the case's vents, so it reads lower than the room's light.
+> Its gas heater would warm it further, and the gas resistance it yields means little without Bosch's closed air quality library.
 
 ## Sampling
 

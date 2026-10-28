@@ -59,6 +59,9 @@ export const TILE_ORDER = [
 	'temperature',
 	'cpu-frequency',
 	'fan-speed',
+	'humidity',
+	'air-pressure',
+	'light',
 	'power-source',
 	'battery-charge',
 	'channel-clients',
@@ -93,6 +96,9 @@ const LABELS = {
 	temperature: 'Temperature',
 	'cpu-frequency': 'Processor speed',
 	'fan-speed': 'Fan',
+	humidity: 'Humidity',
+	'air-pressure': 'Air pressure',
+	light: 'Light',
 	'power-source': 'Power',
 	'battery-charge': 'Battery',
 	'battery-time-to-empty': 'Time left',
@@ -108,6 +114,13 @@ const LABELS = {
 const VALUES = {
 	'power-source': { 'via-backup': 'On backup', battery: 'On battery', 'bypassing-backup': 'Backup bypassed' },
 	'battery-direction': { charging: 'Charging', discharging: 'Discharging', idle: 'Idle' },
+}
+
+// Our wording for the temperature sensors the catalogue names; another is shown as sent.
+const SENSORS = { cpu: 'Processor', case: 'Inside case' }
+
+export function sensorLabelOf(sensor) {
+	return SENSORS[sensor] ?? sensor
 }
 
 // Our wording for the two values of the catalogue's boolean readings; a boolean not here is yes or no.
@@ -186,6 +199,10 @@ function formatQuantity(number, unit) {
 			return `${trim(number)} °C`
 		case 'volts':
 			return `${trim(number)} V`
+		case 'pascals':
+			return `${trim(number / 100)} hPa`
+		case 'lux':
+			return `${trim(number)} lx`
 		case 'revolutions/minute':
 			return `${Math.round(number)} rpm`
 		case 'clients':
