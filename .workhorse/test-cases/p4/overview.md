@@ -29,5 +29,5 @@
 
 - [ ] A merge to `main` replaces the three files under `/downloads/` on iti.tamanu.app (verifies spec: PMED)
 - [ ] The weekly run publishes with no bliti change (verifies spec: PMED)
-- [ ] A PR with the box ticked gets the files on its preview origin; unticking removes them; a later preview deploy keeps them while ticked (verifies spec: PMED)
+- [ ] A PR with the box ticked gets the files on its preview origin; unticking removes them; a later preview deploy keeps them while ticked
 - [ ] The downloaded image matches its `.sha256`

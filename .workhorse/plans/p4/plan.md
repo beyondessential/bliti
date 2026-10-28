@@ -30,7 +30,7 @@ The medium needs a 32 GB stick or card: the stick's own 8 GiB system, the 8 GiB 
 ## CI
 
 - A workflow, triggered by `push` to `main`, a weekly `schedule`, and `pull_request`, with its concurrency grouped by ref like `cd.yml`. Production uploads go through the `production` environment and its existing role. A scheduled run executes on `main`, so its OIDC subject is the one the role already trusts. Previews use the preview role.
-- PR opt-in: a "Build the provisioning image" tickbox in `.github/pull_request_template.md`, read from the PR body. `pull_request` needs the `edited` type for ticking the box to take effect. Keep `edited` from re-running the web build and deploy in `cd.yml`.
+- PR opt-in, since an image is several gigabytes: a "Build the provisioning image" tickbox in `.github/pull_request_template.md`, read from the PR body. While it is ticked, the PR's preview serves an image built from its head at the same `/downloads/` paths; unticked, it serves none. `pull_request` needs the `edited` type for ticking the box to take effect. Keep `edited` from re-running the web build and deploy in `cd.yml`.
 - The image job uploads `downloads/` itself and deletes it from a preview prefix when the box is unticked. `deploy.js --prune` must leave `downloads/` alone, or every preview deploy would delete the image. PR close already removes the whole prefix.
 - Uploads are `application/zstd` (and `text/plain` for `.sha256`/`.txt`), revalidated rather than immutable, since the name is stable.
 - Check that the web app's service worker neither precaches nor intercepts `/downloads/`.

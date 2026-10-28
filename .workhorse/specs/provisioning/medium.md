@@ -133,7 +133,7 @@ The build MUST produce the medium as one raw disk image compressed with zstd, th
 
 The medium MUST be built and published on each merge to bliti's main branch, and once a week.
 
-The production origin of [WEB](../web-app.md) MUST serve the newest medium at these paths, each build replacing the last.
+`https://iti.tamanu.app` MUST serve the newest medium at these paths, each build replacing the last.
 
 | path | is |
 | --- | --- |
@@ -141,8 +141,5 @@ The production origin of [WEB](../web-app.md) MUST serve the newest medium at th
 | `/downloads/tamanu-iti-provision.img.zst.sha256` | its SHA-256 digest, in the form `sha256sum` reads |
 | `/downloads/tamanu-iti-provision.txt` | its manifest |
 
-A pull request's preview origin MUST serve a medium built from the pull request at the same paths where the pull request's description has its "Build the provisioning image" box ticked, and MUST NOT serve one otherwise.
-
 > [!NOTE]
 > The weekly build picks up a new `pi` image or bootloader with no change to bliti.
-> A medium is several gigabytes, so a pull request builds one only when asked to.
