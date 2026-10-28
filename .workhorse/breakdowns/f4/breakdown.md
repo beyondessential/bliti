@@ -4,7 +4,7 @@ F4 stays as the umbrella and closes without merging, so each card below carries 
 
 ## Deploy the web app · H4
 
-The web app is a static single-page app: host it in an S3 bucket behind CloudFront in AWS, deployed by building and uploading, likely at iti.tamanu.app with the provisioning client at `/provision` and the assembly manual at `/assemble`. Add per-pull-request temporary deploys there, so every card after this one can be QA'd on a live deploy of its pull request; that is why it comes first.
+The web app is a static single-page app: host it in an S3 bucket behind CloudFront in AWS, deployed by building and uploading, likely at iti.tamanu.app with the provisioning client at `/provision` and the assembly manual at `/assemble`. Add per-pull-request temporary deploys there, so every card after this one can be QA'd on a live deploy of its pull request; that is why it comes first. DONE.
 
 ## Identify a Tamanu Iti from its HAT EEPROM · J4
 
