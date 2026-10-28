@@ -68,6 +68,8 @@ refer to #F4's working doc for any missing details
 
 Close the gap the TPM-only keyslot leaves: anyone who can boot their own system on the board can have the TPM unseal the disk. Secure boot signs the boot images and burns a customer key into each board's OTP, irreversibly, which would become another provisioning step.
 
+refer to #F4's working doc for any missing details
+
 ## Keep a central register of provisioned Itis
 
 Send each board's record to a central register, in place of gathering the records files from each provisioning medium.
