@@ -28,6 +28,9 @@ use super::{
 	messages::{Message, Secret, Span},
 	readings::Entry,
 };
+use crate::provisioning::report::{
+	Answer, DoneState, PromptKind, PromptReport, RunState, StepReport, StepState,
+};
 
 /// A well-formed member name: letters, digits and hyphens, wholly one case.
 ///
@@ -148,6 +151,73 @@ fn failure() -> impl Strategy<Value = Failure> {
 		})
 }
 
+/// One step of a `provision-state`, its optional members generated present and absent.
+fn step_report() -> impl Strategy<Value = StepReport> {
+	(
+		"[a-z0-9-]{1,12}",
+		"[A-Za-z ]{1,20}",
+		prop::sample::select(vec![
+			DoneState::Done,
+			DoneState::NotDone,
+			DoneState::Unknown,
+		]),
+		prop::option::of("[A-Za-z ]{1,20}"),
+		prop::sample::select(StepState::ALL),
+		prop::option::of((0u32..=100).prop_map(|n| f64::from(n) / 100.0)),
+		prop::option::of("[a-z ]{1,20}"),
+		prop::option::of(object_of(json())),
+	)
+		.prop_map(
+			|(id, title, done, why, state, progress, reason, result)| StepReport {
+				id,
+				title,
+				done,
+				why,
+				state,
+				progress,
+				reason,
+				result,
+			},
+		)
+}
+
+/// One open prompt of a `provision-state`, of a kind this build knows and of one it does not.
+fn prompt_report() -> impl Strategy<Value = PromptReport> {
+	(
+		"[a-z0-9-]{1,10}",
+		"[a-z0-9-]{1,12}",
+		prop_oneof![
+			Just(PromptKind::Notice),
+			Just(PromptKind::Confirm),
+			Just(PromptKind::Text),
+			Just(PromptKind::Secret),
+			"[a-z]{1,8}".prop_filter_map("a kind this build knows", |name| {
+				match PromptKind::read(&name) {
+					PromptKind::Other(name) => Some(PromptKind::Other(name)),
+					_ => None,
+				}
+			}),
+		],
+		"[A-Za-z ]{1,30}",
+		any::<bool>(),
+	)
+		.prop_map(|(id, step, kind, text, blocking)| PromptReport {
+			id,
+			step,
+			kind,
+			text,
+			blocking,
+		})
+}
+
+/// An answer: the boolean of a `confirm` prompt or the text of the others.
+fn answer() -> impl Strategy<Value = Answer> {
+	prop_oneof![
+		any::<bool>().prop_map(Answer::boolean),
+		"[A-Za-z0-9 ]{0,20}".prop_map(Answer::text),
+	]
+}
+
 /// One application message, over every type this build knows.
 ///
 /// A type added to [`Message`] belongs here too. The oracle's reach is exactly this strategy's
@@ -251,6 +321,27 @@ pub fn message() -> impl Strategy<Value = Message> {
 		1 => "[a-z-]{1,10}".prop_map(|act| Message::TamanuAct { act }),
 		1 => Just(Message::TamanuAccepted),
 		1 => "[a-z ]{1,20}".prop_map(|reason| Message::TamanuFailed { reason }),
+		// The provisioning stream of PRS.
+		1 => Just(Message::Provision),
+		1 => (
+			prop::sample::select(RunState::ALL),
+			prop::collection::vec(step_report(), 0..4),
+			prop::collection::vec(prompt_report(), 0..3),
+		)
+			.prop_map(|(run, steps, prompts)| Message::ProvisionState { run, steps, prompts }),
+		1 => (
+			"[a-z-]{1,10}",
+			prop::option::of(prop::collection::vec("[a-z0-9-]{1,10}", 0..4)),
+			prop::option::of("[a-z0-9-]{1,10}"),
+			prop::option::of(answer()),
+		)
+			.prop_map(|(act, steps, prompt, value)| Message::ProvisionAct {
+				act,
+				steps,
+				prompt,
+				value,
+			}),
+		1 => Just(Message::ProvisionAccepted),
 	]
 }
 

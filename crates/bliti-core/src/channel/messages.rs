@@ -23,6 +23,7 @@ use super::{
 	envelope::{Criticality, MessageSet},
 	readings::Entry,
 };
+use crate::provisioning::report::{Answer, PromptReport, RunState, StepReport};
 
 /// One application message. Both ends speak this set.
 #[derive(Debug, Clone, PartialEq)]
@@ -258,6 +259,37 @@ pub enum Message {
 		/// Why, in the device's own words.
 		reason: String,
 	},
+
+	/// A client opening a provisioning stream, first on the stream it opens for it (PRS).
+	Provision,
+
+	/// A device's answer to `provision`, and what it sends on every provisioning stream each time
+	/// anything it carries changes: the whole state, so a client learns where a run stands from one
+	/// message (PRS).
+	ProvisionState {
+		/// The state of the device.
+		run: RunState,
+		/// Every step in order.
+		steps: Vec<StepReport>,
+		/// Every open prompt, empty where none is open.
+		prompts: Vec<PromptReport>,
+	},
+
+	/// A client asking a device to carry out an act of a run (PRS). Every member is critical, so a
+	/// device does not carry out an act it has not wholly read.
+	ProvisionAct {
+		/// The act, by wire name.
+		act: String,
+		/// The steps a `start` chooses.
+		steps: Option<Vec<String>>,
+		/// The prompt an `answer` answers.
+		prompt: Option<String>,
+		/// What an `answer` answers with.
+		value: Option<Answer>,
+	},
+
+	/// A device's answer that it will carry out the provisioning act asked for (PRS).
+	ProvisionAccepted,
 }
 
 /// Something a message carries that must not reach a log: an auth key or a login link (TSC).
@@ -521,9 +553,59 @@ impl Message {
 				map.insert("type".to_owned(), "tamanu-failed".into());
 				map.insert("reason".to_owned(), reason.clone().into());
 			}
+			Self::Provision => {
+				map.insert("type".to_owned(), "provision".into());
+			}
+			Self::ProvisionState {
+				run,
+				steps,
+				prompts,
+			} => {
+				map.insert("type".to_owned(), "provision-state".into());
+				map.insert("run".to_owned(), run.as_str().into());
+				map.insert("steps".to_owned(), to_array(steps));
+				map.insert("prompts".to_owned(), to_array(prompts));
+			}
+			Self::ProvisionAct {
+				act,
+				steps,
+				prompt,
+				value,
+			} => {
+				map.insert("type".to_owned(), "provision-act".into());
+				map.insert("act".to_owned(), act.clone().into());
+				if let Some(steps) = steps {
+					map.insert(
+						"steps".to_owned(),
+						Json::Array(steps.iter().cloned().map(Json::String).collect()),
+					);
+				}
+				if let Some(prompt) = prompt {
+					map.insert("prompt".to_owned(), prompt.clone().into());
+				}
+				if let Some(value) = value {
+					map.insert(
+						"value".to_owned(),
+						serde_json::to_value(value).unwrap_or(Json::Null),
+					);
+				}
+			}
+			Self::ProvisionAccepted => {
+				map.insert("type".to_owned(), "provision-accepted".into());
+			}
 		}
 		map
 	}
+}
+
+/// Items as a JSON array, each as its own members write them.
+fn to_array<T: Serialize>(items: &[T]) -> Json {
+	Json::Array(
+		items
+			.iter()
+			.map(|item| serde_json::to_value(item).unwrap_or(Json::Null))
+			.collect(),
+	)
 }
 
 /// Name the wireless interface an act is addressed to, where it names one.
@@ -673,6 +755,25 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			"tamanu-failed" => Ok(Message::TamanuFailed {
 				reason: string(&map, "reason")?,
 			}),
+			"provision" => Ok(Message::Provision),
+			"provision-state" => Ok(Message::ProvisionState {
+				run: from_member(&map, "run")?,
+				steps: from_member(&map, "steps")?,
+				prompts: from_member(&map, "prompts")?,
+			}),
+			"provision-act" => Ok(Message::ProvisionAct {
+				act: string(&map, "act")?,
+				steps: match map.get("steps") {
+					None | Some(Json::Null) => None,
+					Some(_) => Some(strings(&map, "steps")?),
+				},
+				prompt: optional_string(&map, "prompt")?,
+				value: match map.get("value") {
+					None | Some(Json::Null) => None,
+					Some(value) => Some(Answer::from_json(value.clone())),
+				},
+			}),
+			"provision-accepted" => Ok(Message::ProvisionAccepted),
 			other => Err(de::Error::custom(format!("unknown message type {other:?}"))),
 		}
 	}
@@ -683,6 +784,18 @@ fn string<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<String,
 		.and_then(Json::as_str)
 		.map(ToOwned::to_owned)
 		.ok_or_else(|| de::Error::custom(format!("this message carries a string `{member}`")))
+}
+
+/// A member read as the type that owns its shape.
+fn from_member<T: serde::de::DeserializeOwned, E: de::Error>(
+	map: &Map<String, Json>,
+	member: &str,
+) -> Result<T, E> {
+	let value = map
+		.get(member)
+		.ok_or_else(|| de::Error::custom(format!("this message carries `{member}`")))?;
+	serde_json::from_value(value.clone())
+		.map_err(|err| de::Error::custom(format!("`{member}`: {err}")))
 }
 
 fn boolean<E: de::Error>(map: &Map<String, Json>, member: &str) -> Result<bool, E> {
@@ -803,6 +916,10 @@ impl MessageSet for Message {
 			"tamanu-act",
 			"tamanu-accepted",
 			"tamanu-failed",
+			"provision",
+			"provision-state",
+			"provision-act",
+			"provision-accepted",
 		]
 	}
 
@@ -831,6 +948,9 @@ impl MessageSet for Message {
 			"tailscale-act" => &["act", "method", "key", "name", "peer"],
 			// `tamanu-act` pins its act critical for the same reason (TMU).
 			"tamanu-act" => &["act"],
+			// `provision-act` pins every member critical, since an act carried out without a
+			// parameter it did not read would be a different act (PRS).
+			"provision-act" => &["act", "steps", "prompt", "value"],
 			_ => &[],
 		}
 	}

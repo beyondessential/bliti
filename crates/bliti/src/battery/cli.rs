@@ -163,7 +163,7 @@ mod daemon {
 	use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 	use super::{Action, Answer};
-	use crate::battery::{Carrier, incoming};
+	use crate::carrier::{Carrier, incoming};
 
 	/// What the command line names itself as to the daemon, for its log (CRV).
 	const NAME: &str = "bliti battery-curve";

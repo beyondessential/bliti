@@ -12,11 +12,13 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 mod battery;
+mod carrier;
 mod facts;
 mod gatt;
 mod identity;
 mod network;
 mod power;
+mod provision;
 mod qr;
 mod sampler;
 mod session;
@@ -73,6 +75,34 @@ enum Command {
 		/// The machine a Tailscale ping tests where the client names none.
 		#[arg(long, default_value = tailscale::PING_DEFAULT)]
 		ping_default: String,
+	},
+
+	/// Run provisioning mode: stay silent until the USER button is pressed, then advertise for five
+	/// minutes, and carry out the runs an operator chooses. Only the provisioning image runs this.
+	ProvisionMode {
+		/// Bluetooth adapter to use. Defaults to the system's first.
+		#[arg(long)]
+		adapter: Option<String>,
+
+		/// Where the provisioning medium is mounted. A run's state is kept on it.
+		#[arg(long)]
+		medium: PathBuf,
+
+		/// Which kind of source this board's ID is to come from. A weaker source is never used.
+		#[arg(long, value_enum)]
+		board_id_source: BoardIdArg,
+
+		/// Where the console reaches this daemon.
+		#[arg(long, default_value = provision::SOCKET)]
+		socket: PathBuf,
+	},
+
+	/// Drive a provisioning run from this console: choose the steps, answer their prompts, and watch
+	/// them. Goes through the running provisioning mode daemon.
+	Provision {
+		/// Where the daemon listens for the console.
+		#[arg(long, default_value = provision::SOCKET)]
+		socket: PathBuf,
 	},
 
 	/// Write out the battery curve document in force, load one, or reset to the curve this build
@@ -174,6 +204,27 @@ enum Command {
 	},
 }
 
+/// Which kind of board ID source a device in provisioning mode takes its board ID from (PRV).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum BoardIdArg {
+	/// The TPM Endorsement Key.
+	TpmEndorsementKey,
+	/// One-time-programmable memory that has been written.
+	OneTimeProgrammable,
+	/// The Raspberry Pi serial.
+	RaspberryPiSerial,
+}
+
+impl From<BoardIdArg> for bliti_core::board_id::SourceKind {
+	fn from(arg: BoardIdArg) -> Self {
+		match arg {
+			BoardIdArg::TpmEndorsementKey => Self::TpmEndorsementKey,
+			BoardIdArg::OneTimeProgrammable => Self::OneTimeProgrammable,
+			BoardIdArg::RaspberryPiSerial => Self::RaspberryPiSerial,
+		}
+	}
+}
+
 /// What `battery-curve` is asked to do (CRV, "At the device").
 #[derive(Debug, Subcommand)]
 enum CurveAction {
@@ -227,6 +278,21 @@ async fn run(cli: Cli) -> Result<()> {
 			socket,
 			curve_file,
 		} => battery_curve(action, socket, curve_file).await,
+		Command::ProvisionMode {
+			adapter,
+			medium,
+			board_id_source,
+			socket,
+		} => {
+			provision_mode(provision::daemon::Options {
+				adapter,
+				medium,
+				board_id_source: board_id_source.into(),
+				socket,
+			})
+			.await
+		}
+		Command::Provision { socket } => provision::console::run(&socket).await,
 		Command::Daemon {
 			adapter,
 			network,
@@ -468,6 +534,16 @@ async fn daemon(
 	tailscale: tailscale::Options,
 ) -> Result<()> {
 	device::run(cache, network, backend, adapter, tailscale).await
+}
+
+#[cfg(target_os = "linux")]
+async fn provision_mode(options: provision::daemon::Options) -> Result<()> {
+	provision::daemon::run(options).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn provision_mode(_options: provision::daemon::Options) -> Result<()> {
+	anyhow::bail!("provisioning mode runs on Linux, against BlueZ")
 }
 
 /// Read a QR code from its text, as its code encodes it or as a person typed it (QR, "Reading").

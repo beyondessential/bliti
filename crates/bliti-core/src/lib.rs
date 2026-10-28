@@ -22,6 +22,7 @@ pub mod advertisement;
 pub mod board_id;
 pub mod channel;
 pub mod key_schedule;
+pub mod provisioning;
 pub mod qr;
 pub mod slot;
 pub mod text_qr;

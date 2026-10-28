@@ -367,6 +367,13 @@ where
 				// no-op rather than a fault.
 				tracing::debug!("a Tamanu act outside a Tamanu stream; nothing to do");
 			}
+			Ok(Reading::Message(Message::Provision | Message::ProvisionAct { .. })) => {
+				// A device outside provisioning mode serves no provisioning stream (PRV). Nothing to
+				// act on, which MSG makes a no-op rather than a fault.
+				tracing::debug!(
+					"a provisioning message to a device not in provisioning mode; nothing to do"
+				);
+			}
 			Ok(Reading::Message(Message::Curve)) => {
 				return battery::serve_stream(stream, supply, peer).await;
 			}
@@ -399,7 +406,9 @@ where
 				| Message::TailscaleFailed { .. }
 				| Message::TamanuActs { .. }
 				| Message::TamanuAccepted
-				| Message::TamanuFailed { .. },
+				| Message::TamanuFailed { .. }
+				| Message::ProvisionState { .. }
+				| Message::ProvisionAccepted,
 			)) => {
 				// Answers only a device sends. A client sending one has nothing for this device to do
 				// about it, a no-op rather than a fault (MSG).

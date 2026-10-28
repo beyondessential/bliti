@@ -20,7 +20,7 @@ use crate::{
 pub const ADVERTISING_BUDGET: usize = 31;
 
 /// Every advertising data element costs a length byte and a type byte before its content.
-const AD_HEADER: usize = 2;
+pub(crate) const AD_HEADER: usize = 2;
 
 /// The mandatory flags element: header plus one byte of flags.
 const FLAGS_LEN: usize = AD_HEADER + 1;
