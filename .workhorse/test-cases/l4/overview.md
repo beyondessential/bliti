@@ -37,5 +37,5 @@
 ## On the prototype
 
 - [x] Pressure is near local sea-level pressure adjusted for altitude (agreed with an Aranet on v4)
-- [ ] Humidity and case temperature are plausible for the room, the case a few degrees warmer
+- [x] Humidity and case temperature are plausible for the room, the case a few degrees warmer (v4: 39.5 °C and 16 % in a 25 °C, 42 % room, where the same air would read about 19 %)
 - [x] Light rises under a torch
