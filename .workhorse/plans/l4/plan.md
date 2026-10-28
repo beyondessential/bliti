@@ -54,6 +54,6 @@ A v4.0 Iti reports the case temperature, humidity, air pressure and light from t
 
 ### On the prototype
 
-- [ ] Deploy with the `bliti-prototype` skill and check the readings on the device view: pressure near local sea-level pressure adjusted for altitude, humidity and case temperature plausible, and light rising under a torch
+- [x] Deploy with the `bliti-prototype` skill and check the readings on the device view: pressure near local sea-level pressure adjusted for altitude, humidity and case temperature plausible, and light rising under a torch. On v4 the pressure agreed with an Aranet, and 39.5 °C and 16 % in a 25 °C, 42 % room is the same air warmed (about 19 % expected, inside the BME680's ±3 %)
 - [x] Check `battery-voltage` still matches the gauge read by hand (`i2cget -y 1 0x36 0x02 w`, bytes swapped, top twelve bits at 1.25 mV), since the gauge read now goes out as one combined transfer. Matched on v4: 4.019 V and 89.4 % from bliti against 4.039 V and 89.3 % by hand, 30 s apart on battery
-- [ ] Check the four readings keep coming while something else reads the bus (`i2cget -y 3 0x77 0xd0` in a loop alongside bliti), with no `broken` blips
+- [x] Check the four readings keep coming while something else reads the bus (`i2cget -y 3 0x77 0xd0` in a loop alongside bliti), with no `broken` blips

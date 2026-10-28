@@ -26,7 +26,7 @@
 - [x] A register read goes out as one transfer, a write then a read
 - [x] Adjacent operations of one kind go out as one message, and reads come back to their own buffers
 - [x] A denied bus is told from a missing one, and an unacknowledged address from a failed exchange
-- [ ] The four readings keep coming, with no `broken` blips, while something else reads the same bus
+- [x] The four readings keep coming, with no `broken` blips, while something else reads the same bus (v4: two minutes of `i2cget` on both chips, 26,496 reads, none wrong and no tile unavailable)
 
 ## Device view
 
