@@ -6,7 +6,7 @@ The image is assembled from the published `pi` image, as the provisioning medium
 
 A `just provision-image` recipe does the whole assembly with `sudo`, so it runs the same on an `ubuntu-26.04-arm` runner and on a Linux laptop. No container: the root is LUKS, so the build needs loop devices and dm-crypt, which a container would only get privileged.
 
-1. Find the newest `linux-images` GitHub release with a `pi` image, read its `manifest.json`, download the arm64 `pi` `.img.zst`, and check it against the manifest's SHA-256. Decompress it to raw (8 GiB), keeping one pristine copy for the payload.
+1. Find the newest `linux-images` GitHub release, skipping pre-releases, with a `resolute` `pi` image, read its `manifest.json`, download the arm64 `resolute` `pi` `.img.zst`, and check it against the manifest's SHA-256. Decompress it to raw (8 GiB), keeping one pristine copy for the payload.
 2. Grow the working copy and append two GPT partitions after `root`: the payload (the raw image's size plus its verity tree) and the data partition (FAT32 `ITIPROV`, a few hundred MiB).
 3. `losetup -P`, open `root` with the empty keyfile, and mount the `@` subvolume. Install:
    - `bliti`, from `just build-device` (to `/usr/local/bin/bliti`, where the unit expects it)

@@ -115,7 +115,9 @@ The data partition MUST hold a copy of the manifest at `manifest.txt`, at its ro
 
 ## Building
 
-The medium MUST be built from the newest release of `linux-images` that publishes a `pi` image.
+The medium MUST be built from the `pi` image for Ubuntu's `resolute` suite, from the newest release of `linux-images` that publishes one.
+
+The build MUST NOT take a `pi` image from a pre-release.
 
 The build MUST check the `pi` image against the checksum its release publishes, and MUST fail where it does not match.
 
