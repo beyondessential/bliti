@@ -40,6 +40,7 @@ infra#V3's to design; bliti relies on:
 
 - `Content-Type` explicitly per file, from its extension rather than the CLI's guess, and on an encoded variant, the type of the file it encodes.
 - `Content-Encoding` on each variant.
+- Every file has all three variant keys beside its plain one, whatever its size or type, as the infra side requires. `precompress.js` skips a variant under its size floor, where encoding would not shrink the file, or for a type that is already compressed; the upload fills each skipped key with the plain file and no `Content-Encoding`. The filling happens at upload, not in `precompress.js`: an origin that serves precompressed files by name, such as Caddy's `precompressed`, would label a plain copy at `.br` as brotli.
 - `Cache-Control`: `public, max-age=31536000, immutable` under `assets/` (Vite's hashed output); `no-cache` on everything else (`index.html`, `sw.js`, the manifest and the icons from `public/`), so a deploy is visible on the next load without an invalidation.
 
 ## GitHub Actions
