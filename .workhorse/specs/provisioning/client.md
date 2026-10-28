@@ -43,13 +43,15 @@ Once the channel is open, the provisioning client MUST open a provisioning strea
 
 Once connected, the provisioning client MUST offer to disconnect, which closes the channel and returns to finding a device.
 
-## The revision
+## Refusing a medium
 
 The provisioning client MUST implement a range of the revisions of [PRS](stream.md#the-revision).
 
-Where the device sends a revision below that range, the provisioning client MUST say that the provisioning medium needs writing again with the latest image.
+Where the device sends a revision below that range, or an image date of [PRS](stream.md#the-images-date) 30 days or more before the client's own date, the provisioning client MUST say that the provisioning medium needs writing again with the latest image.
 
-Where the device sends a revision above that range, the provisioning client MUST say that the page is out of date and offer to reload it.
+Where it refuses an image by its date, the provisioning client MUST say the date the image was built.
+
+Where the device sends a revision above that range, the provisioning client MUST say that the page is out of date and offer to reload it, whatever the image's date.
 
 Where it has said either, the provisioning client MUST NOT send `provision-act`, and MUST NOT show the steps.
 

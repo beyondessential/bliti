@@ -60,6 +60,7 @@ A device MUST refuse an act at the paths below.
 | member | type | required | meaning |
 | --- | --- | --- | --- |
 | `revision` | integer | yes | the revision of the steps the device offers, as [The revision](#the-revision) has it |
+| `built` | string | yes | the date the image on the provisioning medium was built, as [The image's date](#the-images-date) has it |
 | `run` | string | yes | the state of the device, one of `idle`, `running`, `waiting`, `failed` and `finished` |
 | `steps` | array | yes | every step in order, each as below |
 | `prompts` | array | yes | every open prompt, each as below, and empty where none is open |
@@ -105,6 +106,18 @@ A client MUST NOT send `provision-act` to a device whose revision it does not im
 > A client is built knowing each step, so it can show the board's parts beside the prompts that name them.
 > The revision is what keeps that client from driving a provisioning medium written before, or after, the steps it knows, and it gates nothing outside provisioning mode.
 
+## The image's date
+
+A device MUST send as `built` the date, as an RFC 3339 full date, on which the image on its provisioning medium was built.
+
+A device MUST be told that date by means outside this protocol.
+
+A client MUST NOT send `provision-act` to a device whose image was built 30 days or more before the client's own date.
+
+> [!NOTE]
+> The image is rebuilt every week, so one a month old has missed several builds, and with them the newest system, firmware and steps.
+> A medium that has sat in a drawer is caught by its date even where its revision is still one the client implements.
+
 ## The record
 
 A step that saves the board's record MUST report it as the member `record` of its result, carrying:
@@ -122,7 +135,7 @@ A step that saves the board's record MUST report it as the member `record` of it
 | type | sent by | on | carries |
 | --- | --- | --- | --- |
 | `provision` | client | a provisioning stream, as the first message | nothing beyond `type` |
-| `provision-state` | device | the provisioning stream | `revision`, `run`, `steps`, `prompts` |
+| `provision-state` | device | the provisioning stream | `revision`, `built`, `run`, `steps`, `prompts` |
 | `provision-act` | client | the provisioning stream | `ACT` and the act's parameters |
 | `provision-accepted` | device | the provisioning stream | nothing beyond `type` |
 | `cannot-act` | device | the provisioning stream | as [MSG](../messages.md) has it |

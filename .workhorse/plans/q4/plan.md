@@ -8,3 +8,4 @@
 - The board photos move from `.workhorse/design/assets/` into the app's assets. The uncropped original stays in `.workhorse/design/assets/` for re-cropping.
 - The link to and from the assembly manual is left to G4.
 - A step-specific card may override PWEB's generic handling. For example, the Tailscale card may keep the auth key for the session, where PWEB discards `secret` answers once they are sent.
+- The device has to be told the image's build date by means outside the protocol. The image-build card decides where the date lives on the medium. Until then the daemon takes it from configuration, as it does the board ID source, so the fake steps and tests can set it.
