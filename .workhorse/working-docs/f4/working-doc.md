@@ -157,7 +157,7 @@ The HAT's 2×10 header sits on the Pi's physical pins 9 to 28.
 | --- | --- | --- | --- |
 | U1 | onsemi CAT24C256 EEPROM, 32 KiB | ID bus, GPIO0/1, address `0x50`, 3.9 kΩ pull-ups | write-protected unless the ID WP pads are bridged (grounding WP) |
 | U2 | ST ST33KTPM2X32DKG9, TPM 2.0 | SPI0 CE1 (GPIO7); reset GPIO24; interrupt GPIO25 | the BID board-ID source; GPIO8 (CE0) is reserved, not the TPM's chip select |
-| U3 | Bosch BME680, air | sensor bus, address `0x76` | no interrupt; rev C is expected to carry a cheaper air sensor (possibly a BMP580) |
+| U3 | Bosch BME680, air | sensor bus, address `0x77` (the handoff says `0x76`; the board answers at `0x77`, chip ID `0x61`) | no interrupt; rev C is expected to carry a cheaper air sensor (possibly a BMP580) |
 | U4 | Lite-On LTR-308ALS-01, light | sensor bus, address `0x53` | interrupt on GPIO18, active low |
 | SW1 | CASE lever switch | GPIO17 | active low while the case is closed |
 | SW2 | USER button | GPIO27 | active low while pressed; the button the assembler presses to select a board |
@@ -168,7 +168,7 @@ GPIO15 is spare.
 
 ### Inferring the version, and where it stops
 
-Provisioning tells rev B from later revisions by which air sensor answers on the sensor bus: a BME680 at `0x76` means v4.0.
+Provisioning tells rev B from later revisions by which air sensor answers on the sensor bus: a BME680 (chip ID `0x61` at `0x77`) means v4.0.
 This kind of detection by positive markers is what C4 avoided, because a dead or missing part misreads.
 Here it is used only once, at provisioning, to decide what to write; from then on the EEPROM is authoritative and the running system never infers from parts.
 Where provisioning can't place the board as a known version (the sensor that tells revisions apart doesn't answer, or a combination it doesn't know), the EEPROM step stops and says the board needs looking at, without guessing.
@@ -218,6 +218,15 @@ Prepared on the prototype (13:25, 28 Oct):
 
 A write counts as done when the EEPROM reads back identical to the image, not when the write call returns, so it holds however the chip reacts to a write while protected.
 
+Run (28 Oct):
+- Written first try once the pads were bridged, and read back identical after release
+- Unbridged, the chip refuses the write and the kernel reports an I/O timeout, so "not bridged yet" shows as a failed write, not a silent no-op
+- The firmware publishes the fields as text: `uuid` `9c2bcc02-123a-4d9d-80e0-72166bec3218`, `product_id` `0x0004`, `product_ver` `0x0000`, and the strings, each NUL-terminated
+- With both the EEPROM overlay and the `config.txt` line, the two TPM nodes collide on CE1 ("chipselect 1 already in use") and the first to register wins; harmless, but it is why the line has to go
+- With the `config.txt` line removed, the TPM comes up from the Iti overlay alone (`tcg,tpm_tis-spi`, manufacturer STM), and I²C3 comes up with the light sensor at `0x53` (part ID `0xb1`) and the BME680 at `0x77`
+- The prototype keeps the line commented out (backup at `/boot/firmware/config.txt.f4-backup`). The overlay is only in the `current/` boot slot, so an OS update that switches slots loses it, and the TPM with it, until `linux-images` ships the overlay
+- Wi-Fi was down after the first reboot and the device was off Tailscale until cabled; most likely the reboot reverting the prototype's dev deploy of bliti, unrelated to the EEPROM
+
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
@@ -232,7 +241,7 @@ A write counts as done when the EEPROM reads back identical to the image, not wh
 
 ## Open questions
 
-- [ ] Exactly how the firmware renders `uuid`, `product_id` and `product_ver` under `/proc/device-tree/hat/` (expected as text, e.g. `0x0004`); confirm by reading back the prototype once programmed
+- [x] How the firmware renders the fields: text, `product_id` as `0x0004`, `uuid` hyphenated
 - [ ] Upstreaming the Iti overlay to Raspberry Pi (HAT+ asks vendors to), or `linux-images` only
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
