@@ -409,9 +409,12 @@ Run (28 Oct):
 - [x] Per-board records: shown in the client and saved to the provisioning medium; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
-- [ ] Obtain ST33KTPM firmware images from ST (they are not public), and read the prototype TPM's current firmware version
+- [ ] Obtain ST33KTPM firmware images from ST (they are not public)
 - [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's credential, and whether a browser can mint auth keys from a Tailscale OAuth client (CORS)
 - [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
+- [ ] `POWER_OFF_ON_HALT=1` with the X1208: the Pi's own button is not reachable in the case, and the X1208's button reaches Linux as the Pi's power key (a short press shut the prototype down cleanly), but after that shutdown presses did not start it again, only the X1208's hard cut (three presses) did. Test a halt and a single X1208 press with the setting at 1 and at 0, since provisioning writes it
+- [x] The prototype's TPM: ST33KTPM firmware `0x00090101` (TPM spec revision 1.59); ST has published at least `0x00090200`, which needs the LMS-signed manifest path
+- [x] Both LEDs (ACT green, PWR red) are controllable from Linux, on/off only
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
