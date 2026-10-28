@@ -37,6 +37,8 @@ refer to #F4's working doc for any missing details
 
 Write the `pi` image from the medium to the NVMe and read it back, then install the HAT overlay into the new system (its boot slot's `current/overlays/` and `/etc/flash-kernel/dtbs/overlays/`, so kernel updates keep it). Rotate the LUKS volume key (or leave it to the image's first-boot rekey, which this card decides), enrol a TPM-only keyslot, and replace the empty placeholder passphrase with a recovery passphrase made the way the `linux-images` installer makes one (six lowercase diceware words joined by hyphens). Append the board's record (QR suffix, version, LUKS partition UUID, recovery passphrase, time) to a tab-separated file on the medium's FAT partition. The card also settles how the device recognises the NVMe already carries the medium's system, and whether a PCR policy is worth binding on the Pi.
 
+refer to #F4's working doc for any missing details
+
 ## Configure the bootloader during provisioning
 
 A run started from a USB stick puts USB first in the boot order before any step, so a reboot mid-run comes back to the stick. As the run's last step, write the Iti's whole bootloader configuration (`BOOT_ORDER=0xf61`, `POWER_OFF_ON_HALT=1`, `PSU_MAX_CURRENT=5000`, `PCIE_PROBE=1`, `BOOT_UART=1`, `HDMI_DELAY=0`) and update the bootloader to the one the image carries wherever the board's is older, never downgrading. Provisioning becomes the one place the Iti's bootloader is configured. The card confirms when a configuration written from Linux takes effect.
