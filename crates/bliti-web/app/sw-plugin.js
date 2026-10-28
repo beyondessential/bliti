@@ -25,6 +25,13 @@ export function inject(source, list) {
 
 const worker = async (list) => inject(await readFile(SOURCE, 'utf8'), list)
 
+// The path a page is navigated at: its file without the extension, and index.html at the root. A page
+// is a flat file, so provision.html is /provision and a nested a/b.html is /a/b.
+export function pagePath(file) {
+	const path = file.split('\\').join('/').replace(/\.html$/, '')
+	return path === 'index' ? '/' : `/${path}`
+}
+
 const revision = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16)
 
 // The same as the worker's own key: a `t` stamp would change the list, and so the worker, with every
@@ -65,19 +72,23 @@ function specifiers(code) {
 // each module as the browser would get it and following the imports in what comes back. The
 // transformed code, not the module graph, because the graph records a module without the query the
 // browser asks for it by.
-async function devList(server) {
+async function devList(server, pages) {
 	await init()
 	const env = server.environments.client
-	const raw = await readFile(join(server.config.root, 'index.html'), 'utf8')
-	const html = await server.transformIndexHtml('/', raw)
 
 	const pending = []
-	for (const [, src] of html.matchAll(/<script\b[^>]*\ssrc="([^"]+)"/g)) pending.push(src)
-	for (const [, body] of html.matchAll(/<script\b(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)) {
-		pending.push(...specifiers(body))
+	const listed = new Set()
+	for (const page of pages) {
+		const path = pagePath(page)
+		listed.add(path)
+		const raw = await readFile(join(server.config.root, page), 'utf8')
+		const html = await server.transformIndexHtml(path, raw)
+		for (const [, src] of html.matchAll(/<script\b[^>]*\ssrc="([^"]+)"/g)) pending.push(src)
+		for (const [, body] of html.matchAll(/<script\b(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)) {
+			pending.push(...specifiers(body))
+		}
 	}
 
-	const listed = new Set(['/'])
 	const walked = new Set()
 	while (pending.length) {
 		const url = unstamped(pending.pop())
@@ -100,7 +111,7 @@ async function devList(server) {
 	return [...listed]
 }
 
-export default function serviceWorker() {
+export default function serviceWorker({ pages }) {
 	let config
 	return {
 		name: 'bliti-service-worker',
@@ -111,7 +122,7 @@ export default function serviceWorker() {
 			server.middlewares.use(async (req, res, next) => {
 				if (req.url.split('?')[0] !== '/sw.js') return next()
 				try {
-					const modules = (await devList(server)).map((url) => ({ url, revision: null }))
+					const modules = (await devList(server, pages)).map((url) => ({ url, revision: null }))
 					const entries = [...modules, ...(await publicEntries(config.publicDir, false))]
 					entries.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0))
 					res.setHeader('Content-Type', 'text/javascript')
@@ -123,14 +134,14 @@ export default function serviceWorker() {
 			})
 		},
 		generateBundle: {
-			// After the HTML is emitted, so index.html is in the bundle to be listed.
+			// After the HTML is emitted, so every page is in the bundle to be listed.
 			order: 'post',
 			async handler(_, bundle) {
 				const entries = []
 				for (const file of Object.values(bundle)) {
 					if (!BUNDLED.has(extname(file.fileName))) continue
 					const bytes = file.type === 'chunk' ? file.code : file.source
-					const url = file.fileName === 'index.html' ? '/' : `/${file.fileName}`
+					const url = extname(file.fileName) === '.html' ? pagePath(file.fileName) : `/${file.fileName}`
 					entries.push({ url, revision: revision(bytes) })
 				}
 				entries.push(...(await publicEntries(config.publicDir, true)))

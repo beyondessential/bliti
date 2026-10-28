@@ -2,7 +2,7 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 
 import { expect, test } from '@playwright/test'
 
-import { inject } from '../sw-plugin.js'
+import { inject, pagePath } from '../sw-plugin.js'
 import { installFakeClient } from './fake-client.js'
 
 // How the built worker fills, replaces and clears its precache (WEB). Each test that stands up a
@@ -55,9 +55,22 @@ test('lists every file of the bundle and of public/, each with a revision', asyn
 
 	const bundled = (await readdir(DIST, { recursive: true }))
 		.filter((file) => /\.(js|css|html|wasm)$/.test(file) && file !== 'sw.js' && !OTHERS.test(file))
-		.map((file) => (file === 'index.html' ? '/' : `/${file}`))
+		.map((file) => (file.endsWith('.html') ? pagePath(file) : `/${file}`))
 	const published = (await readdir(PUBLIC)).map((file) => `/${file}`)
 	expect(list.entries.map((entry) => entry.url).sort()).toEqual([...bundled, ...published].sort())
+})
+
+test('lists each page under the path it is navigated at', async () => {
+	const urls = (await built()).list.entries.map((entry) => entry.url)
+	expect(urls).toContain('/')
+	expect(urls).toContain('/tests/second-page')
+	expect(urls.filter((url) => url.endsWith('.html'))).toEqual([])
+})
+
+test('names a page by its file, with no extension, and the operator app by the root', () => {
+	expect(pagePath('index.html')).toBe('/')
+	expect(pagePath('provision.html')).toBe('/provision')
+	expect(pagePath('a/b.html')).toBe('/a/b')
 })
 
 test('refuses a worker source that carries no placeholder for its list', () => {
@@ -203,7 +216,6 @@ test('an update that cannot fill its precache never activates, and leaves nothin
 	await controlled(page)
 	const before = await precaches(page)
 
-	// The preview server answers a missing file with the page, where an origin answers 404.
 	const missing = `/assets/next-missing-${test.info().testId}.wasm`
 	await context.route(`**${missing}`, (route) => route.fulfill({ status: 404 }))
 	await withNext(

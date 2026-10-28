@@ -67,13 +67,15 @@ This card puts in what any page after the first needs, so adding one is adding i
 - Previews: the deploy and teardown jobs run in no environment, because the preview role trusts the subject `repo:beyondessential/bliti:pull_request`, and a job in an environment carries the environment's subject instead. It writes `previews/`, and cannot tell one PR's preview from another's.
 - A `pull_request` run takes its workflow from the PR head, so a PR could name `production` in its own copy of the workflow. The environment's branch restriction is what stops that, not the workflow file. The `production` environment, with that restriction, is set up in the bliti repository's settings.
 - Both roles may invalidate; nothing here does, given the cache-control above.
-- With no environment on the preview job, the link to a preview comes from a GitHub deployment the job creates through the API (environment `preview`, its URL on the deployment status), so the PR shows "View deployment" without changing the job's subject. Teardown marks it inactive. That needs `deployments: write`, beside `id-token: write`.
+- With no environment on the preview job, the link to a preview comes from a GitHub deployment the job creates through the API (environment `preview`, its URL on the deployment status), so the PR shows "View deployment" without changing the job's subject. That needs `deployments: write`, beside `id-token: write`.
+  - One environment, `preview`, rather than one per pull request, because a repository cannot delete an environment from a workflow token and a per-PR environment would pile up in its settings.
+  - The deployments share it, so none is marked inactive when another is made (`auto_inactive: false`), and each carries the task `preview:pr-<n>`, which teardown lists them by and marks inactive.
 
 ### Workflows
 
 - The steps that build the bundle move from `ci.yml`'s `web` job into a local composite action that both `ci.yml` and `cd.yml` use.
 - `cd.yml` triggers on push to `main` (every merge deploys production until the first release; revisit for tags then) and on `pull_request` (opened, synchronize, reopened, closed).
-  - Build: the composite action, skipped on `closed`.
+  - Build: the composite action, in a job with no role, as it runs the pull request's install scripts and build. The deploy jobs download its `dist` as an artefact. Skipped on `closed` and for fork PRs.
   - Deploy production: on push to `main`, environment `production`, uploads to `prod/`.
   - Deploy preview: on a same-repo PR not closed (`head.repo.full_name == github.repository`), uploads to `previews/pr-<number>/`.
   - Tear down preview: on `closed`, deletes `previews/pr-<number>/`.
@@ -98,7 +100,8 @@ ci.yml's v4 pins move up with the composite action, since the two share those st
 - Upload order: everything under `assets/` first, then the rest, `sw.js` and `index.html` last, so a client never loads a document that names files not yet uploaded.
 - Every deploy uploads every file, changed or not, rather than syncing only what differs. Preview objects expire 30 days after their upload, so a sync would leave a long-lived PR's unchanged files to expire under the rest of its preview. A PR left without a push for 30 days loses its preview, and its next push brings it back.
 - Previews delete files the new bundle no longer has, after uploading. Production keeps superseded hashed assets, so a page open across a deploy can still lazily load the wasm module it was built against; they are a few files per release.
-- Written as a script beside `precompress.js`, run by a `just deploy <s3 url>` recipe (with `--prune` for previews), so a deploy from a laptop with credentials is the same as one from CI. It shells out to the AWS CLI rather than taking on the AWS SDK as a dependency.
+- Written as a script beside `precompress.js`, `deploy.js`, so a deploy from a laptop with credentials is the same as one from CI. It shells out to the AWS CLI rather than taking on the AWS SDK as a dependency.
+- `just deploy <s3 url> [--prune] [--dry-run]` builds and then runs it, so a laptop never uploads a stale `dist`. CI's deploy jobs run `node deploy.js` directly on the bundle the build job made, since building is what they must not do with a role in hand.
 
 ## Version identity
 
@@ -120,36 +123,36 @@ These go in `cd.yml`'s `env`, as linux-images keeps its role, rather than in rep
 
 ### Pages
 
-- [ ] `vite.config.js`: `appType: 'mpa'`, and `build.rollupOptions.input` from every `.html` file at the app's top level, plus a fixture page from `tests/` under `--mode test` only. Vite's dev and preview servers share one HTML fallback, so `mpa` gives both the deployed routing (`/x` to `x.html`, no fallback to `index.html`)
-- [ ] `sw-plugin.js`: one function mapping an HTML file to the path it is navigated at (`index.html` to `/`, `a.html` to `/a`, `a/b.html` to `/a/b`), used by the build's list in `generateBundle` and by `devList`, which starts from every page's HTML rather than `index.html` alone
-- [ ] `sw.js`: replace `DOCUMENT` with a navigation key, the request's path with a trailing slash dropped (`/` kept), answered from the precache where it is a page and from the network otherwise
-- [ ] Fixture page in `tests/`: a bare HTML file with a script of its own, so the build gives it a document and a chunk
-- [ ] Tests in `service-worker.spec.js` and `offline.spec.js`: the list carries the fixture under its path; the fixture loads online, opens offline after a load of `/`, and opens offline at its path with a trailing slash; a navigation to a path that is no page gets the server's 404 online
-- [ ] Test in `offline-dev.spec.js`: the dev worker's list carries the fixture's module graph
+- [x] `vite.config.js`: `appType: 'mpa'`, and `build.rollupOptions.input` from every `.html` file at the app's top level, plus a fixture page from `tests/` under `--mode test` only. Vite's dev and preview servers share one HTML fallback, so `mpa` gives both the deployed routing (`/x` to `x.html`, no fallback to `index.html`)
+- [x] `sw-plugin.js`: one function mapping an HTML file to the path it is navigated at (`index.html` to `/`, `a.html` to `/a`, `a/b.html` to `/a/b`), used by the build's list in `generateBundle` and by `devList`, which starts from every page's HTML rather than `index.html` alone
+- [x] `sw.js`: replace `DOCUMENT` with a navigation key, the request's path with a trailing slash dropped (`/` kept), answered from the precache where it is a page and from the network otherwise
+- [x] Fixture page in `tests/`: a bare HTML file with a script of its own, so the build gives it a document and a chunk
+- [x] Tests in `service-worker.spec.js` and `offline.spec.js`: the list carries the fixture under its path; the fixture loads online, opens offline after a load of `/`, and opens offline at its path with a trailing slash; a navigation to a path that is no page gets the server's 404 online
+- [x] Test in `offline-dev.spec.js`: the dev worker's list carries the fixture's module graph
 
 ### Version identity
 
-- [ ] `vite.config.js`: a build with `BLITI_BUILD` set reports `<version>+<BLITI_BUILD>`, as the daemon's `build.rs` does; without it, the version alone
-- [ ] Test: a build with `BLITI_BUILD` set carries it in the bundle (checked from the built output, as `service-worker.spec.js` reads `sw.js`)
+- [x] `vite.config.js`: a build with `BLITI_BUILD` set reports `<version>+<BLITI_BUILD>`, as the daemon's `build.rs` does; without it, the version alone
+- [x] Test: a build with `BLITI_BUILD` set carries it in the bundle (checked from the built output, as `service-worker.spec.js` reads `sw.js`)
 
 ### Upload
 
-- [ ] `crates/bliti-web/app/deploy.js`: walks `dist` and plans the uploads as a pure function, separate from running them: each file's key, `Content-Type` by extension, `Cache-Control` (`immutable` under `assets/`, `no-cache` otherwise), and for the compressible extensions the three variant keys, each either the encoded file with its `Content-Encoding` or the plain file with none, typed as the original
-- [ ] Order: `assets/` first, then the rest, then `sw.js`, then the HTML pages
-- [ ] Runs the plan with `aws s3 cp` per object; with `--prune`, then deletes keys under the prefix that the plan does not hold (`aws s3 ls --recursive`)
-- [ ] `justfile`: `deploy url *flags` running `node deploy.js` after `build`, documented beside the other recipes
-- [ ] `tests/deploy.spec.js`: the plan for a fixture `dist` (under the size floor, incompressible, with every variant, a PNG, an `assets/` file), covering keys, metadata, filled variants and order, with no AWS in the loop
+- [x] `crates/bliti-web/app/deploy.js`: walks `dist` and plans the uploads as a pure function, separate from running them: each file's key, `Content-Type` by extension, `Cache-Control` (`immutable` under `assets/`, `no-cache` otherwise), and for the compressible extensions the three variant keys, each either the encoded file with its `Content-Encoding` or the plain file with none, typed as the original
+- [x] Order: `assets/` first, then the rest, then `sw.js`, then the HTML pages
+- [x] Runs the plan with `aws s3 cp` per object; with `--prune`, then deletes keys under the prefix that the plan does not hold (`aws s3 ls --recursive`)
+- [x] `justfile`: `deploy url *flags` running `node deploy.js` after `build`, documented beside the other recipes
+- [x] `tests/deploy.spec.js`: the plan for a fixture `dist` (under the size floor, incompressible, with every variant, a PNG, an `assets/` file), covering keys, metadata, filled variants and order, with no AWS in the loop
 
 ### Workflows
 
-- [ ] Recheck the latest release of every action used, with `gh api repos/<action>/releases/latest`, and pin to it
-- [ ] `.github/actions/build-web/action.yml`: the composite of `ci.yml`'s `web` build steps (toolchain with the wasm target, rust-cache `shared-key: wasm` saved on `main` only, `just`, wasm-bindgen at the lockfile's version, setup-node with the npm cache, `npm ci`, `just build`)
-- [ ] `ci.yml`: the `web` job uses the composite, then uploads the artefact and runs the harness as now; `upload-artifact` and `setup-node` move to their latest
-- [ ] `cd.yml`: triggers, `env` with the bucket, region and role ARNs, per-ref concurrency without cancelling in progress, top-level permissions `contents: read`
-  - [ ] `production` job: on push to `main`, environment `production`, `id-token: write`, builds with `BLITI_BUILD` set to the short sha, assumes the production role, `just deploy s3://bes-bliti-web/prod/`
-  - [ ] `preview` job: on a same-repo `pull_request` that is not closed, no environment, `id-token: write` and `deployments: write`, builds with `BLITI_BUILD` set to the PR head's short sha (not the merge commit), assumes the preview role, `just deploy s3://bes-bliti-web/previews/pr-<n>/ --prune`, then creates a deployment for environment `preview` on the head sha with a success status carrying `https://pr-<n>.iti.tamanu.app`
-  - [ ] `teardown` job: on `closed`, same-repo, no environment, assumes the preview role, `aws s3 rm --recursive` of the PR's prefix, then marks the PR's deployments inactive
-- [ ] `actionlint` over `.github/` clean
+- [x] Recheck the latest release of every action used, with `gh api repos/<action>/releases/latest`, and pin to it
+- [x] `.github/actions/build-web/action.yml`: the composite of `ci.yml`'s `web` build steps (toolchain with the wasm target, rust-cache `shared-key: wasm` saved on `main` only, `just`, wasm-bindgen at the lockfile's version, setup-node with the npm cache, `npm ci`, `just build`)
+- [x] `ci.yml`: the `web` job uses the composite, then uploads the artefact and runs the harness as now; `upload-artifact` and `setup-node` move to their latest
+- [x] `cd.yml`: triggers, `env` with the bucket, region and role ARNs, per-ref concurrency without cancelling in progress, top-level permissions `contents: read`
+  - [x] `production` job: on push to `main`, environment `production`, `id-token: write`, builds with `BLITI_BUILD` set to the short sha, assumes the production role, `just deploy s3://bes-bliti-web/prod/`
+  - [x] `preview` job: on a same-repo `pull_request` that is not closed, no environment, `id-token: write` and `deployments: write`, builds with `BLITI_BUILD` set to the PR head's short sha (not the merge commit), assumes the preview role, `just deploy s3://bes-bliti-web/previews/pr-<n>/ --prune`, then creates a deployment for environment `preview` on the head sha with a success status carrying `https://pr-<n>.iti.tamanu.app`
+  - [x] `teardown` job: on `closed`, same-repo, no environment, assumes the preview role, `aws s3 rm --recursive` of the PR's prefix, then marks the PR's deployments inactive
+- [x] `actionlint` over `.github/` clean
 
 ### Verify live
 

@@ -46,6 +46,14 @@ build: build-wasm
 	# and to its own directory, and nothing ever serves that one.
 	cd {{web-app}} && node precompress.js
 
+# Credentials are the AWS CLI's, found as it always finds them. The URL names the bucket and the
+# prefix to write under, as s3://bes-bliti-web/previews/pr-7/, and --prune deletes what the new
+# bundle no longer has; --dry-run lists what would be written and deleted, and writes nothing.
+#
+# Build the static bundle and upload it to an S3 prefix, the way CI does.
+deploy url *flags: build
+	cd {{web-app}} && node deploy.js {{url}} {{flags}}
+
 # Builds in a container with the libraries the daemon links (crates/bliti/Containerfile), under
 # podman or docker, whichever is present; CONTAINER_ENGINE picks one. The binary is
 # target/device/aarch64-unknown-linux-gnu/release/bliti.

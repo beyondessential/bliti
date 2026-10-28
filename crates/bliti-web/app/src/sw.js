@@ -12,7 +12,6 @@ const RUNTIME = 'bliti-runtime'
 // Where each precache keeps the list it was filled from, so the next version can tell which of its
 // entries it can take over rather than fetch again.
 const LIST_KEY = '/__bliti-precache-list'
-const DOCUMENT = '/'
 
 // The dev server stamps a module with `t` once it has changed, so an HMR-stamped request finds the
 // entry for its module and edits do not pile up one entry per save. A build has no `t`.
@@ -28,6 +27,13 @@ function keyOf(url) {
 }
 
 const precached = new Set(entries.map((entry) => keyOf(entry.url)))
+
+// A navigation is answered with the document of the page at its path. A trailing slash is dropped,
+// so /provision/ opens the page offline, where the origin's redirect to /provision cannot be reached.
+function pageKey(url) {
+	const { pathname } = new URL(url)
+	return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+}
 
 // Named after the list itself, so any change to it gets a cache of its own.
 const precacheName = (async () => {
@@ -145,7 +151,7 @@ async function fromNetwork(request, cacheName, key) {
 }
 
 async function respond(request) {
-	const key = request.mode === 'navigate' ? DOCUMENT : keyOf(request.url)
+	const key = request.mode === 'navigate' ? pageKey(request.url) : keyOf(request.url)
 	if (precached.has(key)) {
 		const name = await precacheName
 		if (networkFirst) return fromNetwork(request, name, key)
@@ -160,5 +166,7 @@ self.addEventListener('fetch', (event) => {
 	const url = new URL(request.url)
 	if (request.method !== 'GET' || url.origin !== self.location.origin) return
 	if (url.pathname === '/sw.js') return
+	// A path that is no page goes to the network, which says what it is.
+	if (request.mode === 'navigate' && !precached.has(pageKey(request.url))) return
 	event.respondWith(respond(request))
 })
