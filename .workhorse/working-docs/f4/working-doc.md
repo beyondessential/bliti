@@ -48,7 +48,7 @@ The EEPROM is write-protected unless two test pads are bridged (the HAT design g
 The flow:
 
 1. Detect the EEPROM, and whether it is already programmed
-2. Tell the assembler to bridge the pads, with a picture of the board showing where: the rev B photo with the ID WP pads circled and labelled (`.workhorse/design/assets/iti-hat-rev-b-wp-pads.jpg`, beside the USER button and CASE switch pictures), shipped with the provisioning client
+2. Tell the assembler to bridge the pads, with a picture of the board showing where: the rev B photo with the ID WP pads circled, captioned in the client (`.workhorse/design/assets/iti-hat-rev-b-wp-pads.jpg`, beside the USER button and CASE switch pictures), shipped with the provisioning client
 3. Repeatedly try to write until a write succeeds
 4. Tell the assembler they can let go
 5. Read back and verify
@@ -92,7 +92,21 @@ A step that fails stops the run and says why, and the assembler can run it again
 The label and record are offered at the end of any run whose chosen steps all passed, since the QR code comes from the TPM board ID whichever steps ran.
 At the end the client tells the assembler to power the board off and remove the SD card.
 
-#### Flashing the NVMe
+#### The run belongs to the device
+
+Writing the image from the SD card to the NVMe is slow, so a run carries on whether or not a client is connected: the client starts it and watches it, and closing the page or walking away leaves it running.
+That lets an assembler start several boards, each on its own SD card, and check back on each, or do one at a time without keeping a phone beside it.
+
+The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (bootloader, NVMe, keys), so the assembler is needed only at the start.
+The device watches for those actions itself (CASE's lever, the bridge), so a person can complete them with no client connected; only confirming an EEPROM overwrite needs an answer, from a client or the console.
+A run that fails stops at that step and waits.
+
+Pressing USER puts the board back on the air for five minutes whatever the run is doing, and connecting shows where it is: the step list with its states, or the finished record. Choosing steps only comes up when nothing is running.
+The finished record and label wait on the device for whichever client connects next, and the record is on the SD card regardless.
+A run does not survive the board losing power: the SD boots back into provisioning with nothing running, and the assembler starts again, choosing only the steps still to do.
+
+Each SD card keeps its own records file, so a bench of several SD cards spreads the records across them until they are gathered; the central register card is what fixes that properly.
+
 
 The image is the `linux-images` `pi` variant.
 Its LUKS2 root ships with an empty placeholder passphrase and the image's own volume key; the volume key is rotated per board (`linux-images` already supports this: the `pi` image rekeys itself on first boot, `image.identity.luks-rekey`).
@@ -165,6 +179,8 @@ It shares the channel, protocol and wasm code with the operator app.
 
 Its flow, one board per tab:
 
+Each board picture carries only an orange circle; the client captions it with where the part is and what to do, so the words stay legible at phone width.
+
 1. **Find the board.** Asks the assembler to press USER on the board, with the board picture showing where (`iti-hat-rev-b-user-button.jpg`), and offers finding it as the primary action: the chooser, filtered on the provisioning marker.
 2. **Choose the steps.** Shows the board's suffix and the steps in order, each with a checkbox, all ticked by default, and starting as the primary action.
 3. **Run.** The step list stays on screen with each step's state (waiting, running, passed, failed, skipped); the current step's prompt sits beneath it:
@@ -172,7 +188,10 @@ Its flow, one board per tab:
    - EEPROM: what the EEPROM holds now and what will be written; where it holds something else, confirming the overwrite; then "Bridge these pads" with the pads picture (`iti-hat-rev-b-wp-pads.jpg`), switching to "You can let go" once written, then the verify result
    - Bootloader, NVMe and keys: progress, with the NVMe write and read-back as a progress bar
    - A failed step says why and offers to try that step again, or to stop
-4. **Done.** The board's record, with the recovery passphrase shown once with a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the SD card".
+Every running screen says the page can be closed and that pressing USER checks back.
+Finding a board that is mid-run goes straight to its step list.
+
+4. **Done.** The board's record, with the recovery passphrase and a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the SD card".
 
 Mockup: provisioning an Iti, every screen (`.workhorse/design/mockups/f4/provisioning.html`). It reuses the operator app's own components: the step dots of reaching a device, the Status screen's rows with their marks, and its bar-state panels; the only new pieces are a board picture inside a step, and a step's prompt beneath its row.
 
