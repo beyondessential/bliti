@@ -82,11 +82,11 @@ test.describe('the header', () => {
 		await openChannel(page)
 		await openReadings(page)
 		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
-		await feed(page, fact('product', { kind: 'text', value: 'Tamanu Iti v4' }))
+		await feed(page, fact('product', { kind: 'text', value: 'Tamanu Iti v4.0' }))
 		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5 Model B Rev 1.0', traits: { status: { is: 'passed' }, short: 'Raspberry Pi 5' } }))
 		await feed(page, fact('os', { kind: 'text', value: 'Ubuntu 26.04 LTS', traits: { status: { is: 'passed' }, short: 'Ubuntu 26.04' } }))
 
-		await expect(page.locator('.device .sub')).toHaveText('Tamanu Iti v4 · Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
+		await expect(page.locator('.device .sub')).toHaveText('Tamanu Iti v4.0 · Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
 		await expect(page.locator('.tile')).toHaveCount(0)
 	})
 
