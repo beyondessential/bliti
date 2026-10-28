@@ -37,7 +37,6 @@ use self::supply::{
 
 mod battery;
 pub mod curve;
-mod gpio;
 mod i2c;
 mod record;
 mod supply;
