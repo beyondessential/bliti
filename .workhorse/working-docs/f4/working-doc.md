@@ -89,14 +89,14 @@ Before any step, a run started from a USB stick puts USB first in the boot order
 1. Check the hardware (first, so a bad board fails fast, and because the air sensor read places the board's version for the EEPROM step)
 2. Update the TPM's firmware (before anything takes the TPM's identity or keys; its reboot comes while the assembler is still at the bench)
 3. Program the EEPROM
-4. Take the Tailscale credential and the Iti's name from the assembler
+4. Ask for the Tailscale credential and the Iti's name, without waiting for them
 5. Flash the NVMe and read it back
 6. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
 7. Sign the Iti in to Tailscale, under the name chosen for it
 8. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
 9. Render the label and save the board's record
 
-Steps 1 to 4 need the assembler, and everything after runs unattended, so the assembler does everything up front and walks away.
+Steps 1 to 3 need the assembler. Step 4 asks and moves on: the disk write starts at once while the Tailscale prompt stays open beside it, and only the sign-in step needs the answer, waiting for it there if it has not come. So the assembler does everything up front, fills in the Tailscale details while the disk writes, and walks away.
 
 The assembler chooses which steps to run; the rest are skipped.
 Before offering the choice, the device looks at what each step would change and leaves the steps already done unticked, each saying why (for example "Up to date"), so a board that is already set up is offered only what it lacks; the assembler can tick any back on.
@@ -132,7 +132,7 @@ While provisioning, the Pi's status LED shows the run's state, so a bench of boa
 | --- | --- |
 | booted from the provisioning medium, nothing running | amber, steady |
 | working | green, slow blink |
-| waiting on a person (CASE, the bridge, an overwrite to confirm, the Tailscale credential) | amber, blink |
+| waiting on a person (CASE, the bridge, an overwrite to confirm, the Tailscale credential once the sign-in step is reached without it) | amber, blink |
 | failed | red, fast blink |
 | finished | green, steady |
 
@@ -184,7 +184,7 @@ Closing it takes Raspberry Pi secure boot (signed boot images, a customer key bu
 
 The run signs the Iti in to Tailscale, so it comes off the bench already on the tailnet, in one tool and one pass.
 The run executes on the provisioning system, while Tailscale's sign-in belongs to the Iti's own system on the NVMe, so the step signs in against the new system's Tailscale state, with its encrypted root open from the step before; the Iti's first boot comes up signed in.
-The auth key and the name come from the client early in the run (step 4), so the assembler can walk away afterwards, and are used by the sign-in step once the encrypted root is open, as CTL's `sign-in` by `auth-key` takes them (reusing its tailnet check).
+The auth key and the name are asked for early in the run (step 4), without holding it up: the disk write goes ahead while the prompt waits, and the assembler can walk away once they have answered, and are used by the sign-in step once the encrypted root is open, as CTL's `sign-in` by `auth-key` takes them (reusing its tailnet check).
 The device holds the key in memory only and never writes it down, as CTL already requires of a device; only the node state that results is, which is what any signed-in machine keeps.
 A power cut between the ask and the sign-in loses the key: the run resumes, and the sign-in step waits for the key again as a step waiting on a person.
 The device only ever receives an auth key. Where the tailnet issues keys through an OAuth client, the client mints the auth key from it and the OAuth secret stays with the client, since it can mint keys for the whole tailnet.
@@ -280,7 +280,7 @@ Each board picture carries only an orange circle; the client captions it with wh
    - Hardware check: USER already ticked from the press that found the board, then press and release CASE (`iti-hat-rev-b-case-switch.jpg`), then the sensor and TPM results
    - EEPROM: what the EEPROM holds now and what will be written; where it holds something else, confirming the overwrite; then "Bridge these pads" with the pads picture (`iti-hat-rev-b-wp-pads.jpg`), switching to "You can let go" once written, then the verify result
    - TPM firmware: updated or already current; the board drops off for its reboot and the assembler checks back with USER
-   - Tailscale details, under the Tailscale row once the EEPROM is done: the auth key (kept in the browser for the session, so entered once for a bench of boards) and the name (a suggestion to accept or change), then "Continue"; the last thing asked, after which the row reads as ready under its name until its turn
+   - Tailscale details, under the Tailscale row once the EEPROM is done, while the disk write runs above it: the auth key (kept in the browser for the session, so entered once for a bench of boards) and the name (a suggestion to accept or change), then "Save"; the last thing asked, after which the row reads as ready under its name until its turn
    - NVMe, keys, Tailscale sign-in and bootloader: progress, with the NVMe write and read-back as a progress bar
    - A failed step says why and offers to try that step again, or to stop
 Every running screen says the page can be closed and that pressing USER checks back.
