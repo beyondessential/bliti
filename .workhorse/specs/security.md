@@ -4,7 +4,7 @@ id: SEC
 
 # Security properties
 
-The [presence token](overview.md#presence-token) is the only credential in the system.
+The [presence token](overview.md#presence-token) is the only credential in the system, and a device in [provisioning mode](overview.md#provisioning-mode) uses the [provisioning token](overview.md#provisioning-token) in its place.
 
 ## What is guaranteed
 
@@ -74,6 +74,17 @@ Anyone who can read that storage can open a session, just as with a photograph o
 
 > [!NOTE]
 > The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
+
+### A provisioning device is not authenticated
+
+Any client in range of a device in provisioning mode can open a session with it while it advertises, because every such device uses the provisioning token and sends a key no client checks.
+The client that connects first holds the device's one channel, and can ask the device to carry out any step, under [RUN](provisioning/run.md).
+
+A device advertises only after the button on it is pressed, for five minutes at most, and stops at the first connection, as [PRV](provisioning/overview.md) specifies.
+
+> [!NOTE]
+> The suffix in the name of such a device is public, so it identifies the board to an observer and authenticates nothing.
+> Physical presence at the device is what an operator offers in place of a QR code.
 
 ### A session changes how the device is reached
 

@@ -30,7 +30,9 @@ The pre-shared key MUST be the pre-shared key of [KEY](key-schedule.md), at PSK 
 The first message MUST carry an empty payload.
 The second message MUST carry the KEM key digest of [KEY](key-schedule.md) as its payload, 32 bytes.
 
-Having read the second message, the client MUST compute the key fingerprint of [KEY](key-schedule.md) from the static key and the digest the device sent, and MUST compare it against the key fingerprint in the QR code.
+A device in [provisioning mode](overview.md#provisioning-mode) takes its static key and the payload of the second message from [PRV](provisioning/overview.md), and its pre-shared key from the provisioning token.
+
+Having read the second message, a client holding a QR code MUST compute the key fingerprint of [KEY](key-schedule.md) from the static key and the digest the device sent, and MUST compare it against the key fingerprint in the QR code.
 Where the two differ, the client MUST fail the handshake, and MUST NOT send anything further.
 The client MUST report that failure as it reports any other failed handshake.
 
@@ -92,7 +94,9 @@ A Noise message is at most 65535 bytes, including its 16-byte authentication tag
 
 ## Several clients at once
 
-A device MUST serve a channel to each client connected to it, each independently of the others.
+A device not in provisioning mode MUST serve a channel to each client connected to it, each independently of the others.
+
+A device in provisioning mode serves one channel at a time, as [PRV](provisioning/overview.md) specifies.
 The data a client writes MUST reach only that client's channel, and the data the device sends on a channel MUST reach only that channel's client.
 A client connecting, failing its handshake, or leaving MUST NOT end or disturb another client's channel.
 

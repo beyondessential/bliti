@@ -92,3 +92,33 @@ Defined in [LINK](network/attachment.md).
 
 The screens through which an operator puts a device on a network by cable, by joining a wireless network, or by sharing its hotspot.
 Defined in [NSET](network/setup.md).
+
+### Provisioning medium
+
+The removable storage, a USB stick or an SD card, that a device boots from to run provisioning mode.
+Defined in [PRV](provisioning/overview.md).
+
+### Provisioning mode
+
+The state in which a device booted from a provisioning medium takes an operator through setting itself up.
+Defined in [PRV](provisioning/overview.md).
+
+### Provisioning token
+
+The credential every device in provisioning mode uses in place of a presence token.
+Defined in [PRV](provisioning/overview.md).
+
+### USER button
+
+The button on a device's board that puts it on the air in provisioning mode.
+Defined in [PRV](provisioning/overview.md).
+
+### Run
+
+One carrying out, by a device in provisioning mode, of the steps an operator chose.
+Defined in [RUN](provisioning/run.md).
+
+### Step
+
+One unit of work of a run.
+Defined in [RUN](provisioning/run.md).

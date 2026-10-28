@@ -109,6 +109,8 @@ On start a device MUST read the platform serial and probe which kinds of source 
 - where the strongest kind present is stronger than the cached one, the device MUST report a dead QR code as [BID](board-id.md) requires
 - where the serial differs, the device MUST evaluate the precedence, read the winning source, and derive
 
+A device in [provisioning mode](overview.md#provisioning-mode) takes its presence token, device static key and KEM key digest from [PRV](provisioning/overview.md), and derives from its board ID only the suffix of its name.
+
 > [!NOTE]
 > Deriving on the device makes the chain reproducible from the board everywhere, rather than only on machines large enough to run the derivation comfortably.
 

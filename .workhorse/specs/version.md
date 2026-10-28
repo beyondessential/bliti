@@ -11,7 +11,7 @@ A client and a device MUST NOT act on any version other than these.
 
 The payload version MUST be carried in the QR payload of [QR](qr-code.md).
 
-The version marker MUST be carried in the advertisement of [ADV](discovery.md).
+The version marker MUST be carried in the advertisement of [ADV](discovery.md), and for a device in [provisioning mode](overview.md#provisioning-mode) in the name of [PRV](provisioning/overview.md).
 
 ## What each covers
 

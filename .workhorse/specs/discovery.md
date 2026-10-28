@@ -4,7 +4,7 @@ id: ADV
 
 # Discovery and matching
 
-A device advertises continuously, and a client that holds a QR code computes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against the advertisements it hears.
+A device not in [provisioning mode](overview.md#provisioning-mode) advertises continuously, and a client that holds a QR code computes the expected [advertised handle](overview.md#advertised-handle) from it and matches that against the advertisements it hears.
 
 ## Borrowed terms
 
@@ -20,13 +20,15 @@ A device advertises continuously, and a client that holds a QR code computes the
 
 A device MUST advertise a 128-bit service UUID identifying it as speaking bliti, in the advertisement rather than in the scan response.
 
-A device MUST carry its payload in the local name.
+A device not in [provisioning mode](overview.md#provisioning-mode) MUST carry its payload in the local name.
 
 The payload MUST be nine bytes: the one-byte [version marker](overview.md#version-marker), then the eight-byte handle, rendered as 15 characters of base32 without padding.
 
 A device MUST advertise the same local name for as long as it holds the same presence token.
 
-A device MUST serve that local name as the value of the Device Name characteristic of its GAP service.
+A device MUST serve the local name it advertises as the value of the Device Name characteristic of its GAP service.
+
+A device in provisioning mode advertises the local name [PRV](provisioning/overview.md) specifies in place of a payload.
 
 > [!NOTE]
 > A scan filter is applied to advertisement data and never to the scan response, so a service UUID a client filters on has to sit in the advertisement.
@@ -52,7 +54,9 @@ A local name that is not a bliti payload MUST be passed over.
 
 ## Advertising continuously
 
-A device MUST advertise whenever it is running.
+A device not in provisioning mode MUST advertise whenever it is running.
+
+A device in provisioning mode advertises when [PRV](provisioning/overview.md) specifies.
 
 A device MUST NOT lock a peer out after failed handshakes.
 
