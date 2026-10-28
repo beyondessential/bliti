@@ -36,6 +36,6 @@
 
 ## On the prototype
 
-- [ ] Pressure is near local sea-level pressure adjusted for altitude
+- [x] Pressure is near local sea-level pressure adjusted for altitude (agreed with an Aranet on v4)
 - [ ] Humidity and case temperature are plausible for the room, the case a few degrees warmer
 - [ ] Light rises under a torch
