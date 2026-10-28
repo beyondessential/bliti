@@ -284,16 +284,8 @@ async fn run(cli: Cli) -> Result<()> {
 			medium,
 			board_id_source,
 			socket,
-		} => {
-			provision_mode(provision::daemon::Options {
-				adapter,
-				medium,
-				board_id_source: board_id_source.into(),
-				socket,
-			})
-			.await
-		}
-		Command::Provision { socket } => provision::console::run(&socket).await,
+		} => provision_mode(adapter, medium, board_id_source.into(), socket).await,
+		Command::Provision { socket } => provision_console(&socket).await,
 		Command::Daemon {
 			adapter,
 			network,
@@ -538,13 +530,39 @@ async fn daemon(
 }
 
 #[cfg(target_os = "linux")]
-async fn provision_mode(options: provision::daemon::Options) -> Result<()> {
-	provision::daemon::run(options).await
+async fn provision_mode(
+	adapter: Option<String>,
+	medium: PathBuf,
+	board_id_source: bliti_core::board_id::SourceKind,
+	socket: PathBuf,
+) -> Result<()> {
+	provision::daemon::run(provision::daemon::Options {
+		adapter,
+		medium,
+		board_id_source,
+		socket,
+	})
+	.await
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn provision_mode(_options: provision::daemon::Options) -> Result<()> {
+async fn provision_mode(
+	_adapter: Option<String>,
+	_medium: PathBuf,
+	_board_id_source: bliti_core::board_id::SourceKind,
+	_socket: PathBuf,
+) -> Result<()> {
 	anyhow::bail!("provisioning mode runs on Linux, against BlueZ")
+}
+
+#[cfg(unix)]
+async fn provision_console(socket: &std::path::Path) -> Result<()> {
+	provision::console::run(socket).await
+}
+
+#[cfg(not(unix))]
+async fn provision_console(_socket: &std::path::Path) -> Result<()> {
+	anyhow::bail!("the provisioning console runs on the provisioning system, which is Unix")
 }
 
 /// Read a QR code from its text, as its code encodes it or as a person typed it (QR, "Reading").

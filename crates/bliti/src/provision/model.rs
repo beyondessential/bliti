@@ -101,11 +101,6 @@ impl Model {
 		}
 	}
 
-	pub fn set_run(&mut self, state: RunState) {
-		debug_assert_ne!(state, RunState::Waiting, "waiting is read from the prompts");
-		self.state = state;
-	}
-
 	pub fn at_rest(&self) -> bool {
 		matches!(self.state, RunState::Idle | RunState::Finished)
 	}

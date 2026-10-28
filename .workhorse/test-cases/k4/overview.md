@@ -60,12 +60,12 @@ case says it needs the prototype board.
 
 ## The console
 
-- [ ] The console lists the steps with their done-states and offers the done ones unticked (verifies spec: PCON)
-- [ ] The console starts a run, shows progress, failures, prompts and results (verifies spec: PCON)
-- [ ] A secret is read without echo (verifies spec: PCON)
-- [ ] The console works with no USER press and no client, and alongside a client, showing the same run (verifies spec: PCON)
-- [ ] The first answer to a prompt wins, from the console or from a client (verifies spec: RUN)
-- [ ] A run carries on when the console exits (verifies spec: PCON)
+- [x] The console lists the steps with their done-states and offers the done ones unticked (verifies spec: PCON)
+- [x] The console starts a run, shows progress, failures, prompts and results (verifies spec: PCON)
+- [x] A secret is read without echo (verifies spec: PCON)
+- [x] The console works with no USER press and no client, and alongside a client, showing the same run (verifies spec: PCON)
+- [x] The first answer to a prompt wins, from the console or from a client (verifies spec: RUN)
+- [x] A run carries on when the console exits (verifies spec: PCON)
 
 ## The LED
 

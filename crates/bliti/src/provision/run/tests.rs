@@ -51,17 +51,6 @@ async fn until(provisioner: &Provisioner, until: impl Fn(&Snapshot) -> bool) -> 
 	held.clone()
 }
 
-/// Wait until the medium holds a run, which is written before a step begins.
-async fn recorded(medium: &Medium) {
-	tokio::time::timeout(PATIENCE, async {
-		while medium.contents().is_empty() {
-			tokio::time::sleep(Duration::from_millis(5)).await;
-		}
-	})
-	.await
-	.expect("nothing was kept on the medium");
-}
-
 /// Wait until the steps have logged `line`.
 async fn logged(log: &Log, line: &str) {
 	tokio::time::timeout(PATIENCE, async {

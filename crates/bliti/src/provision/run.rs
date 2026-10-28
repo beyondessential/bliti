@@ -230,14 +230,6 @@ impl Inner {
 		Some(result)
 	}
 
-	/// Change the model whatever run it holds.
-	fn mutate_any<R>(&self, change: impl FnOnce(&mut Model) -> R) -> R {
-		let mut model = self.lock();
-		let result = change(&mut model);
-		self.publish(&model);
-		result
-	}
-
 	fn act(self: &Arc<Self>, act: &Act) -> Result<(), CannotAct> {
 		let refuse = |at: &str, reason: String| CannotAct {
 			at: at.to_owned(),

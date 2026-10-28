@@ -26,9 +26,10 @@ use super::{Console, attach, connect, run, terminal::Lines};
 use crate::{
 	carrier::{Carrier, incoming},
 	provision::{
-		Provisioner, Step,
+		Provisioner,
 		fake::{Do, Fake, Gate, Log},
 		socket::listen,
+		step::Step,
 		store::Store,
 	},
 	session::AbortOnDrop,
