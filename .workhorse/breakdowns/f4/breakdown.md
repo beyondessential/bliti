@@ -14,7 +14,7 @@ Fill in the placeholder C4 left in the `product` fact so a v4 identifies itself 
 
 Add facts for what the rev B HAT's sensors measure, on I²C3 (GPIO22/23) as the Iti overlay sets it up: the Bosch BME680 at `0x77` (temperature, humidity, pressure, and its gas sensor's resistance as a proxy for air quality) and the Lite-On LTR-308ALS at `0x53` (ambient light). The overlay binds no sensor drivers so provisioning's hardware check can read the chips directly; this card decides whether to bind kernel drivers or read the chips from bliti, and keeps that check working either way. It also decides whether the gas sensor's raw resistance is enough, since Bosch's air quality index comes from their closed library. Which readings a device reports follows its hardware version from the HAT EEPROM: rev C is expected to carry a cheaper air sensor that may lack some of these.
 
-## Report whether the case is open
+## Report whether the case is open · M4
 
 Add a fact for whether the Iti's case is closed, from the CASE switch on GPIO17 (low while the lid presses it). The card decides whether opening the case is also recorded as an event, with when it happened, beyond the current state.
 
