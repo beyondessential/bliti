@@ -151,23 +151,24 @@ This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generat
 
 ### The HAT, rev B (silkscreened "ITI 4.0")
 
-| part | what | notes |
-| --- | --- | --- |
-| U1 | the HAT EEPROM (SOIC-8, presumably) | beside R1/R2, marked 392 (3.9 kΩ, the HAT spec's ID-pin pull-ups) and the ID WP pads |
-| ID WP | two round pads, centre right | bridged to make the EEPROM writable |
-| U2 | TPM, ST33K part on SPI | the BID board-ID source |
-| U3 | AIR: Bosch BME680 | rev C is expected to carry a cheaper air sensor instead (possibly a BMP580) |
-| U4 | LIGHT: ambient light sensor ("ALS 308") | |
-| USER | tactile button | the button the assembler presses to select a board in provisioning |
-| SW1 | CASE: lever switch, held pressed while the case is closed | case-open detection |
-| J3 | 2×10 header | |
+The HAT's 2×10 header sits on the Pi's physical pins 9 to 28.
 
-The sensors are not on I²C bus 1 (where the backup supply's gauge sits).
-Which bus, and which GPIOs the buttons use, are to come from the user.
+| part | device | connection | notes |
+| --- | --- | --- | --- |
+| U1 | onsemi CAT24C256 EEPROM, 32 KiB | ID bus, GPIO0/1, address `0x50`, 3.9 kΩ pull-ups | write-protected unless the ID WP pads are bridged (grounding WP) |
+| U2 | ST ST33KTPM2X32DKG9, TPM 2.0 | SPI0 CE1 (GPIO7); reset GPIO24; interrupt GPIO25 | the BID board-ID source; GPIO8 (CE0) is reserved, not the TPM's chip select |
+| U3 | Bosch BME680, air | sensor bus, address `0x76` | no interrupt; rev C is expected to carry a cheaper air sensor (possibly a BMP580) |
+| U4 | Lite-On LTR-308ALS-01, light | sensor bus, address `0x53` | interrupt on GPIO18, active low |
+| SW1 | CASE lever switch | GPIO17 | active low while the case is closed |
+| SW2 | USER button | GPIO27 | active low while pressed; the button the assembler presses to select a board |
+
+The sensor bus is GPIO22 (SDA) / GPIO23 (SCL), which the Pi 5 drives as I²C3 (`i2c3-pi5` with `pins_22_23`), with 4.7 kΩ pull-ups.
+Both buttons have external pull-ups and series resistors.
+GPIO15 is spare.
 
 ### Inferring the version, and where it stops
 
-Provisioning tells rev B from later revisions by which air sensor answers: a BME680 means v4.0.
+Provisioning tells rev B from later revisions by which air sensor answers on the sensor bus: a BME680 at `0x76` means v4.0.
 This kind of detection by positive markers is what C4 avoided, because a dead or missing part misreads.
 Here it is used only once, at provisioning, to decide what to write; from then on the EEPROM is authoritative and the running system never infers from parts.
 Where provisioning can't place the board as a known version (the sensor that tells revisions apart doesn't answer, or a combination it doesn't know), the EEPROM step stops and says the board needs looking at, without guessing.
@@ -178,6 +179,37 @@ Before the label is printed, provisioning exercises the HAT so a bad board is ca
 The assembler presses USER, then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
 Each check passes or fails in the client.
 Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
+
+The hardware check runs before the EEPROM is programmed, so on a fresh board the firmware has configured none of the HAT's devices.
+The provisioning SD's own `config.txt` therefore carries the HAT's configuration explicitly; it is a bench tool for known hardware, so it doesn't need the EEPROM to tell it.
+
+### The HAT's overlay
+
+HAT+ puts an overlay *name* in the EEPROM, not `config.txt` lines; the firmware loads that `.dtbo` from the boot partition.
+The sensor bus needs `i2c3-pi5` with a parameter (`pins_22_23`), which a bare name can't carry, so the HAT needs an overlay of its own rather than a list of upstream ones.
+
+One Iti overlay per hardware version that needs a different one (`tamanu-iti-v4` to start), shipped on the boot partition by `linux-images`, configuring:
+- SPI0 with the TPM on CE1 (what `tpm-slb9670` does today)
+- I²C3 on GPIO22/23
+
+It enables the buses and does not bind the sensors' kernel drivers: a bound driver holds the address, which would stop provisioning (and anything else reading the chip directly) from reaching it.
+Whether the sensors get kernel drivers, and whether the buttons become `gpio-keys` input devices, is for the cards that use them; the overlay grows then.
+
+With the overlay named in the EEPROM, `linux-images` can drop the lines only the HAT needs (`dtoverlay=tpm-slb9670`, and `dtparam=spi=on` if nothing else uses SPI).
+`dtparam=i2c_arm=on` stays: the backup supply's gauge on bus 1 is not on this HAT, and v3 has no EEPROM to name it.
+
+### Prototype experiment: devices from the EEPROM alone
+
+What depends on the TPM on the prototype (checked):
+- LUKS root unlocks from an empty keyfile, not the TPM
+- Tailscale's state is plain JSON, not TPM-sealed
+- bliti's board ID: without the TPM it falls back to the Pi serial, so the QR label stops matching and BLE is unreachable until the TPM is back (C4 would also report it as "Tamanu Iti v3")
+
+Removing the `config.txt` line with the EEPROM still blank has a known outcome, since nothing else names the overlay: the TPM stays down.
+The informative run is the other order:
+1. Install the Iti overlay on the boot partition; program the EEPROM naming it, with the `config.txt` line still in place; reboot; read `/proc/device-tree/hat/` back (also settles how the firmware renders `uuid`, `product_id`, `product_ver`) and check I²C3 is up with both sensors answering
+2. Remove the `config.txt` line; reboot; check `/dev/tpm0` comes up
+3. Put the line back if it doesn't
 
 ## Implementation options
 
@@ -194,11 +226,11 @@ Doing anything ongoing with these devices (case-open alerts, environment reading
 ## Open questions
 
 - [ ] Exactly how the firmware renders `uuid`, `product_id` and `product_ver` under `/proc/device-tree/hat/` (expected as text, e.g. `0x0004`); confirm by reading back the prototype once programmed
-- [ ] The Iti overlay: its name, what it configures, and whether it lives in `linux-images` or upstream (HAT+ asks vendors to upstream overlays)
+- [ ] Upstreaming the Iti overlay to Raspberry Pi (HAT+ asks vendors to), or `linux-images` only
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
-- [ ] Which bus the sensors are on, and which GPIOs USER and CASE use (user is gathering)
-- [ ] U1's exact part, for its size and write page size
+- [x] Sensor bus and button GPIOs: from the hardware handoff
+- [x] U1: CAT24C256, 32 KiB
 - [x] The "bridge here" picture: the user's rev B photo, labelled
 - [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
