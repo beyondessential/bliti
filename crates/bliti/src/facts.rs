@@ -30,6 +30,7 @@ use crate::network::stack::Report;
 pub use power::{Supply, Unchanged, curve, record_supply};
 
 mod board;
+pub mod case;
 mod compute;
 mod network;
 mod power;

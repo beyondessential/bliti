@@ -21,6 +21,9 @@ Each reader decides how to use them; [VIEW](device-view.md) specifies how ours d
 | throttling | A platform limiting its own processor, typically for heat or for supply voltage. |
 | HAT EEPROM | The memory on the identification pins of a board fitted to a Raspberry Pi's header, from which the Pi's firmware publishes that board's vendor, product and version to the operating system at boot. |
 | TPM | A Trusted Platform Module, as [BID](board-id.md) has it. |
+| case switch | The lever switch on a Tamanu Iti's HAT that the closed lid of its case holds down. |
+| provisioning medium | The removable disk carrying the system a board is provisioned from, at assembly or for repair. |
+| boot identifier | The random identifier the kernel gives each boot. |
 
 ## The topic
 
@@ -200,6 +203,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
 | `channel-clients-max` | `quantity`, `clients` | — | how many clients the device can hold a channel open to at once, its slots of [CHN](channel.md) |
+| `case-closed` | `boolean` | — | whether the device's case is closed, as [Case](#case) has it |
+| `case-last-opened` | `datetime` | `boot`, `found` | the latest opening of the case, as [Case](#case) has it |
 
 ### Readings
 
@@ -238,8 +243,10 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 | `margin` | — | how far either way the reading's value may be off, in its unit |
 | `short` | — | a short form of the fact's value, as [Identity](#identity) has it |
+| `boot` | `id`, `offset` | the boot something happened in, by its boot identifier, and `offset`, the milliseconds into that boot it happened at |
+| `found` | — | `true` where the device found the case so when it started rather than saw it move, and `false` otherwise |
 
-`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits`, `margin` and `short` are descriptive.
+`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits`, `margin`, `short`, `boot` and `found` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -468,6 +475,61 @@ For a battery it reads from its operating system, a device MUST report both as t
 > State of charge is not the signal here: it does not begin to move until long after the voltage has.
 > A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case tells it from an external supply the same device might also report.
 > A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
+
+## Case
+
+A device MUST report `case-closed` and `case-last-opened` only where its HAT EEPROM records it as a Tamanu Iti v4.0, as [HAT](hat.md) has it, and MUST omit both otherwise.
+
+A device MUST read whether its case is closed from the case switch, on the GPIO line the kernel names `GPIO17`, which reads low while the switch is held down.
+
+A device MUST treat the switch as having moved only once it has held its new position long enough to rule out contact bounce.
+
+A device MUST report `case-closed` as `true` while the case is closed and as `false` while it is open.
+
+A device MUST report `case-closed` as `passed` while the case is closed, and as `warning` while it is open, with a reason saying the case is open.
+
+A device MUST report a change in `case-closed` as soon as it observes the change.
+
+A device MUST report `case-closed` as `broken`, with a reason, where it cannot read the switch.
+
+### The history
+
+A device MUST keep a history of the openings and closings of its case in the file `/var/lib/bliti/case-history.jsonl`, except while running from the provisioning medium, when it MUST NOT keep one.
+
+> [!NOTE]
+> Assembly needs the case open, so the openings of a board being provisioned are not worth recording, and the history starts with the system the board is provisioned with.
+
+A device MUST watch the switch for as long as it runs, whether or not it is sampling, and MUST append an entry to the history at each opening and each closing it observes.
+
+A device MUST write each entry durably to storage as soon as it observes the change the entry records.
+
+A device MUST NOT remove or rewrite an entry in the history.
+
+The history holds one JSON object per line, each with these members:
+
+| member | type | meaning |
+| --- | --- | --- |
+| `event` | string | `opened` or `closed` |
+| `time` | string | the instant it happened by the device's clock, as [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) |
+| `boot` | object | `id`, the boot identifier of the boot it happened in, and `offset`, the milliseconds into that boot it happened at |
+| `found` | boolean | `true` where the device found the case so when it started rather than saw it move, and `false` otherwise |
+
+When a device starts, it MUST compare the position of the switch with the latest entry in the history.
+Where the two differ, or where the history holds no entry and the case is open, it MUST append an entry for the position it finds, at the moment it started, with `found` as `true`.
+
+> [!NOTE]
+> A device cannot see its case move while it is not running, so an entry it finds when starting says only that the case moved at some point before.
+> The clock of a device in the field may be unset or wrong, so each entry also records which boot it happened in and how far into it. The order of the lines is the order of the events, whatever the clock said.
+
+### The latest opening
+
+A device MUST report `case-last-opened` from the latest `opened` entry in the history: its `time` as the value, its `boot` as the `boot` trait and its `found` as the `found` trait.
+
+A device MUST omit `case-last-opened` where the history holds no opening.
+
+A device MUST report `case-last-opened` as `passed`, and as `broken`, with a reason, where it cannot read the history.
+
+A device MUST report a new `case-last-opened` as soon as it appends an opening to the history, in the same batch as the change in `case-closed`.
 
 ## Temperature and processor speed
 

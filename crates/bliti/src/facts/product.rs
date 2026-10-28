@@ -35,9 +35,9 @@ enum Hat {
 
 /// A Tamanu Iti's version: `product_id` is the major part and `product_ver` the minor (HAT).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Version {
-	major: u16,
-	minor: u16,
+pub struct Version {
+	pub major: u16,
+	pub minor: u16,
 }
 
 impl fmt::Display for Version {
@@ -66,6 +66,14 @@ pub fn entry(at: u64, backup: bool) -> Option<Entry> {
 			backup,
 		},
 	)
+}
+
+/// The Tamanu Iti version the HAT EEPROM records, where it records one.
+pub fn iti_version() -> Option<Version> {
+	match hat(Path::new(HAT)) {
+		Hat::Iti(version) => Some(version),
+		Hat::None | Hat::Other => None,
+	}
 }
 
 fn decide(at: u64, hardware: Hardware) -> Option<Entry> {

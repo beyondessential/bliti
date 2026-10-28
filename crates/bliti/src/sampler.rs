@@ -217,13 +217,16 @@ impl Sampler {
 }
 
 /// The traits NFO makes wholly descriptive, and the members of others that describe.
-const DESCRIPTIVE: [&str; 6] = [
+const DESCRIPTIVE: [&str; 9] = [
 	STATUS,
 	LIMITS,
 	"security",
 	"channel",
 	"passphrase",
 	"margin",
+	"short",
+	"boot",
+	"found",
 ];
 const DESCRIPTIVE_MEMBERS: [(&str, &[&str]); 2] = [
 	("interface", &["route", "overlay"]),

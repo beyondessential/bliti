@@ -62,6 +62,7 @@ export const TILE_ORDER = [
 	'power-source',
 	'battery-charge',
 	'channel-clients',
+	'case-closed',
 	'last-boot',
 ]
 
@@ -75,6 +76,7 @@ export const IN_REVEAL = new Set([
 	'battery-time-to-empty',
 	'battery-time-to-full',
 	'channel-clients-max',
+	'case-last-opened',
 ])
 
 // Our wording for each catalogue name. A name not here is title-cased from the name itself.
@@ -98,6 +100,8 @@ const LABELS = {
 	'channel-clients': 'Connected',
 	'channel-clients-max': 'Room for',
 	'last-boot': 'Uptime',
+	'case-closed': 'Case',
+	'case-last-opened': 'Last opened',
 }
 
 // Our wording for the values of the catalogue's descriptive text readings.
@@ -109,6 +113,7 @@ const VALUES = {
 // Our wording for the two values of the catalogue's boolean readings; a boolean not here is yes or no.
 const BOOLEANS = {
 	'wired-carrier': { true: 'Plugged in', false: 'No cable' },
+	'case-closed': { true: 'Closed', false: 'Open' },
 }
 
 export function labelOf(name) {
@@ -215,6 +220,22 @@ export function formatDuration(seconds) {
 	return `${minutes}m`
 }
 
+const INSTANT = new Intl.DateTimeFormat('en-AU', {
+	day: 'numeric',
+	month: 'short',
+	year: 'numeric',
+	hour: 'numeric',
+	minute: '2-digit',
+})
+
+/// An RFC 3339 instant as how long ago it was and the instant itself, as `2h 5m ago · 29 Oct 2026,
+/// 12:12 am`.
+export function formatAgo(rfc3339) {
+	const then = Date.parse(rfc3339)
+	if (Number.isNaN(then)) return String(rfc3339)
+	return `${elapsedSince(rfc3339)} ago · ${INSTANT.format(then)}`
+}
+
 /// An RFC 3339 instant rendered as how long ago it was. `last-boot` is shown as an elapsed time
 /// (VIEW); a clock the device could not answer for is not sent, so this only runs on a real instant.
 function elapsedSince(rfc3339) {
@@ -252,12 +273,12 @@ function clamp(fraction) {
 // one merged wrong one (VIEW).
 
 // The descriptive traits, which do not distinguish one thing measured from another: the whole
-// `status`, `limits`, `margin`, `security`, `channel`, `passphrase` and `short` traits, and the members named
-// here within the traits that hold them. A battery's serial, model and vendor describe the cell; only
+// `status`, `limits`, `margin`, `security`, `channel`, `passphrase`, `short`, `boot` and `found`
+// traits, and the members named here within the traits that hold them. A battery's serial, model and vendor describe the cell; only
 // its name says which battery it is. A wireless link's channel moves whenever a shared-channel hotspot
 // follows the client onto a new one, and that is the same link, not a second; a hotspot given a new
 // passphrase is the same hotspot. A time left whose margin narrows is the same time left.
-const DESCRIPTIVE = new Set(['status', 'limits', 'margin', 'security', 'channel', 'passphrase', 'short'])
+const DESCRIPTIVE = new Set(['status', 'limits', 'margin', 'security', 'channel', 'passphrase', 'short', 'boot', 'found'])
 const DESCRIPTIVE_MEMBERS = {
 	interface: new Set(['route', 'overlay']),
 	battery: new Set(['serial', 'model', 'vendor']),

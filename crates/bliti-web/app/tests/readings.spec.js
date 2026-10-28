@@ -767,3 +767,89 @@ test.describe('wired carrier', () => {
 		await expect(page.locator('.tile').filter({ hasText: 'Door Open' })).toContainText('No')
 	})
 })
+
+test.describe('the case', () => {
+	const closed = (value, extra = {}) =>
+		fact('case-closed', {
+			kind: 'boolean',
+			value,
+			traits: value ? { status: { is: 'passed' } } : { status: { is: 'warning', reason: 'the case is open' } },
+			...extra,
+		})
+	// Two hours and five minutes ago, give or take the test's own running time.
+	const ago = () => new Date(Date.now() - (2 * 3600 + 5 * 60 + 30) * 1000).toISOString()
+	const opened = (found, time = ago()) =>
+		fact('case-last-opened', {
+			kind: 'datetime',
+			value: time,
+			traits: { status: { is: 'passed' }, boot: { id: 'a-boot', offset: 4321 }, found },
+		})
+	const tile = (page) => page.locator('.tile').filter({ has: page.locator('.label', { hasText: 'Case' }) })
+
+	test('sits after connected clients and before uptime, saying closed or open', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, fact('last-boot', { kind: 'datetime', value: ago() }))
+		await feed(page, closed(true))
+		await feed(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 1 }))
+		await expect(page.locator('.tile .label')).toHaveText(['Connected', 'Case', 'Uptime'])
+		await expect(tile(page).locator('.value')).toHaveText('Closed')
+		await feed(page, closed(false))
+		await expect(tile(page).locator('.value')).toHaveText('Open')
+	})
+
+	test('an open case takes the warning colour, a closed one none', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await expect(tile(page).locator('.value')).not.toHaveClass(/warn|bad/)
+		await feed(page, closed(false))
+		await expect(tile(page).locator('.value.warn')).toHaveCount(1)
+	})
+
+	test('the reveal shows the latest opening as how long ago and when', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false, '2026-01-02T03:04:05Z'))
+		await tile(page).click()
+		const detail = tile(page).locator('.detail')
+		await expect(detail.locator('dt')).toHaveText('Last opened')
+		await expect(detail.locator('dd')).toHaveText(/^\d+d \d+h ago · \d+ Jan 2026, /)
+	})
+
+	test('an opening seen is told from one found when the device started', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false))
+		await tile(page).click()
+		await expect(tile(page).locator('.detail dt')).toHaveText('Last opened')
+		await expect(tile(page).locator('.detail dd')).toContainText('2h 5m ago')
+
+		await feed(page, opened(true))
+		await expect(tile(page).locator('.detail dt')).toHaveText('Found open at start')
+	})
+
+	test('the latest opening gets no tile of its own', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false))
+		await expect(page.locator('.tile')).toHaveCount(1)
+		await expect(page.locator('.tile', { hasText: 'Last opened' })).toHaveCount(0)
+	})
+
+	test('renders without a latest opening, with nothing about one to reveal', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await expect(tile(page).locator('.value')).toHaveText('Closed')
+		await expect(page.getByRole('button', { name: /Case/ })).toHaveCount(0)
+
+		await feed(page, closed(false))
+		await tile(page).click()
+		await expect(tile(page).locator('.detail')).toContainText('the case is open')
+		await expect(tile(page).locator('.detail dt')).toHaveCount(0)
+	})
+})

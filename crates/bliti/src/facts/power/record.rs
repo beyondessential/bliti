@@ -10,10 +10,13 @@ use std::{
 };
 
 use super::{
-	Gauge, POWER_LINE, gpio, i2c, read_gauge,
+	Gauge, POWER_LINE, i2c, read_gauge,
 	supply::{Held, Look, Supply, Unanswered},
 };
-use crate::power::{Controller, NotBegun};
+use crate::{
+	gpio,
+	power::{Controller, NotBegun},
+};
 
 /// How often the supply is looked at: at least every ten seconds, which LOW asks for while external
 /// power is absent.
