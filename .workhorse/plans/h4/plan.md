@@ -63,8 +63,9 @@ This card puts in what any page after the first needs, so adding one is adding i
 
 ### Roles and environments
 
-- Production: the deploy job runs in GitHub environment `production`, which allows deployments from `main` and from tags matching `v*` only, set up in the repository settings as a branch rule and a tag rule. Its role trusts the subject `repo:beyondessential/bliti:environment:production` and writes `prod/`.
-- Previews: the deploy and teardown jobs run in no environment, because the preview role trusts the subject `repo:beyondessential/bliti:pull_request`, and a job in an environment carries the environment's subject instead. It writes `previews/`, and cannot tell one PR's preview from another's.
+- Production: the deploy job runs in GitHub environment `production`, which allows deployments from `main` and from tags matching `v*` only, set up in the repository settings as a branch rule and a tag rule. Its role trusts the subject `repo:beyondessential@37430618/bliti@1373408996:environment:production` and writes `prod/`.
+- Previews: the deploy and teardown jobs run in no environment, because the preview role trusts the subject `repo:beyondessential@37430618/bliti@1373408996:pull_request`, and a job in an environment carries the environment's subject instead. It writes `previews/`, and cannot tell one PR's preview from another's.
+- This repository issues immutable OIDC subjects (`gh api repos/beyondessential/bliti/actions/oidc/customization/sub`), so every subject begins `repo:beyondessential@37430618/bliti@1373408996`, in place of `repo:beyondessential/bliti`, and the roles must trust that form.
 - A `pull_request` run takes its workflow from the PR head, so a PR could name `production` in its own copy of the workflow. The environment's branch restriction is what stops that, not the workflow file. The `production` environment, with that restriction, is set up in the bliti repository's settings.
 - Both roles may invalidate; nothing here does, given the cache-control above.
 - With no environment on the preview job, the link to a preview comes from a GitHub deployment the job creates through the API (environment `preview`, its URL on the deployment status), so the PR shows "View deployment" without changing the job's subject. That needs `deployments: write`, beside `id-token: write`.
