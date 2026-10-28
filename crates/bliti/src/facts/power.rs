@@ -34,10 +34,10 @@ use self::supply::{
 	Reading, Seen,
 	rate::{self, Estimate},
 };
+use super::i2c;
 
 mod battery;
 pub mod curve;
-mod i2c;
 mod record;
 mod supply;
 mod sysfs;
@@ -129,9 +129,9 @@ impl Source {
 }
 
 fn read_gauge() -> Result<Gauge, i2c::Error> {
-	let mut bus = i2c::Bus::open(I2C_BUS, GAUGE)?;
-	let vcell = bus.read_word(REG_VCELL)?;
-	let soc = bus.read_word(REG_SOC)?;
+	let bus = i2c::Bus::open(I2C_BUS)?;
+	let vcell = bus.read_word(GAUGE, REG_VCELL)?;
+	let soc = bus.read_word(GAUGE, REG_SOC)?;
 	Ok(Gauge {
 		volts: f64::from(vcell >> 4) * VCELL_STEP_MV / 1000.0,
 		charge: f64::from(soc >> 8) + f64::from(soc & 0xff) / 256.0,

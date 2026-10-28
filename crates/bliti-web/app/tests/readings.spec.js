@@ -853,3 +853,47 @@ test.describe('the case', () => {
 		await expect(tile(page).locator('.detail dt')).toHaveCount(0)
 	})
 })
+
+test.describe('air and light', () => {
+	const passed = (extra = {}) => ({ status: { is: 'passed' }, ...extra })
+
+	// The HAT's readings take the places VIEW's order gives them, after the fan and before power.
+	test('humidity, air pressure and light sit where the order puts them, in our own units', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('power-source', { kind: 'text', value: 'via-backup' }))
+		await feed(page, reading('light', { kind: 'quantity', unit: 'lux', value: 212.4 }))
+		await feed(page, reading('air-pressure', { kind: 'quantity', unit: 'pascals', value: 101325 }))
+		await feed(page, reading('humidity', fraction(0.4225)))
+		await feed(page, reading('fan-speed', { kind: 'quantity', unit: 'revolutions/minute', value: 3113, traits: passed({ fan: 'cpu' }) }))
+		await expect(page.locator('.tile .label')).toHaveText(['Fan', 'Humidity', 'Air pressure', 'Light', 'Power'])
+		await expect(page.getByText('42%')).toBeVisible()
+		await expect(page.getByText('1013.25 hPa')).toBeVisible()
+		await expect(page.getByText('212.4 lx')).toBeVisible()
+	})
+
+	// The case sensor is folded into the temperature tile, which still headlines the processor, and
+	// both sensors are worded rather than shown as sent (VIEW).
+	test('the case temperature is in the temperature reveal under its own wording', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 48.5, traits: passed({ sensor: 'cpu' }) }))
+		await feed(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 31.2, traits: passed({ sensor: 'case' }) }))
+		const tile = page.locator('.tile').filter({ hasText: 'Temperature' })
+		await expect(tile).toHaveCount(1)
+		await expect(tile.locator('.value').first()).toHaveText('48.5 °C')
+		await tile.click()
+		await expect(tile).toContainText('Processor')
+		await expect(tile).toContainText('Inside case')
+		await expect(tile).toContainText('31.2 °C')
+	})
+
+	test('a broken humidity shows it is unavailable, with its reason', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('humidity', { kind: 'fraction', traits: { status: { is: 'broken', reason: 'the BME680 does not answer' } } }))
+		await expect(page.getByText('unavailable')).toBeVisible()
+		await page.getByRole('button', { name: /Humidity/ }).click()
+		await expect(page.getByText('the BME680 does not answer')).toBeVisible()
+	})
+})
