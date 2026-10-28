@@ -247,8 +247,8 @@ A board whose USER button doesn't work can't be reached by the client; the conso
 
 ### The provisioning client
 
-The provisioning client is a second page in the existing web build, at its own path, not linked from the operator app.
-It links to the assembly manual (G4), hosted beside it, which takes the builder from parts to provisioning to closing up and testing.
+The provisioning client is a second page in the existing web build, at `/provision`, not linked from the operator app (the web app's address is likely iti.tamanu.app, to confirm).
+It links to the assembly manual (G4) at `/assemble`, and the manual links back, taking the builder from parts to provisioning to closing up and testing.
 It shares the channel, protocol and wasm code with the operator app.
 
 Its flow, one board per tab:
