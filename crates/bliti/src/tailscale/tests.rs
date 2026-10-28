@@ -478,6 +478,47 @@ async fn a_device_without_tailscaled_offers_only_netcheck() {
 	assert!(tailscale.observed().is_none());
 }
 
+/// A `tailscale` command that is, or is not, on the device.
+struct Command(bool);
+
+#[async_trait::async_trait]
+impl Runner for Command {
+	fn available(&self) -> bool {
+		self.0
+	}
+	async fn run(&self) -> Result<String, String> {
+		Ok(NETCHECK_REPORT.to_owned())
+	}
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_device_with_the_package_and_no_socket_reports_tailscale_as_broken() {
+	let tailscale = Tailscale::connect_at(
+		PathBuf::from("/nonexistent/tailscaled.sock"),
+		Arc::new(Command(true)),
+		Options::default(),
+	)
+	.await
+	.unwrap();
+	assert!(matches!(tailscale.observed(), Some(Observed::Broken(_))));
+	assert_eq!(tailscale.listed(), [Act::Netcheck]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_device_with_neither_the_package_nor_a_socket_reports_no_tailscale() {
+	let tailscale = Tailscale::connect_at(
+		PathBuf::from("/nonexistent/tailscaled.sock"),
+		Arc::new(Command(false)),
+		Options::default(),
+	)
+	.await
+	.unwrap();
+	assert!(tailscale.observed().is_none());
+	assert!(tailscale.listed().is_empty());
+}
+
 /// Everything logged by any test in this process. A scoped subscriber would miss the events of a call
 /// site another test thread settled first, so the one subscriber is global and the test looks only for
 /// what is its own.

@@ -319,6 +319,8 @@ The networks a device joins, and the hotspot it runs, are configured under [NET]
 
 A device that runs Tailscale MUST report `tailscale-state`, `tailscale-name`, `tailnet` and `tailscale-key-expiry`, and MUST omit all four where it runs none.
 
+A device on which Tailscale is installed runs Tailscale, whether or not it is up.
+
 `tailscale-state` MUST report one of:
 
 | value | meaning | `status` |
