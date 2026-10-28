@@ -103,6 +103,18 @@ A run that fails stops at that step and waits.
 
 Pressing USER puts the board back on the air for five minutes whatever the run is doing, and connecting shows where it is: the step list with its states, or the finished record. Choosing steps only comes up when nothing is running.
 The finished record and label wait on the device for whichever client connects next, and the record is on the SD card regardless.
+While provisioning, the Pi's status LED shows the run's state, so a bench of boards can be read at a glance:
+
+| state | LED |
+| --- | --- |
+| nothing running | as the Pi normally shows it |
+| working | green, slow blink |
+| waiting on a person (CASE, the bridge, an overwrite to confirm) or failed | red, fast blink |
+| finished | green, steady |
+
+Only the provisioning SD drives the LED this way; the Iti's own system leaves it as the Pi sets it.
+The Pi 5's one LED is two in Linux, green (ACT) and red (PWR), each with its own control; that bliti can drive them from the provisioning system is still to be checked on the prototype.
+
 A run does not survive the board losing power: the SD boots back into provisioning with nothing running, and the assembler starts again, choosing only the steps still to do.
 
 Each SD card keeps its own records file, so a bench of several SD cards spreads the records across them until they are gathered; the central register card is what fixes that properly.
@@ -312,4 +324,5 @@ Run (28 Oct):
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
+- [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system
 - [ ] The contract between bliti and the `linux-images` provisioning SD: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
