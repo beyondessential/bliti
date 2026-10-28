@@ -91,8 +91,9 @@ Before any step, a run started from a USB stick puts USB first in the boot order
 3. Update the TPM's firmware (before anything takes the TPM's identity or keys)
 4. Flash the NVMe and read it back
 5. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
-6. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
-7. Render the label and save the board's record
+6. Sign the Iti in to Tailscale, under the name chosen for it
+7. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
+8. Render the label and save the board's record
 
 The assembler chooses which steps to run; the rest are skipped.
 A step that fails stops the run and says why, and the assembler can run it again without repeating the steps before it.
@@ -104,7 +105,7 @@ At the end the client tells the assembler to power the board off and remove the 
 Writing the image from the provisioning medium to the NVMe is slow, so a run carries on whether or not a client is connected: the client starts it and watches it, and closing the page or walking away leaves it running.
 That lets an assembler start several boards, each with its own stick, and check back on each, or do one at a time without keeping a phone beside it.
 
-The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (TPM firmware, NVMe, keys, bootloader), so the assembler is needed only at the start.
+The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (TPM firmware, NVMe, keys, Tailscale, bootloader), so the assembler is needed only at the start.
 The device watches for those actions itself (CASE's lever, the bridge), so a person can complete them with no client connected; only confirming an EEPROM overwrite needs an answer, from a client or the console.
 A run that fails stops at that step and waits.
 
@@ -163,6 +164,14 @@ Anyone who can boot their own system on the board can have the TPM unseal for th
 A provisioned Iti boots only from SD and NVMe, and its SD slot is physically blocked, so booting another system on it means taking it apart; that keeps out someone passing by, but not someone who can take the device away.
 NVMe-first would not close the gap (boot with the NVMe out, then attach it over USB) and would stop a repair SD taking over an imaged board, so SD stays first.
 Closing it takes Raspberry Pi secure boot (signed boot images, a customer key burnt into OTP, irreversible per board). That is a separate card, though its OTP programming would naturally be another provisioning step.
+
+#### Signing in to Tailscale
+
+The run signs the Iti in to Tailscale, so it comes off the bench already on the tailnet, in one tool and one pass.
+The run executes on the provisioning system, while Tailscale's sign-in belongs to the Iti's own system on the NVMe, so the step signs in against the new system's Tailscale state, with its encrypted root open from the step before; the Iti's first boot comes up signed in.
+The auth key and the name come from the client, as CTL's `sign-in` by `auth-key` takes them (reusing its tailnet check), and the key is used once and never written down, as CTL already requires of a device; only the node state that results is, which is what any signed-in machine keeps.
+The assembler enters a reusable auth key in the client once for a session of boards, and picks or accepts a name per board.
+Where the step is skipped or fails, the Iti is signed in afterwards through the operator app's Tailscale screen, which already does this.
 
 #### Configuring the bootloader
 
@@ -237,6 +246,7 @@ A board whose USER button doesn't work can't be reached by the client; the conso
 ### The provisioning client
 
 The provisioning client is a second page in the existing web build, at its own path, not linked from the operator app.
+It links to the assembly manual (G4), hosted beside it, which takes the builder from parts to provisioning to closing up and testing.
 It shares the channel, protocol and wasm code with the operator app.
 
 Its flow, one board per tab:
@@ -377,6 +387,7 @@ Run (28 Oct):
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Obtain ST33KTPM firmware images from ST (they are not public), and read the prototype TPM's current firmware version
+- [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's auth key (or mints keys through a Tailscale OAuth client)
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
