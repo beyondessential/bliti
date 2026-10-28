@@ -165,7 +165,8 @@ So the bootloader is touched twice:
   | `BOOT_UART` | `1` | |
   | `HDMI_DELAY` | `0` | |
 
-  The step also updates the bootloader where it is older than the tryboot floor the `pi` image needs (firmware dated 2025-02-11 or later).
+  The step also updates the bootloader to the one the provisioning image carries, wherever the board's is older, and never downgrades one.
+  The image takes the newest bootloader on Raspberry Pi's "default" release channel when it is built, so updates are picked up each time `linux-images` rebuilds it; provisioning needs no network, and every board from one image gets the same bootloader. That bootloader is always well past the tryboot floor the `pi` image needs (firmware dated 2025-02-11 or later).
 
 Provisioning is the one place the Iti's bootloader is configured.
 These settings are carried over from the `linux-images` `pi eeprom` SD (`image/pi-eeprom-config.txt`), which is retired: `linux-images` stops building it, and its spec and tests go with it.
@@ -336,6 +337,8 @@ Run (28 Oct):
 - `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, and the save-recovery-keys option. Its `pi eeprom` SD image is retired, its bootloader settings now applied by provisioning.
 
 ## Trade-offs
+
+- **Bootloader from the image build, over fetched live or pinned.** Fetching the latest at provisioning needs network on the bench and lets boards done a week apart differ. Pinning a tested version adds a test process without a known problem behind it. Taking the default channel's newest at image build is current as of each rebuild, works offline, and keeps a batch consistent.
 
 - **Second page over a separate app or a section of the operator app.** Above the channel, provisioning shares almost nothing with the operator flow: no QR code, its own discovery, a multi-step pipeline, label rendering, and a recovery passphrase on screen. A field operator should never meet the passphrase screen, and an assembler has no use for Status or Network, so they are kept apart. A second entry point in one Vite build costs one config line; a separate app would mean a second build and deploy to keep in step with the protocol, which is the complexity worth avoiding.
 - **Silent until pressed, over always advertising.** Web Bluetooth reaches a device only through the browser's chooser, filtered by name or prefix, so a page cannot listen to several boards and notice which saw a press. Advertising only after a press makes the press itself the selection: the chooser lists just the pressed boards, with nothing to match against and no name that changes (so no host name caching to worry about). Rejected: a "pressed" variant of an always-on name, which needed the name to change and risked hosts caching the old one; and confirming after connecting, which costs a chooser pass and a handshake per wrong guess.
