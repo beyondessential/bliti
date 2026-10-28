@@ -7,7 +7,7 @@
 
 use std::future::Future;
 
-use bliti_core::slot::{Allocation, COUNT, Slot};
+use bliti_core::slot::{Allocation, Slot};
 use bluer::Address;
 use tokio::sync::Mutex;
 
@@ -15,10 +15,18 @@ use tokio::sync::Mutex;
 ///
 /// Allocations run one at a time, since freeing a slot means asking whether its holder is still
 /// connected, and one running alongside could take the slot between the asking and the freeing.
-#[derive(Default)]
-pub struct Slots(Mutex<[Option<Address>; COUNT as usize]>);
+pub struct Slots(Mutex<Vec<Option<Address>>>);
 
 impl Slots {
+	/// Slots that give out the first `count` of the slots a device offers, and no more.
+	///
+	/// A client reading the allocation once they are all held is told none is free (PRV, "One client
+	/// at a time").
+	pub fn new(count: u8) -> Self {
+		let count = count.min(bliti_core::slot::COUNT);
+		Self(Mutex::new(vec![None; usize::from(count)]))
+	}
+
 	/// Give `client` a slot, the one it already holds where it holds one.
 	///
 	/// A holder is freed only once no slot is free, and only if `connected` says it has gone: nothing
@@ -64,6 +72,8 @@ fn find(held: &[Option<Address>], holder: Option<Address>) -> Option<Slot> {
 mod tests {
 	use std::collections::HashSet;
 
+	use bliti_core::slot::COUNT;
+
 	use super::*;
 
 	fn client(n: u8) -> Address {
@@ -81,7 +91,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn each_client_gets_a_slot_of_its_own() {
-		let slots = Slots::default();
+		let slots = Slots::new(COUNT);
 		let connected: HashSet<_> = (0..COUNT).map(client).collect();
 		let mut given = HashSet::new();
 		for n in 0..COUNT {
@@ -95,7 +105,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn reading_again_gives_the_same_slot() {
-		let slots = Slots::default();
+		let slots = Slots::new(COUNT);
 		let connected = HashSet::from([client(1), client(2)]);
 		let first = allocate(&slots, client(1), &connected).await;
 		allocate(&slots, client(2), &connected).await;
@@ -104,7 +114,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_full_device_turns_the_next_client_away() {
-		let slots = Slots::default();
+		let slots = Slots::new(COUNT);
 		let connected: HashSet<_> = (0..=COUNT).map(client).collect();
 		for n in 0..COUNT {
 			allocate(&slots, client(n), &connected).await;
@@ -117,7 +127,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_slot_comes_back_once_its_holder_has_gone() {
-		let slots = Slots::default();
+		let slots = Slots::new(COUNT);
 		let mut connected: HashSet<_> = (0..=COUNT).map(client).collect();
 		for n in 0..COUNT {
 			allocate(&slots, client(n), &connected).await;
@@ -132,11 +142,55 @@ mod tests {
 
 	#[tokio::test]
 	async fn a_slot_is_not_held_by_a_client_it_was_not_given_to() {
-		let slots = Slots::default();
+		let slots = Slots::new(COUNT);
 		let connected = HashSet::from([client(1)]);
 		let Allocation::Given(slot) = allocate(&slots, client(1), &connected).await else {
 			panic!("turned away from an empty device");
 		};
 		assert!(!slots.holds(slot, client(2)).await);
+	}
+
+	#[tokio::test]
+	async fn a_device_giving_out_one_slot_turns_the_second_client_away() {
+		let slots = Slots::new(1);
+		let connected = HashSet::from([client(1), client(2)]);
+		let Allocation::Given(slot) = allocate(&slots, client(1), &connected).await else {
+			panic!("the first client was turned away");
+		};
+		assert_eq!(slot.number(), 0);
+		assert_eq!(
+			allocate(&slots, client(2), &connected).await,
+			Allocation::Full
+		);
+		assert_eq!(
+			allocate(&slots, client(1), &connected).await,
+			Allocation::Given(slot),
+			"the holder reading again keeps its slot"
+		);
+	}
+
+	#[tokio::test]
+	async fn the_one_slot_comes_back_once_its_holder_has_gone() {
+		let slots = Slots::new(1);
+		let mut connected = HashSet::from([client(1), client(2)]);
+		allocate(&slots, client(1), &connected).await;
+		connected.remove(&client(1));
+		let Allocation::Given(slot) = allocate(&slots, client(2), &connected).await else {
+			panic!("the slot of a client that left did not come back");
+		};
+		assert!(slots.holds(slot, client(2)).await);
+	}
+
+	#[tokio::test]
+	async fn no_slot_is_given_out_beyond_those_a_device_offers() {
+		let slots = Slots::new(u8::MAX);
+		let connected: HashSet<_> = (0..=COUNT).map(client).collect();
+		for n in 0..COUNT {
+			allocate(&slots, client(n), &connected).await;
+		}
+		assert_eq!(
+			allocate(&slots, client(COUNT), &connected).await,
+			Allocation::Full
+		);
 	}
 }

@@ -15,6 +15,7 @@ mod battery;
 mod carrier;
 mod facts;
 mod gatt;
+mod gpio;
 mod identity;
 mod network;
 mod power;

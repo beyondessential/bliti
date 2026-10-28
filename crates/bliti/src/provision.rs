@@ -10,14 +10,18 @@
 /// Where the daemon listens for the console, in the runtime directory systemd makes for it.
 pub const SOCKET: &str = "/run/bliti/provision.sock";
 
+pub mod button;
 pub mod console;
 pub mod daemon;
+pub mod led;
+pub mod name;
 pub mod run;
 pub mod session;
 pub mod socket;
 pub mod step;
 pub mod store;
 pub mod stream;
+pub mod window;
 
 pub use run::{Act, CannotAct, Provisioner, Snapshot};
 pub use step::{Context, Done, Step};

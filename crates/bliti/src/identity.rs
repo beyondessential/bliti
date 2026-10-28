@@ -17,7 +17,8 @@ use bliti_core::{
 		PlatformSerial, RaspberryPiSerialSource, SourceKind, evaluate_cache, select,
 		strongest_present,
 	},
-	key_schedule::{DeviceKeys, ROOT_LEN, Root, check_memory, derive_root},
+	key_schedule::{DeviceKeys, KeyError, ROOT_LEN, Root, check_memory, derive_root},
+	qr::QrPayload,
 	version::PAYLOAD_VERSION,
 };
 use serde::{Deserialize, Serialize};
@@ -158,6 +159,49 @@ pub fn establish(cache_path: &Path) -> Result<Identity, IdentityError> {
 			})
 		}
 	}
+}
+
+/// Establish the QR payload of this board's ID as a device in provisioning mode must, for the
+/// suffix of its name (PRV, "The advertised name").
+///
+/// Neither reads nor writes the cache: the board ID may have changed since it was written, and a name
+/// from a stale one would no longer match the label. The source the ID comes from is the strongest
+/// one present, and it must be of the `expected` kind, so that a weaker source never gives a suffix
+/// that the stronger one would contradict.
+///
+/// Derives the root, which is memory-hard and slow; the caller keeps it off the async runtime and
+/// does it once.
+pub fn establish_provisioning(expected: SourceKind) -> Result<QrPayload, IdentityError> {
+	guard_unreadable_sources()?;
+	let sources = sources();
+	let refs: Vec<&dyn BoardIdSource> = sources.iter().map(AsRef::as_ref).collect();
+	provisioning_payload(expected, &refs, available_memory_bytes(), derive_root)
+}
+
+/// [`establish_provisioning`] over the sources and memory it is given, and the derivation it is to
+/// use, so that which source is taken is decided in one place and exercised without a board.
+pub(crate) fn provisioning_payload(
+	expected: SourceKind,
+	sources: &[&dyn BoardIdSource],
+	available_memory: u64,
+	derive: impl FnOnce(&BoardId) -> Result<Root, KeyError>,
+) -> Result<QrPayload, IdentityError> {
+	let strongest = strongest_present(sources).map_err(IdentityError::BoardId)?;
+	if strongest != Some(expected) {
+		return Err(IdentityError::WrongSource {
+			expected,
+			found: strongest,
+		});
+	}
+
+	check_memory(available_memory).map_err(IdentityError::Key)?;
+	let board_id = select(sources).map_err(IdentityError::BoardId)?;
+	let root = derive(&board_id).map_err(IdentityError::Key)?;
+	let keys = root.device_keys();
+	Ok(QrPayload::new(
+		keys.presence_token.clone(),
+		keys.fingerprint(),
+	))
 }
 
 /// Bytes of memory available, from the kernel's own estimate of what can be allocated without
@@ -303,6 +347,18 @@ pub enum IdentityError {
 		found: Option<SourceKind>,
 	},
 
+	/// A device told which kind of source its board ID comes from found another, or none.
+	#[error(
+		"this board's ID is to come from {expected}, but the strongest source it offers is {}",
+		found.map_or("none".to_owned(), |kind| kind.to_string())
+	)]
+	WrongSource {
+		/// The kind of source the device was told to take its board ID from.
+		expected: SourceKind,
+		/// The strongest kind of source the board offers.
+		found: Option<SourceKind>,
+	},
+
 	/// This build cannot read a source the board carries, so deriving would give the wrong root.
 	#[cfg_attr(
 		feature = "tpm",
@@ -387,5 +443,139 @@ mod tests {
 		)
 		.unwrap();
 		assert!(read_cache(&scratch.path()).unwrap().is_none());
+	}
+
+	use bliti_core::board_id::TestSource;
+
+	const PLENTY: u64 = u64::MAX;
+
+	/// A root that depends on the board ID, without the memory-hard derivation.
+	fn cheap_root(board_id: &BoardId) -> Result<Root, KeyError> {
+		let mut root = [board_id.kind().tag(); ROOT_LEN];
+		root[1..=board_id.raw().len()].copy_from_slice(board_id.raw());
+		Ok(Root::from_bytes(root))
+	}
+
+	fn payload_of(
+		expected: SourceKind,
+		sources: &[TestSource],
+		memory: u64,
+	) -> Result<QrPayload, IdentityError> {
+		let refs: Vec<&dyn BoardIdSource> = sources
+			.iter()
+			.map(|source| source as &dyn BoardIdSource)
+			.collect();
+		provisioning_payload(expected, &refs, memory, cheap_root)
+	}
+
+	fn the_payload_of(kind: SourceKind, value: &[u8]) -> QrPayload {
+		let board_id = BoardId::new(kind, value).unwrap();
+		let keys = cheap_root(&board_id).unwrap().device_keys();
+		QrPayload::new(keys.presence_token.clone(), keys.fingerprint())
+	}
+
+	#[test]
+	fn the_expected_source_gives_the_payload_of_its_board_id() {
+		let sources = [
+			TestSource::absent(SourceKind::TpmEndorsementKey),
+			TestSource::absent(SourceKind::OneTimeProgrammable),
+			TestSource::present(SourceKind::RaspberryPiSerial, [1, 2, 3, 4]),
+		];
+		let payload = payload_of(SourceKind::RaspberryPiSerial, &sources, PLENTY).unwrap();
+		assert_eq!(
+			payload.to_text(),
+			the_payload_of(SourceKind::RaspberryPiSerial, &[1, 2, 3, 4]).to_text()
+		);
+	}
+
+	#[test]
+	fn a_source_that_is_not_there_is_an_error_and_a_weaker_one_is_not_used() {
+		let sources = [
+			TestSource::absent(SourceKind::TpmEndorsementKey),
+			TestSource::absent(SourceKind::OneTimeProgrammable),
+			TestSource::present(SourceKind::RaspberryPiSerial, [1, 2, 3, 4]),
+		];
+		let err = payload_of(SourceKind::OneTimeProgrammable, &sources, PLENTY).unwrap_err();
+		assert!(matches!(
+			err,
+			IdentityError::WrongSource {
+				expected: SourceKind::OneTimeProgrammable,
+				found: Some(SourceKind::RaspberryPiSerial),
+			}
+		));
+	}
+
+	#[test]
+	fn a_placeholder_is_not_a_source_present() {
+		let sources = [
+			TestSource::absent(SourceKind::TpmEndorsementKey),
+			TestSource::placeholder(SourceKind::OneTimeProgrammable, [0, 0, 0, 0]),
+			TestSource::present(SourceKind::RaspberryPiSerial, [1, 2, 3, 4]),
+		];
+		assert!(payload_of(SourceKind::OneTimeProgrammable, &sources, PLENTY).is_err());
+	}
+
+	#[test]
+	fn no_source_at_all_is_an_error() {
+		let sources = [
+			TestSource::absent(SourceKind::TpmEndorsementKey),
+			TestSource::absent(SourceKind::OneTimeProgrammable),
+			TestSource::absent(SourceKind::RaspberryPiSerial),
+		];
+		let err = payload_of(SourceKind::RaspberryPiSerial, &sources, PLENTY).unwrap_err();
+		assert!(matches!(
+			err,
+			IdentityError::WrongSource { found: None, .. }
+		));
+	}
+
+	#[test]
+	fn a_stronger_source_than_expected_is_an_error() {
+		let sources = [
+			TestSource::absent(SourceKind::TpmEndorsementKey),
+			TestSource::present(SourceKind::OneTimeProgrammable, [9, 9, 9, 9]),
+			TestSource::present(SourceKind::RaspberryPiSerial, [1, 2, 3, 4]),
+		];
+		let err = payload_of(SourceKind::RaspberryPiSerial, &sources, PLENTY).unwrap_err();
+		assert!(matches!(
+			err,
+			IdentityError::WrongSource {
+				expected: SourceKind::RaspberryPiSerial,
+				found: Some(SourceKind::OneTimeProgrammable),
+			}
+		));
+	}
+
+	#[test]
+	fn too_little_memory_is_an_error_whichever_source_is_there() {
+		let sources = [TestSource::present(
+			SourceKind::RaspberryPiSerial,
+			[1, 2, 3, 4],
+		)];
+		let err = payload_of(SourceKind::RaspberryPiSerial, &sources, 1024).unwrap_err();
+		assert!(matches!(
+			err,
+			IdentityError::Key(KeyError::InsufficientMemory { .. })
+		));
+	}
+
+	#[test]
+	fn a_failed_derivation_is_an_error() {
+		let sources = [TestSource::present(
+			SourceKind::RaspberryPiSerial,
+			[1, 2, 3, 4],
+		)];
+		let refs: Vec<&dyn BoardIdSource> = sources
+			.iter()
+			.map(|source| source as &dyn BoardIdSource)
+			.collect();
+		let err = provisioning_payload(SourceKind::RaspberryPiSerial, &refs, PLENTY, |_| {
+			Err(KeyError::InsufficientMemory {
+				required: 1,
+				available: 0,
+			})
+		})
+		.unwrap_err();
+		assert!(matches!(err, IdentityError::Key(_)));
 	}
 }
