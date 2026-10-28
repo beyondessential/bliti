@@ -16,7 +16,7 @@ What HAT+ defines for the vendor-info atom:
 
 | field | HAT+ says | Iti holds | bliti reads it |
 | --- | --- | --- | --- |
-| `uuid` | 16 bytes, "product UUID (unique)", required; unique per product and preserved across flashes (the tools say to keep the one generated) | one well-known UUID for the Tamanu Iti product line | yes: recognises a Tamanu Iti |
+| `uuid` | 16 bytes, "product UUID (unique)", required; unique per product and preserved across flashes (the tools say to keep the one generated) | `9c2bcc02-123a-4d9d-80e0-72166bec3218`, the Tamanu Iti product UUID | yes: recognises a Tamanu Iti |
 | `product_id` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the generation: 4 | yes: major version |
 | `product_ver` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the revision within the generation: 0 for rev B, 1 for rev C | yes: minor version |
 | `vendor` | ASCII string, up to 255 bytes, required | "BES International" | no |
@@ -211,6 +211,13 @@ The informative run is the other order:
 2. Remove the `config.txt` line; reboot; check `/dev/tpm0` comes up
 3. Put the line back if it doesn't
 
+Prepared on the prototype (13:25, 28 Oct):
+- `tamanu-iti-v4.dtbo` in `/boot/firmware/current/overlays/`: SPI0 with the TPM on CE1 (`tcg,tpm_tis-spi`, the generic TIS-over-SPI binding, which the kernel's driver accepts and which describes the ST33K accurately), and I²C3 on GPIO22/23 at 100 kHz
+- The v4.0 image, built with Raspberry Pi's `eepmake`: HAT+ format, 99 bytes, a vendor-info atom and the `tamanu-iti-v4` overlay name atom
+- The ID bus as a bit-banged I²C bus on GPIO0/1, the EEPROM registered with the kernel's at24 driver: it answers at `0x50`, 32 KiB, and reads blank (all `0xff`)
+
+A write counts as done when the EEPROM reads back identical to the image, not when the write call returns, so it holds however the chip reacts to a write while protected.
+
 ## Implementation options
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the SD boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
@@ -235,6 +242,6 @@ The informative run is the other order:
 - [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
 - [x] Mapping from EEPROM to version: Iti product UUID, then `product_id`.`product_ver`
-- [ ] Generate the Iti product UUID (once, recorded in the spec)
+- [x] Iti product UUID: `9c2bcc02-123a-4d9d-80e0-72166bec3218`
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [ ] Vendor and product strings, and the `product_id` values
