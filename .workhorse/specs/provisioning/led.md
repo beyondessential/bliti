@@ -10,14 +10,16 @@ A device in provisioning mode shows the state of its [run](../overview.md#run) o
 
 Amber is red and green lit together.
 
+A blink at 1 Hz is one cycle of lit and dark each second, and a blink at 3 Hz is three.
+
 A device in provisioning mode MUST show its state on the status LED as follows.
 
 | state | LED |
 | --- | --- |
 | `idle` | amber, steady |
-| `running` | green, slow blink |
-| `waiting` | amber, blink |
-| `failed` | red, fast blink |
+| `running` | green, blinking at 1 Hz |
+| `waiting` | amber, blinking at 1 Hz |
+| `failed` | red, blinking at 3 Hz |
 | `finished` | green, steady |
 
 A device MUST show its state from the moment provisioning mode starts.
