@@ -97,7 +97,7 @@ Defined in [NSET](network/setup.md).
 ### Provisioning medium
 
 The removable storage, a USB stick or an SD card, that a device boots from to run provisioning mode.
-Defined in [PRV](provisioning/overview.md).
+Defined in [PMED](provisioning/medium.md).
 
 ### Provisioning mode
 
