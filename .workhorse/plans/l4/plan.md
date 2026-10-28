@@ -55,4 +55,5 @@ A v4.0 Iti reports the case temperature, humidity, air pressure and light from t
 ### On the prototype
 
 - [ ] Deploy with the `bliti-prototype` skill and check the readings on the device view: pressure near local sea-level pressure adjusted for altitude, humidity and case temperature plausible, and light rising under a torch
+- [ ] Check `battery-voltage` still matches the gauge read by hand (`i2cget -y 1 0x36 0x02 w`, bytes swapped, top twelve bits at 1.25 mV), since the gauge read now goes out as one combined transfer. The first deploy was cut short by the device powering off, so this hasn't been seen on hardware yet
 - [ ] Check the four readings keep coming while something else reads the bus (`i2cget -y 3 0x77 0xd0` in a loop alongside bliti), with no `broken` blips
