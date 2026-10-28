@@ -154,7 +154,21 @@ The Pi 5's own default, as Raspberry Pi ships it, is `BOOT_ORDER=0xf461` (SD, NV
 So the bootloader is touched twice:
 - **At the start of a run from a USB stick**, USB goes first, ahead of SD and NVMe, so a reboot once the NVMe is written (a power cut, or a failed run to be re-run) comes back to the stick.
   A board that already boots from its NVMe and has never had a run put USB first (the v4 prototype, or a board imaged some other way) does not reach a USB stick at all, and goes through an SD card.
-- **As the run's last step**, it is set to the Iti's configuration: the whole of what the `linux-images` `pi eeprom` SD applies (`image/pi-eeprom-config.txt`), not just the boot order. That is `BOOT_ORDER=0xf61` (SD, then NVMe; no USB and no network install), `POWER_OFF_ON_HALT=1` (the Pi cuts its own power on halt, which the backup supply relies on), `PSU_MAX_CURRENT=5000`, `PCIE_PROBE=1`, `BOOT_UART=1` and `HDMI_DELAY=0`. The provisioning image carries that file as `linux-images` ships it, so the two never drift apart. The bootloader is updated too where it is older than the tryboot floor the `pi` image needs.
+- **As the run's last step**, it is set to the Iti's whole bootloader configuration, not just the boot order:
+
+  | setting | value | for |
+  | --- | --- | --- |
+  | `BOOT_ORDER` | `0xf61` | SD, then NVMe; no USB, and no network install |
+  | `POWER_OFF_ON_HALT` | `1` | the Pi cuts its own power on halt, which the backup supply relies on |
+  | `PSU_MAX_CURRENT` | `5000` | |
+  | `PCIE_PROBE` | `1` | |
+  | `BOOT_UART` | `1` | |
+  | `HDMI_DELAY` | `0` | |
+
+  The step also updates the bootloader where it is older than the tryboot floor the `pi` image needs (firmware dated 2025-02-11 or later).
+
+Provisioning is the one place the Iti's bootloader is configured.
+These settings are carried over from the `linux-images` `pi eeprom` SD (`image/pi-eeprom-config.txt`), which is retired: `linux-images` stops building it, and its spec and tests go with it.
 
 A run that fails before its last step leaves USB first, so the board can be re-run from the stick.
 A run from an SD card (a repair) needs neither change for itself, since SD is first in both orders, but still ends with the Iti's configuration.
@@ -181,7 +195,7 @@ Sending it to a central register is a separate card.
 
 #### Where it's built
 
-`linux-images` builds the provisioning image, beside the `pi eeprom` SD, for writing to a USB stick or an SD card, with bliti packaged in provisioning mode.
+`linux-images` builds the provisioning image, in place of the `pi eeprom` SD it retires, for writing to a USB stick or an SD card, with bliti packaged in provisioning mode.
 This card specs bliti's side and the contract between the two repos; the image build is `linux-images` work.
 
 ### Reaching a provisioning device
@@ -319,7 +333,7 @@ Run (28 Oct):
 
 - The Pi 5 has no firmware measured boot, so PCRs read from the provisioning boot won't match the NVMe boot, and the NVMe boot may have little measured at all. What a PCR policy can usefully bind to on the Pi is a tech-design question; until it's answered, the first-boot rebind may have nothing to add.
 - Volume key rotation: the `pi` image rekeys itself on first boot. If provisioning rotates instead (it can, while the volume is offline and before enrolment), the first-boot rekey must recognise that and not run again; or provisioning leaves rotation to first boot and enrols keyslots that survive it (LUKS2 reencryption keeps keyslots). Tech design picks.
-- `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, the save-recovery-keys option, and the `pi eeprom` SD image that configures the Pi 5 bootloader.
+- `linux-images` already holds the pieces this reuses: the installer's dm-verity images partition, the recovery passphrase and TPM enrolment, and the save-recovery-keys option. Its `pi eeprom` SD image is retired, its bootloader settings now applied by provisioning.
 
 ## Trade-offs
 
