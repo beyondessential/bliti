@@ -38,25 +38,27 @@ infra#V3's to design; bliti relies on:
 - A missing key is a 404, not the 403 S3 gives where the distribution cannot list the bucket, and never falls back to `index.html`: the client keeps its screens in history state, not in the URL, so there is nothing for a single-page fallback to catch, and one would answer a mistyped page with the operator app.
 - The precompressed variants served as WEB's Delivery section requires. How the distribution chooses among them is the infra side's.
 
-## Pages
-
-The operator app is the only page now; F4's cards add the provisioning client at `/provision` and the assembly manual at `/assemble`.
-
-- Each page is an HTML file at the top of the app, `provision.html` beside `index.html`, listed as a Vite build input, and built to `dist/provision.html`. Shared code lands once under `assets/`.
-- Flat rather than `provision/index.html` because that is how Vite's dev server resolves `/provision`: it tries `provision.html` and otherwise falls back to `index.html`, so a directory page would be the operator app under the dev server and the provisioning client when deployed. The distribution's rule above is the dev server's, so a path means the same page on both.
-- The dev server's single-page fallback goes (`appType: 'mpa'`), so a path that is no page is a 404 under it too, as deployed.
-- The service worker answers every navigation with the precached `/` document. With more than one page it has to answer a navigation with that page's document: `sw-plugin.js` lists `provision.html` under `/provision`, as it lists `index.html` under `/`, and `sw.js` keys a navigation by its path rather than by `/`, with a trailing slash dropped, so `/provision/` opens offline too, where the distribution's redirect cannot be reached.
-- Whether the operator app's worker precaches the other pages and their images, which every field phone would then download, is the first new page's card's to decide.
-- Nothing in the deploy is per page: the upload walks `dist`, and the distribution's rules are generic, so a new page needs no change to either.
-
-This card makes the distribution contract page-aware and drops the dev server's fallback. The Vite inputs and the worker's navigation keys come with the first new page, where there is a second document to test them against.
-
 ### Object metadata the upload sets
 
 - `Content-Type` explicitly per file, from its extension rather than the CLI's guess, and on an encoded variant, the type of the file it encodes.
 - `Content-Encoding` on each variant.
 - Every file of a type the distribution serves variants for (`.html`, `.js`, `.mjs`, `.css`, `.json`, `.svg`, `.wasm`, `.webmanifest`) has all three variant keys beside its plain one, whatever its size, as the infra side requires. Other types, the icons among them, are uploaded plain only. `precompress.js` skips a variant under its size floor or where encoding would not shrink the file; the upload fills each skipped key with the plain file and no `Content-Encoding`. The filling happens at upload, not in `precompress.js`: an origin that serves precompressed files by name, such as Caddy's `precompressed`, would label a plain copy at `.br` as brotli.
 - `Cache-Control`: `public, max-age=31536000, immutable` under `assets/` (Vite's hashed output); `no-cache` on everything else (`index.html`, `sw.js`, the manifest and the icons from `public/`), so a deploy is visible on the next load without an invalidation.
+
+## Pages
+
+The operator app is the only page now; F4's cards add the provisioning client at `/provision` and the assembly manual at `/assemble`.
+This card puts in what any page after the first needs, so adding one is adding its HTML file and its code.
+
+- Each page is an HTML file at the top of the app, `provision.html` beside `index.html`, built to `dist/provision.html`. Shared code lands once under `assets/`.
+- Flat rather than `provision/index.html` because that is how Vite's dev server resolves `/provision`: it tries `provision.html` and otherwise falls back to `index.html`, so a directory page would be the operator app under the dev server and the provisioning client when deployed. The distribution's rule is the dev server's, so a path means the same page on both.
+- `vite.config.js` takes every `.html` file at the app's top level as a build input, rather than a list kept beside the files.
+- The dev server's single-page fallback goes (`appType: 'mpa'`), so a path that is no page is a 404 under it too, as deployed. `/provision/` is also a 404 there, where deployed it redirects; our own links never carry the slash.
+- `sw-plugin.js` lists each page under its path, `provision.html` under `/provision` as `index.html` is under `/`, and the dev server's list walks the module graph from every page, not from `index.html` alone.
+- `sw.js` answers a navigation with the precached document of the page at its path, a trailing slash dropped, so `/provision/` opens offline too, where the distribution's redirect cannot be reached. A navigation to a path that is no page goes to the network.
+- The worker precaches every page, as it precaches the whole bundle now. Whether the operator app's worker should leave out other pages and their images, which every field phone would otherwise download, is the first new page's card's to decide.
+- Tests: the test-mode build carries a fixture page beside the operator app, as it carries the harness's seam, so the harness covers loading a second page, opening it offline, and `/provision/`-style keys without a real page existing yet.
+- Nothing in the deploy is per page: the upload walks `dist`, and the distribution's rules are generic, so a new page needs no change to either.
 
 ## GitHub Actions
 
