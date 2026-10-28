@@ -8,6 +8,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bliti_core::provisioning::report::DoneState;
 
+use super::context::Context;
+
 /// What a step says of whether the board already holds what it would produce (RUN, "Done-state").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Done {
@@ -39,5 +41,3 @@ pub trait Step: Send + Sync {
 pub fn registry() -> Vec<Arc<dyn Step>> {
 	Vec::new()
 }
-
-pub use super::run::Context;

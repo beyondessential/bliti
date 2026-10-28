@@ -11,7 +11,11 @@
 pub const SOCKET: &str = "/run/bliti/provision.sock";
 
 pub mod console;
+pub mod context;
 pub mod daemon;
+#[cfg(test)]
+mod fake;
+mod model;
 pub mod run;
 pub mod session;
 pub mod socket;
@@ -19,5 +23,6 @@ pub mod step;
 pub mod store;
 pub mod stream;
 
+pub use context::{Context, Notice};
 pub use run::{Act, CannotAct, Provisioner, Snapshot};
-pub use step::{Context, Done, Step};
+pub use step::{Done, Step};
