@@ -43,9 +43,13 @@ refer to #F4's working doc for any missing details
 
 A run started from a USB stick puts USB first in the boot order before any step, so a reboot mid-run comes back to the stick. As the run's last step, write the Iti's whole bootloader configuration (`BOOT_ORDER=0xf61`, `POWER_OFF_ON_HALT=1`, `PSU_MAX_CURRENT=5000`, `PCIE_PROBE=1`, `BOOT_UART=1`, `HDMI_DELAY=0`) and update the bootloader to the one the image carries wherever the board's is older, never downgrading. Provisioning becomes the one place the Iti's bootloader is configured. The card confirms when a configuration written from Linux takes effect.
 
+refer to #F4's working doc for any missing details
+
 ## Sign the Iti in to Tailscale during provisioning
 
 Ask for the Tailscale auth key and the Iti's name right after the EEPROM step without holding the run up (the disk write starts at once), keep the key in memory only, and sign in against the new system's Tailscale state once its encrypted root is open, so the Iti's first boot comes up on the tailnet. A power cut before the sign-in loses the key, and the step then waits for it again. Only auth keys reach the device; where the tailnet uses an OAuth client, the browser mints the key. The card settles the naming scheme, how the client holds the credential for a session of boards, and whether a browser can mint keys.
+
+refer to #F4's working doc for any missing details
 
 ## Print QR labels for provisioned Itis
 
