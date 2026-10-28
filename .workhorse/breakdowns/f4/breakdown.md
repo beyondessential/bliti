@@ -21,9 +21,11 @@ Assemble the provisioning image in this repo from the `pi` image `linux-images` 
 refer to #F4's working doc for any missing details
 
 ## Build the provisioning client page
+<!-- mockups: provisioning -->
 
 The client at `/provision`, a second entry point in the existing web build, not linked from the operator app, sharing its channel, protocol and wasm code and its components. Finding the board (press USER, then the chooser filtered on the provisioning marker), choosing the steps (already-done ones unticked, with why), the running step list with each step's prompt beneath its row, checking back after closing the page, a failed step's retry, and the finished record with the recovery passphrase. Bring the three circled rev B board photos (USER button, CASE switch, ID WP pads) from the `workhorse/f4` branch into the app, captioned by the client; the uncropped original sits beside them there, for re-cropping. Link to the assembly manual and back.
-<!-- mockups: provisioning -->
+
+refer to #F4's working doc for any missing details
 
 ## Check the hardware and program the EEPROM
 
