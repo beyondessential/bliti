@@ -17,6 +17,7 @@ The device side of provisioning, without its steps: bliti in provisioning mode o
 ## Build the provisioning image
 
 Assemble the provisioning image in this repo from the `pi` image `linux-images` publishes, rather than building an OS: a starting sketch is to fetch the latest `pi` image, mount it, write the provisioning files into its `FIRMWARE` FAT partition, and pack it again, in GitHub Actions or a container build. The card settles how bliti in provisioning mode gets onto that system, where the NVMe payload (the same original `pi` image) sits on the medium and how it is checked (ideally dm-verity, otherwise a checksum), and how the newest bootloader on Raspberry Pi's default channel and the HAT overlay travel with it. The one image is written to a USB stick for the factory or an SD card for repair.
+
 refer to #F4's working doc for details
 
 ## Build the provisioning client page
