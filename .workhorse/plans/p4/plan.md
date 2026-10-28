@@ -13,7 +13,7 @@ A `just provision-image` recipe does the whole assembly with `sudo`, so it runs 
    - `services/bliti-provision.service`, enabled, and `/etc/bliti/provision.env` with `--medium <data mount> --board-id-source tpm-endorsement-key`
    - the bluetoothd configuration from `services/` that provisioning mode needs (peripheral-only)
    - getty autologin drop-ins for `tty1` and `serial-getty@ttyAMA10` (the Pi 5's `serial0`) that run `bliti provision`
-   - a mount for the data partition found on the disk root came from, by partition number, and not by label or PARTUUID, which two sticks from the same image would share
+   - a mount for the data partition found on the disk root came from, by partition number, and not by label or PARTUUID, which two sticks from the same image would share; the provisioning unit requires that mount, and the payload's partition, so it does not start without them
    - `/usr/share/bliti/provision/`: `pieeprom.bin`, `tamanu-iti-v4.dtbo`, `tamanu-iti-v4.0.eep` (`just hat-overlay`, `just hat-eeprom`), and `manifest`
    - the overlay also in `/etc/flash-kernel/dtbs/overlays/`
 4. Firmware partition: copy the overlay into `current/overlays/` (which carries the `README` marker the firmware needs). In `config.txt`, set `force_eeprom_read=0`, add `dtoverlay=tamanu-iti-v4`, remove `dtoverlay=tpm-slb9670`, and add the ID bus on GPIO0/1 the way the prototype has it (`i2c-gpio` on pins 0 and 1).

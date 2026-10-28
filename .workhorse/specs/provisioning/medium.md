@@ -56,6 +56,8 @@ The medium MUST hold, in order, the partitions of the `pi` image as that image l
 
 The medium's system MUST find the payload and data partitions on the disk it booted from, and MUST NOT use a partition of any other disk.
 
+Where the disk it booted from lacks the payload or data partition, or the data partition cannot be mounted, the medium's system MUST report it as [DEV](../device.md) requires, and MUST NOT start bliti in provisioning mode.
+
 > [!NOTE]
 > A board can hold a second medium, or an NVMe written from one, and neither is the medium the board booted from.
 

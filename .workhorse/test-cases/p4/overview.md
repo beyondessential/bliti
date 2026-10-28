@@ -19,6 +19,7 @@
 - [ ] tty1 and the serial console open the console command with no login (verifies spec: PMED, PCON)
 - [ ] A run's state lands on `ITIPROV` and survives a reboot (verifies spec: PMED, RUN)
 - [ ] With a second provisioning stick inserted, the board uses the data partition of the stick it booted from (verifies spec: PMED)
+- [ ] A stick whose data partition is missing or will not mount reports it and does not start provisioning mode (verifies spec: PMED)
 - [ ] The first boot of a fresh stick completes, and later boots are not slowed by root growth
 - [ ] The image written with Raspberry Pi Imager and with `dd` both boot
 
