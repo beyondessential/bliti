@@ -16,7 +16,7 @@ What HAT+ defines for the vendor-info atom:
 
 | field | HAT+ says | Iti holds | bliti reads it |
 | --- | --- | --- | --- |
-| `uuid` | 16 bytes, "product UUID (unique)", required; unique per product and preserved across flashes (the tools say to keep the one generated) | `9c2bcc02-123a-4d9d-80e0-72166bec3218`, the Tamanu Iti product UUID | yes: recognises a Tamanu Iti |
+| `uuid` | 16 bytes, "product UUID (unique)", required; unique per product and preserved across flashes (the tools say to keep the one generated) | `7c3b8a88-ad89-4d48-b709-2bd445729867`, the Tamanu Iti product UUID | yes: recognises a Tamanu Iti |
 | `product_id` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the generation: 4 | yes: major version |
 | `product_ver` | 16-bit integer, optional, zero if unused; meaning is the vendor's | the revision within the generation: 0 for rev B, 1 for rev C | yes: minor version |
 | `vendor` | ASCII string, up to 255 bytes, required | "BES International" | no |
@@ -374,7 +374,7 @@ A write counts as done when the EEPROM reads back identical to the image, not wh
 Run (28 Oct):
 - Written first try once the pads were bridged, and read back identical after release
 - Unbridged, the chip refuses the write and the kernel reports an I/O timeout, so "not bridged yet" shows as a failed write, not a silent no-op
-- The firmware publishes the fields as text: `uuid` `9c2bcc02-123a-4d9d-80e0-72166bec3218`, `product_id` `0x0004`, `product_ver` `0x0000`, and the strings, each NUL-terminated
+- The firmware publishes the fields as text: `uuid` `7c3b8a88-ad89-4d48-b709-2bd445729867`, `product_id` `0x0004`, `product_ver` `0x0000`, and the strings, each NUL-terminated
 - With both the EEPROM overlay and the `config.txt` line, the two TPM nodes collide on CE1 ("chipselect 1 already in use") and the first to register wins; harmless, but it is why the line has to go
 - With the `config.txt` line removed, the TPM comes up from the Iti overlay alone (`tcg,tpm_tis-spi`, manufacturer STM), and I²C3 comes up with the light sensor at `0x53` (part ID `0xb1`) and the BME680 at `0x77`
 - The prototype keeps the line commented out (backup at `/boot/firmware/config.txt.f4-backup`). The overlay is also in `/etc/flash-kernel/dtbs/overlays/`, one of the paths `flash-kernel` copies overlays from when it stages a new boot slot on a kernel upgrade, so it survives slot switches
@@ -413,11 +413,12 @@ Run (28 Oct):
 - [x] The hardware check step: agreed
 - [x] What tells rev B apart: the BME680 air sensor
 - [x] Mapping from EEPROM to version: Iti product UUID, then `product_id`.`product_ver`
-- [x] Iti product UUID: `9c2bcc02-123a-4d9d-80e0-72166bec3218`
+- [x] Iti product UUID: `7c3b8a88-ad89-4d48-b709-2bd445729867`
 - [x] Per-board records: shown in the client and saved to the provisioning medium; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Obtain ST33KTPM firmware images from ST (they are not public)
+- [ ] Rewrite the prototype's EEPROM with the regenerated product UUID; it still carries the first one (`9c2bcc02-…`)
 - [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's credential, and whether a browser can mint auth keys from a Tailscale OAuth client (CORS)
 - [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
 - [x] The prototype's TPM: ST33KTPM firmware `0x00090101` (TPM spec revision 1.59); ST has published at least `0x00090200`, which needs the LMS-signed manifest path
