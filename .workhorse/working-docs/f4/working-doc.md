@@ -88,10 +88,11 @@ Before any step, a run started from a USB stick puts USB first in the boot order
 
 1. Check the hardware (first, so a bad board fails fast, and because the air sensor read places the board's version for the EEPROM step)
 2. Program the EEPROM
-3. Flash the NVMe and read it back
-4. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
-5. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
-6. Render the label and save the board's record
+3. Update the TPM's firmware (before anything takes the TPM's identity or keys)
+4. Flash the NVMe and read it back
+5. Rotate the volume key, enrol the TPM keyslot, and replace the placeholder passphrase with a recovery passphrase
+6. Configure the bootloader (last, so a run that fails before it can still be re-run from the stick)
+7. Render the label and save the board's record
 
 The assembler chooses which steps to run; the rest are skipped.
 A step that fails stops the run and says why, and the assembler can run it again without repeating the steps before it.
@@ -103,7 +104,7 @@ At the end the client tells the assembler to power the board off and remove the 
 Writing the image from the provisioning medium to the NVMe is slow, so a run carries on whether or not a client is connected: the client starts it and watches it, and closing the page or walking away leaves it running.
 That lets an assembler start several boards, each with its own stick, and check back on each, or do one at a time without keeping a phone beside it.
 
-The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (NVMe, keys, bootloader), so the assembler is needed only at the start.
+The steps that need a person come first (the hardware check, then the EEPROM's bridge), and the long unattended ones after (TPM firmware, NVMe, keys, bootloader), so the assembler is needed only at the start.
 The device watches for those actions itself (CASE's lever, the bridge), so a person can complete them with no client connected; only confirming an EEPROM overwrite needs an answer, from a client or the console.
 A run that fails stops at that step and waits.
 
@@ -120,14 +121,29 @@ While provisioning, the Pi's status LED shows the run's state, so a bench of boa
 | finished | green, steady |
 
 Amber is red and green on together, and marks a board running from the provisioning medium, so one that would otherwise ship with it still in stands out.
-A run is lost at power-off, so any later boot from the medium, including an unfinished board whose stick was left in, comes back as steady amber; green steady lasts only until the board is powered off, which is the next instruction anyway.
+A finished run is not picked up again, so any later boot of a finished board from the medium comes back as steady amber; green steady lasts only until the board is powered off, which is the next instruction anyway.
 
 Only the provisioning medium drives the LED this way; the Iti's own system leaves it as the Pi sets it.
 The Pi 5's one LED is two in Linux, green (ACT) and red (PWR), each with its own control; that bliti can drive them from the provisioning system is still to be checked on the prototype.
 
-A run does not survive the board losing power: the board boots back into provisioning with nothing running (USB is first in the boot order for the run's duration), and the assembler starts again, choosing only the steps still to do.
+A run survives a reboot: its state (the steps chosen, and which have passed) is kept on the provisioning medium against the board, and a board that boots back into provisioning picks its run up where it left off, starting an interrupted step over (USB is first in the boot order for the run's duration, so a reboot comes back to the stick).
+That covers both the reboot the TPM firmware update needs and a power cut partway through a long run.
+A finished run is not picked up again, so a finished board booted with the stick still in shows steady amber.
 
 Each stick keeps its own records file, so a bench of several sticks spreads the records across them until they are gathered; the central register card is what fixes that properly.
+
+#### Updating the TPM's firmware
+
+The ST33KTPM takes firmware updates in the field: the TCG field upgrade sequence (or ST's vendor equivalent), streaming a signed image from ST and then resetting the TPM.
+Provisioning carries the newest image it has and updates the TPM wherever its firmware is older, never downgrading; the reset is a reboot, which the run survives.
+
+The TPM 2.0 specification says only that a field upgrade *should* keep the primary seeds, and the board ID is the name of a key derived from the endorsement seed, so an update could in principle change it.
+Updating at provisioning makes that harmless: the step runs before the board ID is first used for anything lasting (the label, the record) and before the disk's keyslot is sealed to the TPM.
+The client loses the board across that reboot, and the assembler checks back with USER as at any other time; if the update did change the board ID, the suffix shown from then on is the new one, and it is the one the label carries.
+Updating a deployed Iti's TPM is not part of this, and would need the board ID shown to survive first.
+
+The firmware images are not public: they come from ST, and someone at BES has to obtain them.
+Older ST33 parts allow only a limited number of firmware updates; none is documented for the ST33K, but updating only when older keeps the count down either way.
 
 #### Flashing the NVMe
 
@@ -360,6 +376,7 @@ Run (28 Oct):
 - [x] Per-board records: shown in the client and saved to the provisioning medium; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
+- [ ] Obtain ST33KTPM firmware images from ST (they are not public), and read the prototype TPM's current firmware version
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
