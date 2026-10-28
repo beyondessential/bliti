@@ -221,8 +221,10 @@ Sending it to a central register is a separate card.
 
 #### Where it's built
 
-`linux-images` builds the provisioning image, in place of the `pi eeprom` SD it retires, for writing to a USB stick or an SD card, with bliti packaged in provisioning mode.
-This card specs bliti's side and the contract between the two repos; the image build is `linux-images` work.
+Proposed, to confirm: bliti builds the provisioning image, for writing to a USB stick or an SD card, by assembling it from the `pi` image `linux-images` publishes rather than building an OS of its own.
+The `pi` image is its OS (the same system, already booting on the Pi with its overlay and boot-slot plumbing), with bliti in provisioning mode and the provisioning boot configuration added, and a partition carrying the `pi` image again as what is written to the NVMe.
+Everything Iti-specific then lives in bliti (EEPROM contents, HAT overlay, bootloader settings, provisioning, the image, and the assembly manual of G4), changing together in one repo; `linux-images` stays a generic Pi OS that knows nothing of Itis, and retires its `pi eeprom` SD.
+The cost is an image-assembly build in bliti, far smaller than `linux-images`' own since it composes a published image.
 
 ### Reaching a provisioning device
 
@@ -315,16 +317,16 @@ The provisioning image's own `config.txt` therefore carries the HAT's configurat
 HAT+ puts an overlay *name* in the EEPROM, not `config.txt` lines; the firmware loads that `.dtbo` from the boot partition.
 The sensor bus needs `i2c3-pi5` with a parameter (`pins_22_23`), which a bare name can't carry, so the HAT needs an overlay of its own rather than a list of upstream ones.
 
-One Iti overlay per hardware version that needs a different one (`tamanu-iti-v4` to start), shipped on the boot partition by `linux-images`, configuring:
+One Iti overlay per hardware version that needs a different one (`tamanu-iti-v4` to start), installed by provisioning, configuring:
 - SPI0 with the TPM on CE1 (what `tpm-slb9670` does today)
 - I²C3 on GPIO22/23
 
 It enables the buses and does not bind the sensors' kernel drivers: a bound driver holds the address, which would stop provisioning (and anything else reading the chip directly) from reaching it.
 Whether the sensors get kernel drivers, and whether the buttons become `gpio-keys` input devices, is for the cards that use them; the overlay grows then.
 
-`linux-images` ships it in two places: in the image's `current/overlays/` at build time, and in `/etc/flash-kernel/dtbs/overlays/`, which `flash-kernel` searches (independent of kernel version) when it stages each new boot slot.
+Provisioning installs it into the new system right after writing the NVMe, in two places: the boot slot's `current/overlays/`, and `/etc/flash-kernel/dtbs/overlays/`, which `flash-kernel` searches (independent of kernel version) when it stages each new boot slot. The provisioning image carries it in its own boot slot too, for the hardware check. (If the image is built in `linux-images` after all, `linux-images` ships it in those places instead.)
 
-With the overlay named in the EEPROM, `linux-images` can drop the lines only the HAT needs (`dtoverlay=tpm-slb9670`, and `dtparam=spi=on` if nothing else uses SPI).
+With the overlay named in the EEPROM, `linux-images` drops the lines only the HAT needs (`dtoverlay=tpm-slb9670`, and `dtparam=spi=on` if nothing else uses SPI).
 `dtparam=i2c_arm=on` stays: the backup supply's gauge on bus 1 is not on this HAT, and v3 has no EEPROM to name it.
 
 ### Prototype experiment: devices from the EEPROM alone
@@ -391,4 +393,5 @@ Run (28 Oct):
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
+- [ ] Confirm the provisioning image is assembled in bliti from the published `pi` image (proposed), rather than built in `linux-images`
 - [ ] The contract between bliti and the `linux-images` provisioning image: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
