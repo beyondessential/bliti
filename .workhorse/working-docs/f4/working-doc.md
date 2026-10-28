@@ -99,6 +99,18 @@ Before any step, a run started from a USB stick puts USB first in the boot order
 Steps 1 to 4 need the assembler, and everything after runs unattended, so the assembler does everything up front and walks away.
 
 The assembler chooses which steps to run; the rest are skipped.
+Before offering the choice, the device looks at what each step would change and leaves the steps already done unticked, each saying why (for example "Up to date"), so a board that is already set up is offered only what it lacks; the assembler can tick any back on.
+Where it cannot tell, a step stays ticked.
+
+| step | done when |
+| --- | --- |
+| Check the hardware | never: it is a check, not a change, and always ticked |
+| Update the TPM firmware | the TPM's firmware is as new as the image the medium carries |
+| Program the EEPROM | it identifies an Iti of the version the hardware shows, with the contents this medium would write |
+| Write the system to the disk | the NVMe's plaintext boot partition shows the same system the medium carries; older, or not telling, is not done |
+| Set up disk encryption | the LUKS header carries a TPM keyslot and no empty placeholder passphrase |
+| Sign in to Tailscale | the system's Tailscale state is signed in (read by unlocking its root through the TPM) |
+| Set up the bootloader | its configuration and version match the Iti's |
 A step that fails stops the run and says why, and the assembler can run it again without repeating the steps before it.
 The label and record are offered at the end of any run whose chosen steps all passed, since the QR code comes from the TPM board ID whichever steps ran.
 At the end the client tells the assembler to power the board off and remove the provisioning medium.
@@ -263,7 +275,7 @@ Its flow, one board per tab:
 Each board picture carries only an orange circle; the client captions it with where the part is and what to do, so the words stay legible at phone width.
 
 1. **Find the board.** Links to the assembly manual ("How to build an Iti"). Asks the assembler to press USER on the board, with the board picture showing where (`iti-hat-rev-b-user-button.jpg`), and offers finding it as the primary action: the chooser, filtered on the provisioning marker.
-2. **Choose the steps.** Shows the board's suffix and the steps in order, each with a checkbox, all ticked by default, and starting as the primary action.
+2. **Choose the steps.** Shows the board's suffix and the steps in order, each with a checkbox, ticked unless the device found it already done (with why beside it), and starting as the primary action.
 3. **Run.** The step list stays on screen with each step's state (waiting, running, passed, failed, skipped); the current step's prompt sits beneath it:
    - Hardware check: USER already ticked from the press that found the board, then press and release CASE (`iti-hat-rev-b-case-switch.jpg`), then the sensor and TPM results
    - EEPROM: what the EEPROM holds now and what will be written; where it holds something else, confirming the overwrite; then "Bridge these pads" with the pads picture (`iti-hat-rev-b-wp-pads.jpg`), switching to "You can let go" once written, then the verify result
@@ -399,6 +411,7 @@ Run (28 Oct):
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] Obtain ST33KTPM firmware images from ST (they are not public), and read the prototype TPM's current firmware version
 - [ ] Tailscale at provisioning: confirm signing in against the NVMe system's state from the provisioning system carries over to its first boot; the naming scheme for Itis; how the client holds the session's credential, and whether a browser can mint auth keys from a Tailscale OAuth client (CORS)
+- [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
 - [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
