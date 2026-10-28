@@ -48,7 +48,7 @@ The EEPROM is write-protected unless two test pads are bridged (the HAT design g
 The flow:
 
 1. Detect the EEPROM, and whether it is already programmed
-2. Tell the assembler to bridge the pads, with a picture of the board showing where: the rev B photo with the ID WP pads circled and labelled (`.workhorse/design/assets/iti-hat-rev-b-wp-pads.jpg`), shipped with the provisioning client
+2. Tell the assembler to bridge the pads, with a picture of the board showing where: the rev B photo with the ID WP pads circled and labelled (`.workhorse/design/assets/iti-hat-rev-b-wp-pads.jpg`, beside the USER button and CASE switch pictures), shipped with the provisioning client
 3. Repeatedly try to write until a write succeeds
 4. Tell the assembler they can let go
 5. Read back and verify
@@ -116,7 +116,16 @@ A step that sets the Pi 5 bootloader up for the Iti, with the configuration the 
 
 #### The QR label
 
-The client renders a label file (PDF/PNG) sized for a label printer, carrying the QR code and its four-character suffix, for the assembler to print.
+The label goes on the bottom of the case, out of sight in normal use, in a space of 50 × 30 mm clear of the vents.
+It carries the QR code on the left, filling the height with its quiet zone (version 5 at level H is 45 modules with the quiet zone, so modules of about 0.6 mm), and on the right the four-character suffix, large, over "Tamanu Iti v4.0" in small type so support can tell the hardware version from outside.
+The recovery passphrase never goes on it.
+
+The production label printer and stock are not chosen yet.
+Until then the client produces an A4 PDF of 50 × 30 mm labels in a three-by-nine grid with cut lines, for sticker sheets on an ordinary laser printer, cut out by hand.
+The sheet holds a label for each board this browser has provisioned since its last sheet, so a bench of boards fills one sheet; the client remembers them across its tabs.
+A lost or damaged label is reprinted by running only the label step on that board, or by reading the old code with the operator app's QR export (WEB).
+
+Mockup: the QR label sheet (`.workhorse/design/mockups/f4/label-sheet.html`), at true scale.
 
 #### Board records
 
@@ -150,6 +159,19 @@ For a short while after a press, the device advertises a "pressed" variant of it
 
 The provisioning client is a second page in the existing web build, at its own path, not linked from the operator app.
 It shares the channel, protocol and wasm code with the operator app.
+
+Its flow, one board per tab:
+
+1. **Find the board.** Asks the assembler to press USER on the board, with the board picture showing where (`iti-hat-rev-b-user-button.jpg`), and offers finding it as the primary action: the chooser, filtered to the "pressed" name.
+2. **Choose the steps.** Shows the board's suffix and the steps in order, each with a checkbox, all ticked by default, and starting as the primary action.
+3. **Run.** The step list stays on screen with each step's state (waiting, running, passed, failed, skipped); the current step's prompt sits beneath it:
+   - Hardware check: press USER, then press and release CASE (`iti-hat-rev-b-case-switch.jpg`), each ticked off as the device sees it, then the sensor and TPM results
+   - EEPROM: what the EEPROM holds now and what will be written; where it holds something else, confirming the overwrite; then "Bridge these pads" with the pads picture (`iti-hat-rev-b-wp-pads.jpg`), switching to "You can let go" once written, then the verify result
+   - Bootloader, NVMe and keys: progress, with the NVMe write and read-back as a progress bar
+   - A failed step says why and offers to try that step again, or to stop
+4. **Done.** The board's record, with the recovery passphrase shown once with a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the SD card".
+
+The console command follows the same steps with text prompts: it names the pads and buttons by their silkscreen labels (ID WP, USER, CASE) in place of the pictures, and prints the record at the end.
 
 ### Reporting the version
 
@@ -265,5 +287,5 @@ Run (28 Oct):
 - [x] Iti product UUID: `9c2bcc02-123a-4d9d-80e0-72166bec3218`
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
-- [ ] The label: printer, stock size, and what it carries besides the QR code and suffix
+- [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
 - [ ] The contract between bliti and the `linux-images` provisioning SD: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
