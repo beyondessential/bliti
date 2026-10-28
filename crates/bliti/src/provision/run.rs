@@ -8,7 +8,7 @@ use bliti_core::{
 };
 use tokio::sync::watch;
 
-use super::step::Step;
+use super::{step::Step, store::Store};
 
 /// Everything `provision-state` carries: where the run stands, every step, every open prompt (PRS).
 #[derive(Debug, Clone, PartialEq)]
@@ -82,7 +82,7 @@ impl Provisioner {
 	}
 
 	/// A device holding `steps`, resuming the run the medium holds for it, if any.
-	pub async fn start(_steps: Vec<Arc<dyn Step>>, _store: Option<()>) -> Self {
+	pub async fn start(_steps: Vec<Arc<dyn Step>>, _store: Option<Store>) -> Self {
 		todo!()
 	}
 }

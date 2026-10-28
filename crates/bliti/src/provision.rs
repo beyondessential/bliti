@@ -14,7 +14,9 @@ pub mod console;
 pub mod daemon;
 pub mod run;
 pub mod session;
+pub mod socket;
 pub mod step;
+pub mod store;
 pub mod stream;
 
 pub use run::{Act, CannotAct, Provisioner, Snapshot};
