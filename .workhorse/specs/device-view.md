@@ -39,8 +39,8 @@ The application MUST render in this order:
 | position | from |
 | --- | --- |
 | a header naming the device | `hostname`, `product`, `board` with `board-revision`, `os`, `kernel` |
-| tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `power-source`, `battery-charge`, `channel-clients`, `last-boot` |
-| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max` |
+| tiles | `network-address`, `wired-carrier`, `wireless-network`, `hotspot`, `hotspot-clients`, `cpu-usage`, `memory-usage`, `filesystem-usage`, `network-throughput`, `temperature`, `cpu-frequency`, `fan-speed`, `humidity`, `air-pressure`, `light`, `power-source`, `battery-charge`, `channel-clients`, `case-closed`, `last-boot` |
+| within another entry's reveal | `memory-total`, `filesystem-total`, `cpu-frequency-max`, `battery-voltage`, `battery-direction`, `battery-time-to-empty`, `battery-time-to-full`, `channel-clients-max`, `case-last-opened` |
 | appended | everything it does not recognise |
 
 The application MUST NOT give an entry it renders within another's reveal a tile of its own.
@@ -54,6 +54,8 @@ The application MUST render a `boolean` as words of its own for `true` and for `
 The application MUST render a `reason` as the sender wrote it.
 
 The application MUST render `last-boot` as an elapsed time.
+
+The application MUST show `case-last-opened` in the reveal of `case-closed`, as an elapsed time and the instant it records, and where its `found` trait is `true`, as found when the device started rather than seen.
 
 The application MUST render the facts in the header by their values, and MUST NOT shorten them to their `short` traits.
 

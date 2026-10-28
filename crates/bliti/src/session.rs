@@ -40,7 +40,7 @@ use tracing::Instrument;
 
 use crate::{
 	battery,
-	facts::{self, Supply},
+	facts::{self, Supply, case::Case},
 	network::{self, session::Configurator},
 	power::{self, Controller, SessionGuard},
 	sampler::{ENDED, Sampler, identity_key},
@@ -106,6 +106,7 @@ pub async fn run<S>(
 	supply: Supply,
 	tailscale: Tailscale,
 	tamanu: Tamanu,
+	case: Case,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -146,6 +147,7 @@ where
 		&supply,
 		&tailscale,
 		&tamanu,
+		&case,
 		&mut held,
 	)
 	.await;
@@ -177,6 +179,7 @@ async fn converse(
 	supply: &Supply,
 	tailscale: &Tailscale,
 	tamanu: &Tamanu,
+	case: &Case,
 	held: &mut SessionGuard,
 ) -> Result<(), SessionError> {
 	let served: Served = Arc::new(Mutex::new(HashSet::new()));
@@ -211,6 +214,7 @@ async fn converse(
 		let tailscale = tailscale.clone();
 		let tamanu = tamanu.clone();
 		let supply = supply.clone();
+		let case = case.clone();
 		tasks.spawn(
 			async move {
 				let mut feed = feed;
@@ -222,6 +226,7 @@ async fn converse(
 					&tailscale,
 					&tamanu,
 					&supply,
+					&case,
 				)
 				.await
 				{
@@ -255,6 +260,7 @@ async fn converse(
 			supply: supply.clone(),
 			tailscale: tailscale.clone(),
 			tamanu: tamanu.clone(),
+			case: case.clone(),
 			peer: peer.clone(),
 		};
 		tasks.spawn(
@@ -286,6 +292,7 @@ struct Context {
 	supply: Supply,
 	tailscale: Tailscale,
 	tamanu: Tamanu,
+	case: Case,
 	peer: Peer,
 }
 
@@ -303,6 +310,7 @@ where
 		supply,
 		tailscale,
 		tamanu,
+		case,
 		peer,
 	} = context;
 	loop {
@@ -325,7 +333,7 @@ where
 			Ok(Reading::Message(Message::Subscribe { topic })) if topic == DEFAULT_TOPIC => {
 				tracing::info!(%topic, "serving a subscription");
 				return serve_default(
-					stream, sampler, served, controller, tailscale, tamanu, supply,
+					stream, sampler, served, controller, tailscale, tamanu, supply, case,
 				)
 				.await;
 			}
@@ -432,6 +440,10 @@ where
 /// Claims the topic first. A topic is served on at most one stream, so if it is already being served
 /// this returns without sending anything, which is how a `subscribe` for a feed already pushed is
 /// skipped (MSG).
+#[expect(
+	clippy::too_many_arguments,
+	reason = "each is a handle every session shares, and none belongs with another"
+)]
 async fn serve_default<S>(
 	stream: &mut S,
 	sampler: &Sampler,
@@ -440,6 +452,7 @@ async fn serve_default<S>(
 	tailscale: &Tailscale,
 	tamanu: &Tamanu,
 	supply: &Supply,
+	case: &Case,
 ) -> Result<(), SessionError>
 where
 	S: AsyncRead + AsyncWrite + Unpin,
@@ -454,7 +467,7 @@ where
 	// The facts first, so the header and the shapes a reading is drawn against are present, then the
 	// current readings, so every tile fills at once rather than over the next few seconds. Together
 	// they are the first batch: everything the device holds (NFO).
-	let mut last_facts = facts_now(tailscale, tamanu, supply);
+	let mut last_facts = facts_now(tailscale, tamanu, supply, case);
 	let (sampled_facts, readings): (Vec<Message>, Vec<Message>) = sampler
 		.current()
 		.into_iter()
@@ -474,6 +487,8 @@ where
 	let mut live = sampler.live();
 	let mut facts_poll = tokio::time::interval(FACTS_POLL);
 	facts_poll.tick().await;
+	// The case is watched rather than polled, so its moving goes out at once (NFO).
+	let mut case_changes = case.changes();
 
 	// The client closing its sending side is the unsubscribe, read as end of stream. A half-close
 	// leaves this end's write side open, so it must be read for: a device watching only for a failed
@@ -519,8 +534,8 @@ where
 				Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
 			},
 
-			_ = facts_poll.tick() => {
-				let current = facts_now(tailscale, tamanu, supply);
+			() = facts_due(&mut facts_poll, &mut case_changes) => {
+				let current = facts_now(tailscale, tamanu, supply, case);
 				if !same_facts(&current, &last_facts) {
 					tracing::info!("what the device reports about itself changed");
 					let batch = changed_facts(&last_facts, &current, now());
@@ -531,6 +546,14 @@ where
 				}
 			}
 		}
+	}
+}
+
+/// Resolve when the facts are due a look: at the next poll, or as soon as the case moves.
+async fn facts_due(poll: &mut tokio::time::Interval, case: &mut facts::case::Changes) {
+	tokio::select! {
+		_ = poll.tick() => {}
+		() = case.next() => {}
 	}
 }
 
@@ -573,9 +596,10 @@ async fn write_batch<W: AsyncWrite + Unpin>(
 }
 
 /// The facts the device reports now: what it reads off the system (NFO).
-fn facts_now(tailscale: &Tailscale, tamanu: &Tamanu, supply: &Supply) -> Vec<Entry> {
+fn facts_now(tailscale: &Tailscale, tamanu: &Tamanu, supply: &Supply, case: &Case) -> Vec<Entry> {
 	let at = now();
 	let mut facts = facts::facts(at, supply);
+	facts.extend(case.entries(at));
 	facts.extend(facts::tailscale::entries(
 		at,
 		tailscale.observed().as_ref(),

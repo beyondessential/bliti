@@ -1,0 +1,54 @@
+// spec: HAT
+//
+// Overlay for the Tamanu Iti v4 HAT. The Pi loads it because the HAT's EEPROM names it.
+//
+// It turns on SPI0 for the TPM, which is on chip select 1, and I2C3 on GPIO22/23.
+//
+// It doesn't attach kernel drivers to the sensors on the I2C bus. A driver would claim a sensor's
+// address and stop anything else reading it directly.
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	// The TPM is on chip select 1, so spidev has to leave it alone.
+	fragment@1 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			tpm@1 {
+				compatible = "tcg,tpm_tis-spi";
+				reg = <1>;
+				spi-max-frequency = <32000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c3>;
+		__overlay__ {
+			status = "okay";
+			clock-frequency = <100000>;
+			pinctrl-0 = <&rp1_i2c3_22_23>;
+		};
+	};
+};

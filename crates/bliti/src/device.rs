@@ -25,7 +25,7 @@ use self::{
 };
 use crate::{
 	NetworkBackend,
-	facts::{Supply, curve},
+	facts::{Supply, case::Case, curve},
 	gatt::InboundSink,
 	identity,
 	network::{
@@ -122,6 +122,12 @@ pub async fn run(
 	if let Err(err) = crate::facts::record_supply(supply.clone(), controller.clone()) {
 		tracing::warn!(%err, "cannot watch the backup supply; power changes go unrecorded and no low battery is watched for");
 	}
+	// Watched from the start and never stopped, for the same reason: a case is seldom opened with
+	// anyone connected (NFO).
+	let case = Case::watch().unwrap_or_else(|err| {
+		tracing::warn!(%err, "cannot watch the case switch; openings go unrecorded");
+		Case::none()
+	});
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
@@ -162,6 +168,7 @@ pub async fn run(
 				let supply = supply.clone();
 				let tailscale = tailscale.clone();
 				let tamanu = tamanu.clone();
+				let case = case.clone();
 				async move {
 					session::run(
 						transport,
@@ -172,6 +179,7 @@ pub async fn run(
 						supply,
 						tailscale,
 						tamanu,
+						case,
 					)
 					.await
 				}

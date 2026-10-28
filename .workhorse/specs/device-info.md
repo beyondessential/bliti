@@ -21,6 +21,9 @@ Each reader decides how to use them; [VIEW](device-view.md) specifies how ours d
 | throttling | A platform limiting its own processor, typically for heat or for supply voltage. |
 | HAT EEPROM | The memory on the identification pins of a board fitted to a Raspberry Pi's header, from which the Pi's firmware publishes that board's vendor, product and version to the operating system at boot. |
 | TPM | A Trusted Platform Module, as [BID](board-id.md) has it. |
+| case switch | The lever switch on a Tamanu Iti's HAT that the closed lid of its case holds down. |
+| provisioning medium | The removable disk carrying the system a board is provisioned from, at assembly or for repair. |
+| boot identifier | The random identifier the kernel gives each boot. |
 
 ## The topic
 
@@ -200,6 +203,8 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `memory-total` | `quantity`, `bytes` | — | memory fitted |
 | `filesystem-total` | `quantity`, `bytes` | `filesystem` | the size of each filesystem |
 | `channel-clients-max` | `quantity`, `clients` | — | how many clients the device can hold a channel open to at once, its slots of [CHN](channel.md) |
+| `case-closed` | `boolean` | — | whether the device's case is closed, as [Case](#case) has it |
+| `case-last-opened` | `datetime` | `boot`, `found` | the latest opening of the case, as [Case](#case) has it |
 
 ### Readings
 
@@ -213,6 +218,9 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `hotspot-clients` | `quantity`, `clients` | — | how many clients are joined to the hotspot |
 | `temperature` | `quantity`, `celsius` | `sensor` | each temperature sensor |
 | `fan-speed` | `quantity`, `revolutions/minute` | `fan` | fan speed |
+| `humidity` | `fraction` | — | the relative humidity of the air inside the case |
+| `air-pressure` | `quantity`, `pascals` | — | the air pressure inside the case |
+| `light` | `quantity`, `lux` | — | the light falling on the light sensor |
 | `power-source` | `text` | — | where the device's power is coming from |
 | `battery-charge` | `fraction` | `battery` | the charge left: as [CHG](battery/charge.md) estimates it for a backup supply the device manages, and the state of charge otherwise |
 | `battery-voltage` | `quantity`, `volts` | `battery` | cell voltage |
@@ -231,15 +239,17 @@ Where the hardware is fitted and a precondition for measuring it was not met, a 
 | `passphrase` | — | the secret a client joins the hotspot with |
 | `direction` | — | `in` or `out` |
 | `filesystem` | `mount`, `device`, `role` | a filesystem; `role` is `boot` on a boot partition |
-| `sensor` | — | which temperature sensor, of which `cpu` is the processor core |
+| `sensor` | — | which temperature sensor, of which `cpu` is the processor core and `case` the air inside the case |
 | `fan` | — | which fan |
 | `battery` | `name`, `serial`, `model`, `vendor` | which battery, where a device holds more than one; `name` tells them apart and the rest describe the cell |
 | `status` | `is`, `reason` | how the datum stands, as above |
 | `limits` | — | marks on the reading's scale, each an object with `at` (number) and `label` (string) |
 | `margin` | — | how far either way the reading's value may be off, in its unit |
 | `short` | — | a short form of the fact's value, as [Identity](#identity) has it |
+| `boot` | `id`, `offset` | the boot something happened in, by its boot identifier, and `offset`, the milliseconds into that boot it happened at |
+| `found` | — | `true` where the device found the case so when it started rather than saw it move, and `false` otherwise |
 
-`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits`, `margin` and `short` are descriptive.
+`route`, `overlay`, `security`, `channel`, `passphrase`, a `battery`'s `serial`, `model` and `vendor`, `status`, `limits`, `margin`, `short`, `boot` and `found` are descriptive.
 Every other trait distinguishes.
 
 > [!NOTE]
@@ -263,12 +273,14 @@ A device MUST report `product` from the first of these that holds of it, and MUS
 
 | where the device carries | `product` |
 | --- | --- |
-| a HAT EEPROM identifying the board as a Tamanu Iti | "Tamanu Iti v" followed by the generation that HAT EEPROM records |
+| a HAT EEPROM identifying the board as a Tamanu Iti | "Tamanu Iti v" followed by the version that HAT EEPROM records, as major and minor joined by a full stop, as "Tamanu Iti v4.0" is |
 | a backup supply and a TPM | `broken`, with a reason saying the board carries a TPM but no HAT EEPROM identifying it |
 | a backup supply, and neither a TPM nor a HAT EEPROM | "Tamanu Iti v3" |
 
+What a HAT EEPROM holds, and how a board is recognised as a Tamanu Iti from it, is specified under [HAT](hat.md).
+
 > [!NOTE]
-> The third generation carries no HAT EEPROM, so it is known by what it lacks.
+> The third generation carries no HAT EEPROM, so it is known by what it lacks, and with nothing to tell its revisions apart it has no minor version.
 > A later generation carries both a TPM and an identifying HAT EEPROM, so it reads as the third only where both have failed, and where only its HAT EEPROM is blank or unreadable it is reported broken rather than taken for the third.
 
 ## Storage
@@ -467,6 +479,61 @@ For a battery it reads from its operating system, a device MUST report both as t
 > A device-managed backup supply names its own cell, since nothing else reports one for it, and naming it for sitting inside the case tells it from an external supply the same device might also report.
 > A backup supply's gauge does not report the cell's direction of travel, so a device working from one derives the direction from the voltage; an operating system reports it directly. Either way the direction is reported plainly and only its absence needs a reason, since a standing note that it was derived would say the same thing on every device for its whole life.
 
+## Case
+
+A device MUST report `case-closed` and `case-last-opened` only where its HAT EEPROM records it as a Tamanu Iti v4.0, as [HAT](hat.md) has it, and MUST omit both otherwise.
+
+A device MUST read whether its case is closed from the case switch, on the GPIO line the kernel names `GPIO17`, which reads low while the switch is held down.
+
+A device MUST treat the switch as having moved only once it has held its new position long enough to rule out contact bounce.
+
+A device MUST report `case-closed` as `true` while the case is closed and as `false` while it is open.
+
+A device MUST report `case-closed` as `passed` while the case is closed, and as `warning` while it is open, with a reason saying the case is open.
+
+A device MUST report a change in `case-closed` as soon as it observes the change.
+
+A device MUST report `case-closed` as `broken`, with a reason, where it cannot read the switch.
+
+### The history
+
+A device MUST keep a history of the openings and closings of its case in the file `/var/lib/bliti/case-history.jsonl`, except while running from the provisioning medium, when it MUST NOT keep one.
+
+> [!NOTE]
+> Assembly needs the case open, so the openings of a board being provisioned are not worth recording, and the history starts with the system the board is provisioned with.
+
+A device MUST watch the switch for as long as it runs, whether or not it is sampling, and MUST append an entry to the history at each opening and each closing it observes.
+
+A device MUST write each entry durably to storage as soon as it observes the change the entry records.
+
+A device MUST NOT remove or rewrite an entry in the history.
+
+The history holds one JSON object per line, each with these members:
+
+| member | type | meaning |
+| --- | --- | --- |
+| `event` | string | `opened` or `closed` |
+| `time` | string | the instant it happened by the device's clock, as [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) |
+| `boot` | object | `id`, the boot identifier of the boot it happened in, and `offset`, the milliseconds into that boot it happened at |
+| `found` | boolean | `true` where the device found the case so when it started rather than saw it move, and `false` otherwise |
+
+When a device starts, it MUST compare the position of the switch with the latest entry in the history.
+Where the two differ, or where the history holds no entry and the case is open, it MUST append an entry for the position it finds, at the moment it started, with `found` as `true`.
+
+> [!NOTE]
+> A device cannot see its case move while it is not running, so an entry it finds when starting says only that the case moved at some point before.
+> The clock of a device in the field may be unset or wrong, so each entry also records which boot it happened in and how far into it. The order of the lines is the order of the events, whatever the clock said.
+
+### The latest opening
+
+A device MUST report `case-last-opened` from the latest `opened` entry in the history: its `time` as the value, its `boot` as the `boot` trait and its `found` as the `found` trait.
+
+A device MUST omit `case-last-opened` where the history holds no opening.
+
+A device MUST report `case-last-opened` as `passed`, and as `broken`, with a reason, where it cannot read the history.
+
+A device MUST report a new `case-last-opened` as soon as it appends an opening to the history, in the same batch as the change in `case-closed`.
+
 ## Temperature and processor speed
 
 `temperature` on the `cpu` sensor MUST carry the board's own declared thresholds as its `limits` trait.
@@ -480,6 +547,29 @@ A device MUST NOT infer throttling from `cpu-frequency` being below `cpu-frequen
 > [!NOTE]
 > Carrying the board's own thresholds draws the reading against the temperature the board considers hot, rather than against an invented scale.
 > Ordinary idle scaling lowers the frequency, so a device that inferred throttling from the two figures would report it on a device that is simply not busy.
+
+## Air and light
+
+A device MUST take the air and light sensors fitted to it from the version its HAT EEPROM records, as [HAT](hat.md) has it, and MUST NOT take them from which devices answer on the bus.
+
+| version | sensor | where | reports |
+| --- | --- | --- | --- |
+| 4.0 | Bosch BME680 | address `0x77` on the third I²C bus | `temperature` on the `case` sensor, `humidity`, `air-pressure` |
+| 4.0 | Lite-On LTR-308ALS | address `0x53` on the third I²C bus | `light` |
+
+A device whose board is not recognised as a Tamanu Iti, or whose version the table does not list, has none of these sensors fitted.
+
+A device MUST report every entry of a fitted sensor as `broken`, with a reason naming the sensor, where the sensor does not answer or answers as a different part.
+
+A device MUST NOT heat the BME680's gas sensor.
+
+`temperature` on the `case` sensor, `humidity`, `air-pressure` and `light` have no notion of being in difficulty.
+
+> [!NOTE]
+> Taking the fitted sensors from the version means a sensor that stops answering shows as broken rather than disappearing.
+> The BME680 sits on the HAT beside the Pi, so it reads warmer and drier than the room the device is in.
+> The LTR-308ALS is lit through the case's vents, so it reads lower than the room's light.
+> Its gas heater would warm it further, and the gas resistance it yields means little without Bosch's closed air quality library.
 
 ## Sampling
 

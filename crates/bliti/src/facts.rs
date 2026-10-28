@@ -30,7 +30,10 @@ use crate::network::stack::Report;
 pub use power::{Supply, Unchanged, curve, record_supply};
 
 mod board;
+pub mod case;
 mod compute;
+mod environment;
+mod i2c;
 mod network;
 mod power;
 mod product;
@@ -60,6 +63,8 @@ pub fn facts(at: u64, supply: &Supply) -> Vec<Entry> {
 #[derive(Debug, Default)]
 pub struct Facts {
 	cpu: Option<compute::CpuCounters>,
+	/// The HAT's air and light sensors, as the HAT EEPROM said they are fitted when this was made.
+	environment: environment::Sensors,
 	network: BTreeMap<String, network::Counters>,
 	// The cell is watched by the supply's record thread, which holds the history telling a battery
 	// carrying the device from one sitting idle; this reports from it.
@@ -76,6 +81,7 @@ impl Facts {
 		Self {
 			wireless,
 			power: power::Watch::new(supply),
+			environment: environment::Sensors::new(product::iti_version()),
 			..Self::default()
 		}
 	}
@@ -107,6 +113,7 @@ impl Facts {
 			readings.extend(storage::usage(at));
 			readings.extend(thermal::temperature(at));
 			readings.extend(thermal::fan(at));
+			readings.extend(self.environment.readings(at));
 			readings.extend(self.power.readings(at));
 		}
 		// The wireless network and hotspot are facts and change slowly; the client count is a

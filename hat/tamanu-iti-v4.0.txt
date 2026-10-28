@@ -1,0 +1,12 @@
+# What the HAT EEPROM of a Tamanu Iti v4.0 (revision B) holds, in the format eepmake reads.
+# The UUID is the same on every Tamanu Iti. product_id is the major version and product_ver the
+# minor one.
+
+product_uuid 7c3b8a88-ad89-4d48-b709-2bd445729867
+product_id 0x0004
+product_ver 0x0000
+vendor "BES International"
+product "Tamanu Iti v4.0"
+
+# The overlay the Pi loads for this HAT, built from hat/tamanu-iti-v4.dts.
+dt_blob "tamanu-iti-v4"

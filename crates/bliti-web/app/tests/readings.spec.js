@@ -82,11 +82,11 @@ test.describe('the header', () => {
 		await openChannel(page)
 		await openReadings(page)
 		await feed(page, fact('hostname', { kind: 'text', value: 'tamanu-iti' }))
-		await feed(page, fact('product', { kind: 'text', value: 'Tamanu Iti v4' }))
+		await feed(page, fact('product', { kind: 'text', value: 'Tamanu Iti v4.0' }))
 		await feed(page, fact('board', { kind: 'text', value: 'Raspberry Pi 5 Model B Rev 1.0', traits: { status: { is: 'passed' }, short: 'Raspberry Pi 5' } }))
 		await feed(page, fact('os', { kind: 'text', value: 'Ubuntu 26.04 LTS', traits: { status: { is: 'passed' }, short: 'Ubuntu 26.04' } }))
 
-		await expect(page.locator('.device .sub')).toHaveText('Tamanu Iti v4 · Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
+		await expect(page.locator('.device .sub')).toHaveText('Tamanu Iti v4.0 · Raspberry Pi 5 Model B Rev 1.0 · Ubuntu 26.04 LTS')
 		await expect(page.locator('.tile')).toHaveCount(0)
 	})
 
@@ -765,5 +765,135 @@ test.describe('wired carrier', () => {
 		await feed(page, fact('door-open', { kind: 'boolean', value: false }))
 		await expect(page.locator('.tile').filter({ hasText: 'Lid Open' })).toContainText('Yes')
 		await expect(page.locator('.tile').filter({ hasText: 'Door Open' })).toContainText('No')
+	})
+})
+
+test.describe('the case', () => {
+	const closed = (value, extra = {}) =>
+		fact('case-closed', {
+			kind: 'boolean',
+			value,
+			traits: value ? { status: { is: 'passed' } } : { status: { is: 'warning', reason: 'the case is open' } },
+			...extra,
+		})
+	// Two hours and five minutes ago, give or take the test's own running time.
+	const ago = () => new Date(Date.now() - (2 * 3600 + 5 * 60 + 30) * 1000).toISOString()
+	const opened = (found, time = ago()) =>
+		fact('case-last-opened', {
+			kind: 'datetime',
+			value: time,
+			traits: { status: { is: 'passed' }, boot: { id: 'a-boot', offset: 4321 }, found },
+		})
+	const tile = (page) => page.locator('.tile').filter({ has: page.locator('.label', { hasText: 'Case' }) })
+
+	test('sits after connected clients and before uptime, saying closed or open', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, fact('last-boot', { kind: 'datetime', value: ago() }))
+		await feed(page, closed(true))
+		await feed(page, reading('channel-clients', { kind: 'quantity', unit: 'clients', value: 1 }))
+		await expect(page.locator('.tile .label')).toHaveText(['Connected', 'Case', 'Uptime'])
+		await expect(tile(page).locator('.value')).toHaveText('Closed')
+		await feed(page, closed(false))
+		await expect(tile(page).locator('.value')).toHaveText('Open')
+	})
+
+	test('an open case takes the warning colour, a closed one none', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await expect(tile(page).locator('.value')).not.toHaveClass(/warn|bad/)
+		await feed(page, closed(false))
+		await expect(tile(page).locator('.value.warn')).toHaveCount(1)
+	})
+
+	test('the reveal shows the latest opening as how long ago and when', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false, '2026-01-02T03:04:05Z'))
+		await tile(page).click()
+		const detail = tile(page).locator('.detail')
+		await expect(detail.locator('dt')).toHaveText('Last opened')
+		await expect(detail.locator('dd')).toHaveText(/^\d+d \d+h ago · \d+ Jan 2026, /)
+	})
+
+	test('an opening seen is told from one found when the device started', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false))
+		await tile(page).click()
+		await expect(tile(page).locator('.detail dt')).toHaveText('Last opened')
+		await expect(tile(page).locator('.detail dd')).toContainText('2h 5m ago')
+
+		await feed(page, opened(true))
+		await expect(tile(page).locator('.detail dt')).toHaveText('Found open at start')
+	})
+
+	test('the latest opening gets no tile of its own', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await feed(page, opened(false))
+		await expect(page.locator('.tile')).toHaveCount(1)
+		await expect(page.locator('.tile', { hasText: 'Last opened' })).toHaveCount(0)
+	})
+
+	test('renders without a latest opening, with nothing about one to reveal', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, closed(true))
+		await expect(tile(page).locator('.value')).toHaveText('Closed')
+		await expect(page.getByRole('button', { name: /Case/ })).toHaveCount(0)
+
+		await feed(page, closed(false))
+		await tile(page).click()
+		await expect(tile(page).locator('.detail')).toContainText('the case is open')
+		await expect(tile(page).locator('.detail dt')).toHaveCount(0)
+	})
+})
+
+test.describe('air and light', () => {
+	const passed = (extra = {}) => ({ status: { is: 'passed' }, ...extra })
+
+	// The HAT's readings take the places VIEW's order gives them, after the fan and before power.
+	test('humidity, air pressure and light sit where the order puts them, in our own units', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('power-source', { kind: 'text', value: 'via-backup' }))
+		await feed(page, reading('light', { kind: 'quantity', unit: 'lux', value: 212.4 }))
+		await feed(page, reading('air-pressure', { kind: 'quantity', unit: 'pascals', value: 101325 }))
+		await feed(page, reading('humidity', fraction(0.4225)))
+		await feed(page, reading('fan-speed', { kind: 'quantity', unit: 'revolutions/minute', value: 3113, traits: passed({ fan: 'cpu' }) }))
+		await expect(page.locator('.tile .label')).toHaveText(['Fan', 'Humidity', 'Air pressure', 'Light', 'Power'])
+		await expect(page.getByText('42%')).toBeVisible()
+		await expect(page.getByText('1013.25 hPa')).toBeVisible()
+		await expect(page.getByText('212.4 lx')).toBeVisible()
+	})
+
+	// The case sensor is folded into the temperature tile, which still headlines the processor, and
+	// both sensors are worded rather than shown as sent (VIEW).
+	test('the case temperature is in the temperature reveal under its own wording', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 48.5, traits: passed({ sensor: 'cpu' }) }))
+		await feed(page, reading('temperature', { kind: 'quantity', unit: 'celsius', value: 31.2, traits: passed({ sensor: 'case' }) }))
+		const tile = page.locator('.tile').filter({ hasText: 'Temperature' })
+		await expect(tile).toHaveCount(1)
+		await expect(tile.locator('.value').first()).toHaveText('48.5 °C')
+		await tile.click()
+		await expect(tile).toContainText('Processor')
+		await expect(tile).toContainText('Inside case')
+		await expect(tile).toContainText('31.2 °C')
+	})
+
+	test('a broken humidity shows it is unavailable, with its reason', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('humidity', { kind: 'fraction', traits: { status: { is: 'broken', reason: 'the BME680 does not answer' } } }))
+		await expect(page.getByText('unavailable')).toBeVisible()
+		await page.getByRole('button', { name: /Humidity/ }).click()
+		await expect(page.getByText('the BME680 does not answer')).toBeVisible()
 	})
 })

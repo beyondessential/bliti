@@ -12,6 +12,7 @@ import {
 	HEADER,
 	IN_REVEAL,
 	TILE_ORDER,
+	formatAgo,
 	formatMargin,
 	formatOutOf,
 	formatValue,
@@ -24,6 +25,7 @@ import {
 	headlineAddresses,
 	reasonOf,
 	scaleOf,
+	sensorLabelOf,
 	seriesKey,
 	statusOf,
 } from './readings.js'
@@ -162,6 +164,8 @@ function renderTile(name, byName, history) {
 					reveal={[byName.get('channel-clients-max')?.[0]]}
 				/>
 			)
+		case 'case-closed':
+			return <CaseTile key={name} entry={group[0]} opened={byName.get('case-last-opened')?.[0]} />
 		case 'battery-charge':
 			return (
 				<BatteryTile
@@ -293,6 +297,24 @@ function Folded({ entry }) {
 /// not there rather than showing a bare dash (VIEW).
 function foldedValue(entry) {
 	return hasValue(entry) ? withMargin(entry, formatValue(entry)) : (reasonOf(entry) ?? '—')
+}
+
+/// The case: headline whether it is closed, and reveal its latest opening as how long ago and the
+/// instant, saying where the device found it open when it started rather than saw it open (VIEW).
+function CaseTile({ entry, opened }) {
+	return (
+		<Tile label={labelOf(entry.name)} more={reasonOf(entry) || opened} tone={tone(entry)} face={headline(entry)}>
+			<Reveal entry={entry} scale={null} series={null} />
+			{opened && (
+				<div className="revealed">
+					<dl>
+						<dt>{opened.traits?.found === true ? 'Found open at start' : labelOf(opened.name)}</dt>
+						<dd>{hasValue(opened) ? formatAgo(opened.value) : (reasonOf(opened) ?? '—')}</dd>
+					</dl>
+				</div>
+			)}
+		</Tile>
+	)
 }
 
 /// Which battery a reading is about.
@@ -591,7 +613,7 @@ function TemperatureTile({ sensors, history }) {
 }
 
 function sensorName(entry) {
-	return typeof entry.traits?.sensor === 'string' ? entry.traits.sensor : qualifierOf(entry)
+	return typeof entry.traits?.sensor === 'string' ? sensorLabelOf(entry.traits.sensor) : qualifierOf(entry)
 }
 
 /// An entry this build does not recognise, rendered from its own name, traits and value. A fact gets

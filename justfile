@@ -90,6 +90,19 @@ install-device host: build-device
 		sudo -n install -m755 /tmp/bliti-new /usr/local/bin/bliti; rm -f /tmp/bliti-new; \
 		sudo -n systemctl start bliti'
 
+hat-out := justfile_directory() / "target/hat"
+
+# Compile the HAT's device tree overlay from hat/tamanu-iti-v4.dts. Needs dtc.
+hat-overlay:
+	mkdir -p {{hat-out}}
+	dtc -@ -I dts -O dtb -o {{hat-out}}/tamanu-iti-v4.dtbo hat/tamanu-iti-v4.dts
+
+# Build the revision B EEPROM image from hat/tamanu-iti-v4.0.txt. Needs eepmake, which comes in
+# Raspberry Pi's raspi-utils-eeprom package.
+hat-eeprom:
+	mkdir -p {{hat-out}}
+	eepmake hat/tamanu-iti-v4.0.txt {{hat-out}}/tamanu-iti-v4.0.eep
+
 # Rasterise the application's icons from icon.svg, the one master beside them.
 icons:
 	#!/usr/bin/env bash

@@ -158,11 +158,31 @@ dependencies = [
 
 [[package]]
 name = "bitfield"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7e6caee68becd795bfd65f1a026e4d00d8f0c2bc9be5eb568e1015f9ce3c34"
+dependencies = [
+ "bitfield-macros 0.18.1",
+]
+
+[[package]]
+name = "bitfield"
 version = "0.19.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b45721c9db4c7a20899d05efb7ad9235f50b256e980db30ffb229abf732934c3"
 dependencies = [
- "bitfield-macros",
+ "bitfield-macros 0.19.5",
+]
+
+[[package]]
+name = "bitfield-macros"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331afbb18ce7b644c0b428726d369c5dd37ca0b815d72a459fcc2896c3c8ad32"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -228,10 +248,12 @@ dependencies = [
  "blake3",
  "bliti-core 0.0.0",
  "bluer",
+ "bosch-bme680",
  "bytes",
  "clap",
  "dbus",
  "dbus-tokio",
+ "embedded-hal",
  "futures",
  "hex",
  "http-body-util",
@@ -400,6 +422,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "bosch-bme680"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c7d78aa5cc3efa061c1514ea12a3e43ef7ece82f784fceb1dd31c12f9d3c011"
+dependencies = [
+ "bitfield 0.18.1",
+ "embedded-hal",
+ "log",
 ]
 
 [[package]]
@@ -858,6 +891,12 @@ name = "either"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
+
+[[package]]
+name = "embedded-hal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
 
 [[package]]
 name = "enumflags2"
@@ -2525,7 +2564,7 @@ version = "7.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f10b25a84912b894d0e6d68f4a3771c923e9c44ddaaed7920cde92ed28aa84e"
 dependencies = [
- "bitfield",
+ "bitfield 0.19.5",
  "enumflags2",
  "getrandom 0.4.3",
  "hostname-validator",
