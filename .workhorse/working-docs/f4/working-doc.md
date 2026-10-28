@@ -146,14 +146,17 @@ Trust comes from being physically at the assembly bench. The client cannot authe
 
 Its advertised name carries a provisioning marker plus the last four characters of the QR payload the board will have once provisioned.
 That suffix comes from the TPM board ID through the key fingerprint, is safe to broadcast, and is the same four characters STAT shows as a device's fallback name and that appear on the printed label.
-Several boards can be in provisioning at once. The client finds them by filtering on the well-known marker and lists them by suffix.
+A provisioning device is silent until USER is pressed, then advertises for five minutes.
+It stops advertising when a client connects (the controller already does this on connection; outside provisioning bliti re-registers to resume, and in provisioning it doesn't), and stays silent after the session ends until USER is pressed again.
+So the boards on the air are the ones just pressed and not yet connected, normally exactly one.
+The client opens the chooser filtered on the provisioning marker; where several boards were pressed at once, the suffix in each name tells them apart.
 
 Where the TPM doesn't answer, there is no board ID to take a suffix from (falling back to the Pi serial would print a label that stops matching once the TPM works), so the device advertises a fault marker in place of the suffix, the hardware check fails on the TPM, and no label is offered.
 
 The client works on one board at a time; several boards at once means several tabs.
 
-To tell which physical board is which, the assembler presses one of the HAT's buttons (two are wired to GPIOs) on the board they want.
-For a short while after a press, the device advertises a "pressed" variant of its provisioning name, and the client opens the chooser filtered to that variant, so only the pressed board is listed.
+Pressing USER is how the assembler picks the physical board, and also what puts it on the air.
+A board whose USER button doesn't work can't be reached by the client; the console command provisions it, and its hardware check fails on USER.
 
 ### The provisioning client
 
@@ -162,14 +165,16 @@ It shares the channel, protocol and wasm code with the operator app.
 
 Its flow, one board per tab:
 
-1. **Find the board.** Asks the assembler to press USER on the board, with the board picture showing where (`iti-hat-rev-b-user-button.jpg`), and offers finding it as the primary action: the chooser, filtered to the "pressed" name.
+1. **Find the board.** Asks the assembler to press USER on the board, with the board picture showing where (`iti-hat-rev-b-user-button.jpg`), and offers finding it as the primary action: the chooser, filtered on the provisioning marker.
 2. **Choose the steps.** Shows the board's suffix and the steps in order, each with a checkbox, all ticked by default, and starting as the primary action.
 3. **Run.** The step list stays on screen with each step's state (waiting, running, passed, failed, skipped); the current step's prompt sits beneath it:
-   - Hardware check: press USER, then press and release CASE (`iti-hat-rev-b-case-switch.jpg`), each ticked off as the device sees it, then the sensor and TPM results
+   - Hardware check: USER already ticked from the press that found the board, then press and release CASE (`iti-hat-rev-b-case-switch.jpg`), then the sensor and TPM results
    - EEPROM: what the EEPROM holds now and what will be written; where it holds something else, confirming the overwrite; then "Bridge these pads" with the pads picture (`iti-hat-rev-b-wp-pads.jpg`), switching to "You can let go" once written, then the verify result
    - Bootloader, NVMe and keys: progress, with the NVMe write and read-back as a progress bar
    - A failed step says why and offers to try that step again, or to stop
 4. **Done.** The board's record, with the recovery passphrase shown once with a copy action; the label added to the browser's pending sheet, and downloading the sheet as the primary action; then "Power off the board and remove the SD card".
+
+Mockup: provisioning an Iti, every screen (`.workhorse/design/mockups/f4/provisioning.html`). It reuses the operator app's own components: the step dots of reaching a device, the Status screen's rows with their marks, and its bar-state panels; the only new pieces are a board picture inside a step, and a step's prompt beneath its row.
 
 The console command follows the same steps with text prompts: it names the pads and buttons by their silkscreen labels (ID WP, USER, CASE) in place of the pictures, and prints the record at the end.
 
@@ -206,7 +211,7 @@ Where provisioning can't place the board as a known version (the sensor that tel
 ### Checking the hardware
 
 Before the label is printed, provisioning exercises the HAT so a bad board is caught on the bench and not in the field.
-The assembler presses USER, then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
+The press of USER that put the board on the air counts as USER's check; the assembler then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
 Each check passes or fails in the client.
 A sensor passes when it answers with its expected chip ID and returns a reading; the TPM passes when it answers and yields the board ID.
 Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
@@ -269,7 +274,7 @@ Run (28 Oct):
 ## Trade-offs
 
 - **Second page over a separate app or a section of the operator app.** Above the channel, provisioning shares almost nothing with the operator flow: no QR code, its own discovery, a multi-step pipeline, label rendering, and a recovery passphrase on screen. A field operator should never meet the passphrase screen, and an assembler has no use for Status or Network, so they are kept apart. A second entry point in one Vite build costs one config line; a separate app would mean a second build and deploy to keep in step with the protocol, which is the complexity worth avoiding.
-- **"Pressed" name variant over confirming after connecting.** Web Bluetooth reaches a device only through the browser's chooser, filtered by name or prefix, so a page cannot listen to several boards and notice which saw a press. Confirming after connecting means a chooser pass and a handshake per guess, which scales badly with several boards on a bench. The variant gets the right board in one pass. Its risk is a host caching a device's name (ADV's note on the GAP Device Name), so selection should happen before a board's first connection; tech design checks how browsers behave.
+- **Silent until pressed, over always advertising.** Web Bluetooth reaches a device only through the browser's chooser, filtered by name or prefix, so a page cannot listen to several boards and notice which saw a press. Advertising only after a press makes the press itself the selection: the chooser lists just the pressed boards, with nothing to match against and no name that changes (so no host name caching to worry about). Rejected: a "pressed" variant of an always-on name, which needed the name to change and risked hosts caching the old one; and confirming after connecting, which costs a chooser pass and a handshake per wrong guess.
 - **Version as major.minor.** Revisions within a generation differ in hardware bliti may need to know about, and the user's naming (rev B as v4.0, rev C as v4.1) makes the revision visible where it matters.
 
 ## Open questions
