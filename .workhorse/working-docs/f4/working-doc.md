@@ -140,7 +140,7 @@ Amber is red and green on together, and marks a board running from the provision
 A finished run is not picked up again, so any later boot of a finished board from the medium comes back as steady amber; green steady lasts only until the board is powered off, which is the next instruction anyway.
 
 Only the provisioning medium drives the LED this way; the Iti's own system leaves it as the Pi sets it.
-The Pi 5's one LED is two in Linux, green (ACT) and red (PWR), each with its own control; that bliti can drive them from the provisioning system is still to be checked on the prototype.
+The Pi 5's one LED is two in Linux, green (ACT) and red (PWR), each switched on or off with its own control; green's is active-low. Normally green follows SD card activity, so on an Iti, with no SD card, it sits solid green.
 
 A run survives a reboot: its state (the steps chosen, and which have passed) is kept on the provisioning medium against the board, and a board that boots back into provisioning picks its run up where it left off, starting an interrupted step over (USB is first in the boot order for the run's duration, so a reboot comes back to the stick).
 That covers both the reboot the TPM firmware update needs and a power cut partway through a long run.
@@ -414,8 +414,8 @@ Run (28 Oct):
 - [ ] How the device tells the NVMe already carries the medium's system, from the plaintext boot partition (a version the `pi` image records there, or another marker)
 - [ ] A shutdown on the prototype hung at the very end: a short press of the power button (the X1208's, which acts as the Pi's own and normally shuts down and boots fine) started an orderly shutdown, logged up to the journal stopping, but the board never powered off (LED green, network and BLE down, the button ignored) until the X1208's hard cut. First seen after the HAT overlay change; candidates are the TPM's shutdown under the generic `tcg,tpm_tis-spi` binding, closing the encrypted root, and the final power-off. Reproduce with the serial console attached to see where it stops
 - [x] The prototype's TPM: ST33KTPM firmware `0x00090101` (TPM spec revision 1.59); ST has published at least `0x00090200`, which needs the LMS-signed manifest path
-- [x] Both LEDs (ACT green, PWR red) are controllable from Linux, on/off only
-- [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like; the table above assumes a distinct amber, and needs redoing with blink patterns if it isn't
+- [x] Both LEDs (ACT green, PWR red) are controllable from Linux, on/off only. Green is active-low: writing 1 turns it off. Tested by eye: green (ACT 0, PWR 0), red (ACT 1, PWR 1), amber (ACT 0, PWR 1, a distinct amber-ish), off (ACT 1, PWR 0); a 1 s blink reads clearly
+- [x] bliti can drive the LEDs from the provisioning system, and red and green together give a distinct amber, so the table above stands
 - [ ] Whether a bootloader configuration written from Linux on the Pi 5 takes effect at the next boot without a further reboot, which the USB-first change at the start of a run relies on
 - [ ] Physically blocking the SD slot in the case: a hardware design change, outside bliti
 - [ ] Confirm the provisioning image is assembled in bliti from the published `pi` image (proposed), rather than built in `linux-images`
