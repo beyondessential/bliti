@@ -37,9 +37,9 @@ An Iti overlay per generation configures the HAT's devices (TPM, sensors, button
 
 ### How C4 consumes it
 
-C4's `product` fact takes "Tamanu Iti v" plus the generation where the HAT EEPROM identifies a Tamanu Iti.
-This card fills in C4's placeholder (`facts::product::generation`) with the real match.
-The placeholder takes `vendor` and `product`; the real match reads `uuid`, `product_id` and `product_ver` instead, so its inputs change too.
+The `product` fact (NFO, Product) reports "Tamanu Iti v" plus the generation where the HAT EEPROM identifies a Tamanu Iti.
+This card fills in the placeholder C4 left (`facts::product::generation`) with the real match, and amends NFO to major.minor (see Reporting the version).
+The placeholder takes `vendor` and `product`; the real match reads `uuid`, `product_id` and `product_ver` instead, as the text the firmware publishes (`0x0004`), so its inputs change too.
 
 ### Provisioning
 
@@ -66,7 +66,9 @@ Where the EEPROM holds something else (another vendor's data, or another Iti ver
 
 The write retries for up to five minutes waiting for the pads to be bridged, then gives up, tells the assembler to check the bridge, and offers to try again.
 
-Front ends: both a client screen (over the channel) and a device-local command, driving one device-side act.
+Provisioning mode exists only on the provisioning SD; an imaged board's own bliti never enters it.
+Two front ends drive the same device-side steps: the provisioning client over the channel, and a command on the SD's console (HDMI and keyboard, or the serial console the image already enables) for a bench without a browser.
+The console command runs the same steps in the same order, with text prompts in place of the picture.
 
 ### The provisioning SD card
 
@@ -110,7 +112,7 @@ Closing it takes Raspberry Pi secure boot (signed boot images, a customer key bu
 
 #### Configuring the bootloader
 
-A step that sets the Pi 5 bootloader up for the Iti (boot order to NVMe, firmware version), reusing what the `linux-images` `pi eeprom` SD does.
+A step that sets the Pi 5 bootloader up for the Iti, with the configuration the `linux-images` `pi eeprom` SD applies (`BOOT_ORDER=0xf61`, SD then NVMe), and updates the bootloader where it is older than the tryboot floor the `pi` image needs.
 
 #### The QR label
 
@@ -118,7 +120,9 @@ The client renders a label file (PDF/PNG) sized for a label printer, carrying th
 
 #### Board records
 
-At the end, each board's record (QR suffix, version, recovery passphrase) is shown to the assembler in the client and appended to a file on the provisioning SD card.
+At the end, each board's record is shown to the assembler in the client and appended to a file on the provisioning SD card's FAT partition, so it can be read on any computer.
+One line per board, tab-separated, in the manner of the `linux-images` installer's `recovery-keys.txt`: the QR suffix, the version, the UUID of the NVMe's LUKS partition (to match a disk to its passphrase), the recovery passphrase, and when it was provisioned.
+The recovery passphrase follows the installer's rules: at least 25 printable ASCII characters, no whitespace.
 Sending it to a central register is a separate card.
 
 #### Where it's built
@@ -135,6 +139,10 @@ Its advertised name carries a provisioning marker plus the last four characters 
 That suffix comes from the TPM board ID through the key fingerprint, is safe to broadcast, and is the same four characters STAT shows as a device's fallback name and that appear on the printed label.
 Several boards can be in provisioning at once. The client finds them by filtering on the well-known marker and lists them by suffix.
 
+Where the TPM doesn't answer, there is no board ID to take a suffix from (falling back to the Pi serial would print a label that stops matching once the TPM works), so the device advertises a fault marker in place of the suffix, the hardware check fails on the TPM, and no label is offered.
+
+The client works on one board at a time; several boards at once means several tabs.
+
 To tell which physical board is which, the assembler presses one of the HAT's buttons (two are wired to GPIOs) on the board they want.
 For a short while after a press, the device advertises a "pressed" variant of its provisioning name, and the client opens the chooser filtered to that variant, so only the pressed board is listed.
 
@@ -147,7 +155,7 @@ It shares the channel, protocol and wasm code with the operator app.
 
 A HAT-identified board reports as "Tamanu Iti v" followed by its major.minor version: "Tamanu Iti v4.0" for rev B.
 The third generation carries no EEPROM to tell revisions apart, and stays "Tamanu Iti v3".
-This changes C4's Product section in NFO ("Tamanu Iti v" followed by the generation), which this card amends once C4 merges.
+This changes NFO's Product section ("Tamanu Iti v" followed by the generation), which this card amends.
 
 ### The HAT, rev B (silkscreened "ITI 4.0")
 
@@ -178,6 +186,7 @@ Where provisioning can't place the board as a known version (the sensor that tel
 Before the label is printed, provisioning exercises the HAT so a bad board is caught on the bench and not in the field.
 The assembler presses USER, then presses and releases the CASE lever; the device reads the air and light sensors once, and confirms the TPM answers.
 Each check passes or fails in the client.
+A sensor passes when it answers with its expected chip ID and returns a reading; the TPM passes when it answers and yields the board ID.
 Doing anything ongoing with these devices (case-open alerts, environment readings) belongs to other cards.
 
 The hardware check runs before the EEPROM is programmed, so on a fresh board the firmware has configured none of the HAT's devices.
@@ -244,7 +253,7 @@ Run (28 Oct):
 ## Open questions
 
 - [x] How the firmware renders the fields: text, `product_id` as `0x0004`, `uuid` hyphenated
-- [ ] Upstreaming the Iti overlay to Raspberry Pi (HAT+ asks vendors to), or `linux-images` only
+- [x] The Iti overlay lives in `linux-images` only. It will grow as other cards bind sensor drivers and buttons, and upstreaming is a slower loop; revisit once it settles
 - [x] Scope: the whole provisioning SD card is planned here; the work is split into cards later
 - [x] Reaching a device without a QR code: well-known token, beacon suffix, button press to select
 - [x] Sensor bus and button GPIOs: from the hardware handoff
@@ -255,4 +264,6 @@ Run (28 Oct):
 - [x] Mapping from EEPROM to version: Iti product UUID, then `product_id`.`product_ver`
 - [x] Iti product UUID: `9c2bcc02-123a-4d9d-80e0-72166bec3218`
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
-- [ ] Vendor and product strings, and the `product_id` values
+- [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
+- [ ] The label: printer, stock size, and what it carries besides the QR code and suffix
+- [ ] The contract between bliti and the `linux-images` provisioning SD: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
