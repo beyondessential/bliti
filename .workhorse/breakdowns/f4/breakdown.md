@@ -6,7 +6,7 @@ F4 stays as the umbrella and closes without merging, so each card below carries 
 
 The web app is a static single-page app: host it in an S3 bucket behind CloudFront in AWS, deployed by building and uploading, likely at iti.tamanu.app with the provisioning client at `/provision` and the assembly manual at `/assemble`. Add per-pull-request temporary deploys there, so every card after this one can be QA'd on a live deploy of its pull request; that is why it comes first.
 
-## Identify a Tamanu Iti from its HAT EEPROM
+## Identify a Tamanu Iti from its HAT EEPROM · J4
 
 Fill in the placeholder C4 left in the `product` fact so a v4 identifies itself from the HAT information the Pi firmware publishes under `/proc/device-tree/hat/`. A board is a Tamanu Iti when its HAT+ `uuid` is the Iti product UUID `7c3b8a88-ad89-4d48-b709-2bd445729867`; its version is `product_id`.`product_ver` (published as text, e.g. `0x0004`), so rev B reads as "Tamanu Iti v4.0" and the third generation stays "Tamanu Iti v3". Amend NFO's Product section to major.minor, and specify the EEPROM's contents (HAT+ format, vendor "BES International", product "Tamanu Iti v4.0", `product_id` 4, `product_ver` 0 for rev B and 1 for rev C, and the `tamanu-iti-v4` overlay name). Bring the `tamanu-iti-v4` overlay source into the repo (SPI0 with the TPM on CE1 as `tcg,tpm_tis-spi`, I²C3 on GPIO22/23, no sensor drivers bound) along with the EEPROM image definition; the v4 prototype is already programmed with both.
 
