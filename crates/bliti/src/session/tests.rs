@@ -9,10 +9,11 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use super::*;
 use crate::{
-	facts::Supply,
+	facts::{Supply, case::Case},
 	network::session::{Inert, Store},
 };
 
+mod case;
 mod curve;
 
 fn keys(byte: u8) -> DeviceKeys {
@@ -43,6 +44,16 @@ async fn paired_with(keys: &DeviceKeys, controller: Controller) -> Streams {
 
 /// Open a client against a device session that shares `controller` and `supply`.
 async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) -> Streams {
+	paired_in(keys, controller, supply, Case::none()).await
+}
+
+/// Open a client against a device session that shares `controller`, `supply` and `case`.
+async fn paired_in(
+	keys: &DeviceKeys,
+	controller: Controller,
+	supply: Supply,
+	case: Case,
+) -> Streams {
 	let (client_side, device_side) = tokio::io::duplex(1 << 16);
 	let device_keys = keys.clone();
 	let configurator = inert().await;
@@ -56,6 +67,7 @@ async fn paired_on(keys: &DeviceKeys, controller: Controller, supply: Supply) ->
 			supply,
 			Tailscale::none(),
 			Tamanu::none(),
+			case,
 		)
 		.await;
 	});
@@ -283,6 +295,7 @@ async fn a_client_with_the_wrong_code_cannot_open_a_session() {
 			Supply::default(),
 			Tailscale::none(),
 			Tamanu::none(),
+			Case::none(),
 		)
 		.await
 	});
@@ -322,6 +335,7 @@ async fn the_right_token_with_the_wrong_fingerprint_cannot_open_a_session() {
 			Supply::default(),
 			Tailscale::none(),
 			Tamanu::none(),
+			Case::none(),
 		)
 		.await
 	});
@@ -464,6 +478,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Supply::default(),
 				Tailscale::none(),
 				Tamanu::none(),
+				Case::none(),
 			)
 			.await;
 		})
@@ -503,6 +518,7 @@ async fn dropping_a_session_ends_the_configuration_session_it_held() {
 				Supply::default(),
 				Tailscale::none(),
 				Tamanu::none(),
+				Case::none(),
 			)
 			.await;
 		}
@@ -790,7 +806,12 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 		Options::default(),
 	)
 	.await;
-	let before = facts_now(&tailscale, &Tamanu::none(), &Supply::default());
+	let before = facts_now(
+		&tailscale,
+		&Tamanu::none(),
+		&Supply::default(),
+		&Case::none(),
+	);
 	let state = |facts: &[Entry]| {
 		facts
 			.iter()
@@ -801,18 +822,33 @@ async fn a_change_in_tailscale_is_a_change_in_the_facts() {
 
 	fake.move_to("Stopped");
 	tokio::time::sleep(Duration::from_millis(100)).await;
-	let after = facts_now(&tailscale, &Tamanu::none(), &Supply::default());
+	let after = facts_now(
+		&tailscale,
+		&Tamanu::none(),
+		&Supply::default(),
+		&Case::none(),
+	);
 	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
 	assert!(!same_facts(&before, &after));
 	assert!(same_facts(
 		&after,
-		&facts_now(&tailscale, &Tamanu::none(), &Supply::default())
+		&facts_now(
+			&tailscale,
+			&Tamanu::none(),
+			&Supply::default(),
+			&Case::none()
+		)
 	));
 
 	assert!(
-		facts_now(&Tailscale::none(), &Tamanu::none(), &Supply::default())
-			.iter()
-			.all(|fact| !fact.name.starts_with("tailscale"))
+		facts_now(
+			&Tailscale::none(),
+			&Tamanu::none(),
+			&Supply::default(),
+			&Case::none()
+		)
+		.iter()
+		.all(|fact| !fact.name.starts_with("tailscale"))
 	);
 }
 
@@ -835,12 +871,22 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 			.find(|fact| fact.name == "tamanu-state")
 			.and_then(|fact| fact.value.clone())
 	};
-	let before = facts_now(&Tailscale::none(), &tamanu, &Supply::default());
+	let before = facts_now(
+		&Tailscale::none(),
+		&tamanu,
+		&Supply::default(),
+		&Case::none(),
+	);
 	assert_eq!(state(&before), Some(serde_json::json!("running")));
 
 	fake.set_status(STOPPED);
 	tokio::time::sleep(Duration::from_secs(6)).await;
-	let after = facts_now(&Tailscale::none(), &tamanu, &Supply::default());
+	let after = facts_now(
+		&Tailscale::none(),
+		&tamanu,
+		&Supply::default(),
+		&Case::none(),
+	);
 	assert_eq!(state(&after), Some(serde_json::json!("stopped")));
 	assert!(!same_facts(&before, &after));
 
@@ -854,7 +900,8 @@ async fn a_change_in_tamanu_is_a_change_in_the_facts() {
 		names(&facts_now(
 			&Tailscale::none(),
 			&Tamanu::none(),
-			&Supply::default()
+			&Supply::default(),
+			&Case::none(),
 		)),
 		3
 	);

@@ -33,7 +33,7 @@ use tracing::Instrument;
 use self::slots::Slots;
 use crate::{
 	NetworkBackend,
-	facts::{Supply, curve},
+	facts::{Supply, case::Case, curve},
 	gatt::{GattTransport, InboundSink},
 	identity,
 	network::{
@@ -127,6 +127,12 @@ pub async fn run(
 	if let Err(err) = crate::facts::record_supply(supply.clone(), controller.clone()) {
 		tracing::warn!(%err, "cannot watch the backup supply; power changes go unrecorded and no low battery is watched for");
 	}
+	// Watched from the start and never stopped, for the same reason: a case is seldom opened with
+	// anyone connected (NFO).
+	let case = Case::watch().unwrap_or_else(|err| {
+		tracing::warn!(%err, "cannot watch the case switch; openings go unrecorded");
+		Case::none()
+	});
 	// Sampling starts with the daemon rather than with the first session, so a client that connects
 	// to a device that has been up a while finds a populated window (NFO).
 	let sampler = crate::sampler::Sampler::start(wireless, supply.clone());
@@ -175,6 +181,7 @@ pub async fn run(
 				supply,
 				tailscale,
 				tamanu,
+				case,
 				// One allowance for the whole device, since every session shares the one radio.
 				pacer: Arc::new(Mutex::new(Pacer::new(std::time::Instant::now()))),
 			},
@@ -506,6 +513,7 @@ struct Shared {
 	supply: Supply,
 	tailscale: Tailscale,
 	tamanu: Tamanu,
+	case: Case,
 	pacer: Arc<Mutex<Pacer>>,
 }
 
@@ -552,6 +560,7 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 		supply,
 		tailscale,
 		tamanu,
+		case,
 		pacer,
 	} = shared;
 	// A client subscribing is what opens a session: it is the point at which the device can send, so
@@ -606,6 +615,7 @@ async fn serve_session(slot: Slot, notifier: CharacteristicWriter, shared: Share
 			supply,
 			tailscale,
 			tamanu,
+			case,
 			) => {
 			match result {
 				Ok(()) => tracing::info!("session ended"),

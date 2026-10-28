@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 mod battery;
 mod facts;
 mod gatt;
+mod gpio;
 mod identity;
 mod network;
 mod power;
