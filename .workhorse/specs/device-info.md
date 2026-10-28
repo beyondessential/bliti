@@ -263,12 +263,14 @@ A device MUST report `product` from the first of these that holds of it, and MUS
 
 | where the device carries | `product` |
 | --- | --- |
-| a HAT EEPROM identifying the board as a Tamanu Iti | "Tamanu Iti v" followed by the generation that HAT EEPROM records |
+| a HAT EEPROM identifying the board as a Tamanu Iti | "Tamanu Iti v" followed by the version that HAT EEPROM records, as major and minor joined by a full stop, as "Tamanu Iti v4.0" is |
 | a backup supply and a TPM | `broken`, with a reason saying the board carries a TPM but no HAT EEPROM identifying it |
 | a backup supply, and neither a TPM nor a HAT EEPROM | "Tamanu Iti v3" |
 
+What a HAT EEPROM holds, and how a board is recognised as a Tamanu Iti from it, is specified under [HAT](hat.md).
+
 > [!NOTE]
-> The third generation carries no HAT EEPROM, so it is known by what it lacks.
+> The third generation carries no HAT EEPROM, so it is known by what it lacks, and with nothing to tell its revisions apart it has no minor version.
 > A later generation carries both a TPM and an identifying HAT EEPROM, so it reads as the third only where both have failed, and where only its HAT EEPROM is blank or unreadable it is reported broken rather than taken for the third.
 
 ## Storage

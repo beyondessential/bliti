@@ -52,11 +52,11 @@ test.describe('the landing', () => {
 		await openChannel(
 			page,
 			fact('hostname', 'clinic-iti-07'),
-			fact('product', 'Tamanu Iti v4'),
+			fact('product', 'Tamanu Iti v4.0'),
 			fact('board', 'Raspberry Pi 5 Model B Rev 1.0', { short: 'Raspberry Pi 5' }),
 			fact('os', 'Ubuntu 26.04 LTS', { short: 'Ubuntu 26.04' }),
 		)
-		await expect(page.locator('.heading.title .software')).toHaveText('Tamanu Iti v4 · Ubuntu 26.04')
+		await expect(page.locator('.heading.title .software')).toHaveText('Tamanu Iti v4.0 · Ubuntu 26.04')
 	})
 
 	// A product that could not be told leaves the board to name the device (STAT).
