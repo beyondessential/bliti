@@ -63,7 +63,7 @@ This card puts in what any page after the first needs, so adding one is adding i
 
 ### Roles and environments
 
-- Production: the deploy job runs in GitHub environment `production`, which allows deployments from `main` and tags only. Its role trusts the subject `repo:beyondessential/bliti:environment:production` and writes `prod/`.
+- Production: the deploy job runs in GitHub environment `production`, which allows deployments from `main` and from tags matching `v*` only, set up in the repository settings as a branch rule and a tag rule. Its role trusts the subject `repo:beyondessential/bliti:environment:production` and writes `prod/`.
 - Previews: the deploy and teardown jobs run in no environment, because the preview role trusts the subject `repo:beyondessential/bliti:pull_request`, and a job in an environment carries the environment's subject instead. It writes `previews/`, and cannot tell one PR's preview from another's.
 - A `pull_request` run takes its workflow from the PR head, so a PR could name `production` in its own copy of the workflow. The environment's branch restriction is what stops that, not the workflow file. The `production` environment, with that restriction, is set up in the bliti repository's settings.
 - Both roles may invalidate; nothing here does, given the cache-control above.
