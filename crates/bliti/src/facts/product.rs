@@ -1,8 +1,8 @@
 //! Which product the device is, as NFO "Product" has it.
 //!
-//! The generations share one image, so the software cannot say which hardware it runs on and the
-//! hardware has to. A board that carries a HAT EEPROM says so itself, as HAT has it; the third
-//! generation carries none and is known by what it lacks.
+//! The generations share one image, so the software can't tell which hardware it's on; the hardware
+//! has to say. A board with a HAT EEPROM identifies itself (see HAT). The third generation has none,
+//! so it's recognised by what it lacks.
 
 use std::{fmt, path::Path};
 
@@ -16,7 +16,7 @@ const PRODUCT: &str = "Tamanu Iti";
 /// The firmware publishes a programmed HAT EEPROM here, and nothing where it is blank or absent.
 const HAT: &str = "/proc/device-tree/hat";
 
-/// The product UUID of the Tamanu Iti, which every one of its HAT EEPROMs carries (HAT).
+/// Every Tamanu Iti's HAT EEPROM holds this UUID, which is how we know a board is one (HAT).
 const ITI_UUID: &str = "7c3b8a88-ad89-4d48-b709-2bd445729867";
 
 /// The TPM's device nodes, as the board ID looks for them.
@@ -29,11 +29,11 @@ enum Hat {
 	None,
 	/// An EEPROM identifying something other than a Tamanu Iti.
 	Other,
-	/// An EEPROM identifying a Tamanu Iti of this version.
+	/// A Tamanu Iti, of this version.
 	Iti(Version),
 }
 
-/// A Tamanu Iti's version, which `product_id` and `product_ver` of its EEPROM carry (HAT).
+/// A Tamanu Iti's version: `product_id` is the major part and `product_ver` the minor (HAT).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Version {
 	major: u16,
@@ -84,10 +84,10 @@ fn decide(at: u64, hardware: Hardware) -> Option<Entry> {
 	}
 }
 
-/// What the firmware published of the HAT EEPROM under `root`.
+/// What the firmware published about the HAT EEPROM under `root`.
 ///
-/// Only the product UUID and the version are read; the vendor and product strings are for people
-/// (HAT).
+/// Only the UUID and the version matter. The vendor and product text is for people to read, so it's
+/// ignored (HAT).
 fn hat(root: &Path) -> Hat {
 	let property = |name: &str| read_trimmed(&root.join(name).to_string_lossy());
 	let Some(uuid) = property("uuid") else {
@@ -107,7 +107,7 @@ fn hat(root: &Path) -> Hat {
 	version.map_or(Hat::Other, Hat::Iti)
 }
 
-/// A 16-bit value as the firmware publishes it: `0x` and hexadecimal digits.
+/// Parses a 16-bit value the way the firmware writes it: `0x` then hex digits, as in `0x0004`.
 fn hex(text: &str) -> Option<u16> {
 	let digits = text.strip_prefix("0x")?;
 	if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -193,8 +193,8 @@ mod tests {
 		}
 	}
 
-	/// A scratch tree standing in for `/proc/device-tree/hat`, each property written as the
-	/// firmware does, with its trailing NUL.
+	/// A temporary stand-in for `/proc/device-tree/hat`, with each file written the way the
+	/// firmware does it, ending in a NUL.
 	struct Published(std::path::PathBuf);
 
 	impl Published {

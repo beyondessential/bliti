@@ -5,11 +5,12 @@ The files here are that overlay and the contents of that chip, as described in t
 
 | file | is |
 | --- | --- |
-| `tamanu-iti-v4.dts` | the overlay `tamanu-iti-v4`: SPI0 with the TPM on CE1, and I²C3 on GPIO22/23 |
-| `tamanu-iti-v4.0.txt` | the EEPROM image of revision B, in the input format of `eepmake` |
+| `tamanu-iti-v4.dts` | the overlay: turns on SPI0 for the TPM on CE1, and I²C3 on GPIO22/23 |
+| `tamanu-iti-v4.0.txt` | what the EEPROM holds on revision B, in the format `eepmake` reads |
 
 `just hat-overlay` and `just hat-eeprom` build them into `target/hat/`.
-The overlay builds with `dtc`, and the image with `eepmake` from the `raspi-utils-eeprom` package.
+The overlay needs `dtc`, and the EEPROM image needs `eepmake` from the `raspi-utils-eeprom` package.
 
-The compiled overlay goes in the overlays directory of the boot partition, where the firmware loads it from.
-The image is written to the EEPROM at address `0x50` of the ID bus (GPIO0 and GPIO1), which is write-protected unless the ID WP pads are bridged.
+The compiled overlay goes in the `overlays` folder of the boot partition, where the Pi looks for it.
+The EEPROM image is written to the chip at address `0x50` on the ID bus (GPIO0 and GPIO1).
+The chip is write-protected unless the ID WP pads are bridged.

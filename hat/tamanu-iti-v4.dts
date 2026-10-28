@@ -1,10 +1,11 @@
 // spec: HAT
 //
-// The Tamanu Iti v4 HAT: the first SPI bus with the TPM on its second chip select, and the third I2C
-// bus on GPIO22/23. Named by the HAT EEPROM, so the firmware loads it from the boot partition.
+// Overlay for the Tamanu Iti v4 HAT. The Pi loads it because the HAT's EEPROM names it.
 //
-// The sensors on the I2C bus are left without a kernel driver, which would hold their addresses
-// against anything reading them directly.
+// It turns on SPI0 for the TPM, which is on chip select 1, and I2C3 on GPIO22/23.
+//
+// It doesn't attach kernel drivers to the sensors on the I2C bus. A driver would claim a sensor's
+// address and stop anything else reading it directly.
 
 /dts-v1/;
 /plugin/;
@@ -19,7 +20,7 @@
 		};
 	};
 
-	// The second chip select is the TPM's, so spidev must not claim it.
+	// The TPM is on chip select 1, so spidev has to leave it alone.
 	fragment@1 {
 		target = <&spidev1>;
 		__overlay__ {
