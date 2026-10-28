@@ -488,18 +488,16 @@ A device MUST report `case-closed` as `true` while the case is closed and as `fa
 
 A device MUST report `case-closed` as `passed` while the case is closed, and as `warning` while it is open, with a reason saying the case is open.
 
-A device running from the provisioning medium MUST report `case-closed` as `passed` whether the case is open or closed.
-
 A device MUST report a change in `case-closed` as soon as it observes the change.
 
 A device MUST report `case-closed` as `broken`, with a reason, where it cannot read the switch.
 
-> [!NOTE]
-> Assembly needs the case open, so an open case on a board being provisioned is the ordinary state and not a concern.
-
 ### The history
 
 A device MUST keep a history of the openings and closings of its case in the file `/var/lib/bliti/case-history.jsonl`, except while running from the provisioning medium, when it MUST NOT keep one.
+
+> [!NOTE]
+> Assembly needs the case open, so the openings of a board being provisioned are not worth recording, and the history starts with the system the board is provisioned with.
 
 A device MUST watch the switch for as long as it runs, whether or not it is sampling, and MUST append an entry to the history at each opening and each closing it observes.
 
