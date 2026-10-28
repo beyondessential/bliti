@@ -249,11 +249,14 @@ async fn a_run_is_resumed_after_a_restart_at_the_step_it_was_in() {
 		]
 	);
 	assert_eq!(states(&done), [StepState::Passed; 3]);
-	assert_eq!(
-		medium.contents(),
-		"",
-		"a finished run leaves nothing on the medium"
-	);
+	// Discarded once the finish has been reported.
+	tokio::time::timeout(PATIENCE, async {
+		while !medium.contents().is_empty() {
+			tokio::time::sleep(Duration::from_millis(5)).await;
+		}
+	})
+	.await
+	.expect("a finished run left its state on the medium");
 }
 
 #[tokio::test]
@@ -269,9 +272,17 @@ async fn a_failed_run_stays_failed_across_a_restart_until_retried() {
 	.await;
 	first.act(&start(&["a", "b"])).unwrap();
 	until(&first, |s| s.run == RunState::Failed).await;
-	// The failure is kept after the state is reported.
+	// The failure is kept after the state is reported. Read as the device reads it, so a temporary
+	// file not yet renamed into place does not count.
 	tokio::time::timeout(PATIENCE, async {
-		while !medium.contents().contains("no disk") {
+		while medium
+			.store()
+			.load()
+			.ok()
+			.flatten()
+			.and_then(|stored| stored.failed)
+			.is_none()
+		{
 			tokio::time::sleep(Duration::from_millis(5)).await;
 		}
 	})
