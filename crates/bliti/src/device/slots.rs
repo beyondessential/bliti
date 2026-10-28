@@ -193,4 +193,18 @@ mod tests {
 			Allocation::Full
 		);
 	}
+
+	#[tokio::test]
+	async fn a_device_with_one_slot_turns_the_second_client_away() {
+		let slots = Slots::new(1);
+		let connected = HashSet::from([client(1), client(2)]);
+		assert!(matches!(
+			allocate(&slots, client(1), &connected).await,
+			Allocation::Given(_)
+		));
+		assert_eq!(
+			allocate(&slots, client(2), &connected).await,
+			Allocation::Full
+		);
+	}
 }

@@ -18,17 +18,17 @@ case says it needs the prototype board.
 - [x] The name renders and parses as `ITI_PROVISION_<marker>_<suffix>`, and `FAULT` where the board is unknown (verifies spec: PRV)
 - [x] The suffix is the last four characters of the encoded QR payload (verifies spec: PRV)
 - [x] The longest name fits the advertising budget (verifies spec: PRV)
-- [ ] A board whose expected source is missing advertises `FAULT` and says why on stderr (verifies spec: PRV)
-- [ ] A weaker source than the one expected is never used (verifies spec: PRV)
+- [x] A board whose expected source is missing advertises `FAULT` and says why on stderr (verifies spec: PRV)
+- [x] A weaker source than the one expected is never used (verifies spec: PRV)
 
 ## Going on the air
 
-- [ ] The device does not advertise from start until the USER button is pressed, whatever a resumed run's state is (verifies spec: PRV)
-- [ ] A press opens a five-minute window, and a press while it is open restarts it (verifies spec: PRV)
-- [ ] Advertising stops when a client connects and does not resume after it leaves until the next press (verifies spec: PRV)
-- [ ] A press while a client is connected is ignored (verifies spec: PRV)
-- [ ] A second client reads the allocation of a device with no slot free (verifies spec: PRV)
-- [ ] A press held down counts once (verifies spec: PRV)
+- [x] The device does not advertise from start until the USER button is pressed, whatever a resumed run's state is (verifies spec: PRV)
+- [x] A press opens a five-minute window, and a press while it is open restarts it (verifies spec: PRV)
+- [x] Advertising stops when a client connects and does not resume after it leaves until the next press (verifies spec: PRV)
+- [x] A press while a client is connected is ignored (verifies spec: PRV)
+- [x] A second client reads the allocation of a device with no slot free (verifies spec: PRV)
+- [x] A press held down counts once (verifies spec: PRV)
 
 ## Runs
 
@@ -69,8 +69,8 @@ case says it needs the prototype board.
 
 ## The LED
 
-- [ ] Each run state shows the pattern of the table, from the moment the mode starts (verifies spec: PLED)
-- [ ] A change of state mid-blink switches pattern cleanly (verifies spec: PLED)
+- [x] Each run state shows the pattern of the table, from the moment the mode starts (verifies spec: PLED)
+- [x] A change of state mid-blink switches pattern cleanly (verifies spec: PLED)
 
 ## On the prototype board
 
