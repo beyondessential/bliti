@@ -324,5 +324,5 @@ Run (28 Oct):
 - [x] Per-board records: shown in the client and saved to the SD; central register is a separate card
 - [x] Strings and values: "BES International", "Tamanu Iti v4.0" (rev C "Tamanu Iti v4.1"), `product_id` 4, `product_ver` 0 for rev B, 1 for rev C
 - [x] The label: 50 × 30 mm, QR plus suffix and version; A4 sticker-sheet PDF until a production printer is chosen
-- [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system
+- [ ] Check bliti can drive the Pi 5's ACT and PWR LEDs from the provisioning system, and what both on together looks like: if a distinct amber, waiting on a person becomes amber and red is kept for failed
 - [ ] The contract between bliti and the `linux-images` provisioning SD: how bliti knows it is in provisioning mode, where it finds the NVMe image, where it writes records
