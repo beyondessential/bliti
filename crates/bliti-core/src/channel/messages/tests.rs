@@ -710,11 +710,15 @@ fn the_provision_messages_round_trip() {
 		Message::Provision,
 		Message::ProvisionAccepted,
 		Message::ProvisionState {
+			revision: 1,
+			built: Date::constant(2026, 10, 29),
 			run: RunState::Idle,
 			steps: Vec::new(),
 			prompts: Vec::new(),
 		},
 		Message::ProvisionState {
+			revision: 2,
+			built: Date::constant(2026, 1, 5),
 			run: RunState::Waiting,
 			steps: vec![running, failed, passed, step("net", StepState::Unchosen)],
 			prompts: vec![
@@ -822,17 +826,47 @@ fn provision_act_read_without_its_members_critical_is_a_member_it_lacks() {
 /// A `provision-state` states the whole run, so every member of it is required (PRS).
 #[test]
 fn provision_state_requires_its_members() {
-	assert!(parse(r#"{"type":"provision-state","steps":[],"prompts":[]}"#).is_err());
-	assert!(parse(r#"{"type":"provision-state","run":"idle","prompts":[]}"#).is_err());
-	assert!(parse(r#"{"type":"provision-state","run":"idle","steps":[]}"#).is_err());
-	assert!(parse(r#"{"type":"provision-state","run":"paused","steps":[],"prompts":[]}"#).is_err());
+	let state = |without: &str, run: &str| {
+		let mut state = serde_json::json!({
+			"type": "provision-state",
+			"revision": 1,
+			"built": "2026-10-29",
+			"run": run,
+			"steps": [],
+			"prompts": [],
+		});
+		state.as_object_mut().unwrap().remove(without);
+		parse(&state.to_string())
+	};
+	assert!(state("none", "idle").is_ok());
+	for member in ["revision", "built", "run", "steps", "prompts"] {
+		assert!(state(member, "idle").is_err(), "{member} is required");
+	}
+	assert!(state("none", "paused").is_err());
+}
+
+/// The image's date is an RFC 3339 full date, written and read as one (PRS, "The image's date").
+#[test]
+fn the_image_date_is_a_full_date() {
+	let wire = |built: &str| {
+		parse(&format!(
+			r#"{{"type":"provision-state","revision":1,"built":"{built}","run":"idle","steps":[],"prompts":[]}}"#
+		))
+	};
+	let Ok(Reading::Message(Message::ProvisionState { built, .. })) = wire("2026-10-29") else {
+		panic!("a full date is read");
+	};
+	assert_eq!(built, Date::constant(2026, 10, 29));
+	for bad in ["2026-10-29T00:00:00Z", "29/10/2026", "2026-13-01", ""] {
+		assert!(wire(bad).is_err(), "{bad:?} is not a full date");
+	}
 }
 
 /// A step or a prompt carrying a member this build does not know is read, ignoring it (PRS).
 #[test]
 fn a_step_and_a_prompt_may_carry_further_members() {
 	let read = parse(
-		r#"{"type":"provision-state","run":"running","steps":[{"id":"a","title":"A","done":"unknown","state":"running","eta":9}],"prompts":[{"id":"p","step":"a","kind":"photo","text":"Look","blocking":false,"hint":"x"}]}"#,
+		r#"{"type":"provision-state","revision":1,"built":"2026-10-29","run":"running","steps":[{"id":"a","title":"A","done":"unknown","state":"running","eta":9}],"prompts":[{"id":"p","step":"a","kind":"photo","text":"Look","blocking":false,"hint":"x"}]}"#,
 	)
 	.unwrap();
 	let Reading::Message(Message::ProvisionState { steps, prompts, .. }) = read else {

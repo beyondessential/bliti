@@ -5,9 +5,11 @@
 
 use std::collections::HashMap;
 
-use bliti_core::provisioning::report::{
-	Answer, DoneState, PromptKind, PromptReport, RunState, StepReport, StepState,
+use bliti_core::provisioning::{
+	self,
+	report::{Answer, DoneState, PromptKind, PromptReport, RunState, StepReport, StepState},
 };
+use jiff::civil::Date;
 use serde_json::{Map, Value as Json};
 use tokio::sync::oneshot;
 
@@ -54,6 +56,8 @@ pub enum Need {
 }
 
 pub struct Model {
+	/// The date the image on the provisioning medium was built.
+	built: Date,
 	pub steps: Vec<Entry>,
 	/// The state of the device. Never `waiting`: that is read from the prompts, by [`Model::run`].
 	state: RunState,
@@ -66,8 +70,9 @@ pub struct Model {
 }
 
 impl Model {
-	pub fn new(steps: impl IntoIterator<Item = (String, String)>) -> Self {
+	pub fn new(built: Date, steps: impl IntoIterator<Item = (String, String)>) -> Self {
 		Self {
+			built,
 			steps: steps
 				.into_iter()
 				.map(|(id, title)| Entry {
@@ -122,6 +127,9 @@ impl Model {
 
 	pub fn snapshot(&self) -> Snapshot {
 		Snapshot {
+			// spec: PRS
+			revision: provisioning::REVISION,
+			built: self.built,
 			run: self.run(),
 			steps: self
 				.steps

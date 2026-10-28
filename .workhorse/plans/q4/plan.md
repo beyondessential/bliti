@@ -15,26 +15,26 @@ The page at `/provision` (PWEB), plus what the provisioning stream (PRS) gains f
 
 ## Protocol (`bliti-core`)
 
-- [ ] `provisioning::REVISION` (1), and the range of revisions a client built from this crate implements (1 to 1), in `provisioning.rs`
-- [ ] `Message::ProvisionState` gains `revision` and `built`, with `built` as a `jiff::civil::Date` (already a dependency of `bliti`; `bliti-core` takes it too, which has to build for wasm), read and written as an RFC 3339 full date
-- [ ] A `Record` type in `provisioning/report.rs` (`suffix`, `version`, `disk`, `passphrase`, `at`), whose `Debug` hides the passphrase, plus a helper that finds the record among the steps' results
-- [ ] Update the wire generators in `channel/generate.rs` and the message tests for `revision`, `built` and a step result carrying `record`
+- [x] `provisioning::REVISION` (1), and the range of revisions a client built from this crate implements (1 to 1), in `provisioning.rs`
+- [x] `Message::ProvisionState` gains `revision` and `built`, with `built` as a `jiff::civil::Date` (already a dependency of `bliti`; `bliti-core` takes it too, which has to build for wasm), read and written as an RFC 3339 full date
+- [x] A `Record` type in `provisioning/report.rs` (`suffix`, `version`, `disk`, `passphrase`, `at`), whose `Debug` hides the passphrase, plus a helper that finds the record among the steps' results
+- [x] Update the wire generators in `channel/generate.rs` and the message tests for `revision`, `built` and a step result carrying `record`
 
 ## Device (`bliti`)
 
-- [ ] `Snapshot` in `provision/run.rs` carries the revision and the image date into `to_message`
-- [ ] `--image-built` on the `provision` subcommand in `main.rs`, through `daemon::Options` to the run
-- [ ] `services/bliti-provision.service` passes `--image-built` from an `EnvironmentFile`, at a provisional path noted in `services/README.md`
-- [ ] The console command shows the revision and the image date with the state (PCON shows every part of the state a client shows)
-- [ ] Session and stream tests: every `provision-state` carries the revision and the date it was given
+- [x] `Snapshot` in `provision/run.rs` carries the revision and the image date into `to_message`
+- [x] `--image-built` on the `provision` subcommand in `main.rs`, through `daemon::Options` to the run
+- [x] `services/bliti-provision.service` passes `--image-built` from an `EnvironmentFile`, at a provisional path noted in `services/README.md`
+- [x] The console command shows the revision and the image date with the state (PCON shows every part of the state a client shows)
+- [x] Session and stream tests: every `provision-state` carries the revision and the date it was given
 
 ## wasm (`bliti-web`)
 
-- [ ] A provisioning constructor for `Channel` that holds no QR payload: the provisioning token's pre-shared key, and the handshake as an initiator that compares no fingerprint (the variant already in `channel/noise.rs`). `Inner` holds either a payload or nothing, in place of a payload alone
-- [ ] Exports for finding a board: the name prefixes to filter the chooser on, one for each version marker implemented, and reading a picked name into its marker, whether the marker is supported, and the suffix or `FAULT`
-- [ ] `Channel::provision` in `streams.rs`: opens the stream with `provision`, and returns a handle with `act(act, steps, prompt, value)` and `close`
-- [ ] Export the client's revision range
-- [ ] Rust tests in `tests.rs` for the prefixes, name reading and the provisioning handshake against a device in provisioning mode
+- [x] A provisioning constructor for `Channel` that holds no QR payload: the provisioning token's pre-shared key, and the handshake as an initiator that compares no fingerprint (the variant already in `channel/noise.rs`). `Inner` holds either a payload or nothing, in place of a payload alone
+- [x] Exports for finding a board: the name prefixes to filter the chooser on, one for each version marker implemented, and reading a picked name into its marker, whether the marker is supported, and the suffix or `FAULT`
+- [x] `Channel::provision` in `streams.rs`: opens the stream with `provision`, and returns a handle with `act(act, steps, prompt, value)` and `close`
+- [x] Export the client's revision range
+- [x] Rust tests in `tests.rs` for the prefixes, name reading and the act. The provisioning handshake against a device in provisioning mode is covered in `bliti-core`, since the channel's own handshake needs a browser to run
 
 ## Shared client pieces
 

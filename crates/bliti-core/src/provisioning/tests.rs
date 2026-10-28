@@ -136,3 +136,66 @@ fn an_answer_does_not_show_in_a_log() {
 	assert_eq!(Answer::boolean(true).as_bool(), Some(true));
 	assert_eq!(Answer::boolean(true).as_text(), None);
 }
+
+fn step_with(result: Option<serde_json::Value>) -> StepReport {
+	StepReport {
+		id: "disk".to_owned(),
+		title: "Disk".to_owned(),
+		done: DoneState::NotDone,
+		why: None,
+		state: StepState::Passed,
+		progress: None,
+		reason: None,
+		result: result.map(|result| result.as_object().unwrap().clone()),
+	}
+}
+
+#[test]
+fn the_record_is_found_among_the_steps_results() {
+	let record = serde_json::json!({
+		"record": {
+			"suffix": "K7QA",
+			"version": "4.0",
+			"disk": "3f6c0a52-4a8a-4b6f-9b1c-0f6f1d9d6a11",
+			"passphrase": "hunter2-hunter2",
+			"at": "2026-10-29T03:04:05Z",
+		}
+	});
+	let steps = [
+		step_with(None),
+		step_with(Some(serde_json::json!({"serial": "abc"}))),
+		step_with(Some(record)),
+	];
+	let found = report::Record::find(&steps).unwrap();
+	assert_eq!(found.suffix, "K7QA");
+	assert_eq!(found.version.as_deref(), Some("4.0"));
+	assert_eq!(found.passphrase.as_deref(), Some("hunter2-hunter2"));
+	assert_eq!(found.at.to_string(), "2026-10-29T03:04:05Z");
+	assert_eq!(report::Record::find(&steps[..2]), None);
+}
+
+#[test]
+fn a_record_may_leave_out_what_the_run_did_not_establish() {
+	let steps = [step_with(Some(serde_json::json!({
+		"record": {"suffix": "FAULT", "at": "2026-10-29T03:04:05+13:00"}
+	})))];
+	let found = report::Record::find(&steps).unwrap();
+	assert_eq!(
+		(found.version, found.disk, found.passphrase),
+		(None, None, None)
+	);
+}
+
+#[test]
+fn a_record_does_not_show_its_passphrase_in_a_log() {
+	let steps = [step_with(Some(serde_json::json!({
+		"record": {"suffix": "K7QA", "passphrase": "hunter2", "at": "2026-10-29T03:04:05Z"}
+	})))];
+	let found = report::Record::find(&steps).unwrap();
+	assert!(!format!("{found:?}").contains("hunter2"));
+}
+
+#[test]
+fn the_revision_a_device_sends_is_one_a_client_implements() {
+	assert!(CLIENT_REVISIONS.contains(&REVISION));
+}

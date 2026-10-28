@@ -32,4 +32,5 @@ wasm-bindgen-futures = "0.4.78"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
+jiff = { version = "0.2.38", default-features = false, features = ["std", "serde"] }
 qrcode = { version = "0.14.1", default-features = false }

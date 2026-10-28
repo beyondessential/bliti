@@ -260,6 +260,8 @@ mod tests {
 
 	fn snapshot(run: RunState) -> Snapshot {
 		Snapshot {
+			revision: 1,
+			built: jiff::civil::date(2026, 10, 29),
 			run,
 			steps: Vec::new(),
 			prompts: Vec::new(),

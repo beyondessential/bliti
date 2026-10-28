@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use bliti_core::provisioning::report::{DoneState, PromptKind, RunState, StepState};
 
 use super::*;
-use crate::provision::fake::{Do, Fake, Gate, Log};
+use crate::provision::fake::{BUILT, Do, Fake, Gate, Log};
 
 const PATIENCE: Duration = Duration::from_secs(5);
 
@@ -110,7 +110,7 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 }
 
 async fn device(steps: Vec<Arc<Fake>>, medium: &Medium) -> Provisioner {
-	Provisioner::start(arcs(steps), Some(medium.store())).await
+	Provisioner::start(arcs(steps), Some(medium.store()), BUILT).await
 }
 
 #[tokio::test]
@@ -537,7 +537,7 @@ async fn an_answer_of_the_wrong_kind_is_refused_at_the_value() {
 #[tokio::test]
 async fn a_board_with_nowhere_to_keep_a_run_is_not_started_on() {
 	let log = Log::default();
-	let device = Provisioner::start(arcs(vec![Fake::new("a", &log, vec![])]), None).await;
+	let device = Provisioner::start(arcs(vec![Fake::new("a", &log, vec![])]), None, BUILT).await;
 	let refused = device.act(&start(&["a"])).unwrap_err();
 	assert_eq!(refused.at, "$");
 }
@@ -582,7 +582,10 @@ async fn done_states_are_unknown_until_determined() {
 	let a = Fake::new("a", &log, vec![]);
 	a.done_is(DoneState::Done, None);
 	let steps = arcs(vec![a]);
-	let (changes, _) = (Provisioner::start(steps, Some(medium.store())).await, ());
+	let (changes, _) = (
+		Provisioner::start(steps, Some(medium.store()), BUILT).await,
+		(),
+	);
 	// Determined in the background, so the first state held may not have it.
 	let held = changes.watch().borrow().clone();
 	assert!(matches!(
@@ -618,7 +621,7 @@ async fn a_step_that_panics_fails_the_run() {
 	}
 
 	let medium = Medium::new();
-	let device = Provisioner::start(vec![Arc::new(Panics)], Some(medium.store())).await;
+	let device = Provisioner::start(vec![Arc::new(Panics)], Some(medium.store()), BUILT).await;
 	device.act(&start(&["p"])).unwrap();
 	let failed = until(&device, |s| s.run == RunState::Failed).await;
 	assert_eq!(failed.steps[0].reason.as_deref(), Some("the step panicked"));

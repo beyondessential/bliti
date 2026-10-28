@@ -16,6 +16,19 @@ use crate::{
 
 pub mod report;
 
+/// The revision of the steps these specifications describe, which a device sends in every
+/// `provision-state` (PRS, "The revision").
+// spec: PRS
+pub const REVISION: u32 = 1;
+
+/// The revisions a client built from this crate implements, lowest first and highest last.
+pub const CLIENT_REVISIONS: std::ops::RangeInclusive<u32> = 1..=1;
+
+/// How long before a client's own date an image may have been built and still be provisioned from
+/// (PRS, "The image's date"), in days.
+// spec: PRS
+pub const IMAGE_LIFETIME_DAYS: u32 = 30;
+
 /// The provisioning token: the ASCII text `ITI PROVISIONING` (PRV, "The provisioning token").
 ///
 /// Public, and the same on every device. It takes the place of a presence token in the derivation of

@@ -40,6 +40,13 @@ pub fn markers_reading(payload_version: u8) -> impl Iterator<Item = u8> {
 	markers.into_iter()
 }
 
+/// Every version marker this build implements, highest first.
+pub fn markers() -> impl Iterator<Item = u8> {
+	let mut markers: Vec<u8> = MARKERS.iter().map(|(marker, _)| *marker).collect();
+	markers.sort_unstable_by(|a, b| b.cmp(a));
+	markers.into_iter()
+}
+
 /// Whether this build implements `marker`.
 pub fn implements(marker: u8) -> bool {
 	MARKERS
@@ -62,6 +69,7 @@ mod tests {
 		assert_eq!(PAYLOAD_VERSION, 1);
 		assert_eq!(VERSION_MARKER, 1);
 		assert_eq!(markers_reading(1).collect::<Vec<_>>(), vec![1]);
+		assert_eq!(markers().collect::<Vec<_>>(), vec![1]);
 	}
 
 	#[test]

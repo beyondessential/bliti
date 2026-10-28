@@ -356,3 +356,93 @@ fn a_write_fills_the_link_as_far_as_web_bluetooth_allows() {
 	assert_eq!(super::write_chunk(247), 244);
 	assert_eq!(super::write_chunk(517), 512);
 }
+
+/// The chooser is filtered on the name up to the suffix for every marker the build implements, so a
+/// device is listed at any marker the client can drive (PRV).
+#[test]
+fn the_chooser_filters_on_each_marker_implemented() {
+	let prefixes = crate::provision::name_prefixes();
+	assert_eq!(prefixes, vec!["ITI_PROVISION_1_".to_owned()]);
+}
+
+#[test]
+fn a_picked_name_is_read_into_its_marker_and_suffix() {
+	use crate::provision::reading;
+
+	assert_eq!(
+		reading("ITI_PROVISION_1_K7QA"),
+		Some((1, "K7QA".to_owned()))
+	);
+	assert_eq!(
+		reading("ITI_PROVISION_1_FAULT"),
+		Some((1, "FAULT".to_owned()))
+	);
+	// A marker this build does not implement is still read, so the page can say so.
+	assert_eq!(
+		reading("ITI_PROVISION_9_K7QA"),
+		Some((9, "K7QA".to_owned()))
+	);
+	assert_eq!(reading("Someone's phone"), None);
+	assert_eq!(reading("ITI_PROVISION_1_k7qa"), None);
+}
+
+/// An act carries only the members it was given, and a start carries the steps chosen (PRS).
+#[test]
+fn a_provision_act_carries_only_the_members_given() {
+	use bliti_core::provisioning::report::Answer;
+
+	use crate::streams::provision_act;
+
+	let start = provision_act(
+		"start".to_owned(),
+		Some(vec!["hardware".to_owned(), "eeprom".to_owned()]),
+		None,
+		None,
+	)
+	.to_json();
+	let wire: serde_json::Value = serde_json::from_slice(&start).unwrap();
+	assert_eq!(wire["type"], "provision-act");
+	assert_eq!(wire["ACT"], "start");
+	assert_eq!(wire["STEPS"], serde_json::json!(["hardware", "eeprom"]));
+	assert!(wire.get("PROMPT").is_none() && wire.get("VALUE").is_none());
+
+	let answer = provision_act(
+		"answer".to_owned(),
+		None,
+		Some("case".to_owned()),
+		Some(Answer::boolean(true)),
+	)
+	.to_json();
+	let wire: serde_json::Value = serde_json::from_slice(&answer).unwrap();
+	assert_eq!(wire["PROMPT"], "case");
+	assert_eq!(wire["VALUE"], true);
+	assert!(wire.get("STEPS").is_none());
+
+	let retry: serde_json::Value =
+		serde_json::from_slice(&provision_act("retry".to_owned(), None, None, None).to_json())
+			.unwrap();
+	assert_eq!(retry["ACT"], "retry");
+}
+
+/// The state a device sends reaches the page with the members the wire names, the revision and the
+/// image's date among them (PRS).
+#[test]
+fn a_provision_state_is_described_as_the_wire_names_it() {
+	use bliti_core::provisioning::report::RunState;
+
+	let (described, fault) = describe(
+		&Message::ProvisionState {
+			revision: 1,
+			built: jiff::civil::Date::constant(2026, 10, 29),
+			run: RunState::Idle,
+			steps: Vec::new(),
+			prompts: Vec::new(),
+		}
+		.to_json(),
+	);
+	assert_eq!(fault, None);
+	let described: serde_json::Value = serde_json::from_str(&described).unwrap();
+	assert_eq!(described["message"]["revision"], 1);
+	assert_eq!(described["message"]["built"], "2026-10-29");
+	assert_eq!(described["message"]["run"], "idle");
+}

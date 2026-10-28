@@ -12,7 +12,10 @@ ConditionPathExists=/etc/bliti/provision.env
 # The mount point of the medium and the kind of board ID source this board is to name itself by come
 # from the image: BLITI_PROVISION_ARGS is `--medium <mount point> --board-id-source <kind>`.
 EnvironmentFile=/etc/bliti/provision.env
-ExecStart=/usr/local/bin/bliti provision-mode $BLITI_PROVISION_ARGS
+# The date the image was built, as YYYY-MM-DD, which a client refuses a medium by (PRS). Provisional:
+# the image build settles where the file really lives on the medium, and what writes it.
+EnvironmentFile=/etc/bliti/provision-image.env
+ExecStart=/usr/local/bin/bliti provision-mode $BLITI_PROVISION_ARGS --image-built $BLITI_IMAGE_BUILT
 Restart=always
 RestartSec=10s
 

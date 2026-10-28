@@ -1,12 +1,15 @@
 //! The streams a client opens on a channel, and the handles the application drives them through:
 //! subscriptions (MSG), and the exchanges both ends speak on, for configuration (CFG), power (CTL),
-//! curves (CRV), Tailscale (TSC) and Tamanu (TMU).
+//! curves (CRV), Tailscale (TSC), Tamanu (TMU) and provisioning (PRS).
 
 use std::cell::RefCell;
 
-use bliti_core::channel::{
-	messages::{Message, Secret},
-	stream::{Stream, read_message, write_message},
+use bliti_core::{
+	channel::{
+		messages::{Message, Secret},
+		stream::{Stream, read_message, write_message},
+	},
+	provisioning::report::Answer,
 };
 use futures::{
 	AsyncRead, AsyncReadExt, AsyncWriteExt, StreamExt,
@@ -129,6 +132,26 @@ impl Channel {
 			)
 			.await?;
 			Ok(JsValue::from(TailscaleHandle { exchange }))
+		})
+	}
+
+	/// Open a provisioning stream: a stream whose first message is `provision` (PRS).
+	///
+	/// Everything the device sends on it is passed to `on_message` as a subscription's messages are,
+	/// and `on_closed` is called once the stream ends. The handle this resolves to asks for acts on
+	/// the same stream.
+	pub fn provision(&self, on_message: Function, on_closed: Function) -> Promise {
+		let inner = self.inner.clone();
+		future_to_promise(async move {
+			let exchange = Exchange::open(
+				&inner,
+				Message::Provision,
+				"a provisioning stream",
+				on_message,
+				on_closed,
+			)
+			.await?;
+			Ok(JsValue::from(ProvisionHandle { exchange }))
 		})
 	}
 
@@ -377,6 +400,65 @@ impl TamanuHandle {
 	/// End the Tamanu stream.
 	pub fn close(&self) {
 		self.exchange.close();
+	}
+}
+
+/// One open provisioning stream, which lasts exactly as long as its stream (PRS).
+#[wasm_bindgen]
+pub struct ProvisionHandle {
+	exchange: Exchange,
+}
+
+#[wasm_bindgen]
+impl ProvisionHandle {
+	/// Ask the device to carry out an act, by its wire name, with the members the act takes: the
+	/// steps a `start` chooses, or the prompt an `answer` answers and its value, a boolean or a
+	/// string. A member left out is not sent.
+	pub fn act(
+		&self,
+		act: String,
+		steps: Option<Vec<String>>,
+		prompt: Option<String>,
+		value: JsValue,
+	) -> Result<(), JsError> {
+		let value = answer_of(&value).map_err(|why| JsError::new(&why))?;
+		self.exchange
+			.send(provision_act(act, steps, prompt, value).to_json())
+	}
+
+	/// End the provisioning stream.
+	pub fn close(&self) {
+		self.exchange.close();
+	}
+}
+
+/// The answer a value from the page stands for: a boolean or a string, or nothing where none was
+/// given.
+fn answer_of(value: &JsValue) -> Result<Option<Answer>, String> {
+	if value.is_undefined() || value.is_null() {
+		Ok(None)
+	} else if let Some(boolean) = value.as_bool() {
+		Ok(Some(Answer::boolean(boolean)))
+	} else if let Some(text) = value.as_string() {
+		Ok(Some(Answer::text(text)))
+	} else {
+		Err("an answer is a boolean or a string".to_owned())
+	}
+}
+
+/// The `provision-act` asking for `act`, with only the members given. The device checks them, and
+/// refuses with a reason (PRS, "The acts").
+pub(crate) fn provision_act(
+	act: String,
+	steps: Option<Vec<String>>,
+	prompt: Option<String>,
+	value: Option<Answer>,
+) -> Message {
+	Message::ProvisionAct {
+		act,
+		steps,
+		prompt,
+		value,
 	}
 }
 

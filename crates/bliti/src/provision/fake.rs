@@ -12,6 +12,9 @@ use super::{
 	step::{Done, Step},
 };
 
+/// The date the image on a test's medium was built.
+pub const BUILT: jiff::civil::Date = jiff::civil::date(2026, 10, 29);
+
 /// One thing a fake step does, in order.
 #[derive(Clone)]
 pub enum Do {
