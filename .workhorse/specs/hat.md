@@ -62,7 +62,6 @@ A reader MUST NOT take a board for a Tamanu Iti where either of those files is a
 A reader MUST NOT use `vendor` or `product` to recognise a Tamanu Iti or to find its version.
 
 > [!NOTE]
-> The EEPROM holds `product_id` and `product_ver` as integers, so a board the firmware has read cannot publish anything else. The rule covers a path that is incomplete or text that is not the firmware's.
 > The strings are for whoever reads the board, and a reader that matched on them would tie recognition to a spelling.
 > A board whose `uuid` is the Tamanu Iti's and whose version cannot be read is not recognised, so [NFO](device-info.md#product) reports it as it does any board that carries a TPM and no identifying EEPROM.
 
