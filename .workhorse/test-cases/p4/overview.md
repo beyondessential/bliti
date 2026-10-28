@@ -3,15 +3,16 @@
 ## Image structure (automated, after the build)
 
 - [ ] Partitions are the `pi` image's, then the payload, then a FAT32 data partition labelled `ITIPROV` (verifies spec: PMED)
-- [ ] The payload's first `PI_IMAGE_SIZE` bytes hash to `PI_IMAGE_SHA256`, which matches the `linux-images` release's checksum (verifies spec: PMED)
+- [ ] The payload's first `PI_IMAGE_SIZE` bytes are the decompressed `pi` image and hash to `PI_IMAGE_SHA256`, and the downloaded `.img.zst` matches the release's `SHA256SUMS` (verifies spec: PMED)
 - [ ] `veritysetup verify` passes on the payload with the manifest's root hash and offset (verifies spec: PMED)
 - [ ] Flipping a byte in the payload makes a read through verity fail (verifies spec: PMED)
 - [ ] The root holds `bliti`, the provisioning unit enabled, `/etc/bliti/provision.env` with the data mount and `tpm-endorsement-key`, and no `bliti.service` (verifies spec: PMED)
 - [ ] `/usr/share/bliti/provision/` holds the bootloader, overlay, EEPROM image and manifest; the overlay and EEPROM image match `just hat-overlay` and `just hat-eeprom` from the same commit (verifies spec: PMED)
-- [ ] `config.txt` sets `force_eeprom_read=0`, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` (verifies spec: PMED)
+- [ ] `config.txt` keeps the firmware from loading the EEPROM's overlay, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` (verifies spec: PMED)
 - [ ] Nothing on the root upgrades packages unattended: `unattended-upgrades` and the `apt-daily` timers are masked (verifies spec: PMED)
 - [ ] The manifest has every entry in order, and `manifest.txt` on the data partition matches it (verifies spec: PMED)
 - [ ] A `pi` image whose checksum does not match fails the build (verifies spec: PMED)
+- [ ] The image is no larger than the smallest stick sold as 32 GB (verifies spec: PMED)
 
 ## On hardware
 
@@ -20,6 +21,7 @@
 - [ ] tty1 and the serial console open the console command with no login (verifies spec: PMED, PCON)
 - [ ] Quitting the console command leaves a root shell on that console (verifies spec: PMED)
 - [ ] A run's state lands on `ITIPROV` and survives a reboot (verifies spec: PMED, RUN)
+- [ ] A data partition left dirty by a power cut is checked and repaired at the next boot, then mounted (verifies spec: PMED)
 - [ ] With a second provisioning stick inserted, the board uses the data partition of the stick it booted from (verifies spec: PMED)
 - [ ] A stick whose data partition is missing or will not mount reports it and does not start provisioning mode (verifies spec: PMED)
 - [ ] The first boot of a fresh stick completes, and later boots are not slowed by root growth

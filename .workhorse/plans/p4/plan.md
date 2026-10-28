@@ -13,10 +13,10 @@ A `just provision-image` recipe does the whole assembly with `sudo`, so it runs 
    - `services/bliti-provision.service`, enabled, and `/etc/bliti/provision.env` with `--medium <data mount> --board-id-source tpm-endorsement-key`
    - the bluetoothd configuration from `services/` that provisioning mode needs (peripheral-only)
    - getty autologin drop-ins for `tty1` and `serial-getty@ttyAMA10` (the Pi 5's `serial0`) that log in as root and run `bliti provision`, leaving the root shell once it exits
-   - a mount for the data partition found on the disk root came from, by partition number, and not by label or PARTUUID, which two sticks from the same image would share; the provisioning unit requires that mount, and the payload's partition, so it does not start without them
+   - a mount for the data partition, checked and repaired by `fsck.vfat` before mounting, found on the disk root came from, by partition number, and not by label or PARTUUID, which two sticks from the same image would share; the provisioning unit requires that mount, and the payload's partition, so it does not start without them
    - `/usr/share/bliti/provision/`: `pieeprom.bin`, `tamanu-iti-v4.dtbo`, `tamanu-iti-v4.0.eep` (`just hat-overlay`, `just hat-eeprom`), and `manifest`
    - unattended upgrades off: `unattended-upgrades` and the `apt-daily` timers masked
-4. Firmware partition: copy the overlay into `current/overlays/` (which carries the `README` marker the firmware needs). In `config.txt`, set `force_eeprom_read=0`, add `dtoverlay=tamanu-iti-v4`, remove `dtoverlay=tpm-slb9670`, and add the ID bus on GPIO0/1 the way the prototype has it (`i2c-gpio` on pins 0 and 1).
+4. Firmware partition: copy the overlay into `current/overlays/` (which carries the `README` marker the firmware needs). In `config.txt`, keep the firmware from loading the EEPROM's overlay, add `dtoverlay=tamanu-iti-v4`, remove `dtoverlay=tpm-slb9670`, and add the ID bus on GPIO0/1 the way the prototype has it (`i2c-gpio` on pins 0 and 1).
 5. Write the pristine `pi` image into the payload partition, then run `veritysetup format` with the hash tree after the data in the same partition (with its superblock), and record the root hash and offset.
 6. `mkfs.vfat` the data partition, and write the manifest to `/usr/share/bliti/provision/manifest` and `manifest.txt`.
 7. Unmount, close LUKS, detach the loop device, and compress with `zstd -T0` to `tamanu-iti-provision.img.zst`, with `.sha256` and `.txt` beside it.
@@ -32,6 +32,7 @@ The medium needs a 32 GB stick or card: the stick's own 8 GiB system, the 8 GiB 
 - A workflow, triggered by `push` to `main`, a weekly `schedule`, and `pull_request`, with its concurrency grouped by ref like `cd.yml`. Production uploads go through the `production` environment and its existing role. A scheduled run executes on `main`, so its OIDC subject is the one the role already trusts. Previews use the preview role.
 - PR opt-in, since an image is several gigabytes: a "Build the provisioning image" tickbox in `.github/pull_request_template.md`, read from the PR body. While it is ticked, the PR's preview serves an image built from its head at the same `/downloads/` paths; unticked, it serves none. `pull_request` needs the `edited` type for ticking the box to take effect. Keep `edited` from re-running the web build and deploy in `cd.yml`.
 - The image job uploads `downloads/` itself and deletes it from a preview prefix when the box is unticked. `deploy.js --prune` must leave `downloads/` alone, or every preview deploy would delete the image. PR close already removes the whole prefix.
+- Upload the image first and the digest and manifest after it, so the digest and manifest describe an image not yet served only for the moment the small uploads take.
 - Uploads are `application/zstd` (and `text/plain` for `.sha256`/`.txt`), revalidated rather than immutable, since the name is stable.
 - Check that the web app's service worker neither precaches nor intercepts `/downloads/`.
 
@@ -40,6 +41,7 @@ The medium needs a 32 GB stick or card: the stick's own 8 GiB system, the 8 GiB 
 - The `pi` image's first-boot root growth with partitions after `root`: it must give up cleanly and not hold boot.
 - The first boot of a fresh stick re-encrypts its root (`image.identity.luks-rekey`). Measure how long it takes on a USB stick. It happens once per stick.
 - Identity rotation leaves the appended partitions alone (it only touches the identifiers it recorded).
+- Whether a bare `dtoverlay=` at the top of `config.txt` blocks the EEPROM's overlay and still leaves `/proc/device-tree/hat/` published. If it does, use it; otherwise `force_eeprom_read=0`, which stops the firmware reading the EEPROM at all.
 - A programmed board and a blank one both come up on the medium with the TPM at `/dev/tpm0`, I²C3 up, and the EEPROM readable on the ID bus.
 
 ## Steps
