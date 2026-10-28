@@ -1,6 +1,7 @@
 # The Tamanu Iti HAT
 
-What a Tamanu Iti v4's HAT EEPROM holds and the device tree overlay it names, as [HAT](../.workhorse/specs/hat.md) specifies.
+The Tamanu Iti v4 has a small EEPROM chip on its HAT that tells the Pi which board it is fitted to, and names a device tree overlay for the Pi to load.
+The files here are that overlay and the contents of that chip, as described in the [HAT spec](../.workhorse/specs/hat.md).
 
 | file | is |
 | --- | --- |
