@@ -1,0 +1,22 @@
+#!/bin/bash
+# The login program of the medium's text and serial consoles (PMED): agetty runs it, logged in as
+# root, in place of login(1). It opens the console command, and once that exits leaves the console
+# a root shell. Root's own shell is nologin on the `pi` image, which is why this runs bash rather
+# than handing back to login.
+
+# The console comes up as the daemon starts, a moment before it listens.
+for _ in {1..30}; do
+	[[ -S /run/bliti/provision.sock ]] && break
+	systemctl --quiet is-active bliti-provision.service || break
+	sleep 1
+done
+
+# A medium the daemon cannot run from says why on its standard error, which the journal holds. The
+# console shows it too, since whoever is at the bench may have nothing else to read it on.
+if systemctl --quiet is-failed bliti-provision-medium.service; then
+	journalctl --boot --no-pager --output=cat --unit=bliti-provision-medium.service | tail -n 20
+fi
+
+/usr/local/bin/bliti provision
+cd /root || cd /
+exec /bin/bash --login

@@ -3,8 +3,11 @@ Description=bliti provisioning mode
 # Installed only on the provisioning image, which is what makes a device booted from it a device in
 # provisioning mode (PRV). The installed system's `bliti daemon` has no path into provisioning mode,
 # and this unit is not part of it.
-After=bluetooth.service
+After=bluetooth.service bliti-provision-medium.service
 Requires=bluetooth.service
+# Mounts the medium's data partition and finds its payload. Provisioning mode does not start on a
+# medium missing either (PMED).
+Requires=bliti-provision-medium.service
 # Provisioning mode is for a board booted from the medium, so a board without it never runs this.
 ConditionPathExists=/etc/bliti/provision.env
 

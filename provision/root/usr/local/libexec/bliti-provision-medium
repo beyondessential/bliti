@@ -1,0 +1,53 @@
+#!/bin/bash
+# Find the medium's payload and data partitions, check and mount the data partition, and point at the
+# payload for the step that writes it (PMED, "Layout"). bliti-provision-medium.service runs this
+# before provisioning mode, which does not start where it fails.
+#
+# Both partitions follow the `pi` image's root on the disk the root came from, and are found by their
+# number there. A label or PARTUUID would not do: every stick written from one image carries the same
+# ones, and a board can hold two.
+set -euo pipefail
+
+mountpoint=/mnt/provision
+payload_link=/run/bliti-provision/payload
+
+fail() {
+	echo "provisioning medium: $*" >&2
+	exit 1
+}
+
+# / is a subvolume of the btrfs on the LUKS volume `root`, which sits on the root partition.
+root_part=$(cryptsetup status root | awk '$1 == "device:" { print $2 }')
+[[ -b $root_part ]] || fail "cannot find the partition the root is on"
+root_name=$(basename "$(readlink -f "$root_part")")
+root_number=$(<"/sys/class/block/$root_name/partition")
+disk=$(basename "$(readlink -f "/sys/class/block/$root_name/..")")
+
+# The partition of $disk numbered $1, as a device path, or nothing.
+partition() {
+	local part
+	for part in /sys/class/block/"$disk"/"$disk"*; do
+		if [[ -f $part/partition && $(<"$part/partition") == "$1" ]]; then
+			echo "/dev/$(basename "$part")"
+			return
+		fi
+	done
+}
+
+payload=$(partition $((root_number + 1)))
+data=$(partition $((root_number + 2)))
+[[ -n $payload ]] || fail "/dev/$disk has no payload partition after the root"
+[[ -n $data ]] || fail "/dev/$disk has no data partition after the payload"
+
+# fsck.fat exits 1 where it found errors and corrected them, which still leaves a filesystem to mount.
+status=0
+fsck.vfat -a -w "$data" || status=$?
+((status <= 1)) || fail "the data partition $data failed its check and could not be repaired"
+
+mkdir -p "$mountpoint"
+mount -t vfat -o rw,noatime,flush "$data" "$mountpoint" ||
+	fail "the data partition $data cannot be mounted"
+
+mkdir -p "$(dirname "$payload_link")"
+ln -sfn "$payload" "$payload_link"
+echo "provisioning medium: data partition $data at $mountpoint, payload $payload"
