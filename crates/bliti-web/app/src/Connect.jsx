@@ -4,11 +4,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
+import { Problem, Steps } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 import { Title } from './Screen.jsx'
 
-const STEPS = ['Scan code', 'Find Iti', 'Connect']
+const REACHING = ['Scan code', 'Find Iti', 'Connect']
 
 /// `unsupported` is why the browser cannot open a channel, where it cannot. `phase` is null,
 /// `choosing` while the chooser is open, or `connecting` once a device is picked. `problem` is why
@@ -97,7 +98,7 @@ export default function Connect({
 		return (
 			<>
 				{title}
-				<Steps at={0} />
+				<Steps names={REACHING} at={0} />
 				{!scanning && recent?.length > 0 && (
 					<section>
 						<h2>Recently used</h2>
@@ -174,7 +175,7 @@ export default function Connect({
 		return (
 			<>
 				{title}
-				<Steps at={2} />
+				<Steps names={REACHING} at={2} />
 				<section>
 					{name}
 					<p className="lead">
@@ -194,7 +195,7 @@ export default function Connect({
 		return (
 			<>
 				{title}
-				<Steps at={1} />
+				<Steps names={REACHING} at={1} />
 				<section>
 					{name}
 					<Problem>{problem.kind === 'lost' ? 'Lost connection to your Iti' : "Your Iti wasn't found"}</Problem>
@@ -213,7 +214,7 @@ export default function Connect({
 	return (
 		<>
 			{title}
-			<Steps at={1} />
+			<Steps names={REACHING} at={1} />
 			<section>
 				{name}
 				<p className="done-line">Code scanned</p>
@@ -232,34 +233,6 @@ export default function Connect({
 				</div>
 			</section>
 		</>
-	)
-}
-
-function Steps({ at }) {
-	return (
-		<ol className="steps" aria-label="Progress">
-			{STEPS.map((name, index) => (
-				<li
-					key={name}
-					className={index < at ? 'done' : index === at ? 'current' : undefined}
-					aria-current={index === at ? 'step' : undefined}
-				>
-					<span className="dot">{index < at ? '✓' : index + 1}</span>
-					<span className="name">{name}</span>
-				</li>
-			))}
-		</ol>
-	)
-}
-
-function Problem({ children }) {
-	return (
-		<p className="lead problem">
-			<span className="alert" aria-hidden="true">
-				!
-			</span>
-			{children}
-		</p>
 	)
 }
 

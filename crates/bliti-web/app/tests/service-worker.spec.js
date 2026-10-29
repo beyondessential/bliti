@@ -53,18 +53,27 @@ test('lists every file of the bundle and of public/, each with a revision', asyn
 	expect(list.networkFirst).toBe(false)
 	expect(list.entries.every((entry) => /^[0-9a-f]{16}$/.test(entry.revision))).toBe(true)
 
-	const bundled = (await readdir(DIST, { recursive: true }))
-		.filter((file) => /\.(js|css|html|wasm)$/.test(file) && file !== 'sw.js' && !OTHERS.test(file))
-		.map((file) => (file.endsWith('.html') ? pagePath(file) : `/${file}`))
 	const published = (await readdir(PUBLIC)).map((file) => `/${file}`)
+	const bundled = (await readdir(DIST, { recursive: true }))
+		.filter((file) => /\.(js|css|html|wasm|jpg|png|webp|svg)$/.test(file) && file !== 'sw.js' && !OTHERS.test(file))
+		.map((file) => (file.endsWith('.html') ? pagePath(file) : `/${file}`))
+		.filter((url) => !published.includes(url))
 	expect(list.entries.map((entry) => entry.url).sort()).toEqual([...bundled, ...published].sort())
 })
 
 test('lists each page under the path it is navigated at', async () => {
 	const urls = (await built()).list.entries.map((entry) => entry.url)
 	expect(urls).toContain('/')
-	expect(urls).toContain('/tests/second-page')
+	expect(urls).toContain('/provision')
 	expect(urls.filter((url) => url.endsWith('.html'))).toEqual([])
+})
+
+// The pictures of the board are imported by the provisioning page, so the build hashes them and the
+// worker holds them for the page to show offline (PWEB, "Pictures").
+test('lists the pictures of the board', async () => {
+	const urls = (await built()).list.entries.map((entry) => entry.url)
+	const pictures = urls.filter((url) => /^\/assets\/(user-button|case-switch|wp-pads)-[\w-]+\.jpg$/.test(url))
+	expect(pictures).toHaveLength(3)
 })
 
 test('names a page by its file, with no extension, and the operator app by the root', () => {

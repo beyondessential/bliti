@@ -21,6 +21,7 @@ const TYPES = new Map([
 	['.css', 'text/css; charset=utf-8'],
 	['.html', 'text/html; charset=utf-8'],
 	['.ico', 'image/x-icon'],
+	['.jpg', 'image/jpeg'],
 	['.js', 'text/javascript; charset=utf-8'],
 	['.json', 'application/json'],
 	['.mjs', 'text/javascript; charset=utf-8'],

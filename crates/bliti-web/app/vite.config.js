@@ -11,12 +11,8 @@ import serviceWorker from './sw-plugin.js'
 const ROOT = import.meta.dirname
 
 // Every HTML file at the top of the app is a page, served at its name without the extension (WEB), so
-// adding one is adding the file. The test build carries one more, which the harness loads to cover
-// what a second page needs of the build and the service worker.
-const pagesOf = (mode) => [
-	...readdirSync(ROOT).filter((file) => file.endsWith('.html')),
-	...(mode === 'test' ? ['tests/second-page.html'] : []),
-]
+// adding one is adding the file.
+const pages = readdirSync(ROOT).filter((file) => file.endsWith('.html'))
 
 // The dev server tags the version with the commit it serves, as build metadata, so a page can be
 // matched against the checkout behind it. A build is tagged with BLITI_BUILD where it names itself,
@@ -35,7 +31,6 @@ function buildVersion() {
 }
 
 export default defineConfig(({ command, mode }) => {
-	const pages = pagesOf(mode)
 	return {
 		plugins: [react(), serviceWorker({ pages })],
 		// Pages are files and nothing falls back to index.html, so a path that is no page is a 404 here as
