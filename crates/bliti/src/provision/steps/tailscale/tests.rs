@@ -3,13 +3,19 @@ use std::{
 	sync::Mutex,
 };
 
-use bliti_core::provisioning::report::{Answer, RunState, StepState};
+use bliti_core::provisioning::{
+	Name,
+	report::{Answer, RunState, StepState},
+};
+
+use tokio::sync::watch;
 
 use super::*;
 use crate::provision::{
 	Act, Provisioner, Snapshot,
 	fake::{BUILT, Do, Fake, Gate, Log},
 	fake_system::{Bench, Unlock, Volume},
+	name::Established,
 	store::Store,
 };
 
@@ -116,8 +122,11 @@ impl Node for Tailnet {
 	}
 }
 
-fn named(suffix: Suffix) -> Name {
-	Name { marker: 1, suffix }
+fn named(suffix: Suffix) -> Established {
+	Established {
+		name: Name { marker: 1, suffix },
+		payload: None,
+	}
 }
 
 fn known(suffix: Option<Suffix>) -> Known {

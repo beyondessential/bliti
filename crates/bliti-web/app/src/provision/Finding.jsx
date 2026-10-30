@@ -45,7 +45,7 @@ export function Unsupported({ reason }) {
 
 /// Finding a device: `phase` is null, `choosing` while the chooser is open, or `connecting` once a
 /// device is picked. `problem` is why the last attempt ended, where it did not end by choice.
-export default function Finding({ phase, problem, offlineReady, onFind, onCancel }) {
+export default function Finding({ phase, problem, offlineReady, labels, onFind, onCancel, onLabels }) {
 	const title = (
 		<Title title="Provision an Iti">{!offlineReady && <span className="offline">Not ready offline</span>}</Title>
 	)
@@ -101,6 +101,14 @@ export default function Finding({ phase, problem, offlineReady, onFind, onCancel
 				<button className="block" onClick={onFind} disabled={phase !== null}>
 					Find Iti
 				</button>
+				{/* spec: PSHT */}
+				{labels.list.labels.length > 0 && (
+					<div className="links">
+						<button className="link" onClick={onLabels}>
+							Labels ({labels.unprinted} not printed)
+						</button>
+					</div>
+				)}
 			</section>
 		</>
 	)

@@ -98,8 +98,8 @@ pub async fn run(options: Options) -> Result<()> {
 	// Once, ahead of the first press, which could otherwise find the derivation still running. The
 	// name is the same for as long as the process lives (PRV).
 	let established = name::establish(options.board_id_source).await;
-	let name = established.render();
-	// The steps that use the board's suffix wait for this.
+	let name = established.name.render();
+	// The steps that use the board's suffix or payload wait for this.
 	let _ = name_tx.send(Some(established));
 	tracing::info!(local_name = %name, "provisioning mode");
 

@@ -3,13 +3,13 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use bliti_core::provisioning::{Name, Suffix};
-use tokio::sync::watch;
+use bliti_core::provisioning::Suffix;
 
 use super::{
 	bootloader::Spi,
 	button::{self, Seen},
 	luks::{Cryptsetup, Luks},
+	name::Known,
 	step::Step,
 	storage::{Machine, Storage},
 	system::Dracut,
@@ -21,6 +21,7 @@ pub mod disk;
 pub mod eeprom;
 pub mod encryption;
 pub mod hardware;
+pub mod label;
 pub mod overlay;
 pub mod tailscale;
 #[cfg(test)]
@@ -31,32 +32,31 @@ const IMAGES: &str = "/usr/share/bliti/provision";
 
 /// The steps, in order. `name` is the device's name, which is published once the board's ID has been
 /// established, and `medium` is where the provisioning medium's data partition is mounted.
-pub fn all(user: Seen, name: watch::Receiver<Option<Name>>, medium: &Path) -> Vec<Arc<dyn Step>> {
+pub fn all(user: Seen, name: Known, medium: &Path) -> Vec<Arc<dyn Step>> {
 	let board = Arc::new(Board);
 	let storage: Arc<dyn Storage> = Arc::new(Machine);
 	let luks: Arc<dyn Luks> = Arc::new(Cryptsetup);
+	let eeprom: Arc<dyn eeprom::Memory> = Arc::new(eeprom::Cat24c256);
 	vec![
 		Arc::new(hardware::Hardware::new(
 			board.clone(),
 			user,
 			button::case_switch(),
 		)),
-		Arc::new(eeprom::Eeprom::new(
-			board.clone(),
-			Arc::new(eeprom::Cat24c256),
-		)),
+		Arc::new(eeprom::Eeprom::new(board.clone(), eeprom.clone())),
 		Arc::new(disk::Disk::new(storage.clone())),
 		Arc::new(overlay::Overlay::new(storage.clone(), luks.clone())),
 		Arc::new(encryption::Encryption::new(
 			storage.clone(),
 			luks.clone(),
 			Arc::new(Dracut),
-			board,
+			board.clone(),
 			Arc::new(Named(name.clone())),
 			medium,
 		)),
-		Arc::new(tailscale::Tailscale::new(storage, luks, name)),
+		Arc::new(tailscale::Tailscale::new(storage, luks, name.clone())),
 		Arc::new(bootloader::Bootloader::new(Arc::new(Spi))),
+		Arc::new(label::Label::new(name, board, eeprom)),
 	]
 }
 
@@ -84,7 +84,7 @@ impl hardware::Checks for Board {
 }
 
 /// The board's TPM and the suffix of its name, which the daemon publishes once it has derived it.
-struct Named(watch::Receiver<Option<Name>>);
+struct Named(Known);
 
 #[async_trait]
 impl encryption::Identity for Named {
@@ -97,7 +97,7 @@ impl encryption::Identity for Named {
 		match name.wait_for(Option::is_some).await {
 			Ok(name) => name
 				.as_ref()
-				.map_or(Suffix::Fault, |name| name.suffix.clone()),
+				.map_or(Suffix::Fault, |known| known.name.suffix.clone()),
 			// The daemon went away without establishing a name.
 			Err(_) => Suffix::Fault,
 		}

@@ -59,7 +59,7 @@ Where the list holds an unprinted label, the provisioning client MUST offer down
 
 ## Choosing what to print
 
-The list MUST show each label with its suffix, its version, when it was added, and whether and when it was printed.
+The list MUST show the latest label first, and each label with its suffix, its version, when it was added, and whether and when it was printed.
 
 The list MUST tick each unprinted label, MUST leave each printed label unticked, and MUST let the operator tick and untick any label.
 
