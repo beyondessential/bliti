@@ -57,7 +57,7 @@ refer to #F4's working doc for any missing details. device tests will be done ag
 
 Ask for a reusable Tailscale auth key with a week expiry (if one doesn't exist in local storage yet, and expire a saved one after a week) and the Iti's name (with a default like `tamanu-iti-{suffix}`) right after the EEPROM step without holding the run up (the disk write starts at once), keep the key in local storage (client-side), and sign in against the new system's Tailscale state once its encrypted root is open, so the Iti's first boot comes up on the tailnet. A power cut before the sign-in loses the key, and the step then waits for it again.
 
-refer to #F4's working doc for any missing details
+refer to #F4's working doc for any missing details. device tests will be done against epic, not this card
 
 ## Print QR labels for provisioned Itis
 <!-- mockups: label-sheet -->
