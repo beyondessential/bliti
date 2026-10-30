@@ -1,7 +1,10 @@
 //! The provisioning mode daemon: the USER button, the advertising window, the GATT server, the LED
 //! and the console's socket, around one [`Provisioner`](super::Provisioner) (PRV).
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+	path::{Path, PathBuf},
+	sync::Arc,
+};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -9,7 +12,9 @@ use bliti_core::key_schedule::DeviceKeys;
 use tokio::sync::mpsc;
 
 use super::{
-	Provisioner, button, led, name, session, socket,
+	Provisioner,
+	bootloader::{self, PAYLOAD, Spi},
+	button, led, name, session, socket,
 	step::registry,
 	store::Store,
 	window::{self, Air},
@@ -58,11 +63,20 @@ pub async fn run(options: Options) -> Result<()> {
 			None
 		}
 	};
+	// Before any step, including one a run resumes, so a reboot from here on comes back to the medium
+	// (PRV, "The boot order").
+	usb_first().await;
 	let store = serial
 		.as_deref()
 		.map(|serial| Store::new(&options.medium, serial));
 	let (user, pressed) = button::record(button::user());
-	let provisioner = Provisioner::start(registry(pressed), store, options.image_built).await;
+	let (name_tx, name_rx) = tokio::sync::watch::channel(None);
+	let provisioner = Provisioner::start(
+		registry(pressed, name_rx, &options.medium),
+		store,
+		options.image_built,
+	)
+	.await;
 
 	let _led = match led::Sysfs::open() {
 		Ok(sysfs) => Some(AbortOnDrop(
@@ -83,7 +97,10 @@ pub async fn run(options: Options) -> Result<()> {
 
 	// Once, ahead of the first press, which could otherwise find the derivation still running. The
 	// name is the same for as long as the process lives (PRV).
-	let name = name::establish(options.board_id_source).await.render();
+	let established = name::establish(options.board_id_source).await;
+	let name = established.name.render();
+	// The steps that use the board's suffix or payload wait for this.
+	let _ = name_tx.send(Some(established));
 	tracing::info!(local_name = %name, "provisioning mode");
 
 	let keys = Arc::new(DeviceKeys::provisioning(rand::random(), rand::random()));
@@ -149,6 +166,26 @@ pub async fn run(options: Options) -> Result<()> {
 	tokio::time::sleep(ADVERTISE_SETTLE).await;
 	stop(&adapter, None).await;
 	result
+}
+
+/// Put USB first in the boot order, where the device booted from a USB stick.
+// spec: PRV#the-boot-order
+async fn usb_first() {
+	let put = tokio::task::spawn_blocking(|| {
+		bootloader::put_usb_first(&Spi, Path::new(PAYLOAD), Path::new("/sys"))
+	})
+	.await;
+	match put {
+		Ok(Ok(outcome)) => tracing::info!(?outcome, "boot order"),
+		Ok(Err(err)) => tracing::error!(
+			%err,
+			"cannot put USB first in the boot order; a reboot during a run may not come back to the provisioning medium"
+		),
+		Err(err) => tracing::error!(
+			%err,
+			"putting USB first in the boot order panicked; a reboot during a run may not come back to the provisioning medium"
+		),
+	}
 }
 
 /// The adapter, as the window puts it on the air.

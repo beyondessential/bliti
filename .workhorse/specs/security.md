@@ -75,6 +75,14 @@ Anyone who can read that storage can open a session, just as with a photograph o
 > [!NOTE]
 > The tab only holds the code while the operator is working with the device, which is when they already have the code in front of them. Closing the tab deletes it.
 
+The provisioning client keeps the payload of each board it makes a label for, in the browser's local storage, until an operator removes it, as [PSHT](provisioning/sheet.md) specifies.
+Anyone who can read that storage can open a session with each of those boards.
+The payload also crosses the provisioning channel in the result of the step `label`, to whichever client holds the device's one channel, as [PLBL](provisioning/label.md) specifies.
+
+> [!NOTE]
+> The labels are kept so that a lost or jammed sheet can be printed again without taking a board apart.
+> The recovery passphrase crosses the same channel in the board's record, and is kept nowhere in the browser.
+
 ### A provisioning device is not authenticated
 
 Any client in range of a device in provisioning mode can open a session with it while it advertises, because every such device uses the provisioning token and sends a key no client checks.

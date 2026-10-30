@@ -6,44 +6,63 @@ use bliti_core::{
 	qr::QrPayload,
 	version::VERSION_MARKER,
 };
+use tokio::sync::watch;
 
 use crate::identity::{self, IdentityError};
 
-/// The device's name, from its board ID taken from a source of the `expected` kind.
+/// What the device established about its board when it started: the name it advertises, and the
+/// payload the name's suffix is the end of.
+#[derive(Debug, Clone)]
+pub struct Established {
+	pub name: Name,
+	/// None where the board's ID could not be established, as the suffix `FAULT` says.
+	pub payload: Option<QrPayload>,
+}
+
+/// What the daemon publishes once the board's ID has been established, for the steps that need it.
+pub type Known = watch::Receiver<Option<Established>>;
+
+/// The device's name and payload, from its board ID taken from a source of the `expected` kind.
 ///
 /// Derives the board's root, which is memory-hard and slow, so it runs on a blocking task. It is
 /// called once as the daemon starts, ahead of any press of the USER button, and the name it gives
 /// stands for as long as the process lives.
-pub async fn establish(expected: SourceKind) -> Name {
+pub async fn establish(expected: SourceKind) -> Established {
 	let established =
 		tokio::task::spawn_blocking(move || identity::establish_provisioning(expected)).await;
 	match established {
 		Ok(result) => named(result),
 		Err(err) => {
 			tracing::error!(%err, "establishing this board's ID panicked; the suffix is FAULT");
-			Name {
-				marker: VERSION_MARKER,
-				suffix: Suffix::Fault,
+			Established {
+				name: Name {
+					marker: VERSION_MARKER,
+					suffix: Suffix::Fault,
+				},
+				payload: None,
 			}
 		}
 	}
 }
 
-/// The name of a device whose board ID gave `result`.
+/// What a device whose board ID gave `result` established.
 ///
 /// Where it could not be established the suffix is `FAULT`, and the cause is reported where the device
 /// is rather than to a client (PRV, DEV).
-fn named(result: Result<QrPayload, IdentityError>) -> Name {
-	let suffix = match result {
-		Ok(payload) => Suffix::of(&payload),
+fn named(result: Result<QrPayload, IdentityError>) -> Established {
+	let (suffix, payload) = match result {
+		Ok(payload) => (Suffix::of(&payload), Some(payload)),
 		Err(err) => {
 			tracing::error!(%err, "cannot establish this board's ID; the suffix is FAULT");
-			Suffix::Fault
+			(Suffix::Fault, None)
 		}
 	};
-	Name {
-		marker: VERSION_MARKER,
-		suffix,
+	Established {
+		name: Name {
+			marker: VERSION_MARKER,
+			suffix,
+		},
+		payload,
 	}
 }
 
@@ -64,7 +83,7 @@ mod tests {
 		Ok(Root::from_bytes(root))
 	}
 
-	fn name_of(expected: SourceKind, sources: &[TestSource], memory: u64) -> Name {
+	fn established_of(expected: SourceKind, sources: &[TestSource], memory: u64) -> Established {
 		let refs: Vec<&dyn BoardIdSource> = sources
 			.iter()
 			.map(|source| source as &dyn BoardIdSource)
@@ -72,6 +91,10 @@ mod tests {
 		named(identity::provisioning_payload(
 			expected, &refs, memory, cheap_root,
 		))
+	}
+
+	fn name_of(expected: SourceKind, sources: &[TestSource], memory: u64) -> Name {
+		established_of(expected, sources, memory).name
 	}
 
 	fn pi(serial: [u8; 4]) -> [TestSource; 3] {
@@ -140,5 +163,16 @@ mod tests {
 	fn a_name_made_here_is_one_a_client_reads() {
 		let name = name_of(SourceKind::RaspberryPiSerial, &pi([1, 2, 3, 4]), u64::MAX);
 		assert_eq!(Name::parse(&name.render()), Some(name));
+	}
+
+	#[test]
+	fn a_good_source_gives_the_payload_and_a_fault_gives_none() {
+		let good = established_of(SourceKind::RaspberryPiSerial, &pi([1, 2, 3, 4]), u64::MAX);
+		let payload = good.payload.expect("a payload");
+		assert_eq!(good.name.suffix, Suffix::Board(payload.suffix()));
+
+		let fault = established_of(SourceKind::OneTimeProgrammable, &pi([1, 2, 3, 4]), u64::MAX);
+		assert_eq!(fault.name.suffix, Suffix::Fault);
+		assert!(fault.payload.is_none());
 	}
 }

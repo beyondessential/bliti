@@ -584,6 +584,16 @@ button.switch:disabled { opacity: 0.4; }
 .pick input { width: auto; padding: 0; margin-top: 4px; }
 .pick .why-not { display: block; font-size: 0.8rem; color: var(--muted); }
 
+/* The list of labels (PSHT): a tick, the board, and what can be done to it. */
+.labels { list-style: none; margin: 12px 0 0; padding: 0; }
+.labels li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.labels li:first-child { border-top: 0; }
+.labels input { width: auto; padding: 0; margin-top: 5px; }
+.labels .body { flex: 1 1 auto; min-width: 0; }
+.labels .suffix { font-family: ui-monospace, monospace; font-weight: 600; letter-spacing: 0.05em; }
+.labels .detail { display: block; font-size: 0.8rem; color: var(--muted); }
+.labels button.link { flex: 0 0 auto; }
+
 /* A board picture, its caption beneath, and a prompt or progress under a step's row. */
 img.board { display: block; width: 100%; height: auto; border-radius: 6px; margin: 0 0 12px; }
 .pic-caption { font-size: 0.85rem; color: var(--muted); margin: -6px 0 12px; }

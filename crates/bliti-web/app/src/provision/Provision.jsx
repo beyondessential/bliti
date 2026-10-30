@@ -11,9 +11,11 @@ import Choosing from './Choosing.jsx'
 import Done from './Done.jsx'
 import Finding, { Unsupported, trouble } from './Finding.jsx'
 import { createProvisionClient } from './client.js'
+import Labels from './Labels.jsx'
 import Refused from './Refused.jsx'
 import Run from './Run.jsx'
-import { civilDate, refusal, screenOf } from './state.js'
+import { civilDate, labelOf, refusal, screenOf } from './state.js'
+import useLabels from './useLabels.js'
 import useProvision from './useProvision.js'
 
 // How many activity lines are kept, as for the page that reaches a device.
@@ -30,8 +32,18 @@ export default function Provision() {
 		(direction, text) => setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
 		[],
 	)
-	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, find, cancel, disconnect, act } =
+	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, cancel, disconnect, act } =
 		useProvision(client, note)
+
+	// The list of labels, which a run that has made a label adds to whenever the page sees it (PSHT),
+	// and whether the operator is looking at it. The page's own, not an act on any device.
+	const labels = useLabels()
+	const [viewing, setViewing] = useState(false)
+	const made = state ? labelOf(state.steps) : null
+	const { offer } = labels
+	useEffect(() => {
+		if (made) offer(made)
+	}, [made?.payload, made?.version, made?.at, offer])
 
 	// Whether the operator chose to run the steps of a finished run again. The device holds the
 	// finished run until it starts another, so this is the page's own, and ends with the channel or the run.
@@ -55,10 +67,20 @@ export default function Provision() {
 
 	if (unsupported) return shell(<Unsupported reason={unsupported} />)
 
+	if (viewing) return shell(<Labels labels={labels} onBack={() => setViewing(false)} />)
+
 	if (!connected && !lost) {
 		return shell(
 			<>
-				<Finding phase={phase} problem={problem} offlineReady={offlineReady} onFind={find} onCancel={cancel} />
+				<Finding
+					phase={phase}
+					problem={problem}
+					offlineReady={offlineReady}
+					labels={labels}
+					onFind={find}
+					onCancel={cancel}
+					onLabels={() => setViewing(true)}
+				/>
 				{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 			</>,
 		)
@@ -78,9 +100,19 @@ export default function Provision() {
 	else if (screen === 'choosing') {
 		body = <Choosing state={state} suffix={suffix} live={live} busy={awaiting.length > 0} onStart={start} />
 	} else if (screen === 'run') {
-		body = <Run state={state} live={live} awaiting={awaiting} refusals={refusals} onAct={act} />
+		body = <Run state={state} live={live} awaiting={awaiting} refusals={refusals} usedKey={usedKey} onForget={forget} onAct={act} />
 	} else if (screen === 'done') {
-		body = <Done state={state} suffix={suffix} live={live} onAnother={disconnect} onAgain={() => setAgain(true)} />
+		body = (
+			<Done
+				state={state}
+				suffix={suffix}
+				live={live}
+				labels={labels}
+				onAnother={disconnect}
+				onAgain={() => setAgain(true)}
+				onLabels={() => setViewing(true)}
+			/>
+		)
 	} else if (connected) {
 		body = (
 			<section>

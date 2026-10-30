@@ -88,6 +88,14 @@ struct Daemon {
 	observed: watch::Receiver<Observed>,
 	/// What a sign-in waits on from the notification bus.
 	events: broadcast::Sender<Notify>,
+	/// The task keeping `observed` current, which ends with the last handle to this Tailscale.
+	watcher: tokio::task::AbortHandle,
+}
+
+impl Drop for Daemon {
+	fn drop(&mut self) {
+		self.watcher.abort();
+	}
 }
 
 impl Tailscale {
@@ -108,17 +116,19 @@ impl Tailscale {
 		}
 		let (publish, observed) = watch::channel(first);
 		let (events, _) = broadcast::channel(64);
-		tokio::spawn(state::watch(
+		let watcher = tokio::spawn(state::watch(
 			api.clone(),
 			publish,
 			events.clone(),
 			names.clone(),
-		));
+		))
+		.abort_handle();
 		Self::with(
 			Some(Daemon {
 				api,
 				observed,
 				events,
+				watcher,
 			}),
 			netcheck,
 			names,
@@ -159,6 +169,13 @@ impl Tailscale {
 		let api: Arc<dyn LocalApi> = Arc::new(client::Unix::new(socket));
 		restriction::check_at_startup(&*api, options.tailnet.as_deref()).await?;
 		Ok(Self::start(api, netcheck, options).await)
+	}
+
+	/// The Tailscale of a tailscaled that another caller started, listening on `socket`.
+	#[cfg(unix)]
+	pub async fn on_socket(socket: PathBuf, options: Options) -> Self {
+		let netcheck: Arc<dyn Runner> = Arc::new(netcheck::Command::on_path());
+		Self::start(Arc::new(client::Unix::new(socket)), netcheck, options).await
 	}
 
 	/// A device that runs no Tailscale, and so reports none and lists no act but `netcheck`.
@@ -209,6 +226,14 @@ impl Tailscale {
 	pub fn observed(&self) -> Option<Observed> {
 		let daemon = self.inner.daemon.as_ref()?;
 		Some(daemon.observed.borrow().clone())
+	}
+
+	/// Sign this machine in with the auth key `key`, registering as `name`, and say whether it now
+	/// waits on an administrator's approval. The act of TSC, "Signing in", for a caller that is not
+	/// a client, so its tailnet restriction and its refusal to echo the key apply.
+	// spec: PTS
+	pub async fn sign_in_by_key(&self, key: Secret, name: &str) -> Result<bool, String> {
+		self.inner.sign_in_by_key(key, name).await
 	}
 
 	/// The acts listed now.

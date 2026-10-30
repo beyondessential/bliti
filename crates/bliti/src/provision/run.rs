@@ -434,6 +434,7 @@ impl Inner {
 	/// Carry the steps of the run out one after another until one fails or every one has passed.
 	async fn drive(self: Arc<Self>, generation: u64) {
 		loop {
+			self.ask_ahead(generation).await;
 			let Some(next) = self.mutate(generation, Model::begin_next) else {
 				return;
 			};
@@ -475,6 +476,28 @@ impl Inner {
 					return;
 				}
 			}
+		}
+	}
+
+	/// Let each pending step whose gate has passed ask for what it will need later (RUN, "Prompts").
+	async fn ask_ahead(self: &Arc<Self>, generation: u64) {
+		let due: Vec<usize> = {
+			let model = self.lock();
+			if model.generation != generation {
+				return;
+			}
+			(0..self.steps.len())
+				.filter(|index| model.steps[*index].state == StepState::Pending)
+				.filter(|index| {
+					self.steps[*index]
+						.asks_after()
+						.is_some_and(|after| model.passed_through(after))
+				})
+				.collect()
+		};
+		for index in due {
+			let mut context = Context::new(self.clone(), index, generation);
+			self.steps[index].ask_ahead(&mut context).await;
 		}
 	}
 

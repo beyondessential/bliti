@@ -13,7 +13,7 @@ use tokio::time::{sleep, timeout};
 
 use self::hat::{Held, describe};
 use super::{
-	blocking,
+	IMAGES, blocking,
 	hardware::place::{Air, place},
 };
 use crate::{
@@ -26,12 +26,11 @@ use crate::{
 
 mod chip;
 mod hat;
+#[cfg(test)]
+pub(super) use self::hat::tests::{image, iti_4_0};
 
 /// The ID bus, which the provisioning medium's firmware configuration brings up as this node.
 const BUS: &str = "/dev/i2c-9";
-
-/// Where the provisioning medium carries the images, as the build installs them.
-const IMAGES: &str = "/usr/share/bliti/provision";
 
 /// How long the operator has to bridge the pads (PEEP, "Writing").
 const WAIT: Duration = Duration::from_secs(5 * 60);
@@ -142,6 +141,18 @@ impl Eeprom {
 		};
 		timeout(WAIT, attempts).await.is_ok()
 	}
+}
+
+/// The version the EEPROM names, where it holds a Tamanu Iti, however its contents differ from the
+/// image's.
+// spec: PLBL
+pub async fn held_version(memory: &Arc<dyn Memory>) -> Result<Option<Version>, String> {
+	let memory = memory.clone();
+	let head = blocking(move || memory.read(PEEK)).await?;
+	Ok(match describe(&head) {
+		Held::Iti(version) => Some(version),
+		_ => None,
+	})
 }
 
 #[async_trait]

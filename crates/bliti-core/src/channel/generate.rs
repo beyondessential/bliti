@@ -237,13 +237,15 @@ fn prompt_report() -> impl Strategy<Value = PromptReport> {
 		],
 		"[A-Za-z ]{1,30}",
 		any::<bool>(),
+		proptest::option::of("[a-z0-9-]{1,20}"),
 	)
-		.prop_map(|(id, step, kind, text, blocking)| PromptReport {
+		.prop_map(|(id, step, kind, text, blocking, default)| PromptReport {
 			id,
 			step,
 			kind,
 			text,
 			blocking,
+			default,
 		})
 }
 

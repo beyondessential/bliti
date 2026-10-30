@@ -3,7 +3,10 @@ use std::{sync::Arc, time::Duration};
 use bliti_core::provisioning::report::{DoneState, PromptKind, RunState, StepState};
 
 use super::*;
-use crate::provision::fake::{BUILT, Do, Fake, Gate, Log};
+use crate::provision::{
+	fake::{BUILT, Do, Fake, Gate, Log},
+	model::Question,
+};
 
 const PATIENCE: Duration = Duration::from_secs(5);
 
@@ -625,4 +628,174 @@ async fn a_step_that_panics_fails_the_run() {
 	device.act(&start(&["p"])).unwrap();
 	let failed = until(&device, |s| s.run == RunState::Failed).await;
 	assert_eq!(failed.steps[0].reason.as_deref(), Some("the step panicked"));
+}
+
+fn later(step: &Fake, after: &'static str) {
+	step.asks_ahead(
+		after,
+		Question::new("q", PromptKind::Text, "Q?").default("dflt"),
+	);
+}
+
+#[tokio::test]
+async fn a_step_asks_ahead_once_the_step_it_waits_for_has_passed() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let (first, second) = (Gate::new(), Gate::new());
+	let asker = Fake::new("c", &log, vec![Do::TakeText("q", Some("fallback"))]);
+	later(&asker, "a");
+	let steps = vec![
+		Fake::new("a", &log, vec![Do::Hold(first.clone())]),
+		Fake::new("b", &log, vec![Do::Hold(second.clone())]),
+		asker,
+	];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a", "b", "c"])).unwrap();
+	logged(&log, "a begins").await;
+	assert!(device.watch().borrow().prompts.is_empty());
+
+	first.open();
+	let asked = until(&device, |s| !s.prompts.is_empty()).await;
+	assert_eq!(asked.prompts[0].step, "c");
+	assert_eq!(asked.prompts[0].default.as_deref(), Some("dflt"));
+	assert!(!asked.prompts[0].blocking);
+	assert_eq!(asked.run, RunState::Running);
+	assert_eq!(asked.steps[2].state, StepState::Pending);
+
+	// The step takes the answer it was given, without waiting.
+	device.act(&answer("q", Answer::text("Ada"))).unwrap();
+	second.open();
+	finished(&device).await;
+	assert!(log.lines().contains(&"c took Some(\"Ada\")".to_owned()));
+}
+
+#[tokio::test]
+async fn an_unanswered_prompt_is_closed_and_defaulted_when_the_step_comes_to_it() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let hold = Gate::new();
+	let asker = Fake::new("b", &log, vec![Do::TakeText("q", Some("fallback"))]);
+	later(&asker, "a");
+	let steps = vec![Fake::new("a", &log, vec![Do::Hold(hold.clone())]), asker];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a", "b"])).unwrap();
+	logged(&log, "a begins").await;
+	hold.open();
+	let done = finished(&device).await;
+	assert!(done.prompts.is_empty());
+	assert!(
+		log.lines()
+			.contains(&"b took Some(\"fallback\")".to_owned())
+	);
+}
+
+#[tokio::test]
+async fn a_step_asks_at_the_start_where_the_step_it_waits_for_is_not_chosen() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let hold = Gate::new();
+	let asker = Fake::new("c", &log, vec![]);
+	later(&asker, "a");
+	let steps = vec![
+		Fake::new("a", &log, vec![]),
+		Fake::new("b", &log, vec![Do::Hold(hold.clone())]),
+		asker,
+	];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["b", "c"])).unwrap();
+	let asked = until(&device, |s| !s.prompts.is_empty()).await;
+	assert_eq!(asked.steps[1].state, StepState::Running);
+	assert!(!asked.prompts[0].blocking);
+}
+
+#[tokio::test]
+async fn the_prompts_are_asked_again_by_a_run_resumed_after_a_restart() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let hung = Gate::new();
+	let asker = Fake::new("c", &log, vec![Do::TakeText("q", None)]);
+	later(&asker, "a");
+	let first = device(
+		vec![
+			Fake::new("a", &log, vec![]),
+			Fake::new("b", &log, vec![Do::Hold(hung.clone())]),
+			asker,
+		],
+		&medium,
+	)
+	.await;
+	first.act(&start(&["a", "b", "c"])).unwrap();
+	until(&first, |s| !s.prompts.is_empty()).await;
+	first.act(&answer("q", Answer::text("Ada"))).unwrap();
+
+	// The power goes: the answer was in memory only, so a new process asks again.
+	let asker = Fake::new("c", &log, vec![]);
+	later(&asker, "a");
+	let second = device(
+		vec![
+			Fake::new("a", &log, vec![]),
+			Fake::new("b", &log, vec![Do::Hold(Gate::new())]),
+			asker,
+		],
+		&medium,
+	)
+	.await;
+	let asked = until(&second, |s| !s.prompts.is_empty()).await;
+	assert_eq!(asked.prompts[0].id, "q");
+	assert!(!asked.prompts[0].blocking);
+}
+
+#[tokio::test]
+async fn a_forgotten_answer_is_asked_for_again_when_the_step_is_retried() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let asker = Fake::new(
+		"b",
+		&log,
+		vec![Do::Text("q"), Do::Forget("q"), Do::FailUntil(2, "no good")],
+	);
+	later(&asker, "a");
+	let steps = vec![Fake::new("a", &log, vec![]), asker];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a", "b"])).unwrap();
+	let first = until(&device, |s| s.run == RunState::Waiting).await;
+	device
+		.act(&answer(&first.prompts[0].id, Answer::text("one")))
+		.unwrap();
+	until(&device, |s| s.run == RunState::Failed).await;
+
+	device.act(&act("retry")).unwrap();
+	let again = until(&device, |s| s.run == RunState::Waiting).await;
+	assert!(again.prompts[0].blocking);
+	device.act(&answer("q", Answer::text("two"))).unwrap();
+	finished(&device).await;
+	assert!(log.lines().contains(&"b text two".to_owned()));
+}
+
+#[tokio::test]
+async fn an_answer_a_step_refuses_is_refused_at_the_value() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let hold = Gate::new();
+	let asker = Fake::new("c", &log, vec![]);
+	asker.asks_ahead(
+		"a",
+		Question::new("q", PromptKind::Text, "Q?").check(|text| {
+			if text.is_empty() {
+				Err("say something".to_owned())
+			} else {
+				Ok(())
+			}
+		}),
+	);
+	let steps = vec![
+		Fake::new("a", &log, vec![]),
+		Fake::new("b", &log, vec![Do::Hold(hold.clone())]),
+		asker,
+	];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a", "b", "c"])).unwrap();
+	until(&device, |s| !s.prompts.is_empty()).await;
+
+	let refused = device.act(&answer("q", Answer::text(""))).unwrap_err();
+	assert_eq!(refused.reason, "say something");
+	assert_eq!(refused.at, "$['value']");
+	assert_eq!(device.watch().borrow().prompts.len(), 1);
+
+	device.act(&answer("q", Answer::text("fine"))).unwrap();
+	assert!(device.watch().borrow().prompts.is_empty());
 }

@@ -47,6 +47,8 @@ struct Inner {
 	/// Whether the key last given to `start` is one the fake accepts, and so whether the next
 	/// `login-interactive` signs in.
 	key_accepted: Option<bool>,
+	/// Whether a sign-in that succeeds waits on an administrator's approval.
+	awaits_approval: bool,
 }
 
 fn node(name: &str) -> Node {
@@ -125,6 +127,11 @@ impl Fake {
 		let mut inner = self.inner();
 		inner.status.backend_state = backend_state.to_owned();
 		inner.status.current_tailnet = None;
+	}
+
+	/// Make a sign-in that succeeds wait on an administrator's approval.
+	pub fn awaits_approval(&self) {
+		self.inner().awaits_approval = true;
 	}
 
 	/// Make tailscaled stop answering.
@@ -278,7 +285,17 @@ impl LocalApi for Fake {
 		self.record("login-interactive")?;
 		let key_accepted = self.inner().key_accepted;
 		match key_accepted {
-			Some(true) => self.set("Running", true),
+			Some(true) => {
+				let awaits = self.inner().awaits_approval;
+				self.set(
+					if awaits {
+						"NeedsMachineAuth"
+					} else {
+						"Running"
+					},
+					true,
+				);
+			}
 			Some(false) => self.err("the last login error was: invalid key"),
 			None => self.notify(Notify {
 				browse_to_url: Some("https://login.example/a/abc123".to_owned()),

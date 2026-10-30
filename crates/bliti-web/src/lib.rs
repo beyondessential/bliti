@@ -41,6 +41,7 @@ use transport::WebTransport;
 
 mod provision;
 mod scan;
+mod sheet;
 mod streams;
 #[cfg(test)]
 mod tests;
@@ -129,6 +130,20 @@ pub fn hotspot_qr(ssid: &str, passphrase: &str) -> Result<String, JsError> {
 #[wasm_bindgen]
 pub fn text_qr(text: &str) -> Result<String, JsError> {
 	bliti_core::text_qr::svg(text).map_err(|why| JsError::new(&why.to_string()))
+}
+
+/// The PDF sheet of labels for `labels`, a JSON array of `{ payload, version }` in the order they are
+/// to print, as the bytes of the file (PSHT).
+#[wasm_bindgen]
+pub fn sheet_pdf(labels: &str) -> Result<Vec<u8>, JsError> {
+	let labels = sheet::parse(labels).map_err(|why| JsError::new(&why))?;
+	sheet::pdf(&labels).map_err(|why| JsError::new(&why))
+}
+
+/// How full the sheet of `count` labels is, worded for the action that downloads it (PSHT).
+#[wasm_bindgen]
+pub fn sheet_fill(count: usize) -> String {
+	sheet::fill(count)
 }
 
 /// Whether a document is within a device's capabilities, checked before it is proposed (NSCR) with

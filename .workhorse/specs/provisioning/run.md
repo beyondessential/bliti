@@ -18,6 +18,12 @@ A device in provisioning mode MUST offer the steps below, in this order.
 | --- | --- | --- |
 | `hardware` | Check the hardware | [PHW](hardware.md) |
 | `eeprom` | Program the EEPROM | [PEEP](eeprom.md) |
+| `disk` | Write the system to the disk | [PDSK](disk.md) |
+| `overlay` | Install the HAT overlay | [PDSK](disk.md) |
+| `encryption` | Set up disk encryption | [PENC](encryption.md) |
+| `tailscale` | Sign in to Tailscale | [PTS](tailscale.md) |
+| `bootloader` | Configure the bootloader | [PBL](bootloader.md) |
+| `label` | Make the label | [PLBL](label.md) |
 
 ## Done-state
 
@@ -136,7 +142,7 @@ A step MAY ask an operator for something through a prompt, which has an id, a ki
 | --- | --- | --- |
 | `notice` | none | asks an operator to do something, and closes when the step sees it done |
 | `confirm` | true or false | asks an operator to confirm |
-| `text` | text | asks an operator for text |
+| `text` | text | asks an operator for text, and MAY carry a default |
 | `secret` | text | asks an operator for text that is not to be shown or kept |
 
 A prompt of kind `notice` MUST be blocking.
@@ -145,6 +151,10 @@ A step with an open blocking prompt MUST NOT go further until the prompt is clos
 
 A step MAY end with a non-blocking prompt open.
 The prompt remains open until it is answered or the run ends.
+
+A step MAY open a non-blocking prompt before its turn comes, and MAY make an open prompt blocking, where the spec that defines the step says so.
+
+A default MUST be a string, and is what a client or the console offers as the answer.
 
 A step that needs an answer the device does not hold MUST open a blocking prompt for it, and MUST be `waiting` until it is answered.
 

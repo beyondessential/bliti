@@ -3,7 +3,8 @@
 //!
 //! Behaviour is specified in `.workhorse/specs/provisioning/`: PRV for the mode, RUN for runs, PRS
 //! for the stream a client drives them over, PCON for the console, PLED for the status LED, and PHW and
-//! PEEP for the steps `hardware` and `eeprom`.
+//! PEEP for the steps `hardware` and `eeprom`, PDSK for the steps `disk` and `overlay`, PENC for the step
+//! `encryption`, and PBL for the step `bootloader`.
 //!
 //! One [`Provisioner`] owns the run and serves every front end, so a client and the console are
 //! looking at the same one.
@@ -11,15 +12,21 @@
 /// Where the daemon listens for the console, in the runtime directory systemd makes for it.
 pub const SOCKET: &str = "/run/bliti/provision.sock";
 
+pub mod bootloader;
 pub mod button;
 #[cfg(unix)]
 pub mod console;
 pub mod context;
 #[cfg(target_os = "linux")]
 pub mod daemon;
+mod exec;
 #[cfg(test)]
 mod fake;
+#[cfg(test)]
+mod fake_system;
 pub mod led;
+pub mod luks;
+pub mod manifest;
 mod model;
 pub mod name;
 pub mod run;
@@ -28,8 +35,10 @@ pub mod session;
 pub mod socket;
 pub mod step;
 pub mod steps;
+pub mod storage;
 pub mod store;
 pub mod stream;
+pub mod system;
 pub mod window;
 
 pub use run::{Act, CannotAct, Provisioner, Snapshot};
