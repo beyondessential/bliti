@@ -45,7 +45,7 @@ refer to #F4's working doc for any missing details. device tests will be done ag
 
 Write the `pi` image from the medium to the NVMe and read it back, then install the HAT overlay the image carries (built from `hat/`) into the new system (its boot slot's `current/overlays/` and `/etc/flash-kernel/dtbs/overlays/`, so kernel updates keep it). Both are steps against K4's `Step` trait, and must be safe to restart from the beginning, as K4 resumes an interrupted step that way. Rotate the LUKS volume key (or leave it to the image's first-boot rekey, which this card decides), enrol a TPM-only keyslot, and replace the empty placeholder passphrase with a recovery passphrase made the way the `linux-images` installer makes one (six lowercase diceware words joined by hyphens). Append the board's record (QR suffix, version, LUKS partition UUID, recovery passphrase, time) to a tab-separated file on the medium's FAT partition. The card also settles how the device recognises the NVMe already carries the medium's system, and whether a PCR policy is worth binding on the Pi.
 
-refer to #F4's working doc for any missing details
+refer to #F4's working doc for any missing details. device tests will be done against epic, not this card
 
 ## Configure the bootloader during provisioning
 
