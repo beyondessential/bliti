@@ -2,10 +2,11 @@
 //!
 //! The steps a device offers, and the effect of each, are specified by the specs that define them.
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use bliti_core::provisioning::report::DoneState;
+use bliti_core::provisioning::{Name, report::DoneState};
+use tokio::sync::watch;
 
 use super::{button::Seen, context::Context, steps};
 
@@ -37,7 +38,12 @@ pub trait Step: Send + Sync {
 }
 
 /// The steps a device offers, in the one fixed order a run carries them out in. `user` is what the
-/// daemon has seen of the USER button.
-pub fn registry(user: Seen) -> Vec<Arc<dyn Step>> {
-	steps::all(user)
+/// daemon has seen of the USER button, `name` the device's name once it has one, and `medium` where
+/// the provisioning medium's data partition is mounted.
+pub fn registry(
+	user: Seen,
+	name: watch::Receiver<Option<Name>>,
+	medium: &Path,
+) -> Vec<Arc<dyn Step>> {
+	steps::all(user, name, medium)
 }

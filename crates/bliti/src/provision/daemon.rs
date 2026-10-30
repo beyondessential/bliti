@@ -70,7 +70,13 @@ pub async fn run(options: Options) -> Result<()> {
 		.as_deref()
 		.map(|serial| Store::new(&options.medium, serial));
 	let (user, pressed) = button::record(button::user());
-	let provisioner = Provisioner::start(registry(pressed), store, options.image_built).await;
+	let (name_tx, name_rx) = tokio::sync::watch::channel(None);
+	let provisioner = Provisioner::start(
+		registry(pressed, name_rx, &options.medium),
+		store,
+		options.image_built,
+	)
+	.await;
 
 	let _led = match led::Sysfs::open() {
 		Ok(sysfs) => Some(AbortOnDrop(
@@ -91,7 +97,10 @@ pub async fn run(options: Options) -> Result<()> {
 
 	// Once, ahead of the first press, which could otherwise find the derivation still running. The
 	// name is the same for as long as the process lives (PRV).
-	let name = name::establish(options.board_id_source).await.render();
+	let established = name::establish(options.board_id_source).await;
+	let name = established.render();
+	// The step that records the board's suffix waits for this.
+	let _ = name_tx.send(Some(established));
 	tracing::info!(local_name = %name, "provisioning mode");
 
 	let keys = Arc::new(DeviceKeys::provisioning(rand::random(), rand::random()));

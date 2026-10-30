@@ -11,15 +11,12 @@ use async_trait::async_trait;
 use bliti_core::provisioning::report::DoneState;
 use jiff::civil::Date;
 
-use super::blocking;
+use super::{IMAGES, blocking};
 use crate::provision::{
 	bootloader::{Firmware, Held, config::Config, held},
 	context::Context,
 	step::{Done, Step},
 };
-
-/// Where the provisioning medium carries the bootloader and its manifest, as the build installs them.
-const IMAGES: &str = "/usr/share/bliti/provision";
 
 /// The Iti's bootloader configuration (PBL, "The configuration").
 const SETTINGS: [(&str, &str); 6] = [

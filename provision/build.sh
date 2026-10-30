@@ -148,6 +148,8 @@ declare -A needs=(
 	[/usr/sbin/agetty]=util-linux
 	[/usr/sbin/flashrom]=flashrom
 	[/usr/bin/rpi-eeprom-config]=rpi-eeprom
+	[/usr/bin/systemd-cryptenroll]=systemd-cryptsetup
+	[/usr/bin/dracut]=dracut-core
 )
 missing=()
 for path in "${!needs[@]}"; do
