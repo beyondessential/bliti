@@ -65,6 +65,17 @@ The list MUST tick each unprinted label, MUST leave each printed label unticked,
 
 The list MUST offer downloading the sheet of the labels ticked as the primary action, and MUST NOT offer it while no label is ticked.
 
+Wherever the provisioning client offers downloading a sheet, it MUST say how full the sheet is in place of how many labels it holds, as the table below has it.
+
+| the sheet holds | the action says | example |
+| --- | --- | --- |
+| labels for part of one page | the percentage of the page's positions filled, to the nearest whole percent, then "filled" | 15% filled |
+| labels for several pages, the last part filled | the number of pages, then the percentage the last holds | 3 sheets, last 70% filled |
+| labels that fill every page | the number of pages | 2 sheets |
+
+> [!NOTE]
+> The action tells an operator how many sheets of sticker paper to load and how much of the last is wasted.
+
 The provisioning client MUST mark each label on the sheet it downloaded as printed, as of the download.
 
 The list MUST let the operator remove any label, and MUST ask the operator to confirm removing one that is unprinted.
