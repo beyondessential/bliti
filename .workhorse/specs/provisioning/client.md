@@ -77,10 +77,12 @@ The provisioning client MUST offer an answer to each prompt by its kind:
 | --- | --- |
 | `notice` | nothing to answer |
 | `confirm` | a choice of yes or no |
-| `text` | a field, and saving it |
+| `text` | a field, filled with the prompt's default where it has one, and saving it |
 | `secret` | a field that hides what is typed until the operator reveals it, and saving it |
 
-The provisioning client MUST NOT keep the answer to a `secret` prompt once it has sent it.
+The provisioning client MUST NOT keep the answer to a `secret` prompt once it has sent it, other than the answer to the prompt `auth-key` as [Tailscale details](#tailscale-details) has it.
+
+The provisioning client MUST NOT put the answer to a `secret` prompt in the record of Activity.
 
 Where the device refuses an answer, the provisioning client MUST say so beneath the prompt and let the operator answer again.
 
@@ -92,6 +94,31 @@ While a run is under way, the provisioning client MUST say that the page can be 
 
 > [!NOTE]
 > A device holds the whole run, so a client that connects partway through shows the step list from the first `provision-state` it receives.
+
+## Tailscale details
+
+The prompts `auth-key` and `name` of [PTS](tailscale.md) open while the step `tailscale` is pending, and the provisioning client MUST show them beneath its row, as [The run](#the-run) has it.
+
+The provisioning client MUST keep the answer to `auth-key` in the browser's local storage, with the time it was saved, so that it is kept across tabs and across visits.
+
+The provisioning client MUST discard a saved key a week or more after it was saved.
+
+Where `auth-key` opens and a key is saved, the provisioning client MUST answer the prompt with the saved key at once, without showing the field, MUST say that a saved key was used and when it was saved, and MUST offer to forget it.
+
+Forgetting the saved key MUST remove it from local storage.
+
+The provisioning client MUST NOT show a saved key.
+
+Where the device refuses the answer a saved key gave, or the step `tailscale` fails, the provisioning client MUST discard the saved key, and MUST show the field for `auth-key` where it opens again.
+
+The provisioning client MUST NOT keep the answer to `name`.
+
+Where the step `tailscale` has passed with `needs-approval` true, the provisioning client MUST say that a tailnet administrator has to approve the Iti before it joins the tailnet.
+
+> [!NOTE]
+> A reusable key lets an operator provision a bench of boards from one entry, and a week is as long as the key itself is asked to last.
+> A key that can add machines to a tailnet stays on the browser of the bench for that week, and the week bounds it.
+> A step that fails discards the key it was given, so the saved key is dropped with it, and the operator is asked for another instead of sending one Tailscale already rejected.
 
 ## When the run has finished
 

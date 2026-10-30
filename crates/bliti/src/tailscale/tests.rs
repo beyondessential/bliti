@@ -570,3 +570,73 @@ async fn the_log_never_holds_the_key() {
 	assert!(log.contains("act asked for and accepted"), "{log}");
 	assert!(!log.contains("hunter2"), "{log}");
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_caller_that_is_no_client_signs_in_by_key_and_names_the_machine() {
+	let fake = Fake::in_state("NeedsLogin");
+	let tailscale = tailscale_with(&fake, Options::default()).await;
+	let approval = tailscale
+		.sign_in_by_key(Secret::new(GOOD_KEY), "iti-7")
+		.await
+		.unwrap();
+	assert!(!approval);
+	assert!(
+		fake.calls()
+			.iter()
+			.any(|call| call == "start key=true hostname=iti-7")
+	);
+	assert!(!fake.calls().contains(&"logout".to_owned()));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_machine_that_holds_a_sign_in_is_signed_out_before_the_key_signs_it_in() {
+	let fake = Fake::in_state("Running");
+	let tailscale = tailscale_with(&fake, Options::default()).await;
+	tailscale
+		.sign_in_by_key(Secret::new(GOOD_KEY), "iti-7")
+		.await
+		.unwrap();
+	let calls = fake.calls();
+	let position = |wanted: &str| calls.iter().position(|call| call.starts_with(wanted));
+	assert!(position("logout") < position("start"), "{calls:?}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_rejected_key_fails_a_caller_that_is_no_client_without_echoing_it() {
+	let fake = Fake::in_state("NeedsLogin");
+	let tailscale = tailscale_with(&fake, Options::default()).await;
+	let reason = tailscale
+		.sign_in_by_key(Secret::new("tskey-auth-bad"), "iti-7")
+		.await
+		.unwrap_err();
+	assert!(!reason.contains("tskey-auth-bad"), "{reason}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_caller_that_is_no_client_is_held_to_the_accepted_tailnet() {
+	let fake = Fake::in_state("NeedsLogin");
+	fake.joins("other.example");
+	let options = Options {
+		tailnet: Some(JOINED.to_owned()),
+		..Options::default()
+	};
+	let tailscale = tailscale_with(&fake, options).await;
+	let reason = tailscale
+		.sign_in_by_key(Secret::new(GOOD_KEY), "iti-7")
+		.await
+		.unwrap_err();
+	assert!(reason.contains(JOINED), "{reason}");
+	assert!(fake.calls().contains(&"logout".to_owned()));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_sign_in_that_waits_on_approval_says_so() {
+	let fake = Fake::in_state("NeedsLogin");
+	fake.awaits_approval();
+	let tailscale = tailscale_with(&fake, Options::default()).await;
+	let approval = tailscale
+		.sign_in_by_key(Secret::new(GOOD_KEY), "iti-7")
+		.await
+		.unwrap();
+	assert!(approval);
+}

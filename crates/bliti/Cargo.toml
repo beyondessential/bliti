@@ -30,6 +30,7 @@ vendored-dbus = ["dbus/vendored"]
 [dependencies]
 anyhow = "1.0.104"
 async-trait = "0.1.92"
+base64 = "0.23.1"
 blake3 = { version = "1.8.7", default-features = false }
 bliti-core = { version = "0.0.0", path = "../bliti-core" }
 bosch-bme680 = "1.0.4"

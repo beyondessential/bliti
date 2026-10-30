@@ -26,6 +26,43 @@ pub struct Entry {
 	pub result: Option<Map<String, Json>>,
 }
 
+/// Whether a step accepts the text an operator answered a prompt with, and if not, why.
+pub type Check = fn(&str) -> Result<(), String>;
+
+/// A prompt a step asks for ahead of its turn, which does not hold the run up (RUN, "Prompts").
+#[derive(Clone)]
+pub struct Question {
+	key: String,
+	kind: PromptKind,
+	text: String,
+	default: Option<String>,
+	check: Option<Check>,
+}
+
+impl Question {
+	pub fn new(key: &str, kind: PromptKind, text: &str) -> Self {
+		Self {
+			key: key.to_owned(),
+			kind,
+			text: text.to_owned(),
+			default: None,
+			check: None,
+		}
+	}
+
+	/// The answer offered, for a `text` prompt.
+	pub fn default(mut self, default: impl Into<String>) -> Self {
+		self.default = Some(default.into());
+		self
+	}
+
+	/// What decides whether an answer is accepted.
+	pub fn check(mut self, check: Check) -> Self {
+		self.check = Some(check);
+		self
+	}
+}
+
 /// A prompt that is open.
 pub struct Open {
 	pub id: String,
@@ -35,6 +72,10 @@ pub struct Open {
 	pub key: String,
 	pub kind: PromptKind,
 	pub text: String,
+	/// The answer offered, where there is one.
+	pub default: Option<String>,
+	/// Decides whether an answer of text is accepted.
+	pub check: Option<Check>,
 	/// The step waiting for the answer, where one is, which need not be the step that asked.
 	pub blocks: Option<usize>,
 	/// How the waiting step is given the answer.
@@ -153,6 +194,7 @@ impl Model {
 					kind: prompt.kind.clone(),
 					text: prompt.text.clone(),
 					blocking: prompt.blocking(),
+					default: prompt.default.clone(),
 				})
 				.collect(),
 		}
@@ -163,6 +205,16 @@ impl Model {
 		self.steps
 			.iter()
 			.position(|entry| entry.state == StepState::Pending)
+	}
+
+	/// Whether every step chosen up to and including the one named has passed.
+	pub fn passed_through(&self, id: &str) -> bool {
+		let Some(last) = self.index_of(id) else {
+			return false;
+		};
+		self.steps[..=last]
+			.iter()
+			.all(|entry| matches!(entry.state, StepState::Unchosen | StepState::Passed))
 	}
 
 	/// The ids of the steps in `state`, in order.
@@ -284,29 +336,42 @@ impl Model {
 			open.blocks = Some(step);
 			open.waiter = Some(waiter);
 		} else {
+			let question = Question::new(key, kind, text);
 			self.prompts
-				.push(self.open(step, key, kind, text, Some(step), Some(waiter)));
+				.push(self.open(step, &question, Some(step), Some(waiter)));
 		}
 		Need::Wait(answer)
 	}
 
 	/// A step asks for something it does not wait on.
-	#[cfg_attr(
-		not(test),
-		expect(dead_code, reason = "no step asks for something later yet")
-	)]
-	pub fn ask_later(&mut self, step: usize, key: &str, kind: PromptKind, text: &str) {
+	pub fn ask_later(&mut self, step: usize, question: Question) {
+		let key = &question.key;
 		let known =
-			self.answers.contains_key(key) || self.prompts.iter().any(|prompt| prompt.key == key);
+			self.answers.contains_key(key) || self.prompts.iter().any(|prompt| prompt.key == *key);
 		if !known {
-			self.prompts
-				.push(self.open(step, key, kind, text, None, None));
+			self.prompts.push(self.open(step, &question, None, None));
 		}
+	}
+
+	/// What was answered under `key`, if anything.
+	pub fn held(&self, key: &str) -> Option<Answer> {
+		self.answers.get(key).cloned()
+	}
+
+	/// Close the prompt open under `key`, if any, without an answer.
+	pub fn close_key(&mut self, key: &str) {
+		self.prompts.retain(|prompt| prompt.key != key);
+	}
+
+	/// Forget what was answered under `key`.
+	pub fn forget(&mut self, key: &str) {
+		self.answers.remove(key);
 	}
 
 	/// A step asks an operator to do something, and waits until it sees it done. Returns the prompt.
 	pub fn notice(&mut self, step: usize, key: &str, text: &str) -> String {
-		let prompt = self.open(step, key, PromptKind::Notice, text, Some(step), None);
+		let question = Question::new(key, PromptKind::Notice, text);
+		let prompt = self.open(step, &question, Some(step), None);
 		let id = prompt.id.clone();
 		self.prompts.push(prompt);
 		id
@@ -315,18 +380,18 @@ impl Model {
 	fn open(
 		&self,
 		step: usize,
-		key: &str,
-		kind: PromptKind,
-		text: &str,
+		question: &Question,
 		blocks: Option<usize>,
 		waiter: Option<oneshot::Sender<Answer>>,
 	) -> Open {
 		Open {
-			id: key.to_owned(),
+			id: question.key.clone(),
 			step,
-			key: key.to_owned(),
-			kind,
-			text: text.to_owned(),
+			key: question.key.clone(),
+			kind: question.kind.clone(),
+			text: question.text.clone(),
+			default: question.default.clone(),
+			check: question.check,
 			blocks,
 			waiter,
 		}
@@ -356,6 +421,14 @@ impl Model {
 				},
 			});
 		};
+		if let (Some(check), Some(text)) = (self.prompts[position].check, value.as_text())
+			&& let Err(reason) = check(text)
+		{
+			return Err(Refusal {
+				at: "$['value']".to_owned(),
+				reason,
+			});
+		}
 		let open = self.prompts.remove(position);
 		self.answers.insert(open.key, value.clone());
 		if let Some(waiter) = open.waiter {

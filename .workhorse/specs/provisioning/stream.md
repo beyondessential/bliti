@@ -52,6 +52,7 @@ A device MUST refuse an act at the paths below.
 | `STEPS` names a step the device does not have | `$['steps'][i]`, with `i` the index of the first such step |
 | `PROMPT` names no open prompt, a prompt already answered, or a `notice` prompt | `$['prompt']` |
 | `VALUE` is not of the type the prompt's kind takes | `$['value']` |
+| `VALUE` is a value the step that asked refuses, as its own spec says | `$['value']` |
 
 ## The state
 
@@ -87,6 +88,7 @@ Each member of `prompts` MUST carry:
 | `kind` | string | yes | one of `notice`, `confirm`, `text` and `secret` |
 | `text` | string | yes | what to tell the operator |
 | `blocking` | boolean | yes | whether the step waits for the prompt |
+| `default` | string | no | the answer offered, where the prompt is of kind `text` and has one |
 
 A step or a prompt MAY carry further members that the spec defining the step gives.
 

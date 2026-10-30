@@ -9,6 +9,7 @@ use tokio::sync::Notify;
 
 use super::{
 	context::Context,
+	model::Question,
 	step::{Done, Step},
 };
 
@@ -24,6 +25,10 @@ pub enum Do {
 	Text(&'static str),
 	Secret(&'static str),
 	AskLater(&'static str, PromptKind),
+	/// Take the answer under the key, or the default where there is none, logging what was taken.
+	TakeText(&'static str, Option<&'static str>),
+	/// Forget the answer held under the key.
+	Forget(&'static str),
 	/// Hold a notice open until the gate is opened.
 	Notice(&'static str, Arc<Gate>),
 	/// Wait until the gate is opened.
@@ -68,6 +73,7 @@ pub struct Fake {
 	done: Mutex<Done>,
 	log: Log,
 	attempts: Mutex<u32>,
+	ahead: Mutex<Option<(&'static str, Question)>>,
 }
 
 impl Fake {
@@ -81,7 +87,13 @@ impl Fake {
 			}),
 			log: log.clone(),
 			attempts: Mutex::new(0),
+			ahead: Mutex::new(None),
 		})
+	}
+
+	/// Have this step ask `question` ahead of its turn, once the step `after` has passed.
+	pub fn asks_ahead(&self, after: &'static str, question: Question) {
+		*self.ahead.lock().unwrap() = Some((after, question));
 	}
 
 	pub fn done_is(&self, state: DoneState, why: Option<&str>) {
@@ -104,6 +116,17 @@ impl Step for Fake {
 
 	async fn done(&self) -> Done {
 		self.done.lock().unwrap().clone()
+	}
+
+	fn asks_after(&self) -> Option<&str> {
+		self.ahead.lock().unwrap().as_ref().map(|(after, _)| *after)
+	}
+
+	async fn ask_ahead(&self, context: &mut Context) {
+		let ahead = self.ahead.lock().unwrap().clone();
+		if let Some((_, question)) = ahead {
+			context.ask_later(question);
+		}
 	}
 
 	async fn run(&self, context: &mut Context) -> Result<(), String> {
@@ -133,7 +156,14 @@ impl Step for Fake {
 					let answer = context.secret(key, "Password?").await;
 					self.log.push(format!("{} secret {answer}", self.id));
 				}
-				Do::AskLater(key, kind) => context.ask_later(key, kind.clone(), "Later?"),
+				Do::TakeText(key, default) => {
+					let taken = context.take_text(key, *default);
+					self.log.push(format!("{} took {taken:?}", self.id));
+				}
+				Do::Forget(key) => context.forget(key),
+				Do::AskLater(key, kind) => {
+					context.ask_later(Question::new(key, kind.clone(), "Later?"))
+				}
 				Do::Notice(text, gate) => {
 					let notice = context.notice("notice", text);
 					gate.open.notified().await;

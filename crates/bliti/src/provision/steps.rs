@@ -22,6 +22,7 @@ pub mod eeprom;
 pub mod encryption;
 pub mod hardware;
 pub mod overlay;
+pub mod tailscale;
 #[cfg(test)]
 mod testing;
 
@@ -47,13 +48,14 @@ pub fn all(user: Seen, name: watch::Receiver<Option<Name>>, medium: &Path) -> Ve
 		Arc::new(disk::Disk::new(storage.clone())),
 		Arc::new(overlay::Overlay::new(storage.clone(), luks.clone())),
 		Arc::new(encryption::Encryption::new(
-			storage,
-			luks,
+			storage.clone(),
+			luks.clone(),
 			Arc::new(Dracut),
 			board,
-			Arc::new(Named(name)),
+			Arc::new(Named(name.clone())),
 			medium,
 		)),
+		Arc::new(tailscale::Tailscale::new(storage, luks, name)),
 		Arc::new(bootloader::Bootloader::new(Arc::new(Spi))),
 	]
 }

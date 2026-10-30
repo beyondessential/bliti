@@ -24,6 +24,8 @@ The command MUST show the result of every step that reports one.
 
 The command MUST take the answer to a prompt as text.
 
+The command MUST show the default of a prompt that carries one, and MUST take an empty answer to it as the default.
+
 The command MUST NOT display the characters of an answer to a `secret` prompt as they are typed.
 
 The command MUST offer a retry and a stop where [RUN](run.md) accepts them, and MUST offer to acknowledge a finished run once it has shown every result.

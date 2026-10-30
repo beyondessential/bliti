@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { NEEDS_CHOOSER, NOTHING_PICKED, SLOT_FULL } from '../link.js'
 import { actSaid, stateSaid } from './state.js'
+import { STEP, forgetKey, isKeyPrompt, saveKey, savedKey } from './tailscale.js'
 
 // How long to wait between attempts to reach the device again. The harness shortens it, which is the
 // only thing it changes.
@@ -63,6 +64,10 @@ export default function useProvision(client, note) {
 	const pending_ = useRef([])
 	const stream_ = useRef(null)
 	const said_ = useRef('')
+	// The saved Tailscale key answered a prompt: when it was saved, and whether it has been forgotten
+	// since (PWEB, "Tailscale details"). The prompt it answered, so it is answered once.
+	const [usedKey, setUsedKey] = useState(null)
+	const keyPrompt_ = useRef(false)
 	// The automatic attempt to reach the device again, so one taken over by the operator is told apart.
 	const reach_ = useRef(null)
 	const visible = useVisible()
@@ -94,6 +99,8 @@ export default function useProvision(client, note) {
 		setRefusals({})
 		setRefused(null)
 		setAwaiting([])
+		setUsedKey(null)
+		keyPrompt_.current = false
 	}, [])
 
 	const closed = useCallback(
@@ -157,6 +164,10 @@ export default function useProvision(client, note) {
 						const asked = answered()
 						note('in', `cannot-act  ${message.act}  ${message.at}  ${message.reason}`)
 						if (asked?.act === 'answer' && asked.prompt !== undefined) {
+							if (asked.key) {
+								forgetKey()
+								setUsedKey(null)
+							}
 							setRefusals((held) => ({ ...held, [asked.prompt]: message.reason }))
 						} else {
 							setRefused(message.reason)
@@ -313,17 +324,22 @@ export default function useProvision(client, note) {
 	}, [client, reset, note])
 
 	/// Send an act on the provisioning stream. `members` are `steps`, `prompt` and `value`, and
-	/// `secret` says `value` is one that is not to be recorded or kept (PWEB).
+	/// `secret` says `value` is one that is not to be recorded or kept (PWEB), except the Tailscale key,
+	/// which is kept unless it came from storage.
 	const act = useCallback(
-		(name, members = {}, { secret = false } = {}) => {
+		(name, members = {}, { secret = false, fromStorage = false } = {}) => {
 			const { steps, prompt, value } = members
 			setRefused(null)
 			if (name === 'answer') setRefusals(({ [prompt]: _, ...rest }) => rest)
 			note('out', actSaid(name, { ...members, secret }))
+			if (name === 'answer' && secret && prompt === 'auth-key' && typeof value === 'string' && value !== '') {
+				// Typed here rather than answered from storage, so it is kept for the next board.
+				if (!fromStorage) saveKey(value)
+			}
 			try {
 				if (!stream_.current) throw new Error('Not connected to the Iti.')
 				stream_.current.act(name, { steps, prompt, value })
-				pending_.current = [...pending_.current, { act: name, prompt }]
+				pending_.current = [...pending_.current, { act: name, prompt, key: secret && prompt === 'auth-key' }]
 				setAwaiting(pending_.current)
 			} catch (error) {
 				const why = error.message ?? String(error)
@@ -334,7 +350,39 @@ export default function useProvision(client, note) {
 		[note],
 	)
 
+	// The saved key answers the prompt that asks for it, once, without the field; a failed Tailscale
+	// step discards it (PWEB, "Tailscale details").
+	useEffect(() => {
+		if (!state) return
+		const step = state.steps.find((each) => each.id === STEP)
+		if (step?.state === 'failed') {
+			forgetKey()
+			setUsedKey(null)
+		}
+		const prompt = state.prompts.find(isKeyPrompt)
+		if (!prompt) {
+			keyPrompt_.current = false
+			return
+		}
+		if (!connected || lost || keyPrompt_.current) return
+		const saved = savedKey()
+		if (!saved) return
+		keyPrompt_.current = true
+		setUsedKey({ saved: saved.saved, forgotten: false })
+		note('note', 'answering the Tailscale key from the one saved')
+		act('answer', { prompt: prompt.id, value: saved.key }, { secret: true, fromStorage: true })
+	}, [state, connected, lost, act, note])
+
+	/// Forget the saved key, which the boards after this one will ask for again.
+	const forget = useCallback(() => {
+		forgetKey()
+		setUsedKey((held) => held && { ...held, forgotten: true })
+		note('note', 'forgot the saved Tailscale key')
+	}, [note])
+
 	return {
+		usedKey,
+		forget,
 		phase,
 		problem,
 		device,

@@ -145,6 +145,7 @@ check "the root carries what the disk and encryption steps run" test \
 	-x "$root/usr/sbin/blkid" -a -x "$root/usr/sbin/losetup" -a -x "$root/usr/sbin/blockdev"
 check "the root can make an initramfs that unlocks from the TPM" \
 	compgen -G "$root/usr/lib/dracut/modules.d/*tpm2-tss" >/dev/null
+check "the root carries tailscaled, which the Tailscale step runs" test -x "$root/usr/sbin/tailscaled"
 check "the root holds no package lists" test -z "$(find "$root/var/lib/apt/lists" -maxdepth 1 -type f)"
 masked() {
 	local unit

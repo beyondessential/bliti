@@ -35,6 +35,7 @@ The build installs any package the medium needs that the `pi` image lacks throug
 - The disk, overlay and encryption steps open the payload through `veritysetup`, write the NVMe, and run `cryptsetup`, `systemd-cryptenroll` and `dracut` (inside a chroot of the new system) against it.
   A run keeps its records in `records.tsv` on the data partition.
 - The bootloader step reads and writes the Pi 5's bootloader flash on `/dev/spidev10.0` with `flashrom`, and makes its images with `rpi-eeprom-config`. Provisioning mode puts USB first in the boot order when it starts from a USB stick. `rpi-eeprom-update.service` is masked.
+- The Tailscale step runs a `tailscaled` of its own, with no tunnel and its state on the NVMe's root, so it needs the bench's network: the board on a wired connection that gives it an address. It fails, saying so, where it cannot reach Tailscale.
 - `/usr/share/bliti/provision/` holds the bootloader, the HAT overlay, the HAT EEPROM images and the manifest.
 
 ## Writing it
