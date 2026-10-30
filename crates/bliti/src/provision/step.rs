@@ -5,10 +5,9 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use bliti_core::provisioning::{Name, report::DoneState};
-use tokio::sync::watch;
+use bliti_core::provisioning::report::DoneState;
 
-use super::{button::Seen, context::Context, steps};
+use super::{button::Seen, context::Context, name::Known, steps};
 
 /// What a step says of whether the board already holds what it would produce (RUN, "Done-state").
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,10 +52,6 @@ pub trait Step: Send + Sync {
 /// The steps a device offers, in the one fixed order a run carries them out in. `user` is what the
 /// daemon has seen of the USER button, `name` the device's name once it has one, and `medium` where
 /// the provisioning medium's data partition is mounted.
-pub fn registry(
-	user: Seen,
-	name: watch::Receiver<Option<Name>>,
-	medium: &Path,
-) -> Vec<Arc<dyn Step>> {
+pub fn registry(user: Seen, name: Known, medium: &Path) -> Vec<Arc<dyn Step>> {
 	steps::all(user, name, medium)
 }

@@ -5,7 +5,9 @@ import { useState } from 'react'
 
 import { Steps } from '../Reaching.jsx'
 import { REACHING } from './Finding.jsx'
-import { APPROVAL, awaitsApproval, recordOf, showSaved } from './state.js'
+import { ordered } from './labels.js'
+import { download, downloadText, useSheetReady } from './sheet.js'
+import { APPROVAL, awaitsApproval, labelOf, recordOf, showSaved } from './state.js'
 
 /// Copying the passphrase, and saying whether it worked.
 function Copy({ text }) {
@@ -35,8 +37,22 @@ function Copy({ text }) {
 /// `suffix` names the device, for a run whose steps report no record. `live` is whether the device can
 /// be acted on, which the buttons need. The page never sends `acknowledge`: the device holds the
 /// finished run until it is powered off, so the record can be had again (PWEB).
-export default function Done({ state, suffix, live, onAnother, onAgain }) {
+export default function Done({ state, suffix, live, labels, onAnother, onAgain, onLabels }) {
 	const record = recordOf(state.steps)
+	const ready = useSheetReady()
+	const [failed, setFailed] = useState(null)
+	const waiting = ordered(labels.list).filter((label) => label.printed === null)
+
+	// The sheet of the labels not yet printed, which are marked printed once it is downloaded (PSHT).
+	async function save() {
+		setFailed(null)
+		try {
+			await download(waiting)
+			labels.markPrinted(waiting.map((label) => label.payload))
+		} catch (error) {
+			setFailed(error.message ?? String(error))
+		}
+	}
 	return (
 		<>
 			<Steps names={REACHING} at={3} />
@@ -81,18 +97,42 @@ export default function Done({ state, suffix, live, onAnother, onAgain }) {
 						</div>
 					</div>
 				)}
-				{live && (
-					<>
-						<button className="block go" onClick={onAnother}>
-							Provision another Iti
+				{/* spec: PSHT */}
+				{labelOf(state.steps) && <p className="muted">Its label is in your list.</p>}
+				{failed && (
+					<p className="why" role="alert">
+						{failed}
+					</p>
+				)}
+				{waiting.length > 0 && (
+					<button className="block go" onClick={save}>
+						{downloadText(waiting.length, ready)}
+					</button>
+				)}
+				<div className="links">
+					{labels.list.labels.length > 0 && (
+						<button className="link" onClick={onLabels}>
+							Labels ({labels.unprinted} not printed)
 						</button>
-						<div className="links">
+					)}
+					{live && (
+						<>
+							{waiting.length === 0 && (
+								<button className="block go" onClick={onAnother}>
+									Provision another Iti
+								</button>
+							)}
 							<button className="link" onClick={onAgain}>
 								Run steps again
 							</button>
-						</div>
-					</>
-				)}
+							{waiting.length > 0 && (
+								<button className="link" onClick={onAnother}>
+									Provision another Iti
+								</button>
+							)}
+						</>
+					)}
+				</div>
 			</section>
 		</>
 	)

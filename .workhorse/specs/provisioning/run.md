@@ -23,6 +23,7 @@ A device in provisioning mode MUST offer the steps below, in this order.
 | `encryption` | Set up disk encryption | [PENC](encryption.md) |
 | `tailscale` | Sign in to Tailscale | [PTS](tailscale.md) |
 | `bootloader` | Configure the bootloader | [PBL](bootloader.md) |
+| `label` | Make the label | [PLBL](label.md) |
 
 ## Done-state
 

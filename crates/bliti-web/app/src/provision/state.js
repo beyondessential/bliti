@@ -68,6 +68,15 @@ export function recordOf(steps) {
 	return null
 }
 
+/// The label the step `label` reports once it has passed, as `{ payload, version, at }`, where it
+/// does (PLBL, "The result").
+export function labelOf(steps) {
+	const step = steps.find((each) => each.id === 'label')
+	const { payload, version, at } = step?.result ?? {}
+	if (step?.state !== 'passed') return null
+	return [payload, version, at].every((member) => typeof member === 'string') ? { payload, version, at } : null
+}
+
 /// Whether the step `tailscale` has passed and waits on a tailnet administrator's approval (PTS).
 export function awaitsApproval(steps) {
 	const step = steps.find((each) => each.id === 'tailscale')

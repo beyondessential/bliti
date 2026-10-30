@@ -6,11 +6,10 @@ use std::{fs, io, panic::AssertUnwindSafe, sync::Arc};
 use async_trait::async_trait;
 use bliti_core::{
 	channel::messages::Secret,
-	provisioning::{Name, Suffix, report::DoneState, report::PromptKind},
+	provisioning::{Suffix, report::DoneState, report::PromptKind},
 };
 use futures::FutureExt as _;
 use serde_json::{Map, Value as Json};
-use tokio::sync::watch;
 
 use self::process::{Node, Tailscaled};
 use super::blocking;
@@ -18,6 +17,7 @@ use crate::provision::{
 	context::Context,
 	luks::Luks,
 	model::Question,
+	name::Known,
 	step::{Done, Step},
 	storage::{Storage, single_disk},
 	system::{self, open_root},
@@ -37,9 +37,6 @@ const NAME: &str = "name";
 const KEY_TEXT: &str =
 	"Tailscale auth key for this Iti. Use a reusable key; one that expires in a week is enough.";
 const NAME_TEXT: &str = "Name for this Iti in the tailnet.";
-
-/// The device's name, which is published once the board's ID has been established.
-pub type Known = watch::Receiver<Option<Name>>;
 
 /// The step.
 pub struct Tailscale {
@@ -82,7 +79,7 @@ impl Tailscale {
 	async fn default_name(&self) -> Option<String> {
 		let mut name = self.name.clone();
 		let known = name.wait_for(Option::is_some).await.ok()?;
-		match &known.as_ref()?.suffix {
+		match &known.as_ref()?.name.suffix {
 			Suffix::Board(suffix) => Some(format!("tamanu-iti-{}", suffix.to_lowercase())),
 			Suffix::Fault => None,
 		}
