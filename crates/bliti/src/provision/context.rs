@@ -24,7 +24,6 @@ impl Context {
 	}
 
 	/// Report how far through its work the step is, from 0 to 1.
-	#[cfg_attr(not(test), expect(dead_code, reason = "no step reports progress yet"))]
 	pub fn progress(&mut self, fraction: f64) {
 		let fraction = fraction.clamp(0.0, 1.0);
 		self.inner.mutate(self.generation, |model| {

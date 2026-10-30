@@ -36,13 +36,14 @@ A device MUST describe what the disk holds as the first of these that applies.
 | holds | where |
 | --- | --- |
 | the medium's system | its firmware partition carries `iti-image.txt`, whose `PI_IMAGE_SHA256` is the manifest's |
-| an earlier system | its firmware partition carries `iti-image.txt`, described by its `PI_IMAGE_VERSION` |
+| an earlier system | its firmware partition carries `iti-image.txt`, described by its `PI_IMAGE_VERSION`, or its partitions are labelled `firmware`, `xboot` and `root` as the `pi` image labels them |
 | blank | it holds no partition table and no filesystem signature |
 | another system | anything else |
 
 > [!NOTE]
 > The file marks a system the step wrote and verified.
 > It lets a medium recognise a disk by what was written to it, which later changes to the system, such as kernel updates and the first boot's rotation of identifiers, do not alter.
+> A disk the step wrote in part, before a power cut, carries the image's partition labels and no file, and is an earlier system, so the step starts again without asking.
 
 ## Done-state of the step `disk`
 

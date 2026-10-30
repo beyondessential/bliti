@@ -253,6 +253,7 @@ dependencies = [
  "clap",
  "dbus",
  "dbus-tokio",
+ "diceware_wordlists",
  "embedded-hal",
  "futures",
  "hex",
@@ -272,6 +273,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2",
  "socket2",
  "tempfile",
  "thiserror 2.0.21",
@@ -857,6 +859,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "diceware_wordlists"
+version = "1.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f9b52b69d268c7a2bc582e3aec5cdfa43ac91cef4fe6b6751b02da2b43d6166"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -874,6 +882,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
  "block-buffer 0.12.1",
+ "const-oid",
  "crypto-common 0.2.2",
  "ctutils",
 ]
@@ -2126,6 +2135,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "sha2"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "digest 0.11.3",
 ]
 
 [[package]]

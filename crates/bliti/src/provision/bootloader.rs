@@ -1,14 +1,11 @@
 //! The bootloader on the board's flash, read and written whole (PBL, and PRV "The boot order").
 
-use std::{
-	fs,
-	path::Path,
-	process::{Command, Output},
-};
+use std::{fs, path::Path, process::Command};
 
 use jiff::{Timestamp, civil::Date, tz::TimeZone};
 
 use self::config::Config;
+use super::exec::run;
 
 pub mod config;
 #[cfg(test)]
@@ -213,24 +210,6 @@ impl Firmware for Spi {
 			.arg(&from))?;
 		fs::read(&to).map_err(|err| format!("cannot read the image rpi-eeprom-config made: {err}"))
 	}
-}
-
-fn run(command: &mut Command) -> Result<Output, String> {
-	let name = command.get_program().to_string_lossy().into_owned();
-	let output = command
-		.output()
-		.map_err(|err| format!("cannot run {name}: {err}"))?;
-	if output.status.success() {
-		return Ok(output);
-	}
-	let stderr = String::from_utf8_lossy(&output.stderr);
-	let said = stderr.lines().rev().find(|line| !line.trim().is_empty());
-	Err(format!(
-		"{name} failed with {}{}",
-		output.status,
-		said.map(|said| format!(": {}", said.trim()))
-			.unwrap_or_default()
-	))
 }
 
 #[cfg(test)]
