@@ -126,6 +126,8 @@ While the device is `finished`, the provisioning client MUST show the board's re
 
 The provisioning client MUST show the recovery passphrase, where the record carries one, and MUST offer to copy it.
 
+While the device is `finished` and the step `label` has passed, the provisioning client MUST say that the board's label was added to its list of labels, as [PSHT](sheet.md) has it, and MUST NOT show the label's payload.
+
 The provisioning client MUST tell the operator to power the device off and remove the provisioning medium.
 
 The provisioning client MUST offer to choose steps to run again, which lists the steps as [Choosing the steps](#choosing-the-steps) has it, and to provision another Iti, which disconnects and returns to finding a device.
@@ -134,7 +136,7 @@ The provisioning client MUST NOT send `acknowledge`.
 
 > [!NOTE]
 > The device holds a finished run until it is powered off, so an operator who closed the page before copying the passphrase gets the record back by pressing the USER button and connecting.
-> Running steps again on a finished board is how a single step, such as printing its label, is repeated.
+> Running steps again on a finished board is how a single step, such as making its label again, is repeated.
 
 ## When the channel closes
 

@@ -1,4 +1,4 @@
-<!-- spec: none yet (working doc: .workhorse/working-docs/f4/working-doc.md, The QR label) -->
+<!-- spec: provisioning/sheet.md -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +10,7 @@
   .sheet { width: 210mm; height: 297mm; margin: 24px auto; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12);
     padding: 13.5mm 30mm; box-sizing: border-box; display: grid; grid-template-columns: repeat(3, 50mm); grid-auto-rows: 30mm; }
   .label { box-sizing: border-box; outline: 0.2mm dashed #d6d3d1; display: flex; align-items: center; }
+  .label.empty { outline: none; }
   .qr { width: 30mm; height: 30mm; flex: none; }
   .text { display: flex; flex-direction: column; justify-content: center; gap: 1.5mm; padding-right: 2mm; }
   .suffix { font-family: ui-monospace, monospace; font-size: 15pt; font-weight: 600; letter-spacing: 0.05em; }

@@ -5,7 +5,7 @@ id: PBL
 # Configuring the bootloader
 
 The step `bootloader` of a [run](../overview.md#run) writes to a Tamanu Iti the bootloader configuration the Iti runs with, and brings the board's bootloader up to the one the [provisioning medium](../overview.md#provisioning-medium) carries.
-It is the last step of a run, so that a run that fails before it can be run again from the medium.
+It is the last step of a run that changes the board, so that a run that fails before it can be run again from the medium.
 [PRV](overview.md#the-boot-order) specifies the boot order a device sets when provisioning mode starts.
 
 ## Borrowed terms
