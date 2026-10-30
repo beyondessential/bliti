@@ -166,6 +166,9 @@ self.addEventListener('fetch', (event) => {
 	const url = new URL(request.url)
 	if (request.method !== 'GET' || url.origin !== self.location.origin) return
 	if (url.pathname === '/sw.js') return
+	// The provisioning image and what describes it (PMED): gigabytes the cache must not hold, and a
+	// digest and manifest that must never be answered stale.
+	if (url.pathname.startsWith('/downloads/')) return
 	// A path that is no page goes to the network, which says what it is.
 	if (request.mode === 'navigate' && !precached.has(pageKey(request.url))) return
 	event.respondWith(respond(request))

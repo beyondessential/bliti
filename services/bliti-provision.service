@@ -3,8 +3,11 @@ Description=bliti provisioning mode
 # Installed only on the provisioning image, which is what makes a device booted from it a device in
 # provisioning mode (PRV). The installed system's `bliti daemon` has no path into provisioning mode,
 # and this unit is not part of it.
-After=bluetooth.service
+After=bluetooth.service bliti-provision-medium.service
 Requires=bluetooth.service
+# Mounts the medium's data partition and finds its payload. Provisioning mode does not start on a
+# medium missing either (PMED).
+Requires=bliti-provision-medium.service
 # Provisioning mode is for a board booted from the medium, so a board without it never runs this.
 ConditionPathExists=/etc/bliti/provision.env
 
@@ -12,10 +15,10 @@ ConditionPathExists=/etc/bliti/provision.env
 # The mount point of the medium and the kind of board ID source this board is to name itself by come
 # from the image: BLITI_PROVISION_ARGS is `--medium <mount point> --board-id-source <kind>`.
 EnvironmentFile=/etc/bliti/provision.env
-# The date the image was built, as YYYY-MM-DD, which a client refuses a medium by (PRS). Provisional:
-# the image build settles where the file really lives on the medium, and what writes it.
-EnvironmentFile=/etc/bliti/provision-image.env
-ExecStart=/usr/local/bin/bliti provision-mode $BLITI_PROVISION_ARGS --image-built $BLITI_IMAGE_BUILT
+# The image's manifest (PMED), whose BUILT is when the image was built, which a client refuses a
+# medium by (PRS).
+EnvironmentFile=/usr/share/bliti/provision/manifest
+ExecStart=/usr/local/bin/bliti provision-mode $BLITI_PROVISION_ARGS --image-built $BUILT
 Restart=always
 RestartSec=10s
 

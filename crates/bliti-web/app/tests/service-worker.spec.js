@@ -170,6 +170,22 @@ test('lets a POST through to the network', async ({ page }) => {
 	expect((await posted).fromServiceWorker()).toBe(false)
 })
 
+test('leaves the downloads to the network, and caches none of them', async ({ page }) => {
+	await page.goto('/')
+	await controlled(page)
+	const fetched = page.waitForResponse((res) => res.url().includes('/downloads/'))
+	await page.evaluate(() => fetch('/downloads/tamanu-iti-provision.txt').catch(() => {}))
+	expect((await fetched).fromServiceWorker()).toBe(false)
+	const cached = await page.evaluate(async () => {
+		for (const name of await caches.keys()) {
+			const keys = await (await caches.open(name)).keys()
+			if (keys.some((request) => new URL(request.url).pathname.startsWith('/downloads/'))) return true
+		}
+		return false
+	})
+	expect(cached).toBe(false)
+})
+
 test('an update fetches only what changed, and copies the rest from the precache it replaces', async ({
 	page,
 	context,

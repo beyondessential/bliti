@@ -103,6 +103,21 @@ hat-eeprom:
 	mkdir -p {{hat-out}}
 	eepmake hat/tamanu-iti-v4.0.txt {{hat-out}}/tamanu-iti-v4.0.eep
 
+provision-out := justfile_directory() / "target/provision"
+
+# Assembles it from the newest `pi` image, with loop devices, dm-crypt and mounts under sudo; see
+# provision/README.md for what the host needs. Writes tamanu-iti-provision.img.zst, its .sha256 and
+# its manifest into target/provision/.
+#
+# Build the provisioning image.
+provision-image: build-device hat-overlay hat-eeprom
+	provision/fetch.sh {{provision-out}}
+	sudo env BLITI_COMMIT=$(git rev-parse HEAD) provision/build.sh {{provision-out}}
+
+# Check the provisioning image in target/provision/ against its spec, under sudo.
+provision-image-test:
+	sudo provision/test.sh {{provision-out}}
+
 # Rasterise the application's icons from icon.svg, the one master beside them.
 icons:
 	#!/usr/bin/env bash

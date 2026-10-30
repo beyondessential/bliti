@@ -118,6 +118,16 @@ export async function plan(dist) {
 	)
 }
 
+// The provisioning image's own workflow uploads it under downloads/ (PMED), so a deploy of the
+// bundle leaves that alone.
+const KEPT = 'downloads/'
+
+// The keys under a prefix that `--prune` deletes: those the bundle no longer has.
+export function pruned(objects, keys) {
+	const wanted = new Set(objects.map((object) => object.key))
+	return keys.filter((key) => !wanted.has(key) && !key.startsWith(KEPT))
+}
+
 // `s3://bucket/prefix/` as `{ bucket, prefix }`, the prefix ending in a slash. A deploy never
 // writes at the root of a bucket: each role is allowed one prefix, and `--prune` deletes in it.
 export function parseTarget(url) {
@@ -197,8 +207,7 @@ async function main(args) {
 	})
 
 	if (flags.has('--prune')) {
-		const wanted = new Set(objects.map((object) => object.key))
-		for (const key of (await listed(target)).filter((key) => !wanted.has(key))) {
+		for (const key of pruned(objects, await listed(target))) {
 			console.log(`${dry ? 'would delete' : 'delete'}  ${key}`)
 			if (!dry) await aws('s3', 'rm', `s3://${target.bucket}/${target.prefix}${key}`, '--only-show-errors')
 		}

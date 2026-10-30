@@ -1,0 +1,20 @@
+[Unit]
+Description=bliti provisioning medium
+# Mounts the data partition of the disk the medium's system booted from, and finds its payload, for
+# bliti-provision.service, which requires this (PMED, "Layout").
+DefaultDependencies=no
+After=local-fs.target
+Before=bliti-provision.service
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/bliti-provision-medium
+ExecStop=-/usr/bin/umount /mnt/provision
+# A fault is reported on standard error (DEV), and shown on the console too.
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
