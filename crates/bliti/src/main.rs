@@ -97,10 +97,10 @@ enum Command {
 		#[arg(long, default_value = provision::SOCKET)]
 		socket: PathBuf,
 
-		/// The date the image on the provisioning medium was built, as YYYY-MM-DD. A client refuses
-		/// to provision from an image a month old or more.
+		/// When the image on the provisioning medium was built, as its manifest's `BUILT` records it,
+		/// in UTC. A client refuses to provision from an image a month old or more, by its date.
 		#[arg(long)]
-		image_built: jiff::civil::Date,
+		image_built: jiff::Timestamp,
 	},
 
 	/// Drive a provisioning run from this console: choose the steps, answer their prompts, and watch
@@ -290,7 +290,16 @@ async fn run(cli: Cli) -> Result<()> {
 			board_id_source,
 			socket,
 			image_built,
-		} => provision_mode(adapter, medium, board_id_source.into(), socket, image_built).await,
+		} => {
+			provision_mode(
+				adapter,
+				medium,
+				board_id_source.into(),
+				socket,
+				image_date(image_built),
+			)
+			.await
+		}
 		Command::Provision { socket } => provision_console(&socket).await,
 		Command::Daemon {
 			adapter,
@@ -535,6 +544,12 @@ async fn daemon(
 	device::run(cache, network, backend, adapter, tailscale).await
 }
 
+/// The date an image was built on, which a client judges its age by: the UTC date its manifest's
+/// `BUILT` falls on.
+fn image_date(built: jiff::Timestamp) -> jiff::civil::Date {
+	built.to_zoned(jiff::tz::TimeZone::UTC).date()
+}
+
 #[cfg(target_os = "linux")]
 async fn provision_mode(
 	adapter: Option<String>,
@@ -628,4 +643,45 @@ async fn daemon(
 	_tailscale: tailscale::Options,
 ) -> Result<()> {
 	anyhow::bail!("the bliti daemon runs on Linux, against BlueZ")
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn image_built_takes_the_manifest_built_and_its_utc_date() {
+		let cli = Cli::try_parse_from([
+			"bliti",
+			"provision-mode",
+			"--medium",
+			"/mnt/provision",
+			"--board-id-source",
+			"tpm-endorsement-key",
+			"--image-built",
+			"2026-10-30T23:59:59Z",
+		])
+		.unwrap();
+		let Command::ProvisionMode { image_built, .. } = cli.command else {
+			panic!("not provision-mode");
+		};
+		assert_eq!(image_date(image_built), jiff::civil::date(2026, 10, 30));
+	}
+
+	#[test]
+	fn image_built_refuses_a_bare_date() {
+		assert!(
+			Cli::try_parse_from([
+				"bliti",
+				"provision-mode",
+				"--medium",
+				"/mnt/provision",
+				"--board-id-source",
+				"tpm-endorsement-key",
+				"--image-built",
+				"2026-10-30",
+			])
+			.is_err()
+		);
+	}
 }

@@ -120,6 +120,8 @@ check "the medium unit is enabled" \
 	test -L "$root/etc/systemd/system/multi-user.target.wants/bliti-provision-medium.service"
 check "provisioning mode requires the medium unit" \
 	grep -qx 'Requires=bliti-provision-medium.service' "$root/etc/systemd/system/bliti-provision.service"
+check "provisioning mode takes when the image was built from the manifest" \
+	grep -qx 'EnvironmentFile=/usr/share/bliti/provision/manifest' "$root/etc/systemd/system/bliti-provision.service"
 check "provision.env names the data mount and the TPM Endorsement Key" \
 	grep -qx 'BLITI_PROVISION_ARGS=--medium /mnt/provision --board-id-source tpm-endorsement-key' \
 	"$root/etc/bliti/provision.env"
