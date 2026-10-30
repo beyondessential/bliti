@@ -74,7 +74,7 @@ rtnetlink = "0.23.0"
 # The raw sockets the gateway probe sends ARP and ICMPv6 echo on.
 socket2 = { version = "0.6.5", features = ["all"] }
 # nl80211: what each radio can do, and the regulatory domain and hotspot interface the applier sets.
-wl-nl80211 = "0.7.0"
+wl-nl80211 = "0.8.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
