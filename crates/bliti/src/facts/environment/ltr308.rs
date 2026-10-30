@@ -40,6 +40,16 @@ const INTEGRATION_FACTOR: f64 = 1.0;
 const POLLS: u32 = 6;
 const POLL_MS: u32 = 100;
 
+/// Set the sensor up and take one reading, as provisioning's hardware check does.
+// spec: PHW
+pub fn check(bus: &str) -> Result<(), Problem> {
+	let handle = Bus::open(bus).map_err(|err| Problem::bus(CHIP, bus, &err))?;
+	Driver::new(handle, Sleep)
+		.lux()
+		.map(drop)
+		.map_err(|err| err.problem(bus))
+}
+
 pub struct Ltr308 {
 	bus: &'static str,
 	/// Set up on the first tick, and dropped after an error so the next tick starts afresh.

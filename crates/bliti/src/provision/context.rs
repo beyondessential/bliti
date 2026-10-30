@@ -24,6 +24,7 @@ impl Context {
 	}
 
 	/// Report how far through its work the step is, from 0 to 1.
+	#[cfg_attr(not(test), expect(dead_code, reason = "no step reports progress yet"))]
 	pub fn progress(&mut self, fraction: f64) {
 		let fraction = fraction.clamp(0.0, 1.0);
 		self.inner.mutate(self.generation, |model| {
@@ -47,12 +48,14 @@ impl Context {
 	}
 
 	/// Ask an operator for text, and wait for the answer unless one is already held.
+	#[cfg_attr(not(test), expect(dead_code, reason = "no step asks for text yet"))]
 	pub async fn text(&mut self, key: &str, text: &str) -> String {
 		self.text_of(key, PromptKind::Text, text).await
 	}
 
 	/// Ask an operator for text that is not to be shown or kept, and wait for the answer unless one is
 	/// already held.
+	#[cfg_attr(not(test), expect(dead_code, reason = "no step asks for a secret yet"))]
 	pub async fn secret(&mut self, key: &str, text: &str) -> String {
 		self.text_of(key, PromptKind::Secret, text).await
 	}
@@ -60,6 +63,10 @@ impl Context {
 	/// Ask for something the step will need later and does not wait on now: the prompt stays open
 	/// until it is answered or the run ends, and the step that needs the answer then waits only if it
 	/// has not come.
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "no step asks for something later yet")
+	)]
 	pub fn ask_later(&mut self, key: &str, kind: PromptKind, text: &str) {
 		self.inner.mutate(self.generation, |model| {
 			model.ask_later(self.step, key, kind, text);
@@ -68,10 +75,10 @@ impl Context {
 
 	/// Ask an operator to do something, which holds the step until the returned [`Notice`] is closed
 	/// or dropped. The step closes it when it sees the thing done.
-	pub fn notice(&mut self, text: &str) -> Notice {
+	pub fn notice(&mut self, key: &str, text: &str) -> Notice {
 		let id = self
 			.inner
-			.mutate(self.generation, |model| model.notice(self.step, text));
+			.mutate(self.generation, |model| model.notice(self.step, key, text));
 		Notice {
 			inner: self.inner.clone(),
 			generation: self.generation,
@@ -79,6 +86,7 @@ impl Context {
 		}
 	}
 
+	#[cfg_attr(not(test), expect(dead_code, reason = "no step asks for text yet"))]
 	async fn text_of(&mut self, key: &str, kind: PromptKind, text: &str) -> String {
 		self.need(key, kind, text)
 			.await

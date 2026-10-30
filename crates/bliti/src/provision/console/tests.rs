@@ -377,18 +377,18 @@ async fn prompts_are_answered_by_typing_and_a_secret_is_not_shown() {
 	let operator = device.operator();
 
 	operator.says("");
-	operator.sees("x asks [x-yes]: Sure?").await;
-	operator.sees("x-yes [y/n]> ").await;
+	operator.sees("x asks [yes]: Sure?").await;
+	operator.sees("yes [y/n]> ").await;
 	operator.says("maybe");
 	operator.sees("answer y or n").await;
 	operator.says("yes");
 	device.logged("x confirmed true").await;
 
-	operator.sees("x-name> ").await;
+	operator.sees("name> ").await;
 	operator.says("Ada");
 	device.logged("x text Ada").await;
 
-	operator.sees("x-pw (not shown as you type)> ").await;
+	operator.sees("pw (not shown as you type)> ").await;
 	operator.says("hunter2");
 	device.logged("x secret hunter2").await;
 
@@ -526,9 +526,9 @@ async fn a_prompt_can_be_skipped_and_an_unknown_kind_is_only_shown() {
 	let operator = device.operator();
 
 	operator.says("");
-	operator.sees("x-later> ").await;
+	operator.sees("later> ").await;
 	operator
-		.sees("x shows a dial prompt this console cannot answer [x-odd]: Later?")
+		.sees("x shows a dial prompt this console cannot answer [odd]: Later?")
 		.await;
 	operator.says(":skip");
 	gate.open();
@@ -643,13 +643,13 @@ async fn the_console_and_a_client_share_one_run_and_the_first_answer_wins() {
 	let prompts = client
 		.state(|run, prompts| run == RunState::Waiting && !prompts.is_empty())
 		.await;
-	assert_eq!(prompts[0].id, "x-go");
-	operator.sees("x-go [y/n]> ").await;
+	assert_eq!(prompts[0].id, "go");
+	operator.sees("go [y/n]> ").await;
 
 	// The console answers first.
 	operator.says("y");
 	device.logged("x confirmed true").await;
-	let refused = client.act(&answer_to("x-go", Answer::boolean(false))).await;
+	let refused = client.act(&answer_to("go", Answer::boolean(false))).await;
 	let Message::CannotAct { act, at, .. } = refused else {
 		panic!("the second answer was not refused: {refused:?}");
 	};
@@ -678,9 +678,9 @@ async fn an_answer_from_a_client_closes_the_consoles_question() {
 	let mut client = Client::connect(&device.socket()).await;
 
 	operator.says("");
-	operator.sees("x-go [y/n]> ").await;
+	operator.sees("go [y/n]> ").await;
 	assert_eq!(
-		client.act(&answer_to("x-go", Answer::boolean(true))).await,
+		client.act(&answer_to("go", Answer::boolean(true))).await,
 		Message::ProvisionAccepted
 	);
 	device.logged("x confirmed true").await;
@@ -693,7 +693,7 @@ async fn an_answer_from_a_client_closes_the_consoles_question() {
 	operator
 		.sees("That question was settled before you answered")
 		.await;
-	operator.sees("x-again [y/n]> ").await;
+	operator.sees("again [y/n]> ").await;
 	operator.says("n");
 	device.logged("x confirmed false").await;
 	device.is(RunState::Finished).await;
