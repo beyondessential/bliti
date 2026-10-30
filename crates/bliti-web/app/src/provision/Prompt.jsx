@@ -51,7 +51,7 @@ function Answer({ prompt, busy, onAnswer }) {
 /// A field and saving it. A secret is hidden until revealed, and is cleared from the page as it is
 /// sent (PWEB).
 function Field({ prompt, busy, onAnswer, secret = false }) {
-	const [value, setValue] = useState('')
+	const [value, setValue] = useState(prompt.default ?? '')
 	const [shown, setShown] = useState(false)
 
 	function save() {

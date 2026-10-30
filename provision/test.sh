@@ -137,11 +137,21 @@ for tty in getty@tty1 serial-getty@ttyAMA10; do
 		"$root/etc/systemd/system/$tty.service.d/10-bliti-provision.conf"
 done
 check "the root carries fsck.vfat" test -x "$root/usr/sbin/fsck.vfat"
+check "the root carries flashrom and rpi-eeprom-config" test -x "$root/usr/sbin/flashrom" -a \
+	-x "$root/usr/bin/rpi-eeprom-config"
+check "the root carries what the disk and encryption steps run" test \
+	-x "$root/usr/bin/systemd-cryptenroll" -a -x "$root/usr/bin/dracut" -a \
+	-x "$root/usr/sbin/cryptsetup" -a -x "$root/usr/sbin/veritysetup" -a \
+	-x "$root/usr/sbin/blkid" -a -x "$root/usr/sbin/losetup" -a -x "$root/usr/sbin/blockdev"
+check "the root can make an initramfs that unlocks from the TPM" \
+	compgen -G "$root/usr/lib/dracut/modules.d/*tpm2-tss" >/dev/null
+check "the root carries tailscaled, which the Tailscale step runs" test -x "$root/usr/sbin/tailscaled"
 check "the root holds no package lists" test -z "$(find "$root/var/lib/apt/lists" -maxdepth 1 -type f)"
 masked() {
 	local unit
 	for unit in unattended-upgrades.service apt-daily.timer apt-daily.service \
-		apt-daily-upgrade.timer apt-daily-upgrade.service; do
+		apt-daily-upgrade.timer apt-daily-upgrade.service \
+		rpi-eeprom-update.service; do
 		[[ $(readlink "$root/etc/systemd/system/$unit") == /dev/null ]] || return 1
 	done
 }

@@ -7,13 +7,14 @@ id: PRV
 A device booted from a [provisioning medium](../overview.md#provisioning-medium) runs in [provisioning mode](../overview.md#provisioning-mode), in which an operator at the device sets it up through a client or through the device's console.
 
 [PMED](medium.md) specifies the medium, [RUN](run.md) runs, [PRS](stream.md) the stream a client drives them over, [PWEB](client.md) the page of the web application that does, [PCON](console.md) the console command, and [PLED](led.md) the status LED.
-[PHW](hardware.md) and [PEEP](eeprom.md) specify the steps of a run.
+[PHW](hardware.md), [PEEP](eeprom.md), [PDSK](disk.md), [PENC](encryption.md), [PTS](tailscale.md) and [PBL](bootloader.md) specify the steps of a run.
 
 ## Borrowed terms
 
 | term | meaning |
 | --- | --- |
 | GPIO | A general-purpose input or output line of the board's processor, numbered by the processor's own scheme. |
+| bootloader, boot order | As [PBL](bootloader.md) has them. |
 
 ## The mode
 
@@ -22,6 +23,24 @@ A device MUST run in provisioning mode when it has booted from a provisioning me
 A device MUST NOT run in provisioning mode when it has not booted from a provisioning medium.
 
 A device in provisioning mode MUST NOT serve any stream role or topic other than the hello stream of [MSG](../messages.md) and the provisioning stream of [PRS](stream.md).
+
+## The boot order
+
+A device has booted from a USB stick where the disk it booted from, as [PMED](medium.md#layout) has it, is attached by USB.
+
+A device that has booted from a USB stick MUST, when it starts in provisioning mode, put USB first in the boot order, ahead of every other medium, and MUST leave the order of the other media as it was.
+
+A device MUST NOT carry out a step of a run until the board holds that boot order in its bootloader's flash, whether the run is new or resumed, unless it cannot put USB first.
+
+A device MUST NOT write the bootloader where USB is already first.
+
+A device MUST NOT change the boot order when it has not booted from a USB stick.
+
+A device that cannot put USB first MUST report the cause as [DEV](../device.md) requires, and MUST go on running in provisioning mode.
+
+> [!NOTE]
+> A reboot partway through a run, from a step that needs one or from a power cut, comes back to the medium rather than to the system the run has written to the NVMe, so the run resumes.
+> The boot order of the Pi as shipped and the one [PBL](bootloader.md#the-configuration) writes both try the SD card first, so a board booted from an SD card needs no change.
 
 ## Going on the air
 

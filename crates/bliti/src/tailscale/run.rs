@@ -94,6 +94,38 @@ impl Inner {
 		outcome
 	}
 
+	/// A sign-in by auth key for a caller that is not a client: a machine that holds a sign-in is
+	/// signed out first, so the key's replaces it. Whether the machine then waits on approval.
+	pub(super) async fn sign_in_by_key(&self, key: Secret, name: &str) -> Result<bool, String> {
+		let Some(daemon) = &self.daemon else {
+			return Err("this device runs no Tailscale".to_owned());
+		};
+		let mut observed = daemon.observed.clone();
+		let settled = |state: State| state != State::Starting;
+		if !reach(&mut observed, TRANSITION, &settled).await {
+			return Err("Tailscale did not answer in time".to_owned());
+		}
+		let state = observed.borrow().state();
+		if !matches!(state, Some(State::NeedsLogin | State::Expired)) {
+			let signed_out = self
+				.transition(daemon, Change::LogOut, |state| state == State::NeedsLogin)
+				.await;
+			if let Outcome::Failed(reason) = signed_out {
+				return Err(reason);
+			}
+		}
+		let (links, _unheard) = mpsc::unbounded_channel();
+		let outcome = self
+			.sign_in(daemon, &Method::AuthKey(key), Some(name), &links)
+			.await;
+		match outcome {
+			Outcome::Failed(reason) => Err(reason),
+			Outcome::Done | Outcome::Result(_) => {
+				Ok(observed.borrow().state() == Some(State::NeedsApproval))
+			}
+		}
+	}
+
 	/// An act carried out by one call, and done when Tailscale reaches a state `target` accepts.
 	async fn transition(
 		&self,

@@ -32,7 +32,7 @@ fn a_run_is_waiting_only_while_a_blocking_prompt_is_open() {
 	let step = model.begin_next().unwrap();
 	assert_eq!(model.run(), RunState::Running);
 
-	model.ask_later(step, "name", PromptKind::Text, "Name?");
+	model.ask_later(step, Question::new("name", PromptKind::Text, "Name?"));
 	assert_eq!(
 		model.run(),
 		RunState::Running,
@@ -53,7 +53,7 @@ fn a_prompt_opened_earlier_is_the_one_a_step_then_waits_on() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	model.ask_later(step, "name", PromptKind::Text, "Name?");
+	model.ask_later(step, Question::new("name", PromptKind::Text, "Name?"));
 	let Need::Wait(_) = model.need(step, "name", PromptKind::Text, "Name?") else {
 		panic!()
 	};
@@ -66,7 +66,7 @@ fn an_answer_is_held_and_given_to_the_step_that_needs_it() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	model.ask_later(step, "name", PromptKind::Text, "Name?");
+	model.ask_later(step, Question::new("name", PromptKind::Text, "Name?"));
 	model
 		.answer(Some("name"), Some(&Answer::text("Ada")))
 		.unwrap();
@@ -97,7 +97,7 @@ fn a_second_answer_is_refused_at_the_prompt() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	model.ask_later(step, "name", PromptKind::Text, "Name?");
+	model.ask_later(step, Question::new("name", PromptKind::Text, "Name?"));
 	model
 		.answer(Some("name"), Some(&Answer::text("Ada")))
 		.unwrap();
@@ -127,8 +127,8 @@ fn an_answer_of_the_wrong_type_is_refused_at_the_value() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	model.ask_later(step, "ok", PromptKind::Confirm, "Sure?");
-	model.ask_later(step, "name", PromptKind::Secret, "Password?");
+	model.ask_later(step, Question::new("ok", PromptKind::Confirm, "Sure?"));
+	model.ask_later(step, Question::new("name", PromptKind::Secret, "Password?"));
 	for (id, value) in [
 		("ok", Some(Answer::text("yes"))),
 		("ok", None),
@@ -170,7 +170,7 @@ fn finishing_closes_every_prompt_and_forgets_every_answer() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	model.ask_later(step, "late", PromptKind::Text, "Later?");
+	model.ask_later(step, Question::new("late", PromptKind::Text, "Later?"));
 	model.pass(step);
 	model.finish();
 	assert_eq!(model.run(), RunState::Finished);
@@ -202,7 +202,7 @@ fn a_prompt_one_step_asked_is_waited_on_by_the_step_that_needs_it() {
 	let mut model = model();
 	model.begin_run(&[0, 1]);
 	let first = model.begin_next().unwrap();
-	model.ask_later(first, "name", PromptKind::Text, "Name?");
+	model.ask_later(first, Question::new("name", PromptKind::Text, "Name?"));
 	model.pass(first);
 	model.release(first);
 	assert_eq!(

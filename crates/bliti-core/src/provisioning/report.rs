@@ -191,6 +191,9 @@ pub struct PromptReport {
 	pub text: String,
 	/// Whether the step waits for the prompt.
 	pub blocking: bool,
+	/// The answer offered, where the prompt is of kind `text` and has one.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub default: Option<String>,
 }
 
 /// The answer a client gives to a prompt: a boolean for `confirm`, a string for `text` and `secret`.

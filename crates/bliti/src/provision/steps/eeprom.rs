@@ -13,7 +13,7 @@ use tokio::time::{sleep, timeout};
 
 use self::hat::{Held, describe};
 use super::{
-	blocking,
+	IMAGES, blocking,
 	hardware::place::{Air, place},
 };
 use crate::{
@@ -29,9 +29,6 @@ mod hat;
 
 /// The ID bus, which the provisioning medium's firmware configuration brings up as this node.
 const BUS: &str = "/dev/i2c-9";
-
-/// Where the provisioning medium carries the images, as the build installs them.
-const IMAGES: &str = "/usr/share/bliti/provision";
 
 /// How long the operator has to bridge the pads (PEEP, "Writing").
 const WAIT: Duration = Duration::from_secs(5 * 60);

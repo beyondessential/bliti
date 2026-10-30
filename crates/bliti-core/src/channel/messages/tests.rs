@@ -728,6 +728,7 @@ fn the_provision_messages_round_trip() {
 					kind: PromptKind::Secret,
 					text: "Type the password".to_owned(),
 					blocking: true,
+					default: None,
 				},
 				PromptReport {
 					id: "p2".to_owned(),
@@ -735,6 +736,7 @@ fn the_provision_messages_round_trip() {
 					kind: PromptKind::Other("photo".to_owned()),
 					text: "Take a picture".to_owned(),
 					blocking: false,
+					default: Some("a default".to_owned()),
 				},
 			],
 		},

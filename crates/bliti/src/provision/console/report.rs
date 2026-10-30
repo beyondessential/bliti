@@ -153,10 +153,18 @@ fn prompt_lines(prompt: &PromptReport, steps: &[StepReport]) -> Vec<String> {
 			} else {
 				" (the run goes on meanwhile)"
 			};
-			vec![format!(
+			let mut lines = vec![format!(
 				"{asker} asks{later} [{}]: {}",
 				prompt.id, prompt.text
-			)]
+			)];
+			if let Some(default) = prompt
+				.default
+				.as_ref()
+				.filter(|_| *kind == PromptKind::Text)
+			{
+				lines.push(format!("  Press Enter to answer {default}."));
+			}
+			lines
 		}
 		// spec: PRS
 		kind => vec![format!(
@@ -221,6 +229,7 @@ mod tests {
 			kind,
 			text: format!("text of {id}"),
 			blocking,
+			default: None,
 		}
 	}
 
@@ -347,6 +356,23 @@ mod tests {
 		);
 		assert!(reporter.all_shown(&state));
 		assert!(reporter.update(&state).is_empty());
+	}
+
+	#[test]
+	fn the_default_of_a_text_prompt_is_offered() {
+		let mut reporter = Reporter::default();
+		let steps = vec![step("a", StepState::Pending)];
+		reporter.update(&snapshot(RunState::Running, steps.clone(), vec![]));
+		let mut name = prompt("name", PromptKind::Text, false);
+		name.default = Some("tamanu-iti-k7qa".to_owned());
+		let lines = reporter.update(&snapshot(RunState::Running, steps, vec![name]));
+		assert_eq!(
+			lines,
+			[
+				"A asks (the run goes on meanwhile) [name]: text of name",
+				"  Press Enter to answer tamanu-iti-k7qa.",
+			]
+		);
 	}
 
 	#[test]
