@@ -8,9 +8,8 @@ supply, the journald drop-in that keeps the log's last minutes before a power
 cut. Each file in this directory says where it installs and why it exists.
 
 `bliti-provision.service` is the odd one out: only the provisioning image installs it, and it runs in
-place of `bliti.service`, never beside it. It reads the date the image was built from
-`/etc/bliti/provision-image.env` (`BLITI_IMAGE_BUILT=YYYY-MM-DD`) and passes it as `--image-built`;
-that path is provisional until the image build settles where the date lives on the medium.
+place of `bliti.service`, never beside it. `provision/` builds that image, and holds the rest of what
+it installs.
 
 This file records the packages a device needs at runtime. Nothing installs them
 yet, and deployment is by hand. It is written down so that a Debian package,

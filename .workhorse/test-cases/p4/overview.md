@@ -1,18 +1,20 @@
 # Build the provisioning image: test cases
 
-## Image structure (automated, after the build)
+## Image structure (automated: `just provision-image-test`)
 
-- [ ] Partitions are the `pi` image's, then the payload, then a FAT32 data partition labelled `ITIPROV` (verifies spec: PMED)
-- [ ] The payload's first `PI_IMAGE_SIZE` bytes are the decompressed `pi` image and hash to `PI_IMAGE_SHA256`, and the downloaded `.img.zst` matches the release's `SHA256SUMS` (verifies spec: PMED)
-- [ ] `veritysetup verify` passes on the payload with the manifest's root hash and offset (verifies spec: PMED)
-- [ ] Flipping a byte in the payload makes a read through verity fail (verifies spec: PMED)
-- [ ] The root holds `bliti`, the provisioning unit enabled, `/etc/bliti/provision.env` with the data mount and `tpm-endorsement-key`, and no `bliti.service` (verifies spec: PMED)
-- [ ] `/usr/share/bliti/provision/` holds the bootloader, overlay, EEPROM image and manifest; the overlay and EEPROM image match `just hat-overlay` and `just hat-eeprom` from the same commit (verifies spec: PMED)
-- [ ] `config.txt` keeps the firmware from loading the EEPROM's overlay, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` (verifies spec: PMED)
-- [ ] Nothing on the root upgrades packages unattended: `unattended-upgrades` and the `apt-daily` timers are masked (verifies spec: PMED)
-- [ ] The manifest has every entry in order, and `manifest.txt` on the data partition matches it (verifies spec: PMED)
-- [ ] A `pi` image whose checksum does not match fails the build (verifies spec: PMED)
-- [ ] The image is no larger than the smallest stick sold as 32 GB (verifies spec: PMED)
+- [x] Partitions are the `pi` image's, then the payload, then a FAT32 data partition labelled `ITIPROV` (verifies spec: PMED)
+- [x] The data partition is clean, as `fsck.vfat` reads it
+- [x] Both consoles open the console command with no login, and the root carries `fsck.vfat` for the medium unit (verifies spec: PMED)
+- [x] The payload's first `PI_IMAGE_SIZE` bytes are the decompressed `pi` image and hash to `PI_IMAGE_SHA256`, and the downloaded `.img.zst` matches the release's `SHA256SUMS` (verifies spec: PMED)
+- [x] `veritysetup verify` passes on the payload with the manifest's root hash and offset (verifies spec: PMED)
+- [x] Flipping a byte in the payload makes a read through verity fail (verifies spec: PMED)
+- [x] The root holds `bliti`, the provisioning unit enabled, `/etc/bliti/provision.env` with the data mount and `tpm-endorsement-key`, and no `bliti.service` (verifies spec: PMED)
+- [x] `/usr/share/bliti/provision/` holds the bootloader, overlay, EEPROM image and manifest; the overlay and EEPROM image match `just hat-overlay` and `just hat-eeprom` from the same commit (verifies spec: PMED)
+- [x] `config.txt` keeps the firmware from loading the EEPROM's overlay, loads `tamanu-iti-v4`, does not load `tpm-slb9670`; the overlay is in `current/overlays/` (verifies spec: PMED)
+- [x] Nothing on the root upgrades packages unattended: `unattended-upgrades` and the `apt-daily` timers are masked (verifies spec: PMED)
+- [x] The manifest has every entry in order, and `manifest.txt` on the data partition matches it (verifies spec: PMED)
+- [x] A `pi` image whose checksum does not match fails the build (verifies spec: PMED)
+- [x] The image is no larger than the smallest stick sold as 32 GB (verifies spec: PMED)
 
 ## On hardware
 
@@ -31,6 +33,6 @@
 
 - [ ] A merge to `main` replaces the three files under `/downloads/` on iti.tamanu.app (verifies spec: PMED)
 - [ ] The weekly run publishes with no bliti change (verifies spec: PMED)
-- [ ] A PR with the box ticked gets the files on its preview origin; unticking removes them; a later preview deploy keeps them while ticked
-- [ ] The web app's service worker leaves `/downloads/` to the network and caches none of it
+- [ ] A PR with the box ticked gets the files on its preview origin; unticking removes them; a later preview deploy keeps them while ticked (the prune half is automated in `tests/deploy.spec.js`)
+- [x] The web app's service worker leaves `/downloads/` to the network and caches none of it
 - [ ] The downloaded image matches its `.sha256`

@@ -1,0 +1,196 @@
+name: Provisioning image
+
+# Builds the provisioning image and publishes it under /downloads/ on iti.tamanu.app (PMED): on each
+# merge to main, and weekly, which picks up a new `pi` image or bootloader with no bliti change. A
+# pull request from this repository gets one on its preview origin while its "Build the provisioning
+# image" box is ticked, since an image is several gigabytes and most changes do not touch it.
+#
+# A workflow of its own, so ticking the box (an edit of the pull request) builds an image without
+# deploying the web app again. cd.yml's preview deploys leave /downloads/ alone.
+#
+# As in cd.yml, the image is built by a job with no credentials, because what it runs is the pull
+# request's; the jobs that hold a role only download what it made and upload it.
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '23 14 * * 0'
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+env:
+  AWS_REGION: ap-southeast-2
+  BUCKET: bes-bliti-web
+  PRODUCTION_ROLE: arn:aws:iam::143295493206:role/gha-bliti-web-prod
+  PREVIEW_ROLE: arn:aws:iam::143295493206:role/gha-bliti-web-preview
+
+# Per ref and never cancelled, so two uploads to one prefix do not interleave and a removal does not
+# race a build. A run still waiting is replaced by a newer one, which is the one wanted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  decide:
+    name: Decide
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+      remove: ${{ steps.decide.outputs.remove }}
+    steps:
+      # A pull request builds while its box is ticked, and an edit only acts on a change to the box:
+      # ticking it builds, unticking it removes the preview's image, and any other edit does
+      # nothing. A pull request from a fork gets no role to upload with, and builds nothing.
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          BODY: ${{ github.event.pull_request.body }}
+          BODY_BEFORE: ${{ github.event.changes.body.from }}
+          BODY_CHANGED: ${{ github.event.changes.body != null }}
+        run: |
+          ticked() { grep -qiE '^\s*[-*] \[x\].*<!-- #provision-image -->' <<<"$1"; }
+          build=false remove=false
+          if [[ $EVENT != pull_request ]]; then
+            build=true
+          elif [[ $FORK == true ]]; then
+            :
+          elif [[ $ACTION != edited ]]; then
+            ticked "$BODY" && build=true
+          elif [[ $BODY_CHANGED == true ]]; then
+            if ticked "$BODY"; then
+              ticked "$BODY_BEFORE" || build=true
+            else
+              ticked "$BODY_BEFORE" && remove=true
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "remove=$remove" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: ubuntu-26.04-arm
+    steps:
+      # The commit the pull request holds, not the merge commit the run checks out, so the manifest
+      # names one someone can find.
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # The `pi` image, the image being built and its compressed form are several gigabytes each.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h .
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            just jq zstd gdisk cryptsetup-bin dosfstools device-tree-compiler raspi-utils-eeprom
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: just provision-image
+      - name: Test
+        run: just provision-image-test
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: provision-image
+          path: |
+            target/provision/tamanu-iti-provision.img.zst
+            target/provision/tamanu-iti-provision.img.zst.sha256
+            target/provision/tamanu-iti-provision.txt
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  production:
+    name: Publish
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    # The role trusts this environment's subject, and the environment allows deployments from main
+    # only. A scheduled run runs on main.
+    environment:
+      name: production
+      url: https://iti.tamanu.app/downloads/tamanu-iti-provision.img.zst
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image
+          path: target/provision
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PRODUCTION_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      # The image first, and what describes it after, so the digest and manifest describe an image
+      # not yet served only for as long as the two small uploads take. The names are stable, so
+      # each is revalidated rather than cached for good.
+      - working-directory: target/provision
+        run: |
+          put() {
+            aws s3 cp "$1" "s3://$BUCKET/prod/downloads/$1" --no-progress --only-show-errors \
+              --content-type "$2" --cache-control no-cache
+          }
+          put tamanu-iti-provision.img.zst application/zstd
+          put tamanu-iti-provision.img.zst.sha256 'text/plain; charset=utf-8'
+          put tamanu-iti-provision.txt 'text/plain; charset=utf-8'
+
+  preview:
+    name: Publish to preview
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    # No environment: the preview role trusts the pull request subject.
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image
+          path: target/provision
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PREVIEW_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      # The image first, and what describes it after, so the digest and manifest describe an image
+      # not yet served only for as long as the two small uploads take. The names are stable, so
+      # each is revalidated rather than cached for good.
+      - working-directory: target/provision
+        run: |
+          put() {
+            aws s3 cp "$1" "s3://$BUCKET/previews/pr-$PR/downloads/$1" --no-progress --only-show-errors \
+              --content-type "$2" --cache-control no-cache
+          }
+          put tamanu-iti-provision.img.zst application/zstd
+          put tamanu-iti-provision.img.zst.sha256 'text/plain; charset=utf-8'
+          put tamanu-iti-provision.txt 'text/plain; charset=utf-8'
+
+  remove:
+    name: Remove from preview
+    needs: decide
+    if: needs.decide.outputs.remove == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.PREVIEW_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: aws s3 rm "s3://$BUCKET/previews/pr-$PR/downloads/" --recursive --only-show-errors

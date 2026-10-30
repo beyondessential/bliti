@@ -89,14 +89,14 @@ data_end=$((data_start + data_size / 512 - 1))
 
 echo "laying out $work"
 cp --sparse=always "$pristine" "$work"
-# The pi image's backup partition table, which is left in the gap before the payload once the table
-# has a new one at the end.
-dd if=/dev/zero of="$work" bs=512 seek=$((pi_size / 512 - 33)) count=33 conv=notrunc status=none
 truncate -s $(((data_end + 1) * 512 + mib)) "$work"
 sgdisk --move-second-header \
 	--new="4:$payload_start:$payload_end" --typecode=4:8300 --change-name=4:provision-payload \
 	--new="5:$data_start:$data_end" --typecode=5:0700 --change-name=5:provision-data \
 	"$work" >/dev/null
+# The pi image's backup partition table, left behind in the gap before the payload once the table has
+# a new one at the end.
+dd if=/dev/zero of="$work" bs=512 seek=$((pi_size / 512 - 33)) count=33 conv=notrunc status=none
 
 loop=$(losetup --partscan --show --find "$work")
 teardown+=("losetup -d '$loop'")

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
-import { parseTarget, plan } from '../deploy.js'
+import { parseTarget, plan, pruned } from '../deploy.js'
 
 // What a deploy writes and how each object is labelled (WEB), as the plan for a fixture bundle. The
 // plan is a pure function of the directory, so nothing here reaches AWS.
@@ -169,6 +169,17 @@ test('writes the hashed files, then the rest, then the worker, then the pages', 
 
 test('refuses a file whose type it does not know', async () => {
 	await expect(planned([...FILES, 'assets/mystery.xyz'])).rejects.toThrow(/mystery\.xyz/)
+})
+
+test('prunes what the bundle no longer has, and never the downloads', async () => {
+	const { objects } = await planned()
+	const keys = [
+		...objects.map((object) => object.key),
+		'assets/app-OLD.js',
+		'downloads/tamanu-iti-provision.img.zst',
+		'downloads/tamanu-iti-provision.txt',
+	]
+	expect(pruned(objects, keys)).toEqual(['assets/app-OLD.js'])
 })
 
 test.describe('the target', () => {
