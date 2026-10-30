@@ -51,7 +51,7 @@ refer to #F4's working doc for any missing details. device tests will be done ag
 
 A run started from a USB stick puts USB first in the boot order before any step, so a reboot mid-run comes back to the stick. As the run's last step, write the Iti's whole bootloader configuration (`BOOT_ORDER=0xf61`, `POWER_OFF_ON_HALT=1`, `PSU_MAX_CURRENT=5000`, `PCIE_PROBE=1`, `BOOT_UART=1`, `HDMI_DELAY=0`) and update the bootloader to the one the image carries wherever the board's is older, never downgrading. Provisioning becomes the one place the Iti's bootloader is configured. The card confirms when a configuration written from Linux takes effect. K4's engine runs only steps, so putting USB first is not a step: provisioning mode does it when it starts, whenever it was booted from a USB stick, and the final configuration is the last step in the registry.
 
-refer to #F4's working doc for any missing details
+refer to #F4's working doc for any missing details. device tests will be done against epic, not this card
 
 ## Sign the Iti in to Tailscale during provisioning
 
