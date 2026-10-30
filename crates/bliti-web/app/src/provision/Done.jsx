@@ -5,7 +5,7 @@ import { useState } from 'react'
 
 import { Steps } from '../Reaching.jsx'
 import { REACHING } from './Finding.jsx'
-import { recordOf, showSaved } from './state.js'
+import { APPROVAL, awaitsApproval, recordOf, showSaved } from './state.js'
 
 /// Copying the passphrase, and saying whether it worked.
 function Copy({ text }) {
@@ -45,6 +45,8 @@ export default function Done({ state, suffix, live, onAnother, onAgain }) {
 				<p className="lead">{record?.suffix ?? suffix} is ready</p>
 				{/* spec: PWEB */}
 				<p className="muted">Power it off and remove the USB stick.</p>
+				{/* spec: PWEB */}
+				{awaitsApproval(state.steps) && <p className="muted">{APPROVAL}</p>}
 				{record && (
 					<div className="setup">
 						<div className="details first">

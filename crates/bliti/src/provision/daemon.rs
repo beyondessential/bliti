@@ -99,7 +99,7 @@ pub async fn run(options: Options) -> Result<()> {
 	// name is the same for as long as the process lives (PRV).
 	let established = name::establish(options.board_id_source).await;
 	let name = established.render();
-	// The step that records the board's suffix waits for this.
+	// The steps that use the board's suffix wait for this.
 	let _ = name_tx.send(Some(established));
 	tracing::info!(local_name = %name, "provisioning mode");
 

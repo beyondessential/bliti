@@ -30,7 +30,7 @@ export default function Provision() {
 		(direction, text) => setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
 		[],
 	)
-	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, find, cancel, disconnect, act } =
+	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, cancel, disconnect, act } =
 		useProvision(client, note)
 
 	// Whether the operator chose to run the steps of a finished run again. The device holds the
@@ -78,7 +78,7 @@ export default function Provision() {
 	else if (screen === 'choosing') {
 		body = <Choosing state={state} suffix={suffix} live={live} busy={awaiting.length > 0} onStart={start} />
 	} else if (screen === 'run') {
-		body = <Run state={state} live={live} awaiting={awaiting} refusals={refusals} onAct={act} />
+		body = <Run state={state} live={live} awaiting={awaiting} refusals={refusals} usedKey={usedKey} onForget={forget} onAct={act} />
 	} else if (screen === 'done') {
 		body = <Done state={state} suffix={suffix} live={live} onAnother={disconnect} onAgain={() => setAgain(true)} />
 	} else if (connected) {

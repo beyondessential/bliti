@@ -34,14 +34,19 @@ The step takes it as a trait, `Root`, whose `open(read_only)` returns a mount th
 Before writing the real implementation, check whether S4's code has landed and use its helper; if not, write one with `cryptsetup open --token-only` and settle it with S4 so the two do not diverge.
 
 **The done-state reads the state file.**
-`tailscaled.state` is JSON.
-The parser must be written against a real file, not a guessed schema: copy the prototype's `/var/lib/tailscale/tailscaled.state` (ask the user first, since it is the prototype's identity), strip every key and identifier from it, and keep it as a fixture.
-The step reports `done` where the current profile records a sign-in that has not been logged out.
+`tailscaled.state` is a JSON object of base64 values: the current profile's key under `_current-profile`, and under that key the profile's preferences, whose `LoggedOut` and `Config.NodeID` say whether it holds a sign-in.
+The schema was read from Tailscale's source (`ipn/store`, `ipn/ipnlocal/profiles.go`, `ipn/prefs.go`) rather than from a copy of the prototype's file, and the tests build state files in that shape.
+The step reports `done` where the current profile has a node and has not been logged out.
 
 **The browser holds the key in local storage.**
 A small module, `tailscale.js` in `app/src/provision`, owns the stored key: `{ key, saved }` under one storage name, read as nothing where unreadable or a week old (and removed), written when an `auth-key` answer is sent, removed on forget.
 The hook auto-answers an open `auth-key` prompt from it once per prompt, marked `secret` so Activity records no value (`actSaid` already does that), and remembers that it did so to show "Using the key saved <date>" with a Forget button beneath the Tailscale row.
 It discards the key where the device refuses the answer or the `tailscale` step fails.
+
+**Deviations from the design as first written.**
+`Step::ask_ahead` is async, because the name's default waits on the board's suffix, which the daemon derives after the run starts (a watch channel from the daemon to the step).
+`Tailscale::sign_in_by_key` is the shared entry point (with `Tailscale::on_socket`) rather than lifting code out of `tailscale/run.rs`: the act and the step call the same `sign_in`, and a watcher that stops with the last handle keeps a short-lived `Tailscale` from leaking its task.
+`Luks` opens the root volume with `cryptsetup open --token-only`, which needs whichever LUKS token plugin S4's enrolment uses; settle it with S4 when its code lands.
 
 ## Specs
 
@@ -49,41 +54,41 @@ It discards the key where the device refuses the answer or the `tailscale` step 
 
 ## Engine and wire (`bliti-core`, `bliti`)
 
-- [ ] `bliti-core/src/provisioning/report.rs`: `PromptReport.default`, skipped when absent; update the proptest strategy in `channel/generate.rs`, the message round-trip tests, and any place that builds a `PromptReport`
-- [ ] `provision/model.rs`: `Question` struct; `Open` carries `default` and `check`; `ask_later` takes a `Question`; `snapshot` reports the default; `answer` runs the check; add `forget(key)` and `take(key)` (closes the prompt, returns the held answer)
-- [ ] `provision/context.rs`: `ask_later(Question)`, `forget(key)`, `take_text(key, default)`; remove the `expect(dead_code)` markers the new callers make unnecessary
-- [ ] `provision/step.rs` and `run.rs`: `Step::asks_after` and `Step::ask_ahead` with no-op defaults; `Inner::drive` runs the hook at the top of each iteration, for steps still `Pending` whose gate has passed; gate = every chosen step up to and including the named one is `Passed`, or none is chosen
-- [ ] Tests in `model/tests.rs` and `run/tests.rs`: default reported; check refuses at `$['value']`; prompts open after the gating step passes and not before; open at the start where the gating step is unchosen; reopen after `adopt` on resume; an unanswered secret becomes blocking at the step's turn and the run is `waiting`; `forget` drops the held answer; a retry asks again
+- [x] `bliti-core/src/provisioning/report.rs`: `PromptReport.default`, skipped when absent; update the proptest strategy in `channel/generate.rs`, the message round-trip tests, and any place that builds a `PromptReport`
+- [x] `provision/model.rs`: `Question` struct; `Open` carries `default` and `check`; `ask_later` takes a `Question`; `snapshot` reports the default; `answer` runs the check; add `forget(key)` and `take(key)` (closes the prompt, returns the held answer)
+- [x] `provision/context.rs`: `ask_later(Question)`, `forget(key)`, `take_text(key, default)`; remove the `expect(dead_code)` markers the new callers make unnecessary
+- [x] `provision/step.rs` and `run.rs`: `Step::asks_after` and `Step::ask_ahead` with no-op defaults; `Inner::drive` runs the hook at the top of each iteration, for steps still `Pending` whose gate has passed; gate = every chosen step up to and including the named one is `Passed`, or none is chosen
+- [x] Tests in `model/tests.rs` and `run/tests.rs`: default reported; check refuses at `$['value']`; prompts open after the gating step passes and not before; open at the start where the gating step is unchosen; reopen after `adopt` on resume; an unanswered secret becomes blocking at the step's turn and the run is `waiting`; `forget` drops the held answer; a retry asks again
 
 ## The step (`bliti/src/provision/steps/tailscale.rs`)
 
-- [ ] Extract the auth-key sign-in and the accepted-tailnet hold from `tailscale/run.rs` into functions both callers use; the TSC tests keep passing unchanged
-- [ ] `Root` trait and its real implementation (see the design note); `Tailscaled` trait for starting and stopping the private daemon and reaching its `LocalApi`, with fakes in `tailscale/fake.rs`
-- [ ] Parse `tailscaled.state` into "records a sign-in", with the scrubbed fixture and tests for signed in, logged out, empty and missing state
-- [ ] Read the accepted tailnet from `daemon.env` on the mounted root filesystem; none where the file or option is absent
-- [ ] `Tailscale` step: `id` `tailscale`, title "Sign in to Tailscale"; `asks_after` is `eeprom`; `ask_ahead` opens `auth-key` (secret, text saying the key is to be reusable) and `name` (text, default `tamanu-iti-<suffix lower case>`, check for 1 to 63 lower case letters, digits and hyphens that begin and end with a letter or digit)
-- [ ] `done()`: open the root volume, mount read-only, read the state, close; `done`, `not-done` or `unknown` with a reason, writing nothing
-- [ ] `run()`: take the name (default if unanswered), take the key (waits if unanswered), open and mount read-write, start the private tailscaled, sign in, report `needs-approval` as the result, stop tailscaled, unmount, close, and `forget("auth-key")` on every path out, including failure and panic (a drop guard, since the engine catches panics)
-- [ ] Failure reasons for each case PTS lists (root volume, cannot reach Tailscale, key rejected or neither state reached, tailnet not accepted); none contains the key
-- [ ] Register it in `steps::all` between `eeprom` and `bootloader` with the suffix, which `daemon.rs` passes through `registry` from the name it already derives (none where it is `FAULT`); S4's `disk`, `overlay` and `encryption` slot in ahead of it when they land
-- [ ] Step tests with fakes: prompts and their texts; the name default and its check; a full sign-in passes and leaves no state on the medium; each failure; the key is gone after pass and after failure; `needs-approval` result; the done-states
+- [x] Extract the auth-key sign-in and the accepted-tailnet hold from `tailscale/run.rs` into functions both callers use; the TSC tests keep passing unchanged
+- [x] `Root` trait and its real implementation (see the design note); `Tailscaled` trait for starting and stopping the private daemon and reaching its `LocalApi`, with fakes in `tailscale/fake.rs`
+- [x] Parse `tailscaled.state` into "records a sign-in", with tests for signed in, logged out, no node, missing and unreadable state
+- [x] Read the accepted tailnet from `daemon.env` on the mounted root filesystem; none where the file or option is absent
+- [x] `Tailscale` step: `id` `tailscale`, title "Sign in to Tailscale"; `asks_after` is `eeprom`; `ask_ahead` opens `auth-key` (secret, text saying the key is to be reusable) and `name` (text, default `tamanu-iti-<suffix lower case>`, check for 1 to 63 lower case letters, digits and hyphens that begin and end with a letter or digit)
+- [x] `done()`: open the root volume, mount read-only, read the state, close; `done`, `not-done` or `unknown` with a reason, writing nothing
+- [x] `run()`: take the name (default if unanswered), take the key (waits if unanswered), open and mount read-write, start the private tailscaled, sign in, report `needs-approval` as the result, stop tailscaled, unmount, close, and `forget("auth-key")` on every path out, including failure and panic (a drop guard, since the engine catches panics)
+- [x] Failure reasons for each case PTS lists (root volume, cannot reach Tailscale, key rejected or neither state reached, tailnet not accepted); none contains the key
+- [x] Register it in `steps::all` between `eeprom` and `bootloader` with the suffix, which `daemon.rs` passes through `registry` from the name it already derives (none where it is `FAULT`); S4's `disk`, `overlay` and `encryption` slot in ahead of it when they land
+- [x] Step tests with fakes: prompts and their texts; the name default and its check; a full sign-in passes and leaves no state on the medium; each failure; the key is gone after pass and after failure; `needs-approval` result; the done-states
 
 ## Console (`provision/console`)
 
-- [ ] Show a prompt's default and take an empty answer as it (`question.rs`, `console.rs`); a secret stays unechoed
-- [ ] Console tests: default shown and accepted, a refused name asks again, the key is not echoed
+- [x] Show a prompt's default and take an empty answer as it (`question.rs`, `console.rs`); a secret stays unechoed
+- [x] Console tests: default shown and accepted, a refused name asks again, the key is not echoed
 
 ## Browser client (`bliti-web/app`)
 
-- [ ] `provision/tailscale.js`: save, load (discarding at a week), forget; unit-tested through the Playwright specs with the page clock controlled
-- [ ] `useProvision.js`: auto-answer `auth-key` from storage once per prompt as a `secret`; save the key on a sent `auth-key` answer; discard on a refusal or on the `tailscale` step failing; expose "used the saved key, saved <when>" and a forget action
-- [ ] `Prompt.jsx`: a `text` field starts at the prompt's default
-- [ ] `Run.jsx`: beneath the Tailscale row, the saved-key note with Forget; where the step passed with `needs-approval` true, the sentence PWEB requires
-- [ ] `tests/fake-provision-client.js`: prompts with a default, a step result, and the extra rows
-- [ ] `tests/provision-tailscale.spec.js`: both prompts show under the Tailscale row while it is pending; the field starts at the default; a saved key is written with its time; a second board is answered from it with the note; a key a week old is dropped and asked for; Forget removes it; a refusal and a failed step drop it; neither the key nor its prefix is in Activity; the approval sentence
+- [x] `provision/tailscale.js`: save, load (discarding at a week), forget; unit-tested through the Playwright specs with the page clock controlled
+- [x] `useProvision.js`: auto-answer `auth-key` from storage once per prompt as a `secret`; save the key on a sent `auth-key` answer; discard on a refusal or on the `tailscale` step failing; expose "used the saved key, saved <when>" and a forget action
+- [x] `Prompt.jsx`: a `text` field starts at the prompt's default
+- [x] `Run.jsx`: beneath the Tailscale row, the saved-key note with Forget; where the step passed with `needs-approval` true, the sentence PWEB requires
+- [x] `tests/fake-provision-client.js`: prompts with a default, a step result, and the extra rows
+- [x] `tests/provision-tailscale.spec.js`: both prompts show under the Tailscale row while it is pending; the field starts at the default; a saved key is written with its time; a second board is answered from it with the note; a key a week old is dropped and asked for; Forget removes it; a refusal and a failed step drop it; neither the key nor its prefix is in Activity; the approval sentence
 
 ## Closing out
 
-- [ ] `provision/README.md`: say the medium's bench needs a network connection for the Tailscale step (PTS fails where it cannot reach Tailscale); PMED leaves the bench network unspecified, so raise it on the F4 umbrella rather than inventing a requirement here
-- [ ] `cargo fmt`, `cargo clippy`, `cargo test` for `bliti-core` and `bliti`, `just test-web`
+- [x] `provision/README.md` says the Tailscale step needs the bench's network; `provision/test.sh` checks the medium carries `tailscaled`. PMED leaves the bench network unspecified, so raise it on the F4 umbrella rather than inventing a requirement here
+- [x] `cargo fmt`, `cargo clippy`, `cargo test` for `bliti-core` and `bliti`, `just test-web`
 - [ ] Remove this plan's directory before merge, as the other cards do

@@ -32,7 +32,12 @@ pub enum Question {
 	/// Which steps to run, with the device idle.
 	Choose,
 	/// The answer to an open prompt.
-	Prompt { id: String, asks: Asks },
+	Prompt {
+		id: String,
+		asks: Asks,
+		/// What an empty line answers with, for a text prompt that offers one.
+		default: Option<String>,
+	},
 	/// What to do about a run waiting on a person.
 	Waiting,
 	/// What to do about a failed run.
@@ -95,6 +100,7 @@ pub fn next(snapshot: &Snapshot, handled: &Handled, results_shown: bool) -> Opti
 			(!handled.has(&prompt.id)).then(|| Question::Prompt {
 				id: prompt.id.clone(),
 				asks,
+				default: prompt.default.clone().filter(|_| asks == Asks::Text),
 			})
 		});
 		if open.is_some() {
@@ -136,7 +142,7 @@ pub enum Typed {
 /// A line that starts with a colon is a command: `:stop`, `:retry`, `:skip` or `:quit`, so a run can
 /// be ended or put off from a prompt that is not wanted. An answer that starts with a colon is typed
 /// with a second one.
-pub fn read_answer(asks: Asks, line: &str) -> Typed {
+pub fn read_answer(asks: Asks, default: Option<&str>, line: &str) -> Typed {
 	if let Some(rest) = line.strip_prefix(':') {
 		if rest.starts_with(':') && asks != Asks::Confirm {
 			return Typed::Answer(Answer::text(rest));
@@ -159,6 +165,9 @@ pub fn read_answer(asks: Asks, line: &str) -> Typed {
 			"n" | "no" => Typed::Answer(Answer::boolean(false)),
 			_ => Typed::Bad("answer y or n".to_owned()),
 		},
+		Asks::Text if line.is_empty() && default.is_some() => {
+			Typed::Answer(Answer::text(default.unwrap_or_default()))
+		}
 		Asks::Text | Asks::Secret if line.is_empty() => {
 			Typed::Bad("type an answer, or :skip to leave it for now".to_owned())
 		}
@@ -217,6 +226,7 @@ mod tests {
 					kind: kind.clone(),
 					text: String::new(),
 					blocking: true,
+					default: None,
 				})
 				.collect(),
 		}
@@ -226,6 +236,7 @@ mod tests {
 		Question::Prompt {
 			id: id.to_owned(),
 			asks,
+			default: None,
 		}
 	}
 
@@ -303,26 +314,77 @@ mod tests {
 	fn a_confirm_takes_yes_or_no() {
 		for (line, answer) in [("y", true), ("YES", true), (" n ", false), ("no", false)] {
 			assert_eq!(
-				read_answer(Asks::Confirm, line),
+				read_answer(Asks::Confirm, None, line),
 				Typed::Answer(Answer::boolean(answer)),
 				"{line:?}"
 			);
 		}
-		assert!(matches!(read_answer(Asks::Confirm, "maybe"), Typed::Bad(_)));
-		assert!(matches!(read_answer(Asks::Confirm, ""), Typed::Bad(_)));
+		assert!(matches!(
+			read_answer(Asks::Confirm, None, "maybe"),
+			Typed::Bad(_)
+		));
+		assert!(matches!(
+			read_answer(Asks::Confirm, None, ""),
+			Typed::Bad(_)
+		));
 	}
 
 	#[test]
 	fn text_is_taken_as_typed() {
 		assert_eq!(
-			read_answer(Asks::Text, " Ada Lovelace "),
+			read_answer(Asks::Text, None, " Ada Lovelace "),
 			Typed::Answer(Answer::text(" Ada Lovelace "))
 		);
 		assert_eq!(
-			read_answer(Asks::Secret, "p@ss word"),
+			read_answer(Asks::Secret, None, "p@ss word"),
 			Typed::Answer(Answer::text("p@ss word"))
 		);
-		assert!(matches!(read_answer(Asks::Text, ""), Typed::Bad(_)));
+		assert!(matches!(read_answer(Asks::Text, None, ""), Typed::Bad(_)));
+	}
+
+	#[test]
+	fn an_empty_line_takes_the_default_of_a_text_prompt_and_asks_for_an_answer_otherwise() {
+		assert_eq!(
+			read_answer(Asks::Text, Some("tamanu-iti-k7qa"), ""),
+			Typed::Answer(Answer::text("tamanu-iti-k7qa"))
+		);
+		assert_eq!(
+			read_answer(Asks::Text, Some("tamanu-iti-k7qa"), "iti-3"),
+			Typed::Answer(Answer::text("iti-3"))
+		);
+		assert!(matches!(
+			read_answer(Asks::Secret, Some("not offered"), ""),
+			Typed::Bad(_)
+		));
+	}
+
+	#[test]
+	fn only_a_text_prompt_carries_its_default_to_the_question() {
+		let mut snapshot = snapshot(
+			RunState::Running,
+			&[("t", PromptKind::Text), ("s", PromptKind::Secret)],
+		);
+		for prompt in &mut snapshot.prompts {
+			prompt.default = Some("offered".to_owned());
+		}
+		let mut handled = Handled::default();
+		assert_eq!(
+			next(&snapshot, &handled, true),
+			Some(Question::Prompt {
+				id: "t".to_owned(),
+				asks: Asks::Text,
+				default: Some("offered".to_owned()),
+			})
+		);
+		handled.answered("t");
+		assert_eq!(
+			next(&snapshot, &handled, true),
+			Some(Question::Prompt {
+				id: "s".to_owned(),
+				asks: Asks::Secret,
+				default: None,
+			})
+		);
 	}
 
 	#[test]
@@ -333,13 +395,16 @@ mod tests {
 			(":skip", Verb::Skip),
 			(":quit", Verb::Quit),
 		] {
-			assert_eq!(read_answer(Asks::Text, line), Typed::Verb(verb));
+			assert_eq!(read_answer(Asks::Text, None, line), Typed::Verb(verb));
 		}
 		assert_eq!(
-			read_answer(Asks::Secret, "::skip"),
+			read_answer(Asks::Secret, None, "::skip"),
 			Typed::Answer(Answer::text(":skip"))
 		);
-		assert!(matches!(read_answer(Asks::Text, ":nope"), Typed::Bad(_)));
+		assert!(matches!(
+			read_answer(Asks::Text, None, ":nope"),
+			Typed::Bad(_)
+		));
 	}
 
 	#[test]

@@ -68,6 +68,15 @@ export function recordOf(steps) {
 	return null
 }
 
+/// Whether the step `tailscale` has passed and waits on a tailnet administrator's approval (PTS).
+export function awaitsApproval(steps) {
+	const step = steps.find((each) => each.id === 'tailscale')
+	return step?.state === 'passed' && step.result?.['needs-approval'] === true
+}
+
+/// What to say of it.
+export const APPROVAL = 'A tailnet administrator has to approve this Iti before it joins the tailnet.'
+
 /// The pictures of the board the page carries, for the step and prompt each belongs beneath (PWEB,
 /// "Pictures"). The USER button's is shown while finding a device, and has no step.
 const BENEATH = { 'hardware/case': 'case-switch', 'eeprom/id-wp': 'wp-pads' }

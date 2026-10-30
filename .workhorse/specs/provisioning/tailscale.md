@@ -15,7 +15,7 @@ The step asks for the auth key and the Iti's name early in the run, without hold
 | tailnet | As [NFO](../device-info.md) has it. |
 | auth key | As [TSC](../control/tailscale.md) has it. |
 | the disk's system | The system that [PDSK](disk.md) wrote to the board's disk, which the Iti runs from after provisioning, as opposed to the provisioning system the device is running now. |
-| root volume, TPM keyslot | As [PENC](encryption.md) has them. |
+| root volume | As [PENC](encryption.md) has it. |
 | root filesystem | As [PDSK](disk.md) has it. |
 | Tailscale state | What Tailscale keeps on a machine to remain signed in to a tailnet: the node's keys and its settings, the name among them. |
 
@@ -50,7 +50,7 @@ Where the step's turn comes with `name` unanswered, the step MUST take its defau
 
 ## Signing in
 
-The step MUST open the root volume through its TPM keyslot, and mount the root filesystem, and MUST unmount and close them when it ends.
+The step MUST open the disk's root volume and mount its root filesystem, as [Opening the root volume](disk.md#opening-the-root-volume) has it, and MUST unmount and close them when it ends.
 
 The step MUST sign in by auth key, registering under the name, as [TSC](../control/tailscale.md#signing-in) has `sign-in` do, applying any restriction to a single tailnet that the disk's system is configured with as TSC has it.
 
@@ -62,7 +62,7 @@ The step MUST pass when Tailscale reaches `running` or `needs-approval`.
 
 The step MUST fail, with a reason, where:
 
-- the root volume cannot be opened through its TPM keyslot
+- the root volume cannot be opened
 - the device cannot reach Tailscale
 - Tailscale rejects the auth key, or reaches neither state
 - the sign-in joins a tailnet the disk's system does not accept
@@ -81,7 +81,7 @@ The step MUST report as its result `needs-approval`, a boolean that is true wher
 
 ## Done-state
 
-The step MUST determine its done-state by opening the root volume through its TPM keyslot, mounting the root filesystem read-only, reading its Tailscale state, and closing them again, and MUST NOT write to the disk while it does.
+The step MUST determine its done-state by opening the root volume, mounting the root filesystem read-only, reading its Tailscale state, and closing them again, and MUST NOT write to the disk while it does.
 
 The step MUST report:
 
@@ -89,6 +89,6 @@ The step MUST report:
 | --- | --- |
 | `done` | the Tailscale state of the disk's system records a sign-in |
 | `not-done` | the root opened and its Tailscale state records no sign-in |
-| `unknown` | the root volume cannot be opened through its TPM keyslot, or the disk holds no system |
+| `unknown` | the disk cannot be found or read, its root volume cannot be opened, or it holds no system |
 
 The step SHOULD give as its reason why the done-state is `unknown`.

@@ -295,7 +295,7 @@ impl<O: io::Write> Console<O> {
 				self.show_selection()?;
 				"> ".to_owned()
 			}
-			Question::Prompt { id, asks } => {
+			Question::Prompt { id, asks, default } => {
 				if !self.explained {
 					self.explained = true;
 					self.say(
@@ -305,7 +305,10 @@ impl<O: io::Write> Console<O> {
 				}
 				match asks {
 					question::Asks::Confirm => format!("{id} [y/n]> "),
-					question::Asks::Text => format!("{id}> "),
+					question::Asks::Text => match default {
+						Some(default) => format!("{id} [{default}]> "),
+						None => format!("{id}> "),
+					},
 					question::Asks::Secret => format!("{id} (not shown as you type)> "),
 				}
 			}
@@ -346,14 +349,16 @@ impl<O: io::Write> Console<O> {
 		}
 		match asked {
 			Question::Choose => self.chosen(&line),
-			Question::Prompt { id, asks } => match read_answer(asks, &line) {
-				Typed::Answer(value) => {
-					self.handled.answered(&id);
-					Ok(self.send(answer(&id, value)))
+			Question::Prompt { id, asks, default } => {
+				match read_answer(asks, default.as_deref(), &line) {
+					Typed::Answer(value) => {
+						self.handled.answered(&id);
+						Ok(self.send(answer(&id, value)))
+					}
+					Typed::Verb(verb) => self.verb(verb, Some(&id)),
+					Typed::Bad(why) => self.refuse(&why),
 				}
-				Typed::Verb(verb) => self.verb(verb, Some(&id)),
-				Typed::Bad(why) => self.refuse(&why),
-			},
+			}
 			menu => match read_menu(&menu, &line) {
 				Typed::Verb(verb) => self.verb(verb, None),
 				Typed::Bad(why) => self.refuse(&why),
