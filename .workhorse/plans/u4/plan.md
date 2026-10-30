@@ -28,10 +28,9 @@ The step starts a `tailscaled` of its own (userspace networking, so the provisio
 The sign-in itself (prefs with `WantRunning` and `Hostname`, `start` with the key, wait for `Running` or `NeedsApproval`, scrub the key from any message, hold to the accepted tailnet) is lifted out of `tailscale/run.rs` into a function both the TSC act and this step call, rather than copied.
 The accepted tailnet is the `--tailnet` option of `BLITI_DAEMON_ARGS` in `/etc/bliti/daemon.env` on the mounted root filesystem, read with the clap definition `main.rs` uses for `daemon`, so the two cannot drift.
 
-**Opening the root volume belongs to S4.**
-PENC and this step both need "open the root volume through its TPM keyslot and mount its root filesystem", and S4's code is not on `main` yet (only its specs are).
-The step takes it as a trait, `Root`, whose `open(read_only)` returns a mount that unmounts and closes on drop, with a fake for tests.
-Before writing the real implementation, check whether S4's code has landed and use its helper; if not, write one with `cryptsetup open --token-only` and settle it with S4 so the two do not diverge.
+**Opening the root volume is S4's.**
+The step takes S4's `Storage` and `Luks` and opens the root through `system::open_root`, as `overlay` and `encryption` do: the empty passphrase where it unlocks the volume, the board's TPM otherwise.
+Its tests run on S4's `Bench` fakes.
 
 **The done-state reads the state file.**
 `tailscaled.state` is a JSON object of base64 values: the current profile's key under `_current-profile`, and under that key the profile's preferences, whose `LoggedOut` and `Config.NodeID` say whether it holds a sign-in.
@@ -46,7 +45,8 @@ It discards the key where the device refuses the answer or the `tailscale` step 
 **Deviations from the design as first written.**
 `Step::ask_ahead` is async, because the name's default waits on the board's suffix, which the daemon derives after the run starts (a watch channel from the daemon to the step).
 `Tailscale::sign_in_by_key` is the shared entry point (with `Tailscale::on_socket`) rather than lifting code out of `tailscale/run.rs`: the act and the step call the same `sign_in`, and a watcher that stops with the last handle keeps a short-lived `Tailscale` from leaking its task.
-`Luks` opens the root volume with `cryptsetup open --token-only`, which needs whichever LUKS token plugin S4's enrolment uses; settle it with S4 when its code lands.
+The step reaches the root volume through S4's `Storage`, `Luks` and `open_root` rather than a root opener of its own, and takes the device's name (the daemon's watch channel) rather than just the suffix.
+PTS follows PDSK's "Opening the root volume" in place of naming the TPM keyslot.
 
 ## Specs
 
@@ -63,14 +63,14 @@ It discards the key where the device refuses the answer or the `tailscale` step 
 ## The step (`bliti/src/provision/steps/tailscale.rs`)
 
 - [x] Extract the auth-key sign-in and the accepted-tailnet hold from `tailscale/run.rs` into functions both callers use; the TSC tests keep passing unchanged
-- [x] `Root` trait and its real implementation (see the design note); `Tailscaled` trait for starting and stopping the private daemon and reaching its `LocalApi`, with fakes in `tailscale/fake.rs`
+- [x] Open the root through S4's `open_root`; `Tailscaled` trait for starting and stopping the private daemon and reaching its `LocalApi`, with fakes in `tailscale/fake.rs`
 - [x] Parse `tailscaled.state` into "records a sign-in", with tests for signed in, logged out, no node, missing and unreadable state
 - [x] Read the accepted tailnet from `daemon.env` on the mounted root filesystem; none where the file or option is absent
 - [x] `Tailscale` step: `id` `tailscale`, title "Sign in to Tailscale"; `asks_after` is `eeprom`; `ask_ahead` opens `auth-key` (secret, text saying the key is to be reusable) and `name` (text, default `tamanu-iti-<suffix lower case>`, check for 1 to 63 lower case letters, digits and hyphens that begin and end with a letter or digit)
 - [x] `done()`: open the root volume, mount read-only, read the state, close; `done`, `not-done` or `unknown` with a reason, writing nothing
 - [x] `run()`: take the name (default if unanswered), take the key (waits if unanswered), open and mount read-write, start the private tailscaled, sign in, report `needs-approval` as the result, stop tailscaled, unmount, close, and `forget("auth-key")` on every path out, including failure and panic (a drop guard, since the engine catches panics)
 - [x] Failure reasons for each case PTS lists (root volume, cannot reach Tailscale, key rejected or neither state reached, tailnet not accepted); none contains the key
-- [x] Register it in `steps::all` between `eeprom` and `bootloader` with the suffix, which `daemon.rs` passes through `registry` from the name it already derives (none where it is `FAULT`); S4's `disk`, `overlay` and `encryption` slot in ahead of it when they land
+- [x] Register it in `steps::all` between `eeprom` and `bootloader` with the suffix, which `daemon.rs` passes through `registry` from the name it already derives (none where it is `FAULT`); it follows S4's `encryption`
 - [x] Step tests with fakes: prompts and their texts; the name default and its check; a full sign-in passes and leaves no state on the medium; each failure; the key is gone after pass and after failure; `needs-approval` result; the done-states
 
 ## Console (`provision/console`)
