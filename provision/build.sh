@@ -146,6 +146,8 @@ declare -A needs=(
 	[/usr/sbin/veritysetup]=cryptsetup-bin
 	[/usr/libexec/bluetooth/bluetoothd]=bluez
 	[/usr/sbin/agetty]=util-linux
+	[/usr/sbin/flashrom]=flashrom
+	[/usr/bin/rpi-eeprom-config]=rpi-eeprom
 )
 missing=()
 for path in "${!needs[@]}"; do
@@ -198,9 +200,11 @@ install -m 644 "$dir/pieeprom.bin" "$hat/tamanu-iti-v4.dtbo" "${eeproms[@]}" "$s
 install -m 644 "$manifest" "$share/manifest"
 
 systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.service
-# The medium does not update its own software (PMED).
+# The medium does not update its own software (PMED), and the bootloader is written by the step that
+# configures it (PBL), not by rpi-eeprom's own updater.
 systemctl --root="$root" mask unattended-upgrades.service \
-	apt-daily.timer apt-daily.service apt-daily-upgrade.timer apt-daily-upgrade.service
+	apt-daily.timer apt-daily.service apt-daily-upgrade.timer apt-daily-upgrade.service \
+	rpi-eeprom-update.service
 
 echo "configuring the firmware"
 fw=$mnt/firmware

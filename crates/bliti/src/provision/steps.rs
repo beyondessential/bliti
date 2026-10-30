@@ -3,11 +3,13 @@
 use std::sync::Arc;
 
 use super::{
+	bootloader::Spi,
 	button::{self, Seen},
 	step::Step,
 };
 use crate::facts::{environment, i2c};
 
+pub mod bootloader;
 pub mod eeprom;
 pub mod hardware;
 #[cfg(test)]
@@ -23,6 +25,7 @@ pub fn all(user: Seen) -> Vec<Arc<dyn Step>> {
 			button::case_switch(),
 		)),
 		Arc::new(eeprom::Eeprom::new(board, Arc::new(eeprom::Cat24c256))),
+		Arc::new(bootloader::Bootloader::new(Arc::new(Spi))),
 	]
 }
 
