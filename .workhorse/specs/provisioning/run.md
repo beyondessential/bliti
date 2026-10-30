@@ -18,6 +18,9 @@ A device in provisioning mode MUST offer the steps below, in this order.
 | --- | --- | --- |
 | `hardware` | Check the hardware | [PHW](hardware.md) |
 | `eeprom` | Program the EEPROM | [PEEP](eeprom.md) |
+| `disk` | Write the system to the disk | [PDSK](disk.md) |
+| `overlay` | Install the HAT overlay | [PDSK](disk.md) |
+| `encryption` | Set up disk encryption | [PENC](encryption.md) |
 
 ## Done-state
 
