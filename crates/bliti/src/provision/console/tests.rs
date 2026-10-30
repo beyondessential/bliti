@@ -27,7 +27,7 @@ use crate::{
 	carrier::{Carrier, incoming},
 	provision::{
 		Provisioner,
-		fake::{Do, Fake, Gate, Log},
+		fake::{BUILT, Do, Fake, Gate, Log},
 		socket::listen,
 		step::Step,
 		store::Store,
@@ -163,7 +163,7 @@ impl Device {
 	async fn new(steps: Vec<Arc<Fake>>, log: &Log) -> Self {
 		let dir = tempfile::tempdir().unwrap();
 		let store = Store::new(dir.path(), &[0xaa]);
-		let provisioner = Provisioner::start(arcs(steps), Some(store)).await;
+		let provisioner = Provisioner::start(arcs(steps), Some(store), BUILT).await;
 		let listening = listen(&dir.path().join("provision.sock"), provisioner.clone()).unwrap();
 		Self {
 			provisioner,

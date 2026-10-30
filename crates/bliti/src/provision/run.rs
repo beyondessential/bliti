@@ -14,6 +14,7 @@ use bliti_core::{
 	provisioning::report::{Answer, PromptReport, RunState, StepReport, StepState},
 };
 use futures::FutureExt as _;
+use jiff::civil::Date;
 use tokio::{sync::watch, task::AbortHandle};
 
 use super::{
@@ -26,6 +27,10 @@ use super::{
 /// Everything `provision-state` carries: where the run stands, every step, every open prompt (PRS).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
+	/// The revision of the steps the device offers.
+	pub revision: u32,
+	/// The date the image on the provisioning medium was built.
+	pub built: Date,
 	/// The state of the device.
 	pub run: RunState,
 	/// Every step in order.
@@ -38,6 +43,8 @@ impl Snapshot {
 	/// This as the message that carries it.
 	pub fn to_message(&self) -> Message {
 		Message::ProvisionState {
+			revision: self.revision,
+			built: self.built,
 			run: self.run,
 			steps: self.steps.clone(),
 			prompts: self.prompts.clone(),
@@ -155,12 +162,14 @@ pub(super) struct Inner {
 }
 
 impl Provisioner {
-	/// A device holding `steps` in the one order a run carries them out in, resuming the run the
-	/// medium holds for this board, if any (RUN, "Surviving a reboot").
+	/// A device holding `steps` in the one order a run carries them out in, whose medium's image was
+	/// built on `built`, resuming the run the medium holds for this board, if any (RUN, "Surviving a
+	/// reboot").
 	///
 	/// Without a `store` a run is carried out but not kept, and `start` is refused.
-	pub async fn start(steps: Vec<Arc<dyn Step>>, store: Option<Store>) -> Self {
+	pub async fn start(steps: Vec<Arc<dyn Step>>, store: Option<Store>, built: Date) -> Self {
 		let model = Model::new(
+			built,
 			steps
 				.iter()
 				.map(|step| (step.id().to_owned(), step.title().to_owned())),

@@ -575,3 +575,41 @@ button.switch:disabled { opacity: 0.4; }
 .form .waiting { margin: 16px 0 0; }
 .join.link { margin: 16px 0 8px; }
 .form .code { text-align: center; margin: 0 0 12px; color: var(--muted); }
+
+/* The provisioning page (PWEB). It builds on the shapes above, shared by both pages: the step dots,
+   the .health rows and the bar-state panels. */
+
+/* A step to tick, with the reason beneath it. */
+.pick { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; font-size: 0.9rem; color: var(--text); }
+.pick input { width: auto; padding: 0; margin-top: 4px; }
+.pick .why-not { display: block; font-size: 0.8rem; color: var(--muted); }
+
+/* A board picture, its caption beneath, and a prompt or progress under a step's row. */
+img.board { display: block; width: 100%; height: auto; border-radius: 6px; margin: 0 0 12px; }
+.pic-caption { font-size: 0.85rem; color: var(--muted); margin: -6px 0 12px; }
+.health li > .prompt { flex: 1 0 calc(100% - 1.5rem - 10px); margin-left: calc(1.5rem + 10px); min-width: 0; }
+.health li > .prompt .lead { font-size: 1rem; }
+.health li > .prompt .bar-state { margin-top: 10px; }
+.health li > .prompt .muted { margin: 0 0 8px; }
+.health .mark.todo { border: 2px solid var(--line); }
+.health .mark.todo.skipped { opacity: 0.5; }
+.health .skipped .name { color: var(--muted); font-weight: 400; }
+.health .bar { margin: 4px 0 0; }
+.bar[role="progressbar"] { height: 6px; }
+
+/* The line telling an operator they can leave a run to itself. */
+.away { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* What was last seen of a run once the link has gone: still readable, plainly not live. */
+.stale { opacity: 0.5; }
+.stale input { pointer-events: none; }
+
+button.block.go { margin-top: 16px; }
+.prompt .save { margin-top: 12px; }
+.health li > .prompt button.small { margin: 0; }
+.prompt .row.stop { margin-top: 10px; }
+.prompt .question + .question { margin-top: 12px; }
+
+/* The record the run finishes with. */
+.mono { font-family: ui-monospace, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
+.setup .details.first { margin-top: 0; border-top: 0; padding-top: 0; }

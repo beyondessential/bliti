@@ -1,10 +1,13 @@
 use super::*;
 
 fn model() -> Model {
-	Model::new([
-		("one".to_owned(), "One".to_owned()),
-		("two".to_owned(), "Two".to_owned()),
-	])
+	Model::new(
+		crate::provision::fake::BUILT,
+		[
+			("one".to_owned(), "One".to_owned()),
+			("two".to_owned(), "Two".to_owned()),
+		],
+	)
 }
 
 #[test]

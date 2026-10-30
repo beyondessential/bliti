@@ -196,6 +196,8 @@ mod tests {
 
 	fn snapshot(run: RunState, prompts: &[(&str, PromptKind)]) -> Snapshot {
 		Snapshot {
+			revision: 1,
+			built: jiff::civil::date(2026, 10, 29),
 			run,
 			steps: vec![StepReport {
 				id: "a".to_owned(),

@@ -192,11 +192,15 @@ impl<O: io::Write> Console<O> {
 	fn hear(&mut self, message: &Message) -> io::Result<()> {
 		match message {
 			Message::ProvisionState {
+				revision,
+				built,
 				run,
 				steps,
 				prompts,
 			} => {
 				let snapshot = Snapshot {
+					revision: *revision,
+					built: *built,
 					run: *run,
 					steps: steps.clone(),
 					prompts: prompts.clone(),

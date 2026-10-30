@@ -39,6 +39,8 @@ pub struct Options {
 	pub board_id_source: bliti_core::board_id::SourceKind,
 	/// Where the daemon listens for the console.
 	pub socket: PathBuf,
+	/// The date the image on the provisioning medium was built (PRS, "The image's date").
+	pub image_built: jiff::civil::Date,
 }
 
 /// Run provisioning mode until interrupted.
@@ -59,7 +61,7 @@ pub async fn run(options: Options) -> Result<()> {
 	let store = serial
 		.as_deref()
 		.map(|serial| Store::new(&options.medium, serial));
-	let provisioner = Provisioner::start(registry(), store).await;
+	let provisioner = Provisioner::start(registry(), store, options.image_built).await;
 
 	let _led = match led::Sysfs::open() {
 		Ok(sysfs) => Some(AbortOnDrop(

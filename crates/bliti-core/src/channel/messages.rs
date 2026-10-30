@@ -11,6 +11,7 @@
 //! through these types, so a member that serialises away would be read as one this build has never
 //! heard of.
 
+use jiff::civil::Date;
 use serde::{
 	Deserialize, Deserializer, Serialize, Serializer,
 	de::{self, MapAccess, Visitor},
@@ -267,6 +268,10 @@ pub enum Message {
 	/// anything it carries changes: the whole state, so a client learns where a run stands from one
 	/// message (PRS).
 	ProvisionState {
+		/// The revision of the steps the device offers (PRS, "The revision").
+		revision: u32,
+		/// The date the image on the provisioning medium was built (PRS, "The image's date").
+		built: Date,
 		/// The state of the device.
 		run: RunState,
 		/// Every step in order.
@@ -557,11 +562,15 @@ impl Message {
 				map.insert("type".to_owned(), "provision".into());
 			}
 			Self::ProvisionState {
+				revision,
+				built,
 				run,
 				steps,
 				prompts,
 			} => {
 				map.insert("type".to_owned(), "provision-state".into());
+				map.insert("revision".to_owned(), (*revision).into());
+				map.insert("built".to_owned(), built.to_string().into());
 				map.insert("run".to_owned(), run.as_str().into());
 				map.insert("steps".to_owned(), to_array(steps));
 				map.insert("prompts".to_owned(), to_array(prompts));
@@ -757,6 +766,8 @@ impl<'de> Visitor<'de> for MessageVisitor {
 			}),
 			"provision" => Ok(Message::Provision),
 			"provision-state" => Ok(Message::ProvisionState {
+				revision: from_member(&map, "revision")?,
+				built: from_member(&map, "built")?,
 				run: from_member(&map, "run")?,
 				steps: from_member(&map, "steps")?,
 				prompts: from_member(&map, "prompts")?,

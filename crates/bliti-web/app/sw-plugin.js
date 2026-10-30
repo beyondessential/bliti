@@ -16,7 +16,7 @@ import { init, parse } from 'es-module-lexer'
 
 const SOURCE = new URL('./src/sw.js', import.meta.url)
 const TOKEN = 'self.__BLITI_PRECACHE__'
-const BUNDLED = new Set(['.js', '.css', '.html', '.wasm'])
+const BUNDLED = new Set(['.js', '.css', '.html', '.wasm', '.jpg', '.png', '.webp', '.svg'])
 
 export function inject(source, list) {
 	if (!source.includes(TOKEN)) throw new Error(`the service worker does not carry ${TOKEN}`)

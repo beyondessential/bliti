@@ -96,6 +96,11 @@ enum Command {
 		/// Where the console reaches this daemon.
 		#[arg(long, default_value = provision::SOCKET)]
 		socket: PathBuf,
+
+		/// The date the image on the provisioning medium was built, as YYYY-MM-DD. A client refuses
+		/// to provision from an image a month old or more.
+		#[arg(long)]
+		image_built: jiff::civil::Date,
 	},
 
 	/// Drive a provisioning run from this console: choose the steps, answer their prompts, and watch
@@ -284,7 +289,8 @@ async fn run(cli: Cli) -> Result<()> {
 			medium,
 			board_id_source,
 			socket,
-		} => provision_mode(adapter, medium, board_id_source.into(), socket).await,
+			image_built,
+		} => provision_mode(adapter, medium, board_id_source.into(), socket, image_built).await,
 		Command::Provision { socket } => provision_console(&socket).await,
 		Command::Daemon {
 			adapter,
@@ -535,12 +541,14 @@ async fn provision_mode(
 	medium: PathBuf,
 	board_id_source: bliti_core::board_id::SourceKind,
 	socket: PathBuf,
+	image_built: jiff::civil::Date,
 ) -> Result<()> {
 	provision::daemon::run(provision::daemon::Options {
 		adapter,
 		medium,
 		board_id_source,
 		socket,
+		image_built,
 	})
 	.await
 }
@@ -551,6 +559,7 @@ async fn provision_mode(
 	_medium: PathBuf,
 	_board_id_source: bliti_core::board_id::SourceKind,
 	_socket: PathBuf,
+	_image_built: jiff::civil::Date,
 ) -> Result<()> {
 	anyhow::bail!("provisioning mode runs on Linux, against BlueZ")
 }

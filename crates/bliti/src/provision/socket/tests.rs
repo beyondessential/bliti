@@ -20,7 +20,7 @@ use crate::{
 const PATIENCE: Duration = Duration::from_secs(5);
 
 async fn idle() -> Provisioner {
-	Provisioner::start(Vec::new(), None).await
+	Provisioner::start(Vec::new(), None, crate::provision::fake::BUILT).await
 }
 
 /// Send `messages` down a connection to `path`, and read the first message that comes back.

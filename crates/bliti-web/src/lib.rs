@@ -23,8 +23,12 @@ use bliti_core::{
 		capabilities,
 		envelope::{Reading, Refusal, read},
 		messages::Message,
-		stream::{Mode, Opener, connect_initiator, multiplex, write_message},
+		stream::{
+			Mode, Opener, connect_initiator, connect_initiator_unauthenticated, multiplex,
+			write_message,
+		},
 	},
+	provisioning,
 	qr::QrPayload,
 };
 use futures::channel::{mpsc, oneshot};
@@ -35,6 +39,7 @@ use wasm_bindgen_futures::{future_to_promise, spawn_local};
 use streams::report_until_closed;
 use transport::WebTransport;
 
+mod provision;
 mod scan;
 mod streams;
 #[cfg(test)]
@@ -329,7 +334,9 @@ impl Advertisement {
 /// The state a channel holds once it is open. Kept behind a shared handle so the exported methods can
 /// hand work to a task without borrowing across an await.
 struct Inner {
-	payload: QrPayload,
+	// The QR code of the device this channel is for, or nothing for a channel to a device in
+	// provisioning mode, which has no key fingerprint to check (PRV).
+	payload: Option<QrPayload>,
 	transport: RefCell<Option<WebTransport>>,
 	inbound: RefCell<mpsc::Sender<Vec<u8>>>,
 	// Opens subscription streams. Independent of the accept loop, so a subscription can be opened while
@@ -349,6 +356,21 @@ pub struct Channel {
 	inner: Rc<Inner>,
 }
 
+impl Channel {
+	fn with(payload: Option<QrPayload>, write: Function, chunk: usize) -> Channel {
+		let (transport, inbound) = WebTransport::new(write, chunk);
+		Channel {
+			inner: Rc::new(Inner {
+				payload,
+				transport: RefCell::new(Some(transport)),
+				inbound: RefCell::new(inbound),
+				opener: RefCell::new(None),
+				feed_closers: RefCell::new(Vec::new()),
+			}),
+		}
+	}
+}
+
 #[wasm_bindgen]
 impl Channel {
 	/// Prepare a channel for a device, given the function that writes a chunk to the device's write
@@ -356,16 +378,14 @@ impl Channel {
 	/// not run until [`Channel::connect`] is called.
 	#[wasm_bindgen(constructor)]
 	pub fn new(code: &QrCode, write: Function, chunk: usize) -> Channel {
-		let (transport, inbound) = WebTransport::new(write, chunk);
-		Channel {
-			inner: Rc::new(Inner {
-				payload: code.payload.clone(),
-				transport: RefCell::new(Some(transport)),
-				inbound: RefCell::new(inbound),
-				opener: RefCell::new(None),
-				feed_closers: RefCell::new(Vec::new()),
-			}),
-		}
+		Channel::with(Some(code.payload.clone()), write, chunk)
+	}
+
+	/// Prepare a channel for a device in provisioning mode, which no QR code anchors: the handshake
+	/// is keyed by the provisioning token and compares no fingerprint (PRV, "The provisioning token").
+	/// Otherwise as [`Channel::new`].
+	pub fn for_provisioning(write: Function, chunk: usize) -> Channel {
+		Channel::with(None, write, chunk)
 	}
 
 	/// Feed bytes arriving on the device's notify characteristic.
@@ -397,12 +417,20 @@ impl Channel {
 				.take()
 				.ok_or_else(|| JsError::new("this channel has already been connected"))?;
 
-			let encrypted = connect_initiator(
-				transport,
-				&inner.payload.presence_token().pre_shared_key(),
-				inner.payload.fingerprint(),
-			)
-			.await
+			let encrypted = match &inner.payload {
+				Some(payload) => {
+					connect_initiator(
+						transport,
+						&payload.presence_token().pre_shared_key(),
+						payload.fingerprint(),
+					)
+					.await
+				}
+				None => {
+					connect_initiator_unauthenticated(transport, &provisioning::pre_shared_key())
+						.await
+				}
+			}
 			.map_err(|err| JsError::new(&format!("handshake failed: {err}")))?;
 
 			let (mut streams, driver) = multiplex(encrypted, Mode::Client);

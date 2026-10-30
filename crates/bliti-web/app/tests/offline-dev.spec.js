@@ -67,7 +67,14 @@ test('the dev worker precaches the module graph and public/, answered from the n
 test('the dev worker precaches every page, and the module graph of each', async ({ request }) => {
 	const { list } = await listOf(request)
 	const urls = list.entries.map((entry) => entry.url)
-	for (const url of ['/', '/tests/second-page', '/tests/second-page.js']) expect(urls).toContain(url)
+	for (const url of ['/', '/provision', '/src/provision/main.jsx']) expect(urls).toContain(url)
+})
+
+test('the dev worker precaches the pictures of the board', async ({ request }) => {
+	const urls = (await listOf(request)).list.entries.map((entry) => entry.url)
+	for (const picture of ['user-button', 'case-switch', 'wp-pads']) {
+		expect(urls).toContain(`/src/provision/pictures/${picture}.jpg`)
+	}
 })
 
 test.describe('with no service worker to see the load', () => {

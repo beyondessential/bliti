@@ -29,6 +29,17 @@ impl Reporter {
 		let mut lines = Vec::new();
 
 		// spec: PCON
+		if before
+			.as_ref()
+			.is_none_or(|before| (before.revision, before.built) != (now.revision, now.built))
+		{
+			lines.push(format!(
+				"Provisioning image built {}, steps revision {}.",
+				now.built, now.revision
+			));
+		}
+
+		// spec: PCON
 		if before.as_ref().is_none_or(|before| before.run != now.run) {
 			lines.push(run_line(now.run).to_owned());
 		}
@@ -195,6 +206,8 @@ mod tests {
 
 	fn snapshot(run: RunState, steps: Vec<StepReport>, prompts: Vec<PromptReport>) -> Snapshot {
 		Snapshot {
+			revision: 1,
+			built: jiff::civil::date(2026, 10, 29),
 			run,
 			steps,
 			prompts,
@@ -217,7 +230,10 @@ mod tests {
 		let idle = snapshot(RunState::Idle, vec![step("a", StepState::Unchosen)], vec![]);
 		assert_eq!(
 			reporter.update(&idle),
-			["No run is held; the device is idle."]
+			[
+				"Provisioning image built 2026-10-29, steps revision 1.",
+				"No run is held; the device is idle."
+			]
 		);
 		assert!(reporter.update(&idle).is_empty());
 	}
@@ -244,6 +260,7 @@ mod tests {
 		assert_eq!(
 			lines,
 			[
+				"Provisioning image built 2026-10-29, steps revision 1.",
 				"A run has stopped at a failed step.",
 				"A: passed",
 				"A reports:",
@@ -253,6 +270,24 @@ mod tests {
 				"B: failed: it broke",
 				"C: queued",
 			]
+		);
+	}
+
+	#[test]
+	fn a_new_revision_or_image_date_is_said_again() {
+		let mut reporter = Reporter::default();
+		let idle = snapshot(RunState::Idle, vec![step("a", StepState::Unchosen)], vec![]);
+		reporter.update(&idle);
+		let mut newer = idle.clone();
+		newer.revision = 2;
+		assert_eq!(
+			reporter.update(&newer),
+			["Provisioning image built 2026-10-29, steps revision 2."]
+		);
+		newer.built = jiff::civil::date(2026, 11, 5);
+		assert_eq!(
+			reporter.update(&newer),
+			["Provisioning image built 2026-11-05, steps revision 2."]
 		);
 	}
 

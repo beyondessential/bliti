@@ -20,6 +20,7 @@
 
 use std::collections::BTreeSet;
 
+use jiff::civil::Date;
 use proptest::prelude::*;
 use serde_json::{Map, Value as Json};
 
@@ -165,7 +166,7 @@ fn step_report() -> impl Strategy<Value = StepReport> {
 		prop::sample::select(StepState::ALL),
 		prop::option::of((0u32..=100).prop_map(|n| f64::from(n) / 100.0)),
 		prop::option::of("[a-z ]{1,20}"),
-		prop::option::of(object_of(json())),
+		prop::option::of(prop_oneof![object_of(json()), record_result()]),
 	)
 		.prop_map(
 			|(id, title, done, why, state, progress, reason, result)| StepReport {
@@ -179,6 +180,42 @@ fn step_report() -> impl Strategy<Value = StepReport> {
 				result,
 			},
 		)
+}
+
+/// A step result carrying the board's record, its optional members present and absent.
+fn record_result() -> impl Strategy<Value = Map<String, Json>> {
+	(
+		"[A-Z2-7]{4}",
+		prop::option::of("[a-z0-9.]{1,6}"),
+		prop::option::of("[a-f0-9-]{8,36}"),
+		prop::option::of("[a-z0-9-]{8,40}"),
+		(2000i16..2100, 1i8..=12, 1i8..=28, 0i8..24, 0i8..60, 0i8..60),
+	)
+		.prop_map(
+			|(suffix, version, disk, passphrase, (y, mo, d, h, mi, s))| {
+				let mut record = Map::new();
+				record.insert("suffix".to_owned(), suffix.into());
+				for (member, value) in [
+					("version", version),
+					("disk", disk),
+					("passphrase", passphrase),
+				] {
+					if let Some(value) = value {
+						record.insert(member.to_owned(), value.into());
+					}
+				}
+				record.insert(
+					"at".to_owned(),
+					format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z").into(),
+				);
+				Map::from_iter([("record".to_owned(), Json::Object(record))])
+			},
+		)
+}
+
+/// A date an image may have been built on.
+fn built() -> impl Strategy<Value = Date> {
+	(2000i16..2100, 1i8..=12, 1i8..=28).prop_map(|(y, m, d)| Date::constant(y, m, d))
 }
 
 /// One open prompt of a `provision-state`, of a kind this build knows and of one it does not.
@@ -324,11 +361,19 @@ pub fn message() -> impl Strategy<Value = Message> {
 		// The provisioning stream of PRS.
 		1 => Just(Message::Provision),
 		1 => (
+			1u32..4,
+			built(),
 			prop::sample::select(RunState::ALL),
 			prop::collection::vec(step_report(), 0..4),
 			prop::collection::vec(prompt_report(), 0..3),
 		)
-			.prop_map(|(run, steps, prompts)| Message::ProvisionState { run, steps, prompts }),
+			.prop_map(|(revision, built, run, steps, prompts)| Message::ProvisionState {
+				revision,
+				built,
+				run,
+				steps,
+				prompts,
+			}),
 		1 => (
 			"[a-z-]{1,10}",
 			prop::option::of(prop::collection::vec("[a-z0-9-]{1,10}", 0..4)),

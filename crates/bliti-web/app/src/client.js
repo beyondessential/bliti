@@ -9,25 +9,22 @@
 // decoded messages with no channel and no Bluetooth in the loop, which is what lets the view and the
 // subscription lifecycle be tested without pretending to be a Bluetooth stack.
 
-import { Channel, QrCode, allocation_uuid, client_tx_uuid, read_allocation, service_uuid } from './wasm/bliti_web.js'
+import { Channel, QrCode, service_uuid } from './wasm/bliti_web.js'
+import {
+	CLIENT_NAME,
+	CLIENT_VERSION,
+	NEEDS_CHOOSER,
+	NOTHING_PICKED,
+	createLink,
+	unsupportedReason,
+} from './link.js'
 import { loadProtocol as protocol } from './protocol.js'
 import { tailscaleActSaid } from './services.js'
 
-/// What this client calls itself to a device. Opaque to the device, which logs it (BLI-MSG).
-export const CLIENT_NAME = 'bliti-web'
-export const CLIENT_VERSION = __APP_VERSION__
-
-/// The name of the error connect throws where the chooser closed with nothing picked. The browser
-/// does not say whether the list was empty or the operator dismissed it (WEB).
-export const NOTHING_PICKED = 'NothingPicked'
-
-/// The name of the error reconnect throws where the device can only be reached again through the
-/// chooser (WEB).
-export const NEEDS_CHOOSER = 'NeedsChooser'
+export { CLIENT_NAME, CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED }
 
 export function createClient() {
-	let device = null
-	let channel = null
+	const link = createLink()
 	// Whatever is currently delivering the feed: the streams the device pushed after connect, or a
 	// subscription opened to resume. Null while the feed is declined (the page is hidden).
 	let feed = null
@@ -36,93 +33,18 @@ export function createClient() {
 	// device would go on pushing to a page nobody is looking at (BLI-MSG).
 	let resuming = null
 
-	// The listeners the open channel put on the device, so a later open can take them off again: a
-	// link dropped under an old channel must not reach the operator as the new one closing.
-	let detach = () => {}
-	// Bumped on disconnect, so an open still in flight when the operator lets the device go does not
-	// leave a channel behind it.
-	let generation = 0
-
-	// Open a channel to the device picked: the GATT connection, the characteristics, the handshake,
-	// and the streams above it.
+	// Open a channel to the device picked, keyed by the QR code, with the feed the device pushes
+	// unprompted as the current one.
 	async function open(qr, { onEvent, onClosed, onDisconnected, onActivity }) {
-		const say = (direction, text) => onActivity?.(direction, text)
-		const mine = ++generation
-		const current = () => {
-			if (mine === generation) return
-			if (device?.gatt?.connected) device.gatt.disconnect()
-			throw new Error('The device was let go of while connecting.')
-		}
-		detach()
-		detach = () => {}
-		if (device.gatt.connected) device.gatt.disconnect()
-
-		const server = await device.gatt.connect()
-		current()
-		const service = await server.getPrimaryService(service_uuid())
-		const clientTx = await service.getCharacteristic(client_tx_uuid())
-		// The device notifies each client on a characteristic of its own, and says which, with the ATT_MTU
-		// of the link, which the browser does not tell the page (CHN).
-		const allocation = await service.getCharacteristic(allocation_uuid())
-		const given = read_allocation(new Uint8Array((await allocation.readValue()).buffer))
-		current()
-		if (!given) {
-			if (device?.gatt?.connected) device.gatt.disconnect()
-			throw new Error('The device is serving as many clients as it can. Try again later.')
-		}
-		const slot = given.slot
-		const chunk = given.chunk
-		given.free()
-		const deviceTx = await service.getCharacteristic(slot)
-		current()
-
-		// Writes are acknowledged, so the device is never sent more than it has taken, and each fills
-		// what the link carries, so few are needed (CHN). The bytes are copied because the channel hands
-		// over a view it may reuse.
-		const opened = new Channel(qr, (bytes) => clientTx.writeValueWithResponse(bytes.slice()), chunk)
-		channel = opened
-
-		const receive = (event) => opened.receive(new Uint8Array(event.target.value.buffer))
-		deviceTx.addEventListener('characteristicvaluechanged', receive)
-		// The channel closes once, whether the link drops or the connection ends on a fault; both
-		// reach the operator through onDisconnected, and the guard keeps a doubled signal (a fault
-		// that also drops the link) from reporting twice.
-		let closed = false
-		const closeOnce = (why) => {
-			if (closed) return
-			closed = true
-			detach()
-			detach = () => {}
-			onDisconnected?.(why)
-		}
-		const dropped = () => closeOnce()
-		const held = device
-		held.addEventListener('gattserverdisconnected', dropped)
-		detach = () => {
-			closed = true
-			deviceTx.removeEventListener('characteristicvaluechanged', receive)
-			held.removeEventListener('gattserverdisconnected', dropped)
-		}
-
-		// Subscribing to notifications is what opens a session: it is the point at which the device
-		// can send. Not to be confused with a bliti subscription, which is a stream.
-		await deviceTx.startNotifications()
-		current()
-		say('note', 'notifications on, opening the session')
-
-		// Said before the call rather than after: the handshake and the device's first messages all
-		// happen inside it, so anything logged afterwards would land out of order behind them.
-		say('out', `hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
-		await opened.connect(
-			CLIENT_NAME,
-			CLIENT_VERSION,
-			(json) => onEvent(JSON.parse(json)),
-			(why) => onClosed?.(why),
-			(why) => closeOnce(why),
-		)
-		current()
+		await link.open((write, chunk) => new Channel(qr, write, chunk), {
+			onMessage: onEvent,
+			onClosed,
+			onDisconnected,
+			onActivity,
+		})
 		// The device pushes the default feed unprompted, so it is already the current feed. It is
 		// declined by closing it (BLI-MSG); the device keeps sampling across a decline.
+		const opened = link.channel
 		feed = { close: () => opened.close_feed() }
 	}
 
@@ -130,15 +52,7 @@ export function createClient() {
 		// Why this browser cannot run the client, or null where it can. The real client owns this
 		// because the reasons are its own: a secure context and Web Bluetooth are what it needs, and
 		// nothing else in the application should have to know that.
-		unsupported() {
-			if (!window.isSecureContext) {
-				return 'This page needs a secure context. Open it over https, or over localhost while developing.'
-			}
-			if (!navigator.bluetooth) {
-				return 'Open this page in Chrome on an Android phone.'
-			}
-			return null
-		},
+		unsupported: unsupportedReason,
 
 		// Both paths a QR code arrives by land here, and the payload is treated identically once read.
 		// `localName` is the name for the highest version marker considered, the one shown before the
@@ -164,20 +78,10 @@ export function createClient() {
 			await protocol()
 			const names = qr.local_names
 			say('note', `asking the browser to choose ${names.join(' or ')}`)
-			try {
-				device = await navigator.bluetooth.requestDevice({
-					filters: names.map((name) => ({ name })),
-					optionalServices: [service_uuid()],
-				})
-			} catch (error) {
-				// Told apart here because a GATT lookup below rejects with the same name.
-				if (error.name === 'NotFoundError') {
-					const nothing = new Error('No device was picked.')
-					nothing.name = NOTHING_PICKED
-					throw nothing
-				}
-				throw error
-			}
+			const device = await link.pick({
+				filters: names.map((name) => ({ name })),
+				optionalServices: [service_uuid()],
+			})
 
 			const advertised = device.name ? qr.read_local_name(device.name) : undefined
 			if (!advertised) {
@@ -202,12 +106,12 @@ export function createClient() {
 		// needs no chooser and no tap. Rejects with NEEDS_CHOOSER where there is no such device to go
 		// back to, and with whatever the attempt met otherwise, for the caller to try again.
 		async reconnect(qr, handlers) {
-			if (!device?.gatt) {
+			if (!link.reopenable) {
 				const chooser = new Error('The device has to be picked again.')
 				chooser.name = NEEDS_CHOOSER
 				throw chooser
 			}
-			handlers.onActivity?.('note', `reconnecting to ${device.name}`)
+			handlers.onActivity?.('note', `reconnecting to ${link.device.name}`)
 			await open(qr, handlers)
 		},
 
@@ -225,9 +129,9 @@ export function createClient() {
 		// subscription is a stream: it begins here and ends when its handle is closed, which is the
 		// unsubscribe (BLI-MSG, "Subscribing").
 		async resumeFeed({ onEvent, onClosed, onActivity }) {
-			if (feed || resuming || !channel) return
+			if (feed || resuming || !link.channel) return
 			let cancelled = false
-			const pending = channel.subscribe(
+			const pending = link.channel.subscribe(
 				'default',
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
@@ -258,10 +162,10 @@ export function createClient() {
 		// onEvent as a feed's messages do; onClosed is called once the stream ends. Closing the
 		// returned session ends it, which changes nothing the device holds.
 		async configure({ onEvent, onClosed, onActivity }) {
-			if (!channel) throw new Error('Not connected to a device.')
+			if (!link.channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
 			say('configure')
-			const handle = await channel.configure(
+			const handle = await link.channel.configure(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
@@ -289,10 +193,10 @@ export function createClient() {
 		// asked for (`accepted`, or `cannot-act`). Every message the device sends on it reaches onEvent as a feed's messages do;
 		// onClosed is called once the stream ends.
 		async power({ onEvent, onClosed, onActivity }) {
-			if (!channel) throw new Error('Not connected to a device.')
+			if (!link.channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
 			say('power')
-			const handle = await channel.power(
+			const handle = await link.channel.power(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
@@ -318,10 +222,10 @@ export function createClient() {
 		// message the device sends on it reaches onEvent as a feed's messages do; onClosed is called
 		// once the stream ends.
 		async curve({ onEvent, onClosed, onActivity }) {
-			if (!channel) throw new Error('Not connected to a device.')
+			if (!link.channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
 			say('curve')
-			const handle = await channel.curve(
+			const handle = await link.channel.curve(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
@@ -349,10 +253,10 @@ export function createClient() {
 		// sends on it reaches onEvent as a feed's messages do; onClosed is called once the stream ends.
 		// The record of what was sent never carries an auth key.
 		async tailscale({ onEvent, onClosed, onActivity }) {
-			if (!channel) throw new Error('Not connected to a device.')
+			if (!link.channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
 			say('tailscale')
-			const handle = await channel.tailscale(
+			const handle = await link.channel.tailscale(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
@@ -377,10 +281,10 @@ export function createClient() {
 		// asked for. Every message the device sends on it reaches onEvent as a feed's messages do;
 		// onClosed is called once the stream ends.
 		async tamanu({ onEvent, onClosed, onActivity }) {
-			if (!channel) throw new Error('Not connected to a device.')
+			if (!link.channel) throw new Error('Not connected to a device.')
 			const say = (text) => onActivity?.('out', text)
 			say('tamanu')
-			const handle = await channel.tamanu(
+			const handle = await link.channel.tamanu(
 				(json) => onEvent(JSON.parse(json)),
 				(why) => onClosed?.(why),
 			)
@@ -402,12 +306,7 @@ export function createClient() {
 		},
 
 		disconnect() {
-			generation++
-			detach()
-			detach = () => {}
-			if (device?.gatt?.connected) device.gatt.disconnect()
-			device = null
-			channel = null
+			link.disconnect()
 			feed = null
 		},
 	}

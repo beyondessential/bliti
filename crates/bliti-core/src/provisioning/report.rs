@@ -6,6 +6,7 @@
 
 use std::fmt;
 
+use jiff::Timestamp;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::{Map, Value as Json};
 
@@ -231,5 +232,49 @@ impl Answer {
 impl fmt::Debug for Answer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.write_str("Answer(..)")
+	}
+}
+
+/// The board's record, which the step that saves it reports as the member `record` of its result
+/// (PRS, "The record").
+///
+/// Its [`fmt::Debug`] leaves out the passphrase, which must not reach a log.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+// spec: PRS
+pub struct Record {
+	/// The suffix of the board's advertised name.
+	pub suffix: String,
+	/// The board's version, where the run established it.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub version: Option<String>,
+	/// The UUID of the encrypted partition on the board's disk, where the run set it up.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub disk: Option<String>,
+	/// The recovery passphrase of that partition, where the run set it.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub passphrase: Option<String>,
+	/// When the record was saved.
+	pub at: Timestamp,
+}
+
+impl Record {
+	/// The record some step of `steps` reports, where one does.
+	pub fn find(steps: &[StepReport]) -> Option<Self> {
+		steps.iter().find_map(|step| {
+			let record = step.result.as_ref()?.get("record")?;
+			serde_json::from_value(record.clone()).ok()
+		})
+	}
+}
+
+impl fmt::Debug for Record {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Record")
+			.field("suffix", &self.suffix)
+			.field("version", &self.version)
+			.field("disk", &self.disk)
+			.field("passphrase", &self.passphrase.as_ref().map(|_| ".."))
+			.field("at", &self.at)
+			.finish()
 	}
 }

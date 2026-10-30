@@ -12,7 +12,7 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use super::*;
 use crate::provision::{
-	fake::{Do, Fake, Gate, Log},
+	fake::{BUILT, Do, Fake, Gate, Log},
 	step::Step,
 	store::Store,
 };
@@ -39,6 +39,7 @@ async fn paired(steps: Vec<Arc<Fake>>) -> Rig {
 			.map(|step| step as Arc<dyn Step>)
 			.collect(),
 		Some(Store::new(medium.path(), &[1])),
+		BUILT,
 	)
 	.await;
 	let (client_side, device_side) = tokio::io::duplex(1 << 16);
@@ -130,6 +131,8 @@ async fn the_state_is_sent_on_opening() {
 	.await;
 	let (_stream, state) = open(&mut rig.streams).await;
 	let Message::ProvisionState {
+		revision,
+		built,
 		run,
 		steps,
 		prompts,
@@ -137,6 +140,8 @@ async fn the_state_is_sent_on_opening() {
 	else {
 		panic!("not a state");
 	};
+	assert_eq!(revision, provisioning::REVISION);
+	assert_eq!(built, BUILT);
 	assert_eq!(run, RunState::Idle);
 	assert_eq!(
 		steps.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
@@ -160,6 +165,31 @@ async fn a_start_is_accepted_and_the_state_follows_it() {
 		}
 	}
 	assert!(accepted, "the act was answered");
+}
+
+/// Every state a client is sent carries the revision and the image's date it was given, so a client
+/// that connects at any point in a run can refuse a medium it should not drive (PRS).
+#[tokio::test]
+async fn every_state_carries_the_revision_and_the_images_date() {
+	let log = Log::default();
+	let mut rig = paired(vec![Fake::new("a", &log, vec![Do::Progress(0.5)])]).await;
+	let (mut stream, _) = open(&mut rig.streams).await;
+	say(&mut stream, &start(&["a"])).await;
+	let mut states = 0;
+	loop {
+		let message = next(&mut stream).await;
+		if let Message::ProvisionState {
+			revision, built, ..
+		} = &message
+		{
+			assert_eq!((*revision, *built), (provisioning::REVISION, BUILT));
+			states += 1;
+		}
+		if run_of_finished(&message) {
+			break;
+		}
+	}
+	assert!(states > 1, "the run changed the state more than once");
 }
 
 fn run_of_finished(message: &Message) -> bool {
@@ -305,6 +335,7 @@ async fn a_client_not_holding_the_token_does_not_complete_the_handshake() {
 	let provisioner = Provisioner::start(
 		vec![Fake::new("a", &log, vec![]) as Arc<dyn Step>],
 		Some(Store::new(medium.path(), &[1])),
+		BUILT,
 	)
 	.await;
 	let (client_side, device_side) = tokio::io::duplex(1 << 16);
