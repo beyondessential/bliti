@@ -55,6 +55,8 @@ The medium's system MUST carry the HAT overlay among the overlays of its current
 
 The medium's system MUST make the HAT EEPROM's bus, on GPIO0 and GPIO1, available to software.
 
+The medium's system MUST make the bootloader's flash of [PBL](bootloader.md) available to software.
+
 ## Layout
 
 The provisioning image MUST hold, in order, the partitions of the `pi` image as that image lays them out, then the payload partition, then the data partition.

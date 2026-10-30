@@ -78,5 +78,4 @@ The step MUST NOT ask an operator for anything.
 The step MUST pass only once the bootloader and the configuration the board holds in its flash are those [Done-state](#done-state) reports as `done`, whatever its writes reported, and MUST otherwise fail, saying that the board's bootloader could not be set.
 
 > [!NOTE]
-> A write that takes effect only at a reboot is not yet in the flash.
-> The device reboots, and the run, resumed as [RUN](run.md#surviving-a-reboot) has it, carries the step out again from its beginning, finds the board `done` and passes.
+> The bootloader reads its flash as the board boots, so what the step wrote is in effect from the next boot, including one after the board is powered off straight after the run finishes.

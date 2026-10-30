@@ -30,7 +30,7 @@ A device has booted from a USB stick where the disk it booted from, as [PMED](me
 
 A device that has booted from a USB stick MUST, when it starts in provisioning mode, put USB first in the boot order, ahead of every other medium, and MUST leave the order of the other media as it was.
 
-A device MUST NOT carry out a step of a run until the board holds that boot order in its bootloader's flash, whether the run is new or resumed.
+A device MUST NOT carry out a step of a run until the board holds that boot order in its bootloader's flash, whether the run is new or resumed, unless it cannot put USB first.
 
 A device MUST NOT write the bootloader where USB is already first.
 
@@ -41,7 +41,6 @@ A device that cannot put USB first MUST report the cause as [DEV](../device.md) 
 > [!NOTE]
 > A reboot partway through a run, from a step that needs one or from a power cut, comes back to the medium rather than to the system the run has written to the NVMe, so the run resumes.
 > The boot order of the Pi as shipped and the one [PBL](bootloader.md#the-configuration) writes both try the SD card first, so a board booted from an SD card needs no change.
-> Where holding the boot order takes a reboot, the device reboots, and finds the boot order held when it starts again.
 
 ## Going on the air
 
