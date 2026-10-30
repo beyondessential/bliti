@@ -25,7 +25,7 @@ use crate::gpio;
 mod history;
 
 /// The line the case switch is on. Low while the closed lid holds the switch down.
-const LINE: &str = "GPIO17";
+pub(crate) const LINE: &str = "GPIO17";
 
 /// How long the switch must hold a new position before it counts as having moved, which rules out
 /// contact bounce.

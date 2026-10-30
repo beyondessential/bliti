@@ -47,37 +47,38 @@ A header with version `0x02` and the Iti UUID is "a Tamanu Iti"; any other parsa
 ## Checklist
 
 ### Shared plumbing
-- [ ] `facts.rs`: `pub(crate) mod i2c`; expose `environment`'s chip checks to `provision`
-- [ ] `facts/environment/bme680.rs`, `ltr308.rs`: a one-shot `check` that opens, checks the ID and takes one reading
-- [ ] `provision/button.rs`: let `Debounce` report a stable release as well as a press
-- [ ] `provision/button.rs` or `daemon.rs`: a button wrapper that records a USER press since start, shared with the steps
-- [ ] `provision/step.rs`: `registry` takes the shared pieces and returns `[hardware, eeprom]`; update `daemon.rs`
-- [ ] `provision.rs`: drop the `dead_code` expectations on `context` and `model`
+- [x] `facts.rs`: `pub(crate) mod i2c`; expose `environment`'s chip checks to `provision`
+- [x] `facts/environment/bme680.rs`, `ltr308.rs`: a one-shot `check` that opens, checks the ID and takes one reading; `environment` exposes `check_air`, `check_light` and `air_chip_id`, which give the reason as text
+- [x] `provision/button.rs`: let `Debounce` report a stable release as well as a press
+- [x] `provision/button.rs` or `daemon.rs`: a button wrapper that records a USER press since start, shared with the steps
+- [x] `provision/step.rs`: `registry` takes the shared pieces and returns `[hardware, eeprom]`; update `daemon.rs`
+- [x] `provision.rs`: drop the `dead_code` expectations on `context` and `model`, leaving them on the methods no step calls yet
+- [x] A prompt's id is the key a step gave it (`user`, `case`, `id-wp`, `overwrite`), as the specs and the client's pictures name them; `Context::notice` takes a key. The model had built `{step}-{key}` and `notice-N`
 
 ### Placing the board (PHW)
-- [ ] `provision/steps/hardware/place.rs`: the version table and `place()`, from the BME680 chip ID at `0x77` on I²C3
-- [ ] Tests: v4.0 placed from `0x61`; another ID, no answer and no bus place nothing
+- [x] `provision/steps/hardware/place.rs`: the version table and `place()`, from the BME680 chip ID at `0x77` on I²C3
+- [x] Tests: v4.0 placed from `0x61`; another ID, no answer and no bus place nothing
 
 ### Hardware check (PHW)
-- [ ] `provision/steps/hardware.rs`: the step, with id `hardware` and title "Check the hardware"; `done()` returns `not-done`
-- [ ] `user`: pass if a press is recorded; otherwise the `user` notice, closing on a press, failing after five minutes
-- [ ] `case`: the `case` notice; pass on a debounced low then high on `GPIO17`; fail after five minutes or where the line can't be read
-- [ ] `air`, `light`: the chip checks, each reason naming the chip and, for a wrong part, the ID read
-- [ ] `tpm`: read the board ID from the TPM EK backend
-- [ ] Carry out every check, set the result (`checks`, `version`) whether passing or failing, and fail with a reason naming each failed check and "could not be placed" where it applies
-- [ ] Tests with fake lines, bus and TPM: a press recorded skips the `user` prompt; CASE pass, timeout and unreadable line; bounce on CASE isn't a press; a wrong-part sensor; every check still runs after an early failure; the result's shape
+- [x] `provision/steps/hardware.rs`: the step, with id `hardware` and title "Check the hardware"; `done()` returns `not-done`
+- [x] `user`: pass if a press is recorded; otherwise the `user` notice, closing on a press, failing after five minutes
+- [x] `case`: the `case` notice; pass on a debounced low then high on `GPIO17`; fail after five minutes or where the line can't be read
+- [x] `air`, `light`: the chip checks, each reason naming the chip and, for a wrong part, the ID read
+- [x] `tpm`: read the board ID from the TPM EK backend
+- [x] Carry out every check, set the result (`checks`, `version`) whether passing or failing, and fail with a reason naming each failed check and "could not be placed" where it applies
+- [x] Tests with fake lines, bus and TPM: a press recorded skips the `user` prompt; CASE pass, timeout and unreadable line; bounce on CASE isn't a press; a wrong-part sensor; every check still runs after an early failure; the result's shape
 
 ### EEPROM step (PEEP)
-- [ ] `provision/steps/eeprom/chip.rs`: the CAT24C256 over a bus trait: chunked reads, paged writes with acknowledge polling
-- [ ] `provision/steps/eeprom/hat.rs`: the winnow parser and the "what it holds" description (image, blank, Tamanu Iti of a version, another HAT, unrecognised)
-- [ ] `provision/steps/eeprom.rs`: the step, with id `eeprom` and title "Program the EEPROM"
-- [ ] `done()`: place, find the image, read the image's length off the chip; `done` / `not-done` / `unknown` with a reason saying what it holds or why it's unknown
-- [ ] `run()`: fail if it can't place the board, has no image or can't read the chip; pass without writing if the chip already holds the image; write without asking if the chip is blank or holds the same Iti version; otherwise the `overwrite` confirm, failing on a decline
-- [ ] Writing: the `id-wp` notice (bare metal, coated tools don't conduct, hold until the step passes); retry until the chip reads back as the image, for five minutes; close and pass, or close and fail with the check-the-bridge reason
-- [ ] Tests over a fake chip that refuses writes until "bridged": write after N refusals; a write that reports success but reads back wrong is retried; timeout; blank and same-version written without a prompt; another HAT and unrecognised contents ask, with sanitised strings; decline fails and leaves the chip untouched; `done()` for each case
-- [ ] Parser tests against the real v4.0 image built from `hat/tamanu-iti-v4.0.txt` (checked in as a fixture), a legacy-format header, and truncated or garbage input
+- [x] `provision/steps/eeprom/chip.rs`: the CAT24C256 over a bus trait: chunked reads, paged writes with acknowledge polling
+- [x] `provision/steps/eeprom/hat.rs`: the winnow parser and the "what it holds" description (image, blank, Tamanu Iti of a version, another HAT, unrecognised)
+- [x] `provision/steps/eeprom.rs`: the step, with id `eeprom` and title "Program the EEPROM"
+- [x] `done()`: place, find the image, read the image's length off the chip; `done` / `not-done` / `unknown` with a reason saying what it holds or why it's unknown
+- [x] `run()`: fail if it can't place the board, has no image or can't read the chip; pass without writing if the chip already holds the image; write without asking if the chip is blank or holds the same Iti version; otherwise the `overwrite` confirm, failing on a decline
+- [x] Writing: the `id-wp` notice (bare metal, coated tools don't conduct, hold until the step passes); retry until the chip reads back as the image, for five minutes; close and pass, or close and fail with the check-the-bridge reason
+- [x] Tests over a fake chip that refuses writes until "bridged": write after N refusals; a write that reports success but reads back wrong is retried; timeout; blank and same-version written without a prompt; another HAT and unrecognised contents ask, with sanitised strings; decline fails and leaves the chip untouched; `done()` for each case
+- [x] Parser tests against the real v4.0 image built from `hat/tamanu-iti-v4.0.txt` (checked in as a fixture), a legacy-format header, and truncated or garbage input
 
 ### Wrap-up
-- [ ] `// spec: PHW` / `// spec: PEEP` on the code that carries each rule
-- [ ] `provision.rs` module doc: add PHW and PEEP to the list of specs
-- [ ] `cargo fmt`, clippy, tests; the web tests are unaffected (prompt ids already match the client's pictures)
+- [x] `// spec: PHW` / `// spec: PEEP` on the code that carries each rule
+- [x] `provision.rs` module doc: add PHW and PEEP to the list of specs
+- [x] `cargo fmt`, clippy, tests; the web tests are unaffected

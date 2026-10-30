@@ -17,7 +17,7 @@ const PRODUCT: &str = "Tamanu Iti";
 const HAT: &str = "/proc/device-tree/hat";
 
 /// The UUID in every Tamanu Iti's HAT EEPROM (HAT).
-const ITI_UUID: &str = "7c3b8a88-ad89-4d48-b709-2bd445729867";
+pub(crate) const ITI_UUID: &str = "7c3b8a88-ad89-4d48-b709-2bd445729867";
 
 /// The TPM's device nodes, as the board ID looks for them.
 const TPM_NODES: [&str; 2] = ["/dev/tpmrm0", "/dev/tpm0"];

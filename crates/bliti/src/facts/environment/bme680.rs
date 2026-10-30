@@ -7,6 +7,8 @@
 
 use std::fmt;
 
+use embedded_hal::i2c::Operation;
+
 use bliti_core::channel::readings::{Entry, kind};
 use bosch_bme680::{
 	BmeError, Configuration, DeviceAddress, IIRFilter, MeasurmentData, Oversampling,
@@ -14,9 +16,11 @@ use bosch_bme680::{
 use serde_json::Value as Json;
 
 use super::Problem;
-use crate::facts::i2c::{Bus, Sleep};
+use crate::facts::i2c::{self, Bus, Sleep};
 
 const CHIP: &str = "BME680";
+const ADDRESS: u16 = 0x77;
+const CHIP_ID_REGISTER: u8 = 0xd0;
 
 type Driver = bosch_bme680::Bme680<Bus, Sleep>;
 
@@ -64,6 +68,31 @@ impl Bme680 {
 		};
 		driver.measure().map_err(|err| problem(self.bus, err))
 	}
+}
+
+/// Open the sensor and take one measurement, as provisioning's hardware check does.
+// spec: PHW
+pub fn check(bus: &str) -> Result<(), Problem> {
+	open(bus)?
+		.measure()
+		.map(drop)
+		.map_err(|err| problem(bus, err))
+}
+
+/// The chip ID register of whatever answers at the sensor's address, read plainly so the chip is not
+/// reset, as opening it would.
+// spec: PHW
+pub fn chip_id(bus: &str) -> Result<u8, i2c::Error> {
+	let bus = Bus::open(bus)?;
+	let mut id = [0u8];
+	bus.transfer(
+		ADDRESS,
+		&mut [
+			Operation::Write(&[CHIP_ID_REGISTER]),
+			Operation::Read(&mut id),
+		],
+	)?;
+	Ok(id[0])
 }
 
 /// Open the bus and the sensor on it. Resets the chip and checks it is a BME680.

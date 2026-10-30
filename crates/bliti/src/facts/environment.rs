@@ -17,6 +17,23 @@ mod ltr308;
 /// this node.
 const BUS: &str = "/dev/i2c-3";
 
+/// One measurement from the air sensor, for provisioning's hardware check, or why it gave none.
+// spec: PHW
+pub fn check_air() -> Result<(), String> {
+	bme680::check(BUS).map_err(Problem::into_reason)
+}
+
+/// One measurement from the light sensor, for provisioning's hardware check, or why it gave none.
+// spec: PHW
+pub fn check_light() -> Result<(), String> {
+	ltr308::check(BUS).map_err(Problem::into_reason)
+}
+
+/// The chip ID the air sensor's address answers with, which tells a board's version apart (PHW).
+pub fn air_chip_id() -> Result<u8, i2c::Error> {
+	bme680::chip_id(BUS)
+}
+
 /// The HAT sensors a device has fitted, each holding its open driver between ticks.
 #[derive(Debug, Default)]
 pub struct Sensors {
@@ -80,6 +97,12 @@ impl Problem {
 
 	fn unfinished(chip: &str) -> Self {
 		Self::Broken(format!("the {chip} did not finish a measurement"))
+	}
+
+	fn into_reason(self) -> String {
+		match self {
+			Self::Skipped(reason) | Self::Broken(reason) => reason,
+		}
 	}
 
 	fn entry(&self, at: u64, name: &str, kind: &str) -> Entry {

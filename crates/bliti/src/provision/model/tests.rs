@@ -68,7 +68,7 @@ fn an_answer_is_held_and_given_to_the_step_that_needs_it() {
 	let step = model.begin_next().unwrap();
 	model.ask_later(step, "name", PromptKind::Text, "Name?");
 	model
-		.answer(Some("one-name"), Some(&Answer::text("Ada")))
+		.answer(Some("name"), Some(&Answer::text("Ada")))
 		.unwrap();
 	assert!(model.prompts.is_empty());
 	let Need::Held(answer) = model.need(step, "name", PromptKind::Text, "Name?") else {
@@ -86,7 +86,7 @@ fn an_answer_reaches_the_step_waiting_for_it() {
 		panic!()
 	};
 	model
-		.answer(Some("one-ok"), Some(&Answer::boolean(true)))
+		.answer(Some("ok"), Some(&Answer::boolean(true)))
 		.unwrap();
 	assert_eq!(answer.try_recv().unwrap().as_bool(), Some(true));
 	assert_eq!(model.run(), RunState::Running);
@@ -99,10 +99,10 @@ fn a_second_answer_is_refused_at_the_prompt() {
 	let step = model.begin_next().unwrap();
 	model.ask_later(step, "name", PromptKind::Text, "Name?");
 	model
-		.answer(Some("one-name"), Some(&Answer::text("Ada")))
+		.answer(Some("name"), Some(&Answer::text("Ada")))
 		.unwrap();
 	let refused = model
-		.answer(Some("one-name"), Some(&Answer::text("Bo")))
+		.answer(Some("name"), Some(&Answer::text("Bo")))
 		.unwrap_err();
 	assert_eq!(refused.at, "$['prompt']");
 }
@@ -112,7 +112,7 @@ fn a_notice_takes_no_answer() {
 	let mut model = model();
 	model.begin_run(&[0]);
 	let step = model.begin_next().unwrap();
-	let id = model.notice(step, "Press SW1");
+	let id = model.notice(step, "press", "Press SW1");
 	assert_eq!(model.run(), RunState::Waiting);
 	let refused = model
 		.answer(Some(&id), Some(&Answer::boolean(true)))
@@ -130,10 +130,10 @@ fn an_answer_of_the_wrong_type_is_refused_at_the_value() {
 	model.ask_later(step, "ok", PromptKind::Confirm, "Sure?");
 	model.ask_later(step, "name", PromptKind::Secret, "Password?");
 	for (id, value) in [
-		("one-ok", Some(Answer::text("yes"))),
-		("one-ok", None),
-		("one-name", Some(Answer::boolean(true))),
-		("one-name", None),
+		("ok", Some(Answer::text("yes"))),
+		("ok", None),
+		("name", Some(Answer::boolean(true))),
+		("name", None),
 	] {
 		let refused = model.answer(Some(id), value.as_ref()).unwrap_err();
 		assert_eq!(refused.at, "$['value']", "{id} {value:?}");
