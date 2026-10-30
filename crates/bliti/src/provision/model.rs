@@ -66,7 +66,6 @@ pub struct Model {
 	answers: HashMap<String, Answer>,
 	/// Counts the runs, so what a stopped run's task does is not taken for the next run's.
 	pub generation: u64,
-	notices: u64,
 }
 
 impl Model {
@@ -92,7 +91,6 @@ impl Model {
 			prompts: Vec::new(),
 			answers: HashMap::new(),
 			generation: 0,
-			notices: 0,
 		}
 	}
 
@@ -293,6 +291,10 @@ impl Model {
 	}
 
 	/// A step asks for something it does not wait on.
+	#[cfg_attr(
+		not(test),
+		expect(dead_code, reason = "no step asks for something later yet")
+	)]
 	pub fn ask_later(&mut self, step: usize, key: &str, kind: PromptKind, text: &str) {
 		let known =
 			self.answers.contains_key(key) || self.prompts.iter().any(|prompt| prompt.key == key);
@@ -303,10 +305,8 @@ impl Model {
 	}
 
 	/// A step asks an operator to do something, and waits until it sees it done. Returns the prompt.
-	pub fn notice(&mut self, step: usize, text: &str) -> String {
-		self.notices += 1;
-		let key = format!("notice-{}", self.notices);
-		let prompt = self.open(step, &key, PromptKind::Notice, text, Some(step), None);
+	pub fn notice(&mut self, step: usize, key: &str, text: &str) -> String {
+		let prompt = self.open(step, key, PromptKind::Notice, text, Some(step), None);
 		let id = prompt.id.clone();
 		self.prompts.push(prompt);
 		id
@@ -322,7 +322,7 @@ impl Model {
 		waiter: Option<oneshot::Sender<Answer>>,
 	) -> Open {
 		Open {
-			id: format!("{}-{key}", self.steps[step].id),
+			id: key.to_owned(),
 			step,
 			key: key.to_owned(),
 			kind,

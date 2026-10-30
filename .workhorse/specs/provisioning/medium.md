@@ -112,10 +112,12 @@ The medium's system MUST check the data partition and repair what it can before 
 
 The medium's system MUST keep the state of runs that [RUN](run.md) keeps on the provisioning medium on the data partition.
 
+The medium's system MUST keep the records of boards that [PENC](encryption.md#the-record) saves on the data partition.
+
 The data partition MUST hold a copy of the manifest at `manifest.txt`, at its root.
 
 > [!NOTE]
-> The data partition holds what runs keep, and can be read on any computer.
+> The data partition holds what runs keep and the records of the boards they provisioned, and can be read on any computer.
 > The copy of the manifest there tells someone holding a stick what is on it, and the medium's system reads its own.
 
 ## Building

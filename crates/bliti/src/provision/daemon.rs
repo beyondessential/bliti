@@ -61,7 +61,8 @@ pub async fn run(options: Options) -> Result<()> {
 	let store = serial
 		.as_deref()
 		.map(|serial| Store::new(&options.medium, serial));
-	let provisioner = Provisioner::start(registry(), store, options.image_built).await;
+	let (user, pressed) = button::record(button::user());
+	let provisioner = Provisioner::start(registry(pressed), store, options.image_built).await;
 
 	let _led = match led::Sysfs::open() {
 		Ok(sysfs) => Some(AbortOnDrop(
@@ -140,7 +141,7 @@ pub async fn run(options: Options) -> Result<()> {
 		registered: None,
 	};
 	let result = tokio::select! {
-		_ = window::keep(button::user(), air, window_events) => Ok(()),
+		_ = window::keep(user, air, window_events) => Ok(()),
 		result = shutdown() => result,
 	};
 	// Returning drops the GATT application, which unregisters it from BlueZ. Leaving by any other

@@ -7,7 +7,7 @@ id: HAT
 A Tamanu Iti of the fourth generation carries a HAT EEPROM, and that EEPROM is what tells software the board is a Tamanu Iti and which version of it.
 
 This spec defines what the EEPROM holds, how a reader recognises a Tamanu Iti and its version from it, and the device tree overlay it names.
-How an EEPROM comes to hold that is not specified here.
+How provisioning writes it is specified under [PEEP](provisioning/eeprom.md), and how it installs the overlay into the board's system under [PDSK](provisioning/disk.md).
 How the `product` fact reports what it records is specified under [NFO](device-info.md#product).
 
 ## Borrowed terms

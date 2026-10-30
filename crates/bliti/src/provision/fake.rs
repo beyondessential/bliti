@@ -135,7 +135,7 @@ impl Step for Fake {
 				}
 				Do::AskLater(key, kind) => context.ask_later(key, kind.clone(), "Later?"),
 				Do::Notice(text, gate) => {
-					let notice = context.notice(text);
+					let notice = context.notice("notice", text);
 					gate.open.notified().await;
 					notice.close();
 				}

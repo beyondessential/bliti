@@ -12,7 +12,15 @@ A device MUST hold its steps in one fixed order, and MUST carry out the steps of
 
 A step MUST be safe to start again after it has been interrupted at any point.
 
-The steps a device offers, and the effect of each, are specified by the specs that define them.
+A device in provisioning mode MUST offer the steps below, in this order.
+
+| id | title | defined by |
+| --- | --- | --- |
+| `hardware` | Check the hardware | [PHW](hardware.md) |
+| `eeprom` | Program the EEPROM | [PEEP](eeprom.md) |
+| `disk` | Write the system to the disk | [PDSK](disk.md) |
+| `overlay` | Install the HAT overlay | [PDSK](disk.md) |
+| `encryption` | Set up disk encryption | [PENC](encryption.md) |
 
 ## Done-state
 

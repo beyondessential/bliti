@@ -7,6 +7,7 @@ id: PRV
 A device booted from a [provisioning medium](../overview.md#provisioning-medium) runs in [provisioning mode](../overview.md#provisioning-mode), in which an operator at the device sets it up through a client or through the device's console.
 
 [PMED](medium.md) specifies the medium, [RUN](run.md) runs, [PRS](stream.md) the stream a client drives them over, [PWEB](client.md) the page of the web application that does, [PCON](console.md) the console command, and [PLED](led.md) the status LED.
+[PHW](hardware.md), [PEEP](eeprom.md), [PDSK](disk.md) and [PENC](encryption.md) specify the steps of a run.
 
 ## Borrowed terms
 
