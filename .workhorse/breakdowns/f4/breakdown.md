@@ -35,7 +35,7 @@ The client at `/provision`, a second entry point in the existing web build, not 
 
 refer to #F4's working doc for any missing details
 
-## Check the hardware and program the EEPROM
+## Check the hardware and program the EEPROM · R4
 
 The first two provisioning steps. The hardware check counts the USER press that found the board, waits for CASE (GPIO17, active low while the case is closed) to be pressed and released, reads the BME680 (chip ID `0x61` at `0x77`) and the LTR-308 (part ID `0xb1` at `0x53`) on I²C3, and confirms the TPM answers; the BME680 places the board as v4.0, and a board it can't place stops without guessing. The EEPROM step writes the image for that version over the ID bus (CAT24C256 at `0x50`), retrying for up to five minutes while the assembler bridges the ID WP pads with bare metal such as scissors (coated tweezers don't conduct; an unbridged write fails with an I/O timeout), tells them to let go, and verifies by reading back; an EEPROM already holding the same contents counts as done, and one holding something else is overwritten only once the assembler confirms. Both are steps against K4's `Step` trait (`provision/step.rs`), added to its registry; the check's `done()` always says not done. Read the sensors through L4's I²C bus and chip checks (`facts/i2c.rs`, `facts/environment`) and CASE through the GPIO module M4 and K4 use, rather than new code; provisioning mode runs no sampler or case watch, so nothing else holds the bus or the line. The EEPROM step's `done()` reads the chip itself: what the firmware publishes under `/proc/device-tree/hat/` only changes at the next boot. Prompts name parts by their silkscreen labels, as K4's spec requires.
 
