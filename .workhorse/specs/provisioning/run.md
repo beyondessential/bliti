@@ -21,6 +21,7 @@ A device in provisioning mode MUST offer the steps below, in this order.
 | `disk` | Write the system to the disk | [PDSK](disk.md) |
 | `overlay` | Install the HAT overlay | [PDSK](disk.md) |
 | `encryption` | Set up disk encryption | [PENC](encryption.md) |
+| `bootloader` | Configure the bootloader | [PBL](bootloader.md) |
 
 ## Done-state
 
