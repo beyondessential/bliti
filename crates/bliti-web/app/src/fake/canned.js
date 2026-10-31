@@ -44,12 +44,20 @@ export const facts = (now) => [
 	fact('last-boot', new Date(now - 3 * 3_600_000).toISOString(), 'datetime'),
 ]
 
+// On mains and charging its built-in battery, which the curve the device answers with belongs to (CSCR).
+const BUILT_IN = { battery: { name: 'built-in' } }
+
 export const readings = () => [
 	reading('cpu-usage', 'fraction', 0.12),
 	reading('memory-usage', 'fraction', 0.34),
 	reading('filesystem-usage', 'fraction', 0.41, { filesystem: { mount: '/', device: '/dev/mmcblk0p2' } }),
 	reading('temperature', 'quantity', 48.5, { sensor: 'cpu' }, 'celsius'),
 	reading('temperature', 'quantity', 31.2, { sensor: 'case' }, 'celsius'),
+	reading('power-source', 'text', 'via-backup'),
+	reading('battery-charge', 'fraction', 0.82, BUILT_IN),
+	reading('battery-direction', 'text', 'charging', BUILT_IN),
+	reading('battery-voltage', 'quantity', 3.98, BUILT_IN, 'volts'),
+	reading('battery-time-to-full', 'duration', 4800, { ...BUILT_IN, margin: 900 }),
 ]
 
 export const DOCUMENT = {
