@@ -1,8 +1,7 @@
 // The screens before a device is on screen: pressing USER and opening the chooser, nothing picked,
-// connecting, something else already connected, and a browser that cannot open a channel (PWEB,
-// "The page" and "Finding a device").
+// connecting, and something else already connected (PWEB, "The page" and "Finding a device").
 
-import { Problem, Steps } from '../Reaching.jsx'
+import { FakeDevice, Problem, Steps } from '../Reaching.jsx'
 import { Title } from '../Screen.jsx'
 import Picture from './Picture.jsx'
 
@@ -29,23 +28,9 @@ export function trouble(problem) {
 	return { headline, help, detail: problem.detail }
 }
 
-/// Where the browser cannot open a channel at all: that, and nothing else offered (PWEB).
-export function Unsupported({ reason }) {
-	// spec: PWEB
-	return (
-		<>
-			<Title title="Provision an Iti" />
-			<section>
-				<Problem>This browser can't connect to an Iti</Problem>
-				<p className="muted">{reason}</p>
-			</section>
-		</>
-	)
-}
-
 /// Finding a device: `phase` is null, `choosing` while the chooser is open, or `connecting` once a
 /// device is picked. `problem` is why the last attempt ended, where it did not end by choice.
-export default function Finding({ phase, problem, offlineReady, labels, onFind, onCancel, onLabels }) {
+export default function Finding({ phase, problem, offlineReady, labels, dev, onFind, onFake, onCancel, onLabels }) {
 	const title = (
 		<Title title="Provision an Iti">{!offlineReady && <span className="offline">Not ready offline</span>}</Title>
 	)
@@ -84,6 +69,7 @@ export default function Finding({ phase, problem, offlineReady, labels, onFind, 
 					<button className="block" onClick={onFind} disabled={phase !== null}>
 						Try again
 					</button>
+					{dev && <FakeDevice onClick={onFake} disabled={phase !== null} />}
 				</section>
 			</>
 		)
@@ -101,6 +87,7 @@ export default function Finding({ phase, problem, offlineReady, labels, onFind, 
 				<button className="block" onClick={onFind} disabled={phase !== null}>
 					Find Iti
 				</button>
+				{dev && <FakeDevice onClick={onFake} disabled={phase !== null} />}
 				{/* spec: PSHT */}
 				{labels.list.labels.length > 0 && (
 					<div className="links">

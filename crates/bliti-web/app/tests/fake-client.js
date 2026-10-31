@@ -466,3 +466,17 @@ export async function sayOnTamanu(page, body) {
 export async function actStreams(page) {
 	return page.evaluate(() => ({ tailscale: window.__blitiTailscaleStreams, tamanu: window.__blitiTamanuStreams }))
 }
+
+/// Open `path` with the real client in place, as an operator reaches the fake device of WEB and PWEB,
+/// with the waits of the harness. Chromium has no Web Bluetooth, which is a browser that cannot open
+/// a channel at all; `bluetooth` gives it a stand-in that is never called, since the fake never
+/// touches it.
+export async function openReal(page, path, { bluetooth = true } = {}) {
+	// Over any a test set before it.
+	await page.addInitScript(() => (window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, grace: 1000, hold: 400, ...window.__blitiTimings }))
+	if (bluetooth) await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { value: {}, configurable: true }))
+	await page.goto(path)
+}
+
+/// The button that reaches the fake device, which dev mode offers (WEB, PWEB).
+export const fakeButton = (page) => page.getByRole('button', { name: 'Use the fake Iti' })

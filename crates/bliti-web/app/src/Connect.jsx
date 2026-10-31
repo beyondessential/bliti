@@ -4,18 +4,22 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
-import { Problem, Steps } from './Reaching.jsx'
+import { FAKE_CODE } from './fake/device.js'
+import { FakeDevice, Problem, Steps, Unsupported } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 import { Title } from './Screen.jsx'
 
 const REACHING = ['Scan code', 'Find Iti', 'Connect']
 
-/// `unsupported` is why the browser cannot open a channel, where it cannot. `phase` is null,
-/// `choosing` while the chooser is open, or `connecting` once a device is picked. `problem` is why
-/// the last attempt to reach the device ended, where it did not end by choice.
+/// `unsupported` is why the browser cannot open a channel, where it cannot and the fake device is not
+/// held.
+/// `dev` is whether the application is in dev mode, which offers the fake device.
+/// `phase` is null, `choosing` while the chooser is open, or `connecting` once a device is picked.
+/// `problem` is why the last attempt to reach the device ended, where it did not end by choice.
 export default function Connect({
 	unsupported,
+	dev,
 	client,
 	note,
 	offlineReady,
@@ -39,9 +43,15 @@ export default function Connect({
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
+	// The fake device's code reads to it only in dev mode (WEB), as it is when the code is read, which
+	// may be partway through a scan.
+	const dev_ = useRef(dev)
+	dev_.current = dev
+	const readCode = (text) => client.readCode(text, { reachFake: dev_.current })
+
 	async function read(text, how) {
 		try {
-			const found = await client.readCode(text)
+			const found = await readCode(text)
 			setTypedError('')
 			onCode(found, how)
 		} catch (error) {
@@ -59,7 +69,7 @@ export default function Connect({
 		setSeen('')
 		try {
 			const found = await scan(video.current, {
-				read: (text) => client.readCode(text),
+				read: readCode,
 				onRejected: setSeen,
 				signal: controller.signal,
 			})
@@ -74,6 +84,9 @@ export default function Connect({
 	}
 
 	const camera = cameraAvailable()
+	const reachFake = () => read(FAKE_CODE, 'for the fake device')
+	// Held back while a device is being reached, which a code read now would not be the code of.
+	const fake = <FakeDevice onClick={reachFake} disabled={phase !== null} />
 	const title = (
 		<>
 			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>
@@ -81,17 +94,7 @@ export default function Connect({
 		</>
 	)
 
-	if (unsupported) {
-		return (
-			<>
-				{title}
-				<section>
-					<Problem>This browser can't connect to an Iti</Problem>
-					<p className="muted">{unsupported}</p>
-				</section>
-			</>
-		)
-	}
+	if (unsupported) return <Unsupported title={title} reason={unsupported} dev={dev} onFake={reachFake} />
 
 	if (!code) {
 		const failed = cameraFailed || !camera
@@ -150,6 +153,7 @@ export default function Connect({
 							</button>
 						)
 					)}
+					{dev && !scanning && fake}
 				</section>
 				{!scanning && (
 					<details className="advanced">
@@ -218,18 +222,29 @@ export default function Connect({
 			<section>
 				{name}
 				<p className="done-line">Code scanned</p>
-				<p className="lead">Now find your Iti</p>
-				<p className="muted">Tap Find my Iti. It should be the only device that shows up, named:</p>
-				{chip}
+				{code.fake ? (
+					<>
+						<p className="lead">Now connect to the fake Iti</p>
+						<p className="muted">It has no chooser.</p>
+					</>
+				) : (
+					<>
+						<p className="lead">Now find your Iti</p>
+						<p className="muted">Tap Find my Iti. It should be the only device that shows up, named:</p>
+						{chip}
+					</>
+				)}
 				<button className="block" onClick={onFind} disabled={phase !== null}>
-					Find my Iti
+					{code.fake ? 'Connect' : 'Find my Iti'}
 				</button>
 				{problem?.detail && <p className="why">{problem.detail}</p>}
 				<div className="links">
 					{other}
-					<button className="link" onClick={() => download(code)}>
-						Save code for reprinting
-					</button>
+					{!code.fake && (
+						<button className="link" onClick={() => download(code)}>
+							Save code for reprinting
+						</button>
+					)}
 				</div>
 			</section>
 		</>

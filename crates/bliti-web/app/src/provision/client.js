@@ -4,8 +4,10 @@
 //
 // The interface below is the seam the test harness fakes at, as it does for that client.
 
+import { createFakeProvisionClient } from '../fake/provision.js'
 import { createLink, NEEDS_CHOOSER, unsupportedReason } from '../link.js'
 import { loadProtocol as protocol } from '../protocol.js'
+import { routed } from '../route.js'
 import {
 	Channel,
 	provisioning_image_lifetime_days,
@@ -15,7 +17,24 @@ import {
 	service_uuid,
 } from '../wasm/bliti_web.js'
 
+/// The client the provisioning page holds: the real one, and the fake device (PWEB, "The fake
+/// device"), which finding the fake device reaches in place of the chooser.
 export function createProvisionClient() {
+	const real = createRealProvisionClient()
+	const fake = createFakeProvisionClient({ limits: () => real.limits() })
+	// Whichever the channel, or the attempt at one, is with.
+	let active = real
+	return routed(real, fake, () => active, {
+		unsupported: real.unsupported,
+		limits: real.limits,
+		find(handlers, { fake: wanted = false } = {}) {
+			active = wanted ? fake : real
+			return active.find(handlers)
+		},
+	})
+}
+
+function createRealProvisionClient() {
 	const link = createLink()
 
 	// A channel to the device picked, which no QR code anchors: the handshake is keyed by the

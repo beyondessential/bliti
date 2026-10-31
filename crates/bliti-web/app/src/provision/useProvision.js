@@ -269,8 +269,9 @@ export default function useProvision(client, note) {
 	// Left to go: the device is let go of with the page.
 	useEffect(() => () => client.disconnect(), [client])
 
-	/// Open the chooser and connect to the device picked, from finding a device or from having lost one.
-	const find = useCallback(async () => {
+	// Open the chooser and connect to the device picked, or connect to the fake device with no chooser,
+	// from finding a device or from having lost one.
+	const reach = useCallback(async (fake) => {
 		const attempt = {}
 		attempt_.current = attempt
 		reach_.current = null
@@ -278,15 +279,18 @@ export default function useProvision(client, note) {
 		setProblem(null)
 		const current = () => attempt_.current === attempt
 		try {
-			await client.find({
-				onActivity: note,
-				onDisconnected: closed,
-				onPicked: (picked) => {
-					if (!current()) return
-					setDevice(picked)
-					setPhase('connecting')
+			await client.find(
+				{
+					onActivity: note,
+					onDisconnected: closed,
+					onPicked: (picked) => {
+						if (!current()) return
+						setDevice(picked)
+						setPhase('connecting')
+					},
 				},
-			})
+				{ fake },
+			)
 		} catch (error) {
 			if (!current()) return
 			attempt_.current = null
@@ -306,6 +310,9 @@ export default function useProvision(client, note) {
 		attempt_.current = null
 		opened()
 	}, [client, note, closed, opened])
+
+	const find = useCallback(() => reach(false), [reach])
+	const findFake = useCallback(() => reach(true), [reach])
 
 	/// Abandon connecting, back at finding a device.
 	const cancel = useCallback(() => {
@@ -396,6 +403,7 @@ export default function useProvision(client, note) {
 		notices,
 		awaiting,
 		find,
+		findFake,
 		cancel,
 		disconnect,
 		act,

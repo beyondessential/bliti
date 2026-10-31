@@ -18,12 +18,39 @@ import {
 	createLink,
 	unsupportedReason,
 } from './link.js'
+import { createFakeClient, isFakeCode } from './fake/device.js'
 import { loadProtocol as protocol } from './protocol.js'
+import { routed } from './route.js'
 import { tailscaleActSaid } from './services.js'
 
 export { CLIENT_NAME, CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED }
 
+/// The client the application holds: the real one, and the fake device (WEB, "The fake device"),
+/// which a code that reads to it is routed to. The rest of the application sees one client.
 export function createClient() {
+	const real = createRealClient()
+	const fake = createFakeClient()
+	// Whichever the channel, or the attempt at one, is with.
+	let active = real
+	// By the code's text, which only the fake device's code reads to.
+	const using = (qr) => (isFakeCode(qr?.text) ? fake : real)
+	return routed(real, fake, () => active, {
+		unsupported: real.unsupported,
+		// The fake device's code reads to it only where `reachFake` is set, and otherwise reads as any
+		// other text does. A code the operator gives sets it in dev mode; one remembered, always.
+		readCode: (text, { reachFake = false } = {}) => (reachFake && isFakeCode(text) ? fake : real).readCode(text),
+		connect(qr, handlers) {
+			active = using(qr)
+			return active.connect(qr, handlers)
+		},
+		reconnect(qr, handlers) {
+			active = using(qr)
+			return active.reconnect(qr, handlers)
+		},
+	})
+}
+
+function createRealClient() {
 	const link = createLink()
 	// Whatever is currently delivering the feed: the streams the device pushed after connect, or a
 	// subscription opened to resume. Null while the feed is declined (the page is hidden).
