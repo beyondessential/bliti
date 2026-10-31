@@ -29,13 +29,6 @@ export function reasonOf(entry) {
 	return entry.traits?.status?.reason ?? null
 }
 
-/// Whether a reading should draw an operator's attention. Only the two states with a notion of
-/// difficulty do; skipped and broken say nothing is wrong with the thing measured, only that there is
-/// no value.
-export function isTrouble(entry) {
-	return statusOf(entry) === 'warning' || statusOf(entry) === 'failed'
-}
-
 /// The tone an entry is coloured by its status. A passed entry carries no colour (VIEW).
 export function tone(entry) {
 	switch (statusOf(entry)) {

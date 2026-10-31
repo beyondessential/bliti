@@ -21,7 +21,6 @@ import {
 	groupByName,
 	hasValue,
 	headline,
-	isTrouble,
 	labelOf,
 	numberOf,
 	partnerOf,
@@ -233,7 +232,7 @@ function Reveal({ entry, scale, series }) {
 		<div className="revealed">
 			{reasonOf(entry) && <p className={statusOf(entry) === 'broken' ? 'bad' : 'note'}>{reasonOf(entry)}</p>}
 			{scale !== null && (
-				<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+				<div className={`bar ${tone(entry)}`}>
 					<span style={{ width: `${scale * 100}%` }} />
 					{limitsOf(entry).map((limit) => (
 						<i key={limit.label} className="trip" style={{ left: `${markAt(limit, entry, scale)}%` }} />
@@ -330,7 +329,7 @@ function BatteryTile({ charges, voltages, directions, empties, fulls, history })
 							))}
 						</dl>
 						{scale !== null && (
-							<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+							<div className={`bar ${tone(entry)}`}>
 								<span style={{ width: `${scale * 100}%` }} />
 							</div>
 						)}
@@ -464,7 +463,7 @@ function StorageTile({ filesystems, totals }) {
 						<Line label={mountOf(entry)} value={hasValue(entry) ? withMargin(entry, formatValue(entry)) : '—'} />
 					</dl>
 					{scaleOf(entry, totalFor(entry)) !== null && (
-						<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+						<div className={`bar ${tone(entry)}`}>
 							<span style={{ width: `${scaleOf(entry, totalFor(entry)) * 100}%` }} />
 						</div>
 					)}

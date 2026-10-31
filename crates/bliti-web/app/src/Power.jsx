@@ -170,7 +170,6 @@ function Battery({ client, entries, onActivity, onEvent }) {
 	const [asking, setAsking] = useState(false)
 	const [refused, setRefused] = useState(null)
 	const stream = useRef(null)
-	const picker = useRef(null)
 
 	// The stream lasts as long as the screen is open, as the power stream does (CSCR).
 	useEffect(() => {
@@ -216,16 +215,25 @@ function Battery({ client, entries, onActivity, onEvent }) {
 
 	// By name, with the built-in battery last so its curve sits beside it (CSCR).
 	const charges = [...group('battery-charge')].sort(
-			(a, b) =>
-				(batteryName(a) === BUILT_IN) - (batteryName(b) === BUILT_IN) ||
-				batteryName(a).localeCompare(batteryName(b)),
-		)
+		(a, b) =>
+			(batteryName(a) === BUILT_IN) - (batteryName(b) === BUILT_IN) ||
+			batteryName(a).localeCompare(batteryName(b)),
+	)
+	// A device without a built-in battery has no curve to offer, whatever it answers (CSCR).
+	const curved = Boolean(curves?.document) && charges.some((entry) => batteryName(entry) === BUILT_IN)
+
+	// What the curve was confirming or waiting on goes with it, so it cannot come back with the battery.
+	useEffect(() => {
+		if (curved) return
+		setConfirming(null)
+		setAsking(false)
+		setRefused(null)
+	}, [curved])
+
 	if (charges.length === 0) return null
 
 	const source = group('power-source')[0]
 	const several = charges.length > 1
-	// A device without a built-in battery has no curve to offer, whatever it answers (CSCR).
-	const curved = curves?.document && charges.some((entry) => batteryName(entry) === BUILT_IN)
 
 	function confirm(what) {
 		setRefused(null)
@@ -257,11 +265,6 @@ function Battery({ client, entries, onActivity, onEvent }) {
 		}
 	}
 
-	const figures = [
-		curves?.lasts && `A full charge lasts ${span(curves.lasts)}.`,
-		curves?.recharge && `A full recharge takes ${span(curves.recharge)}.`,
-	].filter(Boolean)
-
 	return (
 		<section>
 			<h2>Battery</h2>
@@ -285,58 +288,82 @@ function Battery({ client, entries, onActivity, onEvent }) {
 				/>
 			))}
 			{curved && (
-				<div className="curve">
-					{confirming ? (
-						<Confirmation what={confirming} onConfirm={ask} onCancel={() => setConfirming(null)} />
-					) : (
-						<>
-							{figures.length > 0 && (
-								<p className="muted learnt">
-									{figures.map((line, index) => (
-										<span key={line}>
-											{index > 0 && <br />}
-											{line}
-										</span>
-									))}
-								</p>
-							)}
-							<p className="muted learnt">The device learns its battery curve over time, which improves these estimates.</p>
-							<ul className="acts">
-								<li>
-									<div>
-										<span className="name">Export curve</span>
-										<span className="muted">To analyse, or copy to another device.</span>
-									</div>
-									<button className="secondary" onClick={() => download(curves.document)}>
-										Export
-									</button>
-								</li>
-								<li>
-									<div>
-										<span className="name">Import curve</span>
-										<span className="muted">Start from one learnt on another device.</span>
-									</div>
-									<button className="secondary" onClick={() => picker.current?.click()} disabled={asking}>
-										Import
-									</button>
-								</li>
-								<li>
-									<div>
-										<span className="name">Reset curve</span>
-										<span className="muted">Do this after changing the battery cell.</span>
-									</div>
-									<button className="secondary danger" onClick={() => confirm({ reset: true })} disabled={asking}>
-										Reset
-									</button>
-								</li>
-							</ul>
-						</>
-					)}
-				</div>
+				<Curve
+					curves={curves}
+					confirming={confirming}
+					asking={asking}
+					refused={refused}
+					onConfirm={confirm}
+					onAsk={ask}
+					onCancel={() => setConfirming(null)}
+					onPicked={picked}
+				/>
 			)}
-			<input ref={picker} type="file" accept=".json,application/json" hidden onChange={picked} />
-			{refused && <p className="why reason">{refused}</p>}
 		</section>
+	)
+}
+
+/// The curve beneath the built-in battery: what the device gives for a full charge and a full
+/// recharge, and the curve to export, import and reset, or the import or reset being confirmed in
+/// place of the rows (CSCR).
+function Curve({ curves, confirming, asking, refused, onConfirm, onAsk, onCancel, onPicked }) {
+	const picker = useRef(null)
+	const figures = [
+		curves.lasts && `A full charge lasts ${span(curves.lasts)}.`,
+		curves.recharge && `A full recharge takes ${span(curves.recharge)}.`,
+	].filter(Boolean)
+
+	return (
+		<div className="curve">
+			{confirming ? (
+				<Confirmation what={confirming} onConfirm={onAsk} onCancel={onCancel} />
+			) : (
+				<>
+					{figures.length > 0 && (
+						<p className="muted learnt">
+							{figures.map((line, index) => (
+								<span key={line}>
+									{index > 0 && <br />}
+									{line}
+								</span>
+							))}
+						</p>
+					)}
+					<p className="muted learnt">The device learns its battery curve over time, which improves these estimates.</p>
+					<ul className="acts">
+						<li>
+							<div>
+								<span className="name">Export curve</span>
+								<span className="muted">To analyse, or copy to another device.</span>
+							</div>
+							<button className="secondary" onClick={() => download(curves.document)}>
+								Export
+							</button>
+						</li>
+						<li>
+							<div>
+								<span className="name">Import curve</span>
+								<span className="muted">Start from one learnt on another device.</span>
+							</div>
+							<button className="secondary" onClick={() => picker.current?.click()} disabled={asking}>
+								Import
+							</button>
+						</li>
+						<li>
+							<div>
+								<span className="name">Reset curve</span>
+								<span className="muted">Do this after changing the battery cell.</span>
+							</div>
+							<button className="secondary danger" onClick={() => onConfirm({ reset: true })} disabled={asking}>
+								Reset
+							</button>
+						</li>
+					</ul>
+				</>
+			)}
+			<input ref={picker} type="file" accept=".json,application/json" hidden onChange={onPicked} />
+			{refused && <p className="why reason">{refused}</p>}
+		</div>
 	)
 }
 

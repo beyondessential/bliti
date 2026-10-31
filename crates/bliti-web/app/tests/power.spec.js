@@ -465,6 +465,20 @@ test.describe('the battery section', () => {
 		await expect(battery(page).getByRole('button', { name: 'Reset' })).toBeEnabled()
 	})
 
+	// A confirmation left open while the built-in battery went away does not come back with it.
+	test('drops a confirmation once the device stops reporting the built-in battery', async ({ page }) => {
+		await openBattery(page)
+		await battery(page).getByRole('button', { name: 'Reset' }).click()
+		await expect(page.getByRole('alertdialog')).toBeVisible()
+
+		await feed(page, charge('built-in', undefined, { status: 'ended' }), charge('Eaton 3S', 0.9))
+		await expect(battery(page).locator('.curve')).toHaveCount(0)
+		await feed(page, charge('built-in', 0.82))
+		await expect(battery(page).locator('.curve')).toBeVisible()
+		await expect(page.getByRole('alertdialog')).toHaveCount(0)
+		await expect(battery(page).getByRole('button', { name: 'Reset' })).toBeEnabled()
+	})
+
 	test('asks for nothing with a file that is not JSON', async ({ page }) => {
 		await openBattery(page)
 		await pickFile(page, 'notes.txt', 'not a curve')
