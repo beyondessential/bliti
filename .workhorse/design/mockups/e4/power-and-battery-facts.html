@@ -1,0 +1,220 @@
+<!-- spec: control/screen.md -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power and battery with battery facts</title>
+<style>
+/* Rules below are taken as shipped from crates/bliti-web/app/src/styles.css. Only the block marked
+   "New" is authored for this card. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #326699;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0 0 16px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+button {
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.warn { color: var(--warn); }
+.margin { color: var(--muted); margin-left: 6px; }
+.bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; overflow: visible; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.bar.warn > span { background: var(--warn); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+button.small { padding: 6px 12px; min-height: 0; font-size: 0.85rem; margin-bottom: 12px; }
+.heading .actions { display: flex; gap: 8px; }
+.heading.title { margin-bottom: 16px; }
+.heading.title h1 { margin: 0; }
+.heading.title button.small { margin-bottom: 0; padding: 6px 10px; }
+.heading.title h1 { flex: 0 0 auto; }
+.heading.title .actions { flex: 1 1 0; flex-wrap: wrap; justify-content: flex-end; }
+.acts { list-style: none; margin: 0; padding: 0; }
+.acts li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.acts li:first-child { border-top: 0; padding-top: 0; }
+.acts li > div { flex: 1 1 auto; }
+.acts .name { display: block; }
+.acts button { flex: 0 0 auto; min-height: 0; padding: 8px 14px; font-size: 0.9rem; }
+button.secondary.danger { color: var(--bad); border-color: var(--bad); }
+.learnt { margin: 0 0 10px; }
+.facts { margin: 10px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 0.85rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+
+/* New: the battery's charge headlined in the tile's type, its direction beside it, its scale beneath,
+   and the rest of its facts as a list; the curve follows below a rule. */
+.charge { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; }
+.charge .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.charge .value.warn { color: var(--warn); }
+.charge .way { color: var(--muted); font-size: 0.9rem; }
+.charge-reason { margin: 8px 0 0; font-size: 0.85rem; color: var(--warn); }
+.curve { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* Mockup only: two states side by side. */
+.states { display: flex; flex-wrap: wrap; gap: 32px; justify-content: center; }
+.states > div { flex: 0 1 26rem; }
+.state-label { font-size: 0.75rem; color: var(--muted); text-align: center; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div class="states">
+
+<div>
+<p class="state-label">On mains, charging</p>
+<main>
+	<div class="heading title">
+		<h1>Power and battery</h1>
+		<div class="actions"><button class="secondary small">Back</button></div>
+	</div>
+
+	<section>
+		<h2>Power</h2>
+		<ul class="acts">
+			<li>
+				<div><span class="name">Restart bliti</span><span class="muted">Only the provisioning service.</span></div>
+				<button class="secondary">Restart</button>
+			</li>
+			<li>
+				<div><span class="name">Reboot</span><span class="muted">The whole device.</span></div>
+				<button class="secondary">Reboot</button>
+			</li>
+			<li>
+				<div><span class="name">Power off</span><span class="muted">Stays off until turned on at the device.</span></div>
+				<button class="secondary danger">Power off</button>
+			</li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>Battery</h2>
+		<div class="charge">
+			<span class="value">82%</span>
+			<span class="way">Charging</span>
+		</div>
+		<div class="bar"><span style="width: 82%"></span></div>
+		<dl class="facts">
+			<dt>Power</dt><dd>On backup</dd>
+			<dt>Time to full</dt><dd>1h 20m<span class="margin">±15m</span></dd>
+			<dt>Voltage</dt><dd>3.98 V</dd>
+		</dl>
+
+		<div class="curve">
+			<p class="muted learnt">A full charge lasts 6h 40m (±35m).<br>A full recharge takes 3h 10m (±20m).</p>
+			<p class="muted learnt">The device learns its battery curve over time, which improves these estimates.</p>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Export curve</span><span class="muted">To analyse, or copy to another device.</span></div>
+					<button class="secondary">Export</button>
+				</li>
+				<li>
+					<div><span class="name">Import curve</span><span class="muted">Start from one learnt on another device.</span></div>
+					<button class="secondary">Import</button>
+				</li>
+				<li>
+					<div><span class="name">Reset curve</span><span class="muted">Do this after changing the battery cell.</span></div>
+					<button class="secondary danger">Reset</button>
+				</li>
+			</ul>
+		</div>
+	</section>
+</main>
+</div>
+
+<div>
+<p class="state-label">On battery, low</p>
+<main>
+	<div class="heading title">
+		<h1>Power and battery</h1>
+		<div class="actions"><button class="secondary small">Back</button></div>
+	</div>
+
+	<section>
+		<h2>Power</h2>
+		<ul class="acts">
+			<li>
+				<div><span class="name">Restart bliti</span><span class="muted">Only the provisioning service.</span></div>
+				<button class="secondary">Restart</button>
+			</li>
+			<li>
+				<div><span class="name">Reboot</span><span class="muted">The whole device.</span></div>
+				<button class="secondary">Reboot</button>
+			</li>
+			<li>
+				<div><span class="name">Power off</span><span class="muted">Stays off until turned on at the device.</span></div>
+				<button class="secondary danger">Power off</button>
+			</li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>Battery</h2>
+		<div class="charge">
+			<span class="value warn">14%</span>
+			<span class="way">Discharging</span>
+		</div>
+		<div class="bar warn"><span style="width: 14%"></span></div>
+		<p class="charge-reason">Battery is low.</p>
+		<dl class="facts">
+			<dt>Power</dt><dd>On battery</dd>
+			<dt>Time left</dt><dd>48m<span class="margin">±8m</span></dd>
+			<dt>Voltage</dt><dd>3.54 V</dd>
+		</dl>
+
+		<div class="curve">
+			<p class="muted learnt">A full charge lasts 6h 40m (±35m).<br>A full recharge takes 3h 10m (±20m).</p>
+			<p class="muted learnt">The device learns its battery curve over time, which improves these estimates.</p>
+			<ul class="acts">
+				<li>
+					<div><span class="name">Export curve</span><span class="muted">To analyse, or copy to another device.</span></div>
+					<button class="secondary">Export</button>
+				</li>
+				<li>
+					<div><span class="name">Import curve</span><span class="muted">Start from one learnt on another device.</span></div>
+					<button class="secondary">Import</button>
+				</li>
+				<li>
+					<div><span class="name">Reset curve</span><span class="muted">Do this after changing the battery cell.</span></div>
+					<button class="secondary danger">Reset</button>
+				</li>
+			</ul>
+		</div>
+	</section>
+</main>
+</div>
+
+</div>
+</body>
+</html>
