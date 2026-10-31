@@ -6,10 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { CLIENT_VERSION } from '../link.js'
 import { useOfflineReady } from '../offline.js'
+import { Unsupported } from '../Reaching.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from '../Screen.jsx'
 import Choosing from './Choosing.jsx'
 import Done from './Done.jsx'
-import Finding, { Unsupported, trouble } from './Finding.jsx'
+import Finding, { trouble } from './Finding.jsx'
 import { createProvisionClient } from './client.js'
 import Labels from './Labels.jsx'
 import Refused from './Refused.jsx'
@@ -32,7 +33,7 @@ export default function Provision() {
 		(direction, text) => setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
 		[],
 	)
-	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, cancel, disconnect, act } =
+	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, findFake, cancel, disconnect, act } =
 		useProvision(client, note)
 
 	// The list of labels, which a run that has made a label adds to whenever the page sees it (PSHT),
@@ -65,7 +66,12 @@ export default function Provision() {
 		</TitleTaps.Provider>
 	)
 
-	if (unsupported) return shell(<Unsupported reason={unsupported} />)
+	// Where the browser cannot open a channel, the page says so until the fake device is reached (PWEB).
+	// Told from the page's state rather than `device`, which outlives the channel.
+	if (unsupported && !connected && !lost && !phase) {
+		// spec: PWEB
+		return shell(<Unsupported title={<Title title="Provision an Iti" />} reason={unsupported} dev={dev} onFake={findFake} />)
+	}
 
 	if (viewing) return shell(<Labels labels={labels} onBack={() => setViewing(false)} />)
 
@@ -77,7 +83,9 @@ export default function Provision() {
 					problem={problem}
 					offlineReady={offlineReady}
 					labels={labels}
+					dev={dev}
 					onFind={find}
+					onFake={findFake}
 					onCancel={cancel}
 					onLabels={() => setViewing(true)}
 				/>

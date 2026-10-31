@@ -20,6 +20,30 @@ export function Steps({ names, at }) {
 	)
 }
 
+/// Reaching the fake device, which dev mode offers (WEB, PWEB, "The fake device").
+export function FakeDevice({ onClick, disabled }) {
+	return (
+		<button className="secondary block" onClick={onClick} disabled={disabled}>
+			Use the fake Iti
+		</button>
+	)
+}
+
+/// Where the browser cannot open a channel at all: that, beneath the page's `title`, and nothing else
+/// offered, but the fake device in dev mode (WEB, PWEB).
+export function Unsupported({ title, reason, dev, onFake }) {
+	return (
+		<>
+			{title}
+			<section>
+				<Problem>This browser can't connect to an Iti</Problem>
+				<p className="muted">{reason}</p>
+				{dev && <FakeDevice onClick={onFake} />}
+			</section>
+		</>
+	)
+}
+
 /// A problem, said as the one line a screen leads with.
 export function Problem({ children }) {
 	return (
