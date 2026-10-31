@@ -346,6 +346,7 @@ test.describe('the battery section', () => {
 
 		await feed(page, charge('built-in', 0.04, { status: 'failed', reason: 'Battery is low.' }))
 		await expect(battery(page).locator('.charge .value')).toHaveClass(/bad/)
+		await expect(battery(page).locator('.bar')).toHaveClass(/bad/)
 		await expect(battery(page).locator('.charge .value')).toHaveText('4%')
 	})
 

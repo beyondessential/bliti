@@ -4,8 +4,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { batteryName, face, headline, tone } from './Readings.jsx'
-import { formatDuration, isTrouble, labelOf, reasonOf, scaleOf } from './readings.js'
+import { face } from './Face.jsx'
+import { batteryName, formatDuration, headline, labelOf, partnerOf, reasonOf, scaleOf, tone } from './readings.js'
 
 /// The acts this build knows, in the order it offers them, and what it calls each (CSCR).
 export const ACTS = [
@@ -203,17 +203,22 @@ function Battery({ client, entries, onActivity, onEvent }) {
 		}
 	}, [client, onActivity, onEvent])
 
+	const byName = new Map()
+	for (const entry of entries) {
+		if (!byName.has(entry.name)) byName.set(entry.name, [])
+		byName.get(entry.name).push(entry)
+	}
+	const group = (name) => byName.get(name) ?? []
+
 	// By name, with the built-in battery last so its curve sits beside it (CSCR).
-	const charges = entries
-		.filter((entry) => entry.name === 'battery-charge')
-		.sort(
+	const charges = [...group('battery-charge')].sort(
 			(a, b) =>
 				(batteryName(a) === BUILT_IN) - (batteryName(b) === BUILT_IN) ||
 				batteryName(a).localeCompare(batteryName(b)),
 		)
 	if (charges.length === 0) return null
 
-	const source = entries.find((entry) => entry.name === 'power-source')
+	const source = group('power-source')[0]
 	const several = charges.length > 1
 	// A device without a built-in battery has no curve to offer, whatever it answers (CSCR).
 	const curved = curves?.document && charges.some((entry) => batteryName(entry) === BUILT_IN)
@@ -265,9 +270,14 @@ function Battery({ client, entries, onActivity, onEvent }) {
 				<Cell
 					key={batteryName(charge)}
 					charge={charge}
-					entries={entries}
+					direction={partnerOf(group('battery-direction'), charge)}
 					named={several}
-					source={several ? null : source}
+					facts={[
+						several ? null : source,
+						partnerOf(group('battery-time-to-empty'), charge),
+						partnerOf(group('battery-time-to-full'), charge),
+						partnerOf(group('battery-voltage'), charge),
+					].filter(Boolean)}
 				/>
 			))}
 			{curved && (
@@ -327,15 +337,9 @@ function Battery({ client, entries, onActivity, onEvent }) {
 }
 
 /// One battery: its charge headlined with its direction beside it and its scale beneath, the reason
-/// of either where there is one, then its times and voltage, each paired with the charge by the
-/// battery's name. Named only where the device reports several (CSCR).
-function Cell({ charge, entries, named, source }) {
-	const own = (name) => entries.find((entry) => entry.name === name && batteryName(entry) === batteryName(charge))
-	const direction = own('battery-direction')
+/// of either where there is one, then its figures. Named only where the device reports several (CSCR).
+function Cell({ charge, direction, named, facts }) {
 	const scale = scaleOf(charge)
-	const facts = [source, own('battery-time-to-empty'), own('battery-time-to-full'), own('battery-voltage')].filter(
-		Boolean,
-	)
 
 	return (
 		<div className="battery">
@@ -345,7 +349,7 @@ function Cell({ charge, entries, named, source }) {
 				{direction && <span className={`way ${tone(direction)}`}>{headline(direction)}</span>}
 			</div>
 			{scale !== null && (
-				<div className={`bar${isTrouble(charge) ? ' warn' : ''}`}>
+				<div className={`bar ${tone(charge)}`}>
 					<span style={{ width: `${scale * 100}%` }} />
 				</div>
 			)}

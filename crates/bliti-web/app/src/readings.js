@@ -36,6 +36,36 @@ export function isTrouble(entry) {
 	return statusOf(entry) === 'warning' || statusOf(entry) === 'failed'
 }
 
+/// The tone an entry is coloured by its status. A passed entry carries no colour (VIEW).
+export function tone(entry) {
+	switch (statusOf(entry)) {
+		case 'warning':
+			return 'warn'
+		case 'failed':
+		case 'broken':
+			return 'bad'
+		default:
+			return ''
+	}
+}
+
+/// The headline for an entry with a value, or a marker for one without. Skipped and broken both have
+/// no value and are distinguished: skipped shows a dash, broken shows it is unavailable (VIEW).
+export function headline(entry) {
+	if (hasValue(entry)) return formatValue(entry)
+	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
+}
+
+/// Which battery a reading is about.
+export function batteryName(entry) {
+	return entry.traits?.battery?.name ?? ''
+}
+
+/// The entry among `entries` about the same battery as `charge`, paired by the battery's name (NFO).
+export function partnerOf(entries, charge) {
+	return entries.find((entry) => batteryName(entry) === batteryName(charge))
+}
+
 /// Whether the entry has a value at all. Skipped and broken carry none (NFO). Tolerates a missing
 /// entry, so a fold that names one the device did not send is simply empty.
 export function hasValue(entry) {
