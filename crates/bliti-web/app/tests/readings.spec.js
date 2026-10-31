@@ -455,7 +455,7 @@ test.describe('batteries', () => {
 		await expect(page.locator('.tile')).toHaveCount(1)
 		await page.getByRole('button', { name: /Battery/ }).click()
 		const reveal = page.locator('.tile.expanded .detail')
-		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time left'])
+		await expect(reveal.locator('dt')).toHaveText(['Voltage', 'Direction', 'Time left'])
 		await expect(reveal.locator('dd').last()).toHaveText('54m±8m')
 		await expect(reveal.locator('dd').last().locator('.margin')).toHaveText('±8m')
 
@@ -466,7 +466,7 @@ test.describe('batteries', () => {
 		)
 		await feed(page, direction(about, 'charging'))
 		await feed(page, time('battery-time-to-full', about, 5100, 1200))
-		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time to full'])
+		await expect(reveal.locator('dt')).toHaveText(['Voltage', 'Direction', 'Time to full'])
 		await expect(reveal.locator('dd').last()).toHaveText('1h 25m±20m')
 		await expect(page.locator('.tile')).toHaveCount(1)
 	})

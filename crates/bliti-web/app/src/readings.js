@@ -101,6 +101,8 @@ const LABELS = {
 	light: 'Light',
 	'power-source': 'Power',
 	'battery-charge': 'Battery',
+	'battery-voltage': 'Voltage',
+	'battery-direction': 'Direction',
 	'battery-time-to-empty': 'Time left',
 	'battery-time-to-full': 'Time to full',
 	'channel-clients': 'Connected',

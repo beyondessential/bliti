@@ -777,7 +777,14 @@ export default function App() {
 			away ? (
 				reconnecting
 			) : (
-				<Power key={channel} client={client} onActivity={note} onEvent={noteSession} onAccepted={startGoing} />
+				<Power
+					key={channel}
+					client={client}
+					entries={all}
+					onActivity={note}
+					onEvent={noteSession}
+					onAccepted={startGoing}
+				/>
 			),
 		)
 	}

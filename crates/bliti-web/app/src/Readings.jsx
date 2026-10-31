@@ -204,7 +204,7 @@ function Tile({ label, wide, more, tone, children, face }) {
 }
 
 /// The tone a face is coloured by its status. A passed face carries no colour (VIEW).
-function tone(entry) {
+export function tone(entry) {
 	switch (statusOf(entry)) {
 		case 'warning':
 			return 'warn'
@@ -218,13 +218,13 @@ function tone(entry) {
 
 /// The headline for an entry with a value, or a marker for one without. Skipped and broken both have
 /// no value and are distinguished: skipped shows a dash, broken shows it is unavailable (VIEW).
-function headline(entry) {
+export function headline(entry) {
 	if (hasValue(entry)) return formatValue(entry)
 	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
 }
 
 /// The headline with the entry's margin beside it, where it carries one.
-function face(entry) {
+export function face(entry) {
 	return withMargin(entry, headline(entry))
 }
 
@@ -318,7 +318,7 @@ function CaseTile({ entry, opened }) {
 }
 
 /// Which battery a reading is about.
-function batteryName(entry) {
+export function batteryName(entry) {
 	return entry.traits?.battery?.name ?? ''
 }
 
