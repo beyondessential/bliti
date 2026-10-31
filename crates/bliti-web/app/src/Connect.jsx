@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
 import { FAKE_CODE } from './fake/device.js'
-import { FakeDevice, Problem, Steps } from './Reaching.jsx'
+import { FakeDevice, Problem, Steps, Unsupported } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 import { Title } from './Screen.jsx'
@@ -84,8 +84,9 @@ export default function Connect({
 	}
 
 	const camera = cameraAvailable()
+	const reachFake = () => read(FAKE_CODE, 'for the fake device')
 	// Held back while a device is being reached, which a code read now would not be the code of.
-	const fake = <FakeDevice onClick={() => read(FAKE_CODE, 'for the fake device')} disabled={phase !== null} />
+	const fake = <FakeDevice onClick={reachFake} disabled={phase !== null} />
 	const title = (
 		<>
 			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>
@@ -93,18 +94,7 @@ export default function Connect({
 		</>
 	)
 
-	if (unsupported) {
-		return (
-			<>
-				{title}
-				<section>
-					<Problem>This browser can't connect to an Iti</Problem>
-					<p className="muted">{unsupported}</p>
-					{dev && fake}
-				</section>
-			</>
-		)
-	}
+	if (unsupported) return <Unsupported title={title} reason={unsupported} dev={dev} onFake={reachFake} />
 
 	if (!code) {
 		const failed = cameraFailed || !camera

@@ -33,6 +33,7 @@
 - [x] Choosing steps again after finishing runs again (verifies spec: PWEB)
 - [x] The unsupported screen offers the fake device in dev mode (verifies spec: PWEB)
 - [x] The fake device is held back while the chooser is open, as Find Iti is (verifies spec: PWEB)
+- [x] Letting the fake device go partway through a run leaves nothing more from it in the Activity record, and it can be reached again (verifies spec: PWEB)
 - [x] Turning dev mode off while connected leaves the fake device connected (verifies spec: PWEB)
 
 ## Shared

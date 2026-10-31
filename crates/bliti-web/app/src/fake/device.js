@@ -8,6 +8,7 @@
 
 import { CLIENT_NAME, CLIENT_VERSION } from '../link.js'
 import { tailscaleActSaid } from '../services.js'
+import { FAKE_SUFFIX } from './name.js'
 import {
 	CAPABILITIES,
 	CURVES,
@@ -25,7 +26,7 @@ import {
 /// The text of the fake device's code. It reads to a code with no wasm, so it is remembered and held
 /// across a reload as any code is, and ends in what the application shows in place of a payload's last
 /// four characters.
-export const FAKE_CODE = 'BLITI:FAKE'
+export const FAKE_CODE = `BLITI:${FAKE_SUFFIX}`
 
 export const isFakeCode = (text) => text?.trim().toUpperCase() === FAKE_CODE
 
@@ -51,9 +52,7 @@ export function createFakeClient() {
 	// that holds them all.
 	function pushed(deliver) {
 		const now = Date.now()
-		for (const body of [...facts(now), ...readings().map((each) => ({ ...each, at: now }))]) {
-			deliver(message({ ...body, at: now }))
-		}
+		for (const body of [...facts(now), ...readings()]) deliver(message({ ...body, at: now }))
 		deliver(message({ type: 'end-of-batch' }))
 	}
 
@@ -134,11 +133,11 @@ export function createFakeClient() {
 				qr: { text: FAKE_CODE },
 				fake: true,
 				text: FAKE_CODE,
-				suffix: 'FAKE',
+				suffix: FAKE_SUFFIX,
 				svg: '',
 				version: 1,
-				localName: 'FAKE',
-				localNames: ['FAKE'],
+				localName: FAKE_SUFFIX,
+				localNames: [FAKE_SUFFIX],
 			}
 		},
 

@@ -1,12 +1,12 @@
 // What the fake device of WEB says: its facts and readings, the configuration it holds and what it
-// can do, and its answers to the acts it is asked for. The same each time, and plainly fake.
+// can do, and its answers to the acts it is asked for. The same each time, and plainly fake. The feed
+// times each fact and reading as it sends it.
 
 const passed = { status: { is: 'passed' } }
 const interfaceOf = (name, extra) => ({ interface: { name, ...extra } })
 
 const fact = (name, value, kind = 'text', traits = {}) => ({
 	type: 'fact',
-	at: 0,
 	fact: name,
 	kind,
 	value,
@@ -14,7 +14,6 @@ const fact = (name, value, kind = 'text', traits = {}) => ({
 })
 const reading = (measurement, kind, value, traits = {}, unit) => ({
 	type: 'reading',
-	at: 0,
 	measurement,
 	kind,
 	value,

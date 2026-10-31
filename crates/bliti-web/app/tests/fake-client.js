@@ -472,7 +472,8 @@ export async function actStreams(page) {
 /// a channel at all; `bluetooth` gives it a stand-in that is never called, since the fake never
 /// touches it.
 export async function openReal(page, path, { bluetooth = true } = {}) {
-	await page.addInitScript(() => (window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, grace: 1000, hold: 400 }))
+	// Over any a test set before it.
+	await page.addInitScript(() => (window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, grace: 1000, hold: 400, ...window.__blitiTimings }))
 	if (bluetooth) await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { value: {}, configurable: true }))
 	await page.goto(path)
 }

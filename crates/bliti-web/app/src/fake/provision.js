@@ -6,9 +6,8 @@
 // result for any step, so it adds nothing to the list of labels.
 
 import { civilDate } from '../provision/state.js'
+import { FAKE_SUFFIX } from './name.js'
 
-/// What the page names the fake device by, in place of the suffix of a device's name.
-export const FAKE_SUFFIX = 'FAKE'
 
 // Every step of RUN, in its order.
 const STEPS = [
@@ -24,8 +23,9 @@ const STEPS = [
 
 const message = (body) => ({ kind: 'message', message: body })
 
-// How long a run is `running` before it is `finished`, enough for the page to show it.
-const SEEN = 50
+// How long a run is `running` before it is `finished`, enough for the page to show it. The harness
+// can lengthen it, to act within it.
+const SEEN = (__TEST_SEAM__ && window.__blitiTimings?.seen) || 50
 
 /// A `provision-state` of the fake device in `run`, with each step of `chosen` as `passed`, or as
 /// `pending` while the run is `running`, and `unchosen` for the rest, of the revision and the date the
@@ -47,6 +47,8 @@ const refusal = (act, at, reason) => ({ type: 'cannot-act', act, at, reason })
 /// `limits()` is the page's own, which carries the highest revision of the steps it implements.
 export function createFakeProvisionClient({ limits }) {
 	let open = false
+	// Ends the provisioning stream open on the channel, which letting the device go takes with it.
+	let end = () => {}
 
 	return {
 		async find(handlers) {
@@ -68,6 +70,7 @@ export function createFakeProvisionClient({ limits }) {
 			} = await limits()
 			onActivity?.('out', 'provision')
 			let live = true
+			end = () => (live = false)
 			let run = 'idle'
 			let chosen = []
 			const emit = (...bodies) =>
@@ -117,6 +120,7 @@ export function createFakeProvisionClient({ limits }) {
 
 		disconnect() {
 			open = false
+			end()
 		},
 	}
 }

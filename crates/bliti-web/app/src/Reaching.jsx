@@ -29,6 +29,21 @@ export function FakeDevice({ onClick, disabled }) {
 	)
 }
 
+/// Where the browser cannot open a channel at all: that, beneath the page's `title`, and nothing else
+/// offered, but the fake device in dev mode (WEB, PWEB).
+export function Unsupported({ title, reason, dev, onFake }) {
+	return (
+		<>
+			{title}
+			<section>
+				<Problem>This browser can't connect to an Iti</Problem>
+				<p className="muted">{reason}</p>
+				{dev && <FakeDevice onClick={onFake} />}
+			</section>
+		</>
+	)
+}
+
 /// A problem, said as the one line a screen leads with.
 export function Problem({ children }) {
 	return (

@@ -170,19 +170,14 @@ export default function App() {
 		setNetcheck(null)
 	}, [])
 	// A channel let go of: nothing of the device held any more, and not reaching for it either. The
-	// code stays held, no longer as one from before a reload, but for the fake device where the browser
-	// cannot open a channel, which goes with it, back at saying so (WEB). See "Holding the fake device"
-	// below for the rest of that rule.
+	// code stays held, the fake device's marked as let go of, which "Holding the fake device" reads.
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
 		away_.current = null
 		setAway(null)
-		setCode((current) => {
-			if (current?.fake && unsupported) return null
-			return current?.restored ? { ...current, restored: false } : current
-		})
-	}, [opening, unsupported])
+		setCode((current) => (current?.fake ? { ...current, since: 'let-go' } : current))
+	}, [opening])
 
 	// Opening a screen goes one level down from the one showing, and the browser's way back brings the
 	// operator up again, as the screen's Back does (WEB, "Moving between screens").
@@ -375,8 +370,7 @@ export default function App() {
 			if (!start.on) return
 			const back = await stillReads(start.on)
 			if (!live || !back) return
-			// Marked as held from before the reload, until the page lets its device go.
-			setCode((current) => current ?? { ...back, restored: true })
+			setCode((current) => current ?? (back.fake ? { ...back, since: 'reload' } : back))
 			note('note', `code held from before the reload  ${back.text}`)
 		})()
 		return () => {
@@ -403,14 +397,18 @@ export default function App() {
 	const on = code && (connected || going || away) ? code.text : null
 	useEffect(() => saveOn(on), [on])
 
-	// Holding the fake device (WEB). Out of dev mode, it is held only while the page is on it, or comes
-	// back to it after a reload: leaving dev mode leaves it connected, and lets it go once it is not.
-	// Where the browser cannot open a channel, letting it go is what `letGo` does, and while it is held
-	// the page passes over saying so, as `reachable` has it.
+	// Holding the fake device (WEB), decided here alone, while the page is not on it. Its code carries
+	// how it came to be held: `read` (the default), `reload`, or `let-go` once the page let its channel
+	// go. One back from a reload is held as any device's is. One read is held in dev mode, and one let
+	// go of in dev mode where the browser can open a channel, as any device's is; where it cannot, the
+	// page is back at saying so. Leaving dev mode leaves it connected, and lets it go once it is not.
+	// While it is held, the page passes over saying the browser cannot open a channel.
 	useEffect(() => {
-		if (dev || !code?.fake || code.restored) return
-		if (!connected && !going && !away && phase === null) setCode(null)
-	}, [dev, code, connected, going, away, phase])
+		if (!code?.fake || connected || going || away || phase !== null) return
+		const since = code.since ?? 'read'
+		const kept = since === 'reload' || (dev && !(since === 'let-go' && unsupported))
+		if (!kept) setCode(null)
+	}, [dev, unsupported, code, connected, going, away, phase])
 	const reachable = code?.fake ? null : unsupported
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;

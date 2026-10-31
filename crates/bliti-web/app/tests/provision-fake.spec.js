@@ -120,3 +120,15 @@ test.describe('in a browser that cannot open a channel', () => {
 		await expect(fake(page)).toBeVisible()
 	})
 })
+
+test('sends nothing more once let go of partway through a run', async ({ page }) => {
+	await page.addInitScript(() => (window.__blitiTimings = { seen: 1000 }))
+	await connected(page)
+	await page.getByRole('button', { name: 'Start' }).click()
+	await page.getByRole('button', { name: 'Disconnect' }).click()
+	await page.waitForTimeout(1200)
+	const said = page.locator('.log .line .said')
+	await expect(said.filter({ hasText: /^provision-state  finished/ })).toHaveCount(0)
+	await fake(page).click()
+	await expect(page.getByText('Choose what to do')).toBeVisible()
+})

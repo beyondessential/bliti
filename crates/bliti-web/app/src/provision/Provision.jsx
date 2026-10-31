@@ -6,10 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { CLIENT_VERSION } from '../link.js'
 import { useOfflineReady } from '../offline.js'
+import { Unsupported } from '../Reaching.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from '../Screen.jsx'
 import Choosing from './Choosing.jsx'
 import Done from './Done.jsx'
-import Finding, { Unsupported, trouble } from './Finding.jsx'
+import Finding, { trouble } from './Finding.jsx'
 import { createProvisionClient } from './client.js'
 import Labels from './Labels.jsx'
 import Refused from './Refused.jsx'
@@ -68,7 +69,8 @@ export default function Provision() {
 	// Where the browser cannot open a channel, the page says so until the fake device is reached (PWEB).
 	// Told from the page's state rather than `device`, which outlives the channel.
 	if (unsupported && !connected && !lost && !phase) {
-		return shell(<Unsupported reason={unsupported} dev={dev} onFake={findFake} />)
+		// spec: PWEB
+		return shell(<Unsupported title={<Title title="Provision an Iti" />} reason={unsupported} dev={dev} onFake={findFake} />)
 	}
 
 	if (viewing) return shell(<Labels labels={labels} onBack={() => setViewing(false)} />)

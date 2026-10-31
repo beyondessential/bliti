@@ -1,6 +1,5 @@
 // The screens before a device is on screen: pressing USER and opening the chooser, nothing picked,
-// connecting, something else already connected, and a browser that cannot open a channel (PWEB,
-// "The page" and "Finding a device").
+// connecting, and something else already connected (PWEB, "The page" and "Finding a device").
 
 import { FakeDevice, Problem, Steps } from '../Reaching.jsx'
 import { Title } from '../Screen.jsx'
@@ -27,22 +26,6 @@ const TROUBLE = {
 export function trouble(problem) {
 	const { headline, help } = TROUBLE[problem.kind]
 	return { headline, help, detail: problem.detail }
-}
-
-/// Where the browser cannot open a channel at all: that, and nothing else offered, but the fake device
-/// in dev mode (PWEB).
-export function Unsupported({ reason, dev, onFake }) {
-	// spec: PWEB
-	return (
-		<>
-			<Title title="Provision an Iti" />
-			<section>
-				<Problem>This browser can't connect to an Iti</Problem>
-				<p className="muted">{reason}</p>
-				{dev && <FakeDevice onClick={onFake} />}
-			</section>
-		</>
-	)
 }
 
 /// Finding a device: `phase` is null, `choosing` while the chooser is open, or `connecting` once a
