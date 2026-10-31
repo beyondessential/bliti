@@ -91,9 +91,11 @@ export function createFakeProvisionClient({ limits }) {
 					run = 'running'
 					chosen = steps
 					emit({ type: 'provision-accepted' }, settle())
-					run = 'finished'
-					const finished = settle()
-					return setTimeout(() => live && onEvent(message(finished)), SEEN)
+					return setTimeout(() => {
+						if (!live || run !== 'running') return
+						run = 'finished'
+						onEvent(message(settle()))
+					}, SEEN)
 				}
 				if (name === 'acknowledge' && run === 'finished') {
 					run = 'idle'

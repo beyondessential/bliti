@@ -24,7 +24,7 @@ export function createProvisionClient() {
 	const fake = createFakeProvisionClient({ limits: () => real.limits() })
 	// Whichever the channel, or the attempt at one, is with.
 	let active = real
-	return routed(real, () => active, {
+	return routed(real, fake, () => active, {
 		unsupported: real.unsupported,
 		limits: real.limits,
 		find(handlers, { fake: wanted = false } = {}) {

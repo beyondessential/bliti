@@ -143,8 +143,6 @@ export default function App() {
 	const [recent, setRecent] = useState(null)
 	const code_ = useRef(null)
 	code_.current = code
-	// The code held from before a reload, until the page lets its device go.
-	const restored_ = useRef(null)
 
 	const note = useCallback(
 		(direction, text) =>
@@ -171,16 +169,19 @@ export default function App() {
 		setNotices([])
 		setNetcheck(null)
 	}, [])
-	// A channel let go of: nothing of the device held any more, and not reaching for it either. Where
-	// the browser cannot open a channel, the fake device goes with it, back at saying so (WEB); see
-	// "Holding the fake device" below for the rest of that rule.
+	// A channel let go of: nothing of the device held any more, and not reaching for it either. The
+	// code stays held, no longer as one from before a reload, but for the fake device where the browser
+	// cannot open a channel, which goes with it, back at saying so (WEB). See "Holding the fake device"
+	// below for the rest of that rule.
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
 		away_.current = null
 		setAway(null)
-		restored_.current = null
-		if (unsupported) setCode((held) => (held?.fake ? null : held))
+		setCode((current) => {
+			if (current?.fake && unsupported) return null
+			return current?.restored ? { ...current, restored: false } : current
+		})
 	}, [opening, unsupported])
 
 	// Opening a screen goes one level down from the one showing, and the browser's way back brings the
@@ -374,8 +375,8 @@ export default function App() {
 			if (!start.on) return
 			const back = await stillReads(start.on)
 			if (!live || !back) return
-			if (!code_.current) restored_.current = back
-			setCode((held) => held ?? back)
+			// Marked as held from before the reload, until the page lets its device go.
+			setCode((current) => current ?? { ...back, restored: true })
 			note('note', `code held from before the reload  ${back.text}`)
 		})()
 		return () => {
@@ -407,7 +408,7 @@ export default function App() {
 	// Where the browser cannot open a channel, letting it go is what `letGo` does, and while it is held
 	// the page passes over saying so, as `reachable` has it.
 	useEffect(() => {
-		if (dev || !code?.fake || code === restored_.current) return
+		if (dev || !code?.fake || code.restored) return
 		if (!connected && !going && !away && phase === null) setCode(null)
 	}, [dev, code, connected, going, away, phase])
 	const reachable = code?.fake ? null : unsupported

@@ -13,10 +13,10 @@ import { Title } from './Screen.jsx'
 const REACHING = ['Scan code', 'Find Iti', 'Connect']
 
 /// `unsupported` is why the browser cannot open a channel, where it cannot and the fake device is not
-/// held, and `dev` whether the
-/// application is in dev mode, which offers the fake device. `phase` is null,
-/// `choosing` while the chooser is open, or `connecting` once a device is picked. `problem` is why
-/// the last attempt to reach the device ended, where it did not end by choice.
+/// held.
+/// `dev` is whether the application is in dev mode, which offers the fake device.
+/// `phase` is null, `choosing` while the chooser is open, or `connecting` once a device is picked.
+/// `problem` is why the last attempt to reach the device ended, where it did not end by choice.
 export default function Connect({
 	unsupported,
 	dev,
@@ -43,8 +43,11 @@ export default function Connect({
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
-	// The fake device's code reads to it only in dev mode (WEB).
-	const readCode = (text) => client.readCode(text, { fake: dev })
+	// The fake device's code reads to it only in dev mode (WEB), as it is when the code is read, which
+	// may be partway through a scan.
+	const dev_ = useRef(dev)
+	dev_.current = dev
+	const readCode = (text) => client.readCode(text, { fake: dev_.current })
 
 	async function read(text, how) {
 		try {
@@ -81,7 +84,8 @@ export default function Connect({
 	}
 
 	const camera = cameraAvailable()
-	const fake = <FakeDevice onClick={() => read(FAKE_CODE, 'for the fake device')} />
+	// Held back while a device is being reached, which a code read now would not be the code of.
+	const fake = <FakeDevice onClick={() => read(FAKE_CODE, 'for the fake device')} disabled={phase !== null} />
 	const title = (
 		<>
 			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>

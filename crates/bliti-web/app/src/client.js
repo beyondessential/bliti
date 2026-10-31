@@ -32,8 +32,9 @@ export function createClient() {
 	const fake = createFakeClient()
 	// Whichever the channel, or the attempt at one, is with.
 	let active = real
-	const using = (qr) => (qr?.fake ? fake : real)
-	return routed(real, () => active, {
+	// By the code's text, which only the fake device's code reads to.
+	const using = (qr) => (isFakeCode(qr?.text) ? fake : real)
+	return routed(real, fake, () => active, {
 		unsupported: real.unsupported,
 		// The fake device's code reads to it only where `fake` is set, as it is in dev mode, and
 		// otherwise reads as any other text does.

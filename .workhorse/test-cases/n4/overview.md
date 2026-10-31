@@ -34,3 +34,9 @@
 - [x] The unsupported screen offers the fake device in dev mode (verifies spec: PWEB)
 - [x] The fake device is held back while the chooser is open, as Find Iti is (verifies spec: PWEB)
 - [x] Turning dev mode off while connected leaves the fake device connected (verifies spec: PWEB)
+
+## Shared
+
+- [x] The page's client sends each member to whichever client the channel is with, and fails as the page loads where the fake lacks one
+- [ ] On the find step, Scan a different code while the chooser is open leaves the fake device's button held back until the attempt ends (verifies spec: WEB)
+- [ ] Turning dev mode on or off during a camera scan changes whether the fake device's code reads, without restarting the scan (verifies spec: WEB)
