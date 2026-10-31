@@ -29,8 +29,18 @@ export function trouble(problem) {
 	return { headline, help, detail: problem.detail }
 }
 
-/// Where the browser cannot open a channel at all: that, and nothing else offered (PWEB).
-export function Unsupported({ reason }) {
+/// Reaching the fake device, which dev mode offers (PWEB, "The fake device").
+function FakeDevice({ onFake }) {
+	return (
+		<button className="secondary block" onClick={onFake}>
+			Use the fake Iti
+		</button>
+	)
+}
+
+/// Where the browser cannot open a channel at all: that, and nothing else offered, but the fake device
+/// in dev mode (PWEB).
+export function Unsupported({ reason, dev, onFake }) {
 	// spec: PWEB
 	return (
 		<>
@@ -38,6 +48,7 @@ export function Unsupported({ reason }) {
 			<section>
 				<Problem>This browser can't connect to an Iti</Problem>
 				<p className="muted">{reason}</p>
+				{dev && <FakeDevice onFake={onFake} />}
 			</section>
 		</>
 	)
@@ -45,7 +56,7 @@ export function Unsupported({ reason }) {
 
 /// Finding a device: `phase` is null, `choosing` while the chooser is open, or `connecting` once a
 /// device is picked. `problem` is why the last attempt ended, where it did not end by choice.
-export default function Finding({ phase, problem, offlineReady, labels, onFind, onCancel, onLabels }) {
+export default function Finding({ phase, problem, offlineReady, labels, dev, onFind, onFake, onCancel, onLabels }) {
 	const title = (
 		<Title title="Provision an Iti">{!offlineReady && <span className="offline">Not ready offline</span>}</Title>
 	)
@@ -84,6 +95,7 @@ export default function Finding({ phase, problem, offlineReady, labels, onFind, 
 					<button className="block" onClick={onFind} disabled={phase !== null}>
 						Try again
 					</button>
+					{dev && <FakeDevice onFake={onFake} />}
 				</section>
 			</>
 		)
@@ -101,6 +113,7 @@ export default function Finding({ phase, problem, offlineReady, labels, onFind, 
 				<button className="block" onClick={onFind} disabled={phase !== null}>
 					Find Iti
 				</button>
+				{dev && <FakeDevice onFake={onFake} />}
 				{/* spec: PSHT */}
 				{labels.list.labels.length > 0 && (
 					<div className="links">

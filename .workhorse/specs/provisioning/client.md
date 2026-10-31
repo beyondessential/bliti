@@ -16,9 +16,9 @@ The provisioning client MUST title itself Provision an Iti, and MUST call the de
 
 The provisioning client MUST work with one device at a time.
 
-Where the browser cannot open a channel at all, the provisioning client MUST say so, and MUST NOT offer anything else.
+Where the browser cannot open a channel at all, the provisioning client MUST say so, and MUST NOT offer anything else, other than the fake device as [The fake device](#the-fake-device) has it.
 
-The provisioning client MUST keep the record of [Activity](../web-app.md#activity), and show it in dev mode, as the page that reaches a device does.
+The provisioning client MUST keep the record of [Activity](../web-app.md#activity), and show it in [dev mode](../web-app.md#dev-mode), as the page that reaches a device does.
 
 > [!NOTE]
 > Several boards at once means several tabs, each with its own device.
@@ -126,7 +126,7 @@ While the device is `finished`, the provisioning client MUST show the board's re
 
 The provisioning client MUST show the recovery passphrase, where the record carries one, and MUST offer to copy it.
 
-While the device is `finished` and the step `label` has passed, the provisioning client MUST say that the board's label was added to its list of labels, as [PSHT](sheet.md) has it, and MUST NOT show the label's payload.
+While the device is `finished` and the step `label` has passed with a result the provisioning client adds to its list of labels, as [PSHT](sheet.md) has it, the provisioning client MUST say that the board's label was added to that list, and MUST NOT show the label's payload.
 
 The provisioning client MUST tell the operator to power the device off and remove the provisioning medium.
 
@@ -149,6 +149,31 @@ While it does and the page is shown, the provisioning client SHOULD reconnect to
 > [!NOTE]
 > A device in provisioning mode stops advertising when a client connects and stays silent after it leaves until its USER button is pressed again, so a client cannot reach it again on its own until then.
 > A phone that puts the page in the background, a step that reboots the device, and an operator who walks out of range all close the channel.
+
+## The fake device
+
+Every build of the provisioning client MUST carry a fake device: an Iti in provisioning mode that the provisioning client reaches with no channel and no Bluetooth, which answers as a device does.
+
+While in dev mode, the provisioning client MUST offer reaching the fake device while finding a device, and where it says the browser cannot open a channel at all.
+
+Choosing the fake device MUST connect to it without the chooser, whether or not the browser can open a channel, and the provisioning client MUST name it `FAKE` in place of the suffix of its name.
+
+The provisioning client MUST otherwise treat the fake device as a device it has opened a channel to, including recording what it and the fake device said in the record of Activity.
+
+Leaving dev mode MUST NOT disconnect the fake device.
+
+The fake device MUST send the highest revision the provisioning client implements, and the provisioning client's own date as its image date.
+
+The fake device MUST be `idle` once connected, listing every step of [RUN](run.md) with a done-state of `not-done`.
+
+On a run starting, the fake device MUST pass every step chosen at once, without a prompt, and MUST then be `finished`.
+
+The fake device MUST NOT report a result for any step.
+
+Where the provisioning client holds no device and the browser cannot open a channel at all, it MUST say so again.
+
+> [!NOTE]
+> With no result reported, the fake device's run gives no record and adds no label to the list of [PSHT](sheet.md), so a bench that tries it prints nothing it did not provision.
 
 ## Pictures
 

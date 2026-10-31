@@ -14,7 +14,7 @@ Until a channel opens, the application MUST show three steps, scanning the code,
 
 Each step MUST offer one thing to do as its primary action.
 
-Where the browser cannot open a channel at all, the application MUST say so, and MUST NOT show the steps or offer anything else.
+Where the browser cannot open a channel at all, the application MUST say so, and MUST NOT show the steps or offer anything else, other than the fake device as [The fake device](#the-fake-device) has it.
 
 ## Borrowed terms
 
@@ -157,13 +157,53 @@ Going back from the screen a channel opens on MUST leave the application, as it 
 
 Where the application leaves a screen other than by the operator going back, as on disconnecting or when the device goes away, it MUST take that screen's entry out of the history with it.
 
-## Activity
+## Dev mode
+
+Tapping a screen's title seven times in a row MUST turn dev mode on, and again off.
+
+The application MUST stay in dev mode, or out of it, for the life of the tab.
+
+### Activity
 
 The application MUST keep a record of what it and the device said, and of what it did, for the life of the page.
 
-The application MUST show the record beneath every screen only while it is in dev mode, which tapping a screen's title seven times in a row turns on, and again off.
+The application MUST show the record beneath every screen only while it is in dev mode.
 
-The application MUST stay in dev mode, or out of it, for the life of the tab.
+### The fake device
+
+Every build of the application MUST carry a fake device: an Iti the application reaches with no channel and no Bluetooth, which answers as a device does.
+
+While in dev mode, the application MUST offer reaching the fake device on the step for reading a QR code, and where it says the browser cannot open a channel at all.
+
+Choosing the fake device MUST hold it as though its code had just been read, and the application MUST then take the operator through finding and connecting to it as for any device, whether or not the browser can open a channel.
+
+While it holds the fake device, the application MUST offer connecting to it in place of the chooser, and MUST NOT offer saving a code for reprinting.
+
+The fake device MUST say that it is fake in its hostname and its software identity, and the application MUST show `FAKE` wherever it would show the last four characters of a payload.
+
+The application MUST otherwise treat the fake device as a device it has opened a channel to, including remembering it, coming back to it after a reload, and recording what it and the fake device said in the record of [Activity](#activity).
+
+The application MUST list the fake device among the devices it remembers only while in dev mode.
+
+Leaving dev mode MUST NOT disconnect the fake device.
+
+The fake device MUST report a fixed set of facts and readings, such that each screen a connected device offers has something to show.
+
+The fake device MUST answer every stream the application opens, and every message the application sends on one, as a device would, so that no screen is left waiting.
+
+The fake device MUST accept every act it is asked for, and MUST NOT change what it reports because of one, other than as follows.
+
+The fake device MUST answer a proposed configuration of [CFG](network/session.md) as saving it, and MUST NOT keep it once the session has ended.
+
+On accepting `restart` or `reboot` of [CTL](control/power.md), the fake device MUST go away as a device does, and MUST be reachable again at once.
+
+On accepting `power-off`, the fake device MUST go away as a device does.
+
+Where the application holds no device and the browser cannot open a channel at all, it MUST say so again.
+
+> [!NOTE]
+> The fake device is how a deployed build is walked through with no Iti to hand, including on a browser that cannot reach a real one.
+> It stands in for the device at the messages of [MSG](messages.md), so the handshake, the streams and the reading of messages are not exercised by it.
 
 ## Installation and offline use
 

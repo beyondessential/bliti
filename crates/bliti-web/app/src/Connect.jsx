@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
+import { FAKE_CODE } from './fake/device.js'
 import { Problem, Steps } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
@@ -11,11 +12,13 @@ import { Title } from './Screen.jsx'
 
 const REACHING = ['Scan code', 'Find Iti', 'Connect']
 
-/// `unsupported` is why the browser cannot open a channel, where it cannot. `phase` is null,
+/// `unsupported` is why the browser cannot open a channel, where it cannot, and `dev` whether the
+/// application is in dev mode, which offers the fake device. `phase` is null,
 /// `choosing` while the chooser is open, or `connecting` once a device is picked. `problem` is why
 /// the last attempt to reach the device ended, where it did not end by choice.
 export default function Connect({
 	unsupported,
+	dev,
 	client,
 	note,
 	offlineReady,
@@ -74,6 +77,11 @@ export default function Connect({
 	}
 
 	const camera = cameraAvailable()
+	const fake = (
+		<button className="secondary block" onClick={() => read(FAKE_CODE, 'for the fake device')}>
+			Use the fake Iti
+		</button>
+	)
 	const title = (
 		<>
 			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>
@@ -88,6 +96,7 @@ export default function Connect({
 				<section>
 					<Problem>This browser can't connect to an Iti</Problem>
 					<p className="muted">{unsupported}</p>
+					{dev && fake}
 				</section>
 			</>
 		)
@@ -150,6 +159,7 @@ export default function Connect({
 							</button>
 						)
 					)}
+					{dev && !scanning && fake}
 				</section>
 				{!scanning && (
 					<details className="advanced">
@@ -218,18 +228,29 @@ export default function Connect({
 			<section>
 				{name}
 				<p className="done-line">Code scanned</p>
-				<p className="lead">Now find your Iti</p>
-				<p className="muted">Tap Find my Iti. It should be the only device that shows up, named:</p>
-				{chip}
+				{code.fake ? (
+					<>
+						<p className="lead">Now connect to the fake Iti</p>
+						<p className="muted">It has no chooser.</p>
+					</>
+				) : (
+					<>
+						<p className="lead">Now find your Iti</p>
+						<p className="muted">Tap Find my Iti. It should be the only device that shows up, named:</p>
+						{chip}
+					</>
+				)}
 				<button className="block" onClick={onFind} disabled={phase !== null}>
-					Find my Iti
+					{code.fake ? 'Connect' : 'Find my Iti'}
 				</button>
 				{problem?.detail && <p className="why">{problem.detail}</p>}
 				<div className="links">
 					{other}
-					<button className="link" onClick={() => download(code)}>
-						Save code for reprinting
-					</button>
+					{!code.fake && (
+						<button className="link" onClick={() => download(code)}>
+							Save code for reprinting
+						</button>
+					)}
 				</div>
 			</section>
 		</>

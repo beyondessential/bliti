@@ -32,7 +32,7 @@ export default function Provision() {
 		(direction, text) => setLog((lines) => [...lines, { at: new Date(), direction, text }].slice(-LOGGED)),
 		[],
 	)
-	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, cancel, disconnect, act } =
+	const { phase, problem, device, connected, lost, channel, state, limits, refusals, refused, notices, awaiting, usedKey, forget, find, findFake, cancel, disconnect, act } =
 		useProvision(client, note)
 
 	// The list of labels, which a run that has made a label adds to whenever the page sees it (PSHT),
@@ -65,7 +65,10 @@ export default function Provision() {
 		</TitleTaps.Provider>
 	)
 
-	if (unsupported) return shell(<Unsupported reason={unsupported} />)
+	// Where the browser cannot open a channel, the page says so until the fake device is reached (PWEB).
+	if (unsupported && !connected && !lost && !phase) {
+		return shell(<Unsupported reason={unsupported} dev={dev} onFake={findFake} />)
+	}
 
 	if (viewing) return shell(<Labels labels={labels} onBack={() => setViewing(false)} />)
 
@@ -77,7 +80,9 @@ export default function Provision() {
 					problem={problem}
 					offlineReady={offlineReady}
 					labels={labels}
+					dev={dev}
 					onFind={find}
+					onFake={findFake}
 					onCancel={cancel}
 					onLabels={() => setViewing(true)}
 				/>

@@ -13,6 +13,7 @@ import SignIn from './SignIn.jsx'
 import Status from './Status.jsx'
 import Tailscale from './Tailscale.jsx'
 import { CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED, createClient } from './client.js'
+import { FAKE_CODE } from './fake/device.js'
 import { applyBatch, entryOf, hasValue, isEnded, statusOf as statusIs } from './readings.js'
 import { loadOn, loadRecent, remember, saveOn, saveRecent, suffix } from './remembered.js'
 import { useSetupSession } from './session.js'
@@ -168,13 +169,15 @@ export default function App() {
 		setNotices([])
 		setNetcheck(null)
 	}, [])
-	// A channel let go of: nothing of the device held any more, and not reaching for it either.
+	// A channel let go of: nothing of the device held any more, and not reaching for it either. Where
+	// the browser cannot open a channel, the fake device goes with it, back at saying so (WEB).
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
 		away_.current = null
 		setAway(null)
-	}, [opening])
+		if (unsupported) setCode((held) => (held?.fake ? null : held))
+	}, [opening, unsupported])
 
 	// Opening a screen goes one level down from the one showing, and the browser's way back brings the
 	// operator up again, as the screen's Back does (WEB, "Moving between screens").
@@ -641,8 +644,6 @@ export default function App() {
 	// A network check's result kept for the Tailscale screen, from whichever screen ran it (TSCR).
 	const keepNetcheck = (held) => held.act === 'netcheck' && setNetcheck(held)
 
-	if (unsupported) return shell(<Connect unsupported={unsupported} />)
-
 	// A device reached or being reached again: every screen of it stays up while it is (WEB).
 	const live = connected || away
 	// Said while the device is reached again, in place of what needs the channel to show.
@@ -830,6 +831,9 @@ export default function App() {
 
 	return shell(
 		<Connect
+				// Where the browser cannot open a channel, the fake device is the one thing it can reach (WEB).
+				unsupported={code?.fake ? null : unsupported}
+				dev={dev}
 				client={client}
 				note={note}
 				offlineReady={offlineReady}
@@ -837,7 +841,8 @@ export default function App() {
 				onCode={onCode}
 				// The code held is a remembered device's, which is shown with its hostname (WEB).
 				known={code && recent?.find((each) => each.code === code.text)}
-				recent={recent}
+				// The fake device is listed only in dev mode (WEB).
+				recent={dev ? recent : recent?.filter((each) => each.code !== FAKE_CODE)}
 				phase={phase}
 				problem={problem}
 				onFind={connect}
