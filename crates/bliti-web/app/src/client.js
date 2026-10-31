@@ -24,6 +24,10 @@ import { tailscaleActSaid } from './services.js'
 
 export { CLIENT_NAME, CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED }
 
+// What goes to whichever client the channel is with. Every member of the client is either here or
+// written out below, so one missing from both is missing from the client the application holds.
+const ON_CHANNEL = ['pauseFeed', 'resumeFeed', 'configure', 'power', 'curve', 'tailscale', 'tamanu', 'disconnect']
+
 /// The client the application holds: the real one, and the fake device (WEB, "The fake device"),
 /// which a code that reads to it is routed to. The rest of the application sees one client.
 export function createClient() {
@@ -33,8 +37,10 @@ export function createClient() {
 	let active = real
 	const using = (qr) => (qr?.fake ? fake : real)
 	return {
-		...real,
-		readCode: (text) => (isFakeCode(text) ? fake : real).readCode(text),
+		unsupported: real.unsupported,
+		// The fake device's code reads to it only where `fake` is set, as it is in dev mode, and
+		// otherwise reads as any other text does.
+		readCode: (text, { fake: allowed = false } = {}) => (allowed && isFakeCode(text) ? fake : real).readCode(text),
 		connect(qr, handlers) {
 			active = using(qr)
 			return active.connect(qr, handlers)
@@ -43,14 +49,7 @@ export function createClient() {
 			active = using(qr)
 			return active.reconnect(qr, handlers)
 		},
-		pauseFeed: () => active.pauseFeed(),
-		resumeFeed: (handlers) => active.resumeFeed(handlers),
-		configure: (handlers) => active.configure(handlers),
-		power: (handlers) => active.power(handlers),
-		curve: (handlers) => active.curve(handlers),
-		tailscale: (handlers) => active.tailscale(handlers),
-		tamanu: (handlers) => active.tamanu(handlers),
-		disconnect: () => active.disconnect(),
+		...Object.fromEntries(ON_CHANNEL.map((name) => [name, (...args) => active[name](...args)])),
 	}
 }
 

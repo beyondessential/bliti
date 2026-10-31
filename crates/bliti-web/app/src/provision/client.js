@@ -24,14 +24,14 @@ export function createProvisionClient() {
 	// Whichever the channel, or the attempt at one, is with.
 	let active = real
 	return {
-		...real,
+		unsupported: real.unsupported,
+		limits: real.limits,
 		find(handlers, { fake: wanted = false } = {}) {
 			active = wanted ? fake : real
 			return active.find(handlers)
 		},
-		reconnect: (handlers) => active.reconnect(handlers),
-		provision: (handlers) => active.provision(handlers),
-		disconnect: () => active.disconnect(),
+		// What goes to whichever client the channel is with.
+		...Object.fromEntries(['reconnect', 'provision', 'disconnect'].map((name) => [name, (...args) => active[name](...args)])),
 	}
 }
 

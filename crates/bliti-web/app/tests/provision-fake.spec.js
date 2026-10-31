@@ -3,21 +3,12 @@
 
 import { expect, test } from '@playwright/test'
 
+import { fakeButton as fake, openReal } from './fake-client.js'
 import { devMode } from './fake-provision-client.js'
 
-// Chromium has no Web Bluetooth, which is the browser that cannot open a channel at all. A device that
-// has it gets nothing else: the fake never touches it.
-const withBluetooth = () => Object.defineProperty(navigator, 'bluetooth', { value: {}, configurable: true })
-const quick = () => (window.__blitiTimings = { retry: 50 })
-
-const fake = (page) => page.getByRole('button', { name: 'Use the fake Iti' })
 const box = (page, title) => page.getByRole('checkbox', { name: new RegExp(`^${title}`) })
 
-async function open(page, { bluetooth = true } = {}) {
-	await page.addInitScript(quick)
-	if (bluetooth) await page.addInitScript(withBluetooth)
-	await page.goto('/provision')
-}
+const open = (page, options) => openReal(page, '/provision', options)
 
 async function connected(page, options) {
 	await open(page, options)
@@ -33,6 +24,17 @@ test('is offered while finding a device in dev mode, and not out of it', async (
 	await expect(fake(page)).toBeVisible()
 	await devMode(page)
 	await expect(fake(page)).toHaveCount(0)
+})
+
+test('is held back while the chooser is open', async ({ page }) => {
+	await page.addInitScript(() =>
+		Object.defineProperty(navigator, 'bluetooth', { value: { requestDevice: () => new Promise(() => {}) }, configurable: true }),
+	)
+	await open(page, { bluetooth: false })
+	await devMode(page)
+	await page.getByRole('button', { name: 'Find Iti' }).click()
+	await expect(page.getByRole('button', { name: 'Find Iti' })).toBeDisabled()
+	await expect(fake(page)).toBeDisabled()
 })
 
 test('connects with no chooser and is named FAKE', async ({ page }) => {

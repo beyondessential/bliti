@@ -42,9 +42,12 @@ export default function Connect({
 
 	useEffect(() => () => scanning_.current?.abort(), [])
 
+	// The fake device's code reads to it only in dev mode (WEB).
+	const readCode = (text) => client.readCode(text, { fake: dev })
+
 	async function read(text, how) {
 		try {
-			const found = await client.readCode(text)
+			const found = await readCode(text)
 			setTypedError('')
 			onCode(found, how)
 		} catch (error) {
@@ -62,7 +65,7 @@ export default function Connect({
 		setSeen('')
 		try {
 			const found = await scan(video.current, {
-				read: (text) => client.readCode(text),
+				read: readCode,
 				onRejected: setSeen,
 				signal: controller.signal,
 			})

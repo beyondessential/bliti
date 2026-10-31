@@ -170,6 +170,8 @@ export function createFakeClient() {
 	}
 
 	function open(handlers) {
+		say(handlers, 'note', 'notifications on, opening the session')
+		say(handlers, 'out', `hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
 		channel = { handlers, streams: new Set() }
 		const mine = channel
 		const live = { open: true }
@@ -179,12 +181,12 @@ export function createFakeClient() {
 		})
 	}
 
-	// Take the device away, as a restart, a reboot or a power-off does: it says so on the feed, and the
-	// channel ends a moment later, with every stream on it.
+	// Take the device away, as a restart, a reboot or a power-off does: it says so on the feed, once
+	// what accepted the act has been said, and the channel ends a moment later, with every stream on it.
 	function goAway(act) {
 		const mine = channel
 		if (!mine) return
-		mine.handlers.onEvent(message({ type: 'going-away', act, cause: 'manual-control' }))
+		later(() => channel === mine && mine.handlers.onEvent(message({ type: 'going-away', act, cause: 'manual-control' })))
 		setTimeout(() => {
 			if (channel !== mine) return
 			channel = null
@@ -195,14 +197,15 @@ export function createFakeClient() {
 	}
 
 	// A stream the page opens with its first message, which the device answers as `answer` has it for
-	// each message the page sends on it. Closing it from either end ends it.
+	// each message the page sends on it. Closing it from either end ends it. Each message is a copy, as
+	// one read off the wire is, so nothing the page does to one reaches what the device holds.
 	function stream({ onEvent, onClosed, onActivity }, { first, ended, answer }) {
 		if (!channel) throw new Error('Not connected to a device.')
 		const mine = channel
 		const live = { open: true }
 		const emit = (...bodies) =>
 			later(() => {
-				for (const body of bodies) if (live.open) onEvent(message(body))
+				for (const body of bodies) if (live.open) onEvent(message(structuredClone(body)))
 			})
 		const end = () => {
 			if (!live.open) return
@@ -233,8 +236,6 @@ export function createFakeClient() {
 	}
 
 	return {
-		unsupported: () => null,
-
 		async readCode(text) {
 			if (!isFakeCode(text)) throw new Error("This isn't the fake device's code.")
 			return {
@@ -252,18 +253,12 @@ export function createFakeClient() {
 		async connect(qr, handlers) {
 			say(handlers, 'note', 'the fake device has no chooser')
 			handlers.onPicked?.()
-			this._connected(handlers)
+			open(handlers)
 		},
 
 		async reconnect(qr, handlers) {
 			say(handlers, 'note', 'reconnecting to the fake device')
-			this._connected(handlers)
-		},
-
-		_connected(handlers) {
 			open(handlers)
-			say(handlers, 'note', 'notifications on, opening the session')
-			say(handlers, 'out', `hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
 		},
 
 		pauseFeed() {

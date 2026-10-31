@@ -3,22 +3,12 @@
 
 import { expect, test } from '@playwright/test'
 
-import { devMode, openAdvanced } from './fake-client.js'
+import { devMode, fakeButton as fake, openAdvanced, openReal, typeCode } from './fake-client.js'
 
-// Chromium has no Web Bluetooth, which is the browser that cannot open a channel at all. A device that
-// has it gets nothing else: the fake never touches it.
-const withBluetooth = () => Object.defineProperty(navigator, 'bluetooth', { value: {}, configurable: true })
-const quick = () => (window.__blitiTimings = { retry: 50, giveUp: 1500, away: 600, grace: 1000, hold: 400 })
-
-const fake = (page) => page.getByRole('button', { name: 'Use the fake Iti' })
 const title = (page) => page.getByRole('heading', { level: 1 })
 const section = (page, name) => page.locator('section').filter({ has: page.getByRole('heading', { name, exact: true }) })
 
-async function open(page, { bluetooth = true } = {}) {
-	await page.addInitScript(quick)
-	if (bluetooth) await page.addInitScript(withBluetooth)
-	await page.goto('/')
-}
+const open = (page, options) => openReal(page, '/', options)
 
 /// Reach the fake device from the step for reading a code, in dev mode.
 async function connected(page, options) {
@@ -32,6 +22,25 @@ async function connected(page, options) {
 const advanced = openAdvanced
 
 test.describe('reaching it', () => {
+	test('its code reads only in dev mode', async ({ page }) => {
+		await open(page)
+		await typeCode(page, ' bliti:fake ')
+		await expect(page.getByText('Code scanned')).toHaveCount(0)
+		await expect(page.locator('.why')).toBeVisible()
+		await devMode(page)
+		await typeCode(page, ' bliti:fake ')
+		await expect(page.getByText('Now connect to the fake Iti')).toBeVisible()
+	})
+
+	test('is let go of once dev mode is off and the page is not on it', async ({ page }) => {
+		await open(page)
+		await devMode(page)
+		await fake(page).click()
+		await expect(page.getByText('Now connect to the fake Iti')).toBeVisible()
+		await devMode(page)
+		await expect(page.getByText('Scan the code on your Iti')).toBeVisible()
+	})
+
 	test('is offered in dev mode and not out of it', async ({ page }) => {
 		await open(page)
 		await expect(fake(page)).toHaveCount(0)
@@ -172,12 +181,28 @@ test.describe('connected to it', () => {
 		await expect(said.filter({ hasText: 'tamanu' }).first()).toBeVisible()
 	})
 
-	test('stays connected when dev mode is turned off', async ({ page }) => {
+	test('stays connected when dev mode is turned off, and is let go of on disconnecting', async ({ page }) => {
 		await connected(page)
 		await devMode(page)
 		await expect(page.locator('.log')).toHaveCount(0)
 		await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible()
 		await expect(page.locator('.health li')).toHaveCount(3)
+		await page.getByRole('button', { name: 'Disconnect' }).click()
+		await expect(page.getByText('Scan the code on your Iti')).toBeVisible()
+		await expect(page.getByText('fake-iti')).toHaveCount(0)
+	})
+
+	test('says accepted before it goes away', async ({ page }) => {
+		await connected(page)
+		await advanced(page)
+		await page.getByRole('button', { name: 'Power and battery' }).click()
+		await section(page, 'Power').getByRole('button', { name: 'Restart' }).click()
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Restart' }).click()
+		await expect(page.getByText('Restarting')).toBeVisible()
+		const said = await page.locator('.log .line .said').allTextContents()
+		const accepted = said.indexOf('accepted')
+		expect(accepted).toBeGreaterThan(-1)
+		expect(said.findIndex((line) => line.startsWith('going-away'))).toBeGreaterThan(accepted)
 	})
 
 	test('is held again after a reload, ready to connect', async ({ page }) => {

@@ -13,7 +13,10 @@
 - [x] The Activity record shows the fake device's traffic (verifies spec: WEB)
 - [x] After disconnecting, the fake device is listed among remembered devices in dev mode and hidden out of dev mode (verifies spec: WEB)
 - [x] Reloading while connected to the fake device comes back holding it, ready to connect (verifies spec: WEB)
-- [x] Turning dev mode off while connected leaves the fake device connected (verifies spec: WEB)
+- [x] Turning dev mode off while connected leaves the fake device connected. Disconnecting then lets it go, back at the scan step (verifies spec: WEB)
+- [x] Out of dev mode, typing the fake device's code reads as an unreadable code. In dev mode, it reads to the fake (verifies spec: WEB)
+- [x] A fake code held off a channel is let go of when dev mode is turned off (verifies spec: WEB)
+- [x] The fake device says `accepted` before `going-away` in the Activity record (verifies spec: WEB)
 - [x] In a browser without Web Bluetooth, the unsupported screen offers the fake device in dev mode. After disconnecting, the unsupported screen shows again (verifies spec: WEB)
 - [x] The fake device works in a production build (`vite build`, not the test mode)
 
@@ -26,4 +29,5 @@
 - [x] The fake run adds no label to the list, and Done doesn't say a label was added (verifies spec: PWEB, PSHT)
 - [x] Choosing steps again after finishing runs again (verifies spec: PWEB)
 - [x] The unsupported screen offers the fake device in dev mode (verifies spec: PWEB)
+- [x] The fake device is held back while the chooser is open, as Find Iti is (verifies spec: PWEB)
 - [x] Turning dev mode off while connected leaves the fake device connected (verifies spec: PWEB)

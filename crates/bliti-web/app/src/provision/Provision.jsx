@@ -66,6 +66,7 @@ export default function Provision() {
 	)
 
 	// Where the browser cannot open a channel, the page says so until the fake device is reached (PWEB).
+	// Told from the page's state rather than `device`, which outlives the channel.
 	if (unsupported && !connected && !lost && !phase) {
 		return shell(<Unsupported reason={unsupported} dev={dev} onFake={findFake} />)
 	}

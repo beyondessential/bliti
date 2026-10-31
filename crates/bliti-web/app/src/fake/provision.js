@@ -52,16 +52,12 @@ export function createFakeProvisionClient({ limits }) {
 		async find(handlers) {
 			handlers.onActivity?.('note', 'the fake device has no chooser')
 			handlers.onPicked?.({ suffix: FAKE_SUFFIX })
-			this._open(handlers)
+			open = true
 			return { suffix: FAKE_SUFFIX }
 		},
 
 		async reconnect(handlers) {
 			handlers.onActivity?.('note', 'reconnecting to the fake device')
-			this._open(handlers)
-		},
-
-		_open() {
 			open = true
 		},
 

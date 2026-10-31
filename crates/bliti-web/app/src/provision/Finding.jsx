@@ -29,10 +29,11 @@ export function trouble(problem) {
 	return { headline, help, detail: problem.detail }
 }
 
-/// Reaching the fake device, which dev mode offers (PWEB, "The fake device").
-function FakeDevice({ onFake }) {
+/// Reaching the fake device, which dev mode offers (PWEB, "The fake device"). Held back while a find
+/// is under way, as finding a device is.
+function FakeDevice({ onFake, disabled }) {
 	return (
-		<button className="secondary block" onClick={onFake}>
+		<button className="secondary block" onClick={onFake} disabled={disabled}>
 			Use the fake Iti
 		</button>
 	)
@@ -95,7 +96,7 @@ export default function Finding({ phase, problem, offlineReady, labels, dev, onF
 					<button className="block" onClick={onFind} disabled={phase !== null}>
 						Try again
 					</button>
-					{dev && <FakeDevice onFake={onFake} />}
+					{dev && <FakeDevice onFake={onFake} disabled={phase !== null} />}
 				</section>
 			</>
 		)
@@ -113,7 +114,7 @@ export default function Finding({ phase, problem, offlineReady, labels, dev, onF
 				<button className="block" onClick={onFind} disabled={phase !== null}>
 					Find Iti
 				</button>
-				{dev && <FakeDevice onFake={onFake} />}
+				{dev && <FakeDevice onFake={onFake} disabled={phase !== null} />}
 				{/* spec: PSHT */}
 				{labels.list.labels.length > 0 && (
 					<div className="links">

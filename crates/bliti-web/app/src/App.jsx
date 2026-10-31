@@ -358,10 +358,11 @@ export default function App() {
 	}
 
 	// A page reloaded while on a device comes back holding its code (WEB). A remembered code that no
-	// longer reads is forgotten, and never held.
+	// longer reads is forgotten, and never held. The fake device's was read in dev mode, and is kept
+	// whether or not the page is in it now.
 	useEffect(() => {
 		let live = true
-		const stillReads = (text) => client.readCode(text).catch(() => null)
+		const stillReads = (text) => client.readCode(text, { fake: true }).catch(() => null)
 		;(async () => {
 			const read = await Promise.all(start.recent.map((each) => stillReads(each.code)))
 			if (!live) return
@@ -395,6 +396,12 @@ export default function App() {
 	// open, while the device carries out an act, and while it is being reached again.
 	const on = code && (connected || going || away) ? code.text : null
 	useEffect(() => saveOn(on), [on])
+
+	// Out of dev mode, the fake device is held only while the page is on it: leaving dev mode leaves it
+	// connected, and lets it go once it is not (WEB).
+	useEffect(() => {
+		if (!dev && code?.fake && !connected && !going && !away && phase === null) setCode(null)
+	}, [dev, code, connected, going, away, phase])
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
 	// showing it again subscribes to `default` to resume. This is what keeps a phone in a pocket from
@@ -640,6 +647,8 @@ export default function App() {
 		}))
 
 	const all = [...entries.values()]
+	// The devices the application remembers that it lists: the fake device only in dev mode (WEB).
+	const listed = dev ? recent : recent?.filter((each) => each.code !== FAKE_CODE)
 
 	// A network check's result kept for the Tailscale screen, from whichever screen ran it (TSCR).
 	const keepNetcheck = (held) => held.act === 'netcheck' && setNetcheck(held)
@@ -840,9 +849,8 @@ export default function App() {
 				code={code}
 				onCode={onCode}
 				// The code held is a remembered device's, which is shown with its hostname (WEB).
-				known={code && recent?.find((each) => each.code === code.text)}
-				// The fake device is listed only in dev mode (WEB).
-				recent={dev ? recent : recent?.filter((each) => each.code !== FAKE_CODE)}
+				known={code && listed?.find((each) => each.code === code.text)}
+				recent={listed}
 				phase={phase}
 				problem={problem}
 				onFind={connect}
