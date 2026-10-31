@@ -7,19 +7,23 @@
 
 import { useState } from 'react'
 
+import { face, withMargin } from './Face.jsx'
 import JoinCode from './JoinCode.jsx'
 import {
 	HEADER,
 	IN_REVEAL,
+	BUILT_IN,
 	TILE_ORDER,
+	batteryName,
 	formatAgo,
-	formatMargin,
 	formatOutOf,
 	formatValue,
+	groupByName,
 	hasValue,
-	isTrouble,
+	headline,
 	labelOf,
 	numberOf,
+	partnerOf,
 	polyline,
 	qualifierOf,
 	headlineAddresses,
@@ -28,6 +32,7 @@ import {
 	sensorLabelOf,
 	seriesKey,
 	statusOf,
+	tone,
 } from './readings.js'
 import { channelText, securityName } from './wireless.js'
 
@@ -36,11 +41,7 @@ export default function Readings({ entries, history }) {
 		return <p className="muted">Nothing reported yet.</p>
 	}
 
-	const byName = new Map()
-	for (const entry of entries) {
-		if (!byName.has(entry.name)) byName.set(entry.name, [])
-		byName.get(entry.name).push(entry)
-	}
+	const byName = groupByName(entries)
 	const single = (name) => byName.get(name)?.[0]
 
 	// The recognised tiles, in our fixed order, skipping any the device did not send.
@@ -203,43 +204,6 @@ function Tile({ label, wide, more, tone, children, face }) {
 	)
 }
 
-/// The tone a face is coloured by its status. A passed face carries no colour (VIEW).
-function tone(entry) {
-	switch (statusOf(entry)) {
-		case 'warning':
-			return 'warn'
-		case 'failed':
-		case 'broken':
-			return 'bad'
-		default:
-			return ''
-	}
-}
-
-/// The headline for an entry with a value, or a marker for one without. Skipped and broken both have
-/// no value and are distinguished: skipped shows a dash, broken shows it is unavailable (VIEW).
-function headline(entry) {
-	if (hasValue(entry)) return formatValue(entry)
-	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
-}
-
-/// The headline with the entry's margin beside it, where it carries one.
-function face(entry) {
-	return withMargin(entry, headline(entry))
-}
-
-/// A value with how far either way it may be off beside it, for any reading carrying a margin (VIEW).
-function withMargin(entry, text) {
-	const margin = formatMargin(entry)
-	if (!margin) return text
-	return (
-		<>
-			{text}
-			<span className="margin">{margin}</span>
-		</>
-	)
-}
-
 /// A single-instance reading: cpu, memory, power, battery and the like. Its reveal carries its scale,
 /// its history, its reason, and any entries VIEW folds into it.
 function SimpleTile({ entry, history, total = null, outOf = false, reveal = [] }) {
@@ -268,7 +232,7 @@ function Reveal({ entry, scale, series }) {
 		<div className="revealed">
 			{reasonOf(entry) && <p className={statusOf(entry) === 'broken' ? 'bad' : 'note'}>{reasonOf(entry)}</p>}
 			{scale !== null && (
-				<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+				<div className={`bar ${tone(entry)}`}>
 					<span style={{ width: `${scale * 100}%` }} />
 					{limitsOf(entry).map((limit) => (
 						<i key={limit.label} className="trip" style={{ left: `${markAt(limit, entry, scale)}%` }} />
@@ -317,11 +281,6 @@ function CaseTile({ entry, opened }) {
 	)
 }
 
-/// Which battery a reading is about.
-function batteryName(entry) {
-	return entry.traits?.battery?.name ?? ''
-}
-
 /// Battery: headline the cell named `built-in` where the device reports one and the first by name
 /// otherwise, pair each battery's voltage, direction and times to empty and to full with its own
 /// charge, and show every battery in the reveal (VIEW).
@@ -330,11 +289,8 @@ function batteryName(entry) {
 /// history, and the rest folded in beneath.
 function BatteryTile({ charges, voltages, directions, empties, fulls, history }) {
 	const ordered = [...charges].sort((a, b) => batteryName(a).localeCompare(batteryName(b)))
-	const headlined = ordered.find((entry) => batteryName(entry) === 'built-in') ?? ordered[0]
+	const headlined = ordered.find((entry) => batteryName(entry) === BUILT_IN) ?? ordered[0]
 	if (!headlined) return null
-
-	const partner = (entries, battery) =>
-		entries.find((entry) => batteryName(entry) === batteryName(battery))
 
 	if (ordered.length === 1) {
 		return (
@@ -342,10 +298,10 @@ function BatteryTile({ charges, voltages, directions, empties, fulls, history })
 				entry={headlined}
 				history={history}
 				reveal={[
-					partner(voltages, headlined),
-					partner(directions, headlined),
-					partner(empties, headlined),
-					partner(fulls, headlined),
+					partnerOf(voltages, headlined),
+					partnerOf(directions, headlined),
+					partnerOf(empties, headlined),
+					partnerOf(fulls, headlined),
 				]}
 			/>
 		)
@@ -359,10 +315,10 @@ function BatteryTile({ charges, voltages, directions, empties, fulls, history })
 			face={face(headlined)}
 		>
 			{ordered.map((entry) => {
-				const volts = partner(voltages, entry)
-				const way = partner(directions, entry)
-				const empty = partner(empties, entry)
-				const full = partner(fulls, entry)
+				const volts = partnerOf(voltages, entry)
+				const way = partnerOf(directions, entry)
+				const empty = partnerOf(empties, entry)
+				const full = partnerOf(fulls, entry)
 				const scale = scaleOf(entry)
 				return (
 					<div className="revealed" key={batteryName(entry)}>
@@ -373,7 +329,7 @@ function BatteryTile({ charges, voltages, directions, empties, fulls, history })
 							))}
 						</dl>
 						{scale !== null && (
-							<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+							<div className={`bar ${tone(entry)}`}>
 								<span style={{ width: `${scale * 100}%` }} />
 							</div>
 						)}
@@ -507,7 +463,7 @@ function StorageTile({ filesystems, totals }) {
 						<Line label={mountOf(entry)} value={hasValue(entry) ? withMargin(entry, formatValue(entry)) : '—'} />
 					</dl>
 					{scaleOf(entry, totalFor(entry)) !== null && (
-						<div className={`bar${isTrouble(entry) ? ' warn' : ''}`}>
+						<div className={`bar ${tone(entry)}`}>
 							<span style={{ width: `${scaleOf(entry, totalFor(entry)) * 100}%` }} />
 						</div>
 					)}
