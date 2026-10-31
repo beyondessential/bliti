@@ -197,6 +197,7 @@ test.describe('connected to it', () => {
 		await devMode(page)
 		await page.reload()
 		await expect(page.getByText('Now connect to the fake Iti')).toBeVisible()
+		await expect(page.locator('.device-name')).toHaveText('fake-iti')
 		await page.getByRole('button', { name: 'Connect', exact: true }).click()
 		await expect(title(page)).toHaveText('fake-iti')
 		await page.getByRole('button', { name: 'Disconnect' }).click()

@@ -31,8 +31,8 @@ export const FAKE_CODE = `BLITI:${FAKE_SUFFIX}`
 export const isFakeCode = (text) => text?.trim().toUpperCase() === FAKE_CODE
 
 /// How long after an act is accepted the fake device goes away, enough for the application to say
-/// what is happening.
-const GOES = 300
+/// what is happening. The harness can lengthen it, to act within it.
+const GOES = (__TEST_SEAM__ && window.__blitiTimings?.goes) || 300
 
 const message = (body) => ({ kind: 'message', message: body })
 
@@ -56,7 +56,18 @@ export function createFakeClient() {
 		deliver(message({ type: 'end-of-batch' }))
 	}
 
+	// Let go of the channel, as the real client does on disconnecting: its feed and streams stop, and the
+	// page, which let it go, is told nothing.
+	function release() {
+		const was = channel
+		channel = null
+		if (feed) feed.open = false
+		feed = null
+		for (const each of was?.streams ?? []) each.open = false
+	}
+
 	function open(handlers) {
+		release()
 		say(handlers, 'note', 'notifications on, opening the session')
 		say(handlers, 'out', `hello  name ${CLIENT_NAME}, version ${CLIENT_VERSION}`)
 		channel = { handlers, streams: new Set() }
@@ -248,12 +259,6 @@ export function createFakeClient() {
 			}
 		},
 
-		disconnect() {
-			const was = channel
-			channel = null
-			if (feed) feed.open = false
-			feed = null
-			for (const each of was?.streams ?? []) each.open = false
-		},
+		disconnect: release,
 	}
 }

@@ -67,6 +67,9 @@ export default function App() {
 
 	const [unsupported] = useState(() => client.unsupported())
 	const [code, setCode] = useState(null)
+	// How the fake device's code came to be held, while it is: `read`, `reload`, or `let-go` once the
+	// page let its channel go. What `keepsFake` decides by.
+	const [fakeSince, setFakeSince] = useState(null)
 	// Said beside the title on the screen for reading a code until the application can open offline (WEB).
 	const offlineReady = useOfflineReady()
 	// Where an attempt to reach the device is: null, `choosing` while the chooser is open, or
@@ -170,13 +173,13 @@ export default function App() {
 		setNetcheck(null)
 	}, [])
 	// A channel let go of: nothing of the device held any more, and not reaching for it either. The
-	// code stays held, the fake device's marked as let go of, which "Holding the fake device" reads.
+	// code stays held, the fake device's as one let go of (`keepsFake`).
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
 		away_.current = null
 		setAway(null)
-		setCode((current) => (current?.fake ? { ...current, since: 'let-go' } : current))
+		setFakeSince((since) => since && 'let-go')
 	}, [opening])
 
 	// Opening a screen goes one level down from the one showing, and the browser's way back brings the
@@ -353,6 +356,7 @@ export default function App() {
 
 	const onCode = (read, how) => {
 		setCode(read)
+		setFakeSince(read.fake ? 'read' : null)
 		setProblem(null)
 		note('note', `code read${how ? ` ${how}` : ''}  ${read.text}`)
 	}
@@ -362,7 +366,7 @@ export default function App() {
 	// whether or not the page is in it now.
 	useEffect(() => {
 		let live = true
-		const stillReads = (text) => client.readCode(text, { fake: true }).catch(() => null)
+		const stillReads = (text) => client.readCode(text, { reachFake: true }).catch(() => null)
 		;(async () => {
 			const read = await Promise.all(start.recent.map((each) => stillReads(each.code)))
 			if (!live) return
@@ -370,7 +374,9 @@ export default function App() {
 			if (!start.on) return
 			const back = await stillReads(start.on)
 			if (!live || !back) return
-			setCode((current) => current ?? (back.fake ? { ...back, since: 'reload' } : back))
+			if (code_.current) return
+			setCode(back)
+			setFakeSince(back.fake ? 'reload' : null)
 			note('note', `code held from before the reload  ${back.text}`)
 		})()
 		return () => {
@@ -397,19 +403,16 @@ export default function App() {
 	const on = code && (connected || going || away) ? code.text : null
 	useEffect(() => saveOn(on), [on])
 
-	// Holding the fake device (WEB), decided here alone, while the page is not on it. Its code carries
-	// how it came to be held: `read` (the default), `reload`, or `let-go` once the page let its channel
-	// go. One back from a reload is held as any device's is. One read is held in dev mode, and one let
-	// go of in dev mode where the browser can open a channel, as any device's is; where it cannot, the
-	// page is back at saying so. Leaving dev mode leaves it connected, and lets it go once it is not.
-	// While it is held, the page passes over saying the browser cannot open a channel.
+	// The code the page holds, decided in render so no screen shows for a fake device's code about to
+	// be let go of: any device's while it is held, and the fake device's while the page is on it or
+	// `keepsFake` keeps it. Where the fake device is held, the page passes over saying the browser
+	// cannot open a channel (WEB).
+	const onIt = connected || going || away || phase !== null
+	const holding = code && (!code.fake || onIt || keepsFake(fakeSince, { dev, unsupported })) ? code : null
 	useEffect(() => {
-		if (!code?.fake || connected || going || away || phase !== null) return
-		const since = code.since ?? 'read'
-		const kept = since === 'reload' || (dev && !(since === 'let-go' && unsupported))
-		if (!kept) setCode(null)
-	}, [dev, unsupported, code, connected, going, away, phase])
-	const reachable = code?.fake ? null : unsupported
+		if (code && !holding) setCode(null)
+	}, [code, holding])
+	const reachable = holding?.fake ? null : unsupported
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
 	// showing it again subscribes to `default` to resume. This is what keeps a phone in a pocket from
@@ -853,10 +856,10 @@ export default function App() {
 				client={client}
 				note={note}
 				offlineReady={offlineReady}
-				code={code}
+				code={holding}
 				onCode={onCode}
 				// The code held is a remembered device's, which is shown with its hostname (WEB).
-				known={code && listed?.find((each) => each.code === code.text)}
+				known={holding && recent?.find((each) => each.code === holding.text)}
 				recent={listed}
 				phase={phase}
 				problem={problem}
@@ -868,6 +871,17 @@ export default function App() {
 				}}
 			/>,
 	)
+}
+
+/// Whether the fake device's code stays held while the page is not on it (WEB, "The fake device"),
+/// by how it came to be held. One back from a reload is held as any device's is. In dev mode, one read
+/// is held, and one let go of where the browser can open a channel, as any device's is; where it
+/// cannot, the page is back at saying so. Out of dev mode, the fake device is let go of once the page
+/// is not on it.
+function keepsFake(since, { dev, unsupported }) {
+	if (since === 'reload') return true
+	if (!dev) return false
+	return since !== 'let-go' || !unsupported
 }
 
 /// The value of `tailscale-state`, or its status where it carries none (STAT).

@@ -36,9 +36,9 @@ export function createClient() {
 	const using = (qr) => (isFakeCode(qr?.text) ? fake : real)
 	return routed(real, fake, () => active, {
 		unsupported: real.unsupported,
-		// The fake device's code reads to it only where `fake` is set, as it is in dev mode, and
-		// otherwise reads as any other text does.
-		readCode: (text, { fake: allowed = false } = {}) => (allowed && isFakeCode(text) ? fake : real).readCode(text),
+		// The fake device's code reads to it only where `reachFake` is set, and otherwise reads as any
+		// other text does. A code the operator gives sets it in dev mode; one remembered, always.
+		readCode: (text, { reachFake = false } = {}) => (reachFake && isFakeCode(text) ? fake : real).readCode(text),
 		connect(qr, handlers) {
 			active = using(qr)
 			return active.connect(qr, handlers)

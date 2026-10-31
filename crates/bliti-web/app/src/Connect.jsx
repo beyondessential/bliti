@@ -47,7 +47,7 @@ export default function Connect({
 	// may be partway through a scan.
 	const dev_ = useRef(dev)
 	dev_.current = dev
-	const readCode = (text) => client.readCode(text, { fake: dev_.current })
+	const readCode = (text) => client.readCode(text, { reachFake: dev_.current })
 
 	async function read(text, how) {
 		try {
