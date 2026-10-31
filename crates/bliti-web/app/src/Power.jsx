@@ -5,7 +5,18 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { face } from './Face.jsx'
-import { batteryName, formatDuration, headline, labelOf, partnerOf, reasonOf, scaleOf, tone } from './readings.js'
+import {
+	BUILT_IN,
+	batteryName,
+	formatDuration,
+	groupByName,
+	identityKey,
+	labelOf,
+	partnerOf,
+	reasonOf,
+	scaleOf,
+	tone,
+} from './readings.js'
 
 /// The acts this build knows, in the order it offers them, and what it calls each (CSCR).
 export const ACTS = [
@@ -149,9 +160,6 @@ export default function Power({ client, entries, onActivity, onEvent, onAccepted
 /// The name an exported curve document is saved under.
 const EXPORTED = 'battery-curve.json'
 
-/// The battery the device manages a backup supply for, and learns a curve of (NFO).
-const BUILT_IN = 'built-in'
-
 /// The battery section: a block for each battery the device reports a charge for, and beneath the
 /// built-in one what the device gives for a full charge and a full recharge, and its curve to export,
 /// import and reset (CSCR). Left out where the device reports no charge.
@@ -203,11 +211,7 @@ function Battery({ client, entries, onActivity, onEvent }) {
 		}
 	}, [client, onActivity, onEvent])
 
-	const byName = new Map()
-	for (const entry of entries) {
-		if (!byName.has(entry.name)) byName.set(entry.name, [])
-		byName.get(entry.name).push(entry)
-	}
+	const byName = groupByName(entries)
 	const group = (name) => byName.get(name) ?? []
 
 	// By name, with the built-in battery last so its curve sits beside it (CSCR).
@@ -268,7 +272,7 @@ function Battery({ client, entries, onActivity, onEvent }) {
 			)}
 			{charges.map((charge) => (
 				<Cell
-					key={batteryName(charge)}
+					key={identityKey(charge)}
 					charge={charge}
 					direction={partnerOf(group('battery-direction'), charge)}
 					named={several}
@@ -346,7 +350,7 @@ function Cell({ charge, direction, named, facts }) {
 			{named && <span className="which">{batteryName(charge)}</span>}
 			<div className="charge">
 				<span className={`value ${tone(charge)}`}>{face(charge)}</span>
-				{direction && <span className={`way ${tone(direction)}`}>{headline(direction)}</span>}
+				{direction && <span className={`way ${tone(direction)}`}>{face(direction)}</span>}
 			</div>
 			{scale !== null && (
 				<div className={`bar ${tone(charge)}`}>

@@ -12,11 +12,13 @@ import JoinCode from './JoinCode.jsx'
 import {
 	HEADER,
 	IN_REVEAL,
+	BUILT_IN,
 	TILE_ORDER,
 	batteryName,
 	formatAgo,
 	formatOutOf,
 	formatValue,
+	groupByName,
 	hasValue,
 	headline,
 	isTrouble,
@@ -40,11 +42,7 @@ export default function Readings({ entries, history }) {
 		return <p className="muted">Nothing reported yet.</p>
 	}
 
-	const byName = new Map()
-	for (const entry of entries) {
-		if (!byName.has(entry.name)) byName.set(entry.name, [])
-		byName.get(entry.name).push(entry)
-	}
+	const byName = groupByName(entries)
 	const single = (name) => byName.get(name)?.[0]
 
 	// The recognised tiles, in our fixed order, skipping any the device did not send.
@@ -292,7 +290,7 @@ function CaseTile({ entry, opened }) {
 /// history, and the rest folded in beneath.
 function BatteryTile({ charges, voltages, directions, empties, fulls, history }) {
 	const ordered = [...charges].sort((a, b) => batteryName(a).localeCompare(batteryName(b)))
-	const headlined = ordered.find((entry) => batteryName(entry) === 'built-in') ?? ordered[0]
+	const headlined = ordered.find((entry) => batteryName(entry) === BUILT_IN) ?? ordered[0]
 	if (!headlined) return null
 
 	if (ordered.length === 1) {

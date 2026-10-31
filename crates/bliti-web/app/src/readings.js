@@ -56,6 +56,19 @@ export function headline(entry) {
 	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
 }
 
+/// The entries held, grouped by name in the order they arrived.
+export function groupByName(entries) {
+	const byName = new Map()
+	for (const entry of entries) {
+		if (!byName.has(entry.name)) byName.set(entry.name, [])
+		byName.get(entry.name).push(entry)
+	}
+	return byName
+}
+
+/// The name a device gives the battery fitted inside it, the one whose backup supply it manages (NFO).
+export const BUILT_IN = 'built-in'
+
 /// Which battery a reading is about.
 export function batteryName(entry) {
 	return entry.traits?.battery?.name ?? ''

@@ -233,6 +233,7 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
    power source once above the batteries where there are several, and the curve below a rule (CSCR). */
 .charge { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; }
 .charge .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.charge .value .margin { font-size: 0.8rem; }
 .charge .way { color: var(--muted); font-size: 0.9rem; }
 .charge .warn, .charge-reason.warn { color: var(--warn); }
 .charge .bad, .charge-reason.bad { color: var(--bad); }
