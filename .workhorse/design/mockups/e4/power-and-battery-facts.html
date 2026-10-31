@@ -82,7 +82,8 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 .charge .way { color: var(--muted); font-size: 0.9rem; }
 .charge-reason { margin: 8px 0 0; font-size: 0.85rem; color: var(--warn); }
 .curve { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
-/* Several batteries: the power source once, then a block per battery under its name. */
+/* Several batteries: the power source once, then a block per battery under its name, built-in last
+   so it sits above the curve that belongs to it. */
 .facts.source { margin: 0 0 14px; }
 .battery + .battery { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .battery .which { display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 2px; }
@@ -252,6 +253,18 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 		</dl>
 
 		<div class="battery">
+			<span class="which">external</span>
+			<div class="charge">
+				<span class="value">100%</span>
+				<span class="way">Idle</span>
+			</div>
+			<div class="bar"><span style="width: 100%"></span></div>
+			<dl class="facts">
+				<dt>Voltage</dt><dd>12.6 V</dd>
+			</dl>
+		</div>
+
+		<div class="battery">
 			<span class="which">built-in</span>
 			<div class="charge">
 				<span class="value">82%</span>
@@ -261,18 +274,6 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 			<dl class="facts">
 				<dt>Time to full</dt><dd>1h 20m<span class="margin">±15m</span></dd>
 				<dt>Voltage</dt><dd>3.98 V</dd>
-			</dl>
-		</div>
-
-		<div class="battery">
-			<span class="which">external</span>
-			<div class="charge">
-				<span class="value">100%</span>
-				<span class="way">Idle</span>
-			</div>
-			<div class="bar"><span style="width: 100%"></span></div>
-			<dl class="facts">
-				<dt>Voltage</dt><dd>12.6 V</dd>
 			</dl>
 		</div>
 
