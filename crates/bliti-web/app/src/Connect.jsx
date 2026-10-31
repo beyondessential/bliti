@@ -5,14 +5,15 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
 import { FAKE_CODE } from './fake/device.js'
-import { Problem, Steps } from './Reaching.jsx'
+import { FakeDevice, Problem, Steps } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
 import { Title } from './Screen.jsx'
 
 const REACHING = ['Scan code', 'Find Iti', 'Connect']
 
-/// `unsupported` is why the browser cannot open a channel, where it cannot, and `dev` whether the
+/// `unsupported` is why the browser cannot open a channel, where it cannot and the fake device is not
+/// held, and `dev` whether the
 /// application is in dev mode, which offers the fake device. `phase` is null,
 /// `choosing` while the chooser is open, or `connecting` once a device is picked. `problem` is why
 /// the last attempt to reach the device ended, where it did not end by choice.
@@ -80,11 +81,7 @@ export default function Connect({
 	}
 
 	const camera = cameraAvailable()
-	const fake = (
-		<button className="secondary block" onClick={() => read(FAKE_CODE, 'for the fake device')}>
-			Use the fake Iti
-		</button>
-	)
+	const fake = <FakeDevice onClick={() => read(FAKE_CODE, 'for the fake device')} />
 	const title = (
 		<>
 			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>

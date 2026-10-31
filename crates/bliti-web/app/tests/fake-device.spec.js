@@ -192,6 +192,43 @@ test.describe('connected to it', () => {
 		await expect(page.getByText('fake-iti')).toHaveCount(0)
 	})
 
+	test('is held again after a reload with dev mode off, and let go of once disconnected', async ({ page }) => {
+		await connected(page)
+		await devMode(page)
+		await page.reload()
+		await expect(page.getByText('Now connect to the fake Iti')).toBeVisible()
+		await page.getByRole('button', { name: 'Connect', exact: true }).click()
+		await expect(title(page)).toHaveText('fake-iti')
+		await page.getByRole('button', { name: 'Disconnect' }).click()
+		await expect(page.getByText('Scan the code on your Iti')).toBeVisible()
+	})
+
+	test('says hello once, however often the feed is resumed', async ({ page }) => {
+		await connected(page)
+		const hidden = (value) =>
+			page.evaluate((value) => {
+				Object.defineProperty(document, 'hidden', { value, configurable: true })
+				document.dispatchEvent(new Event('visibilitychange'))
+			}, value)
+		await hidden(true)
+		await hidden(false)
+		const said = page.locator('.log .line .said')
+		await expect(said.filter({ hasText: 'subscribe  default' })).toHaveCount(1)
+		await expect(said.filter({ hasText: 'hello  name bliti-fake' })).toHaveCount(1)
+	})
+
+	test('gives the default route to the first candidate enabled', async ({ page }) => {
+		await connected(page)
+		await advanced(page)
+		await page.getByRole('button', { name: 'Network settings' }).click()
+		const wired = page.locator('.order li').filter({ hasText: 'eth0 automatic' })
+		await expect(wired).toContainText('Default route')
+		await wired.locator('.what').click()
+		await page.getByRole('region', { name: 'eth0 automatic' }).getByRole('button', { name: 'Turn off' }).click()
+		await page.getByRole('button', { name: 'Apply' }).click()
+		await expect(page.locator('.order li').filter({ hasText: 'Fake-Staff' })).toContainText('Default route')
+	})
+
 	test('says accepted before it goes away', async ({ page }) => {
 		await connected(page)
 		await advanced(page)

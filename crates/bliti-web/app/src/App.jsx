@@ -143,6 +143,8 @@ export default function App() {
 	const [recent, setRecent] = useState(null)
 	const code_ = useRef(null)
 	code_.current = code
+	// The code held from before a reload, until the page lets its device go.
+	const restored_ = useRef(null)
 
 	const note = useCallback(
 		(direction, text) =>
@@ -170,12 +172,14 @@ export default function App() {
 		setNetcheck(null)
 	}, [])
 	// A channel let go of: nothing of the device held any more, and not reaching for it either. Where
-	// the browser cannot open a channel, the fake device goes with it, back at saying so (WEB).
+	// the browser cannot open a channel, the fake device goes with it, back at saying so (WEB); see
+	// "Holding the fake device" below for the rest of that rule.
 	const letGo = useCallback(() => {
 		opening()
 		setHeld(NOTHING_HELD)
 		away_.current = null
 		setAway(null)
+		restored_.current = null
 		if (unsupported) setCode((held) => (held?.fake ? null : held))
 	}, [opening, unsupported])
 
@@ -370,6 +374,7 @@ export default function App() {
 			if (!start.on) return
 			const back = await stillReads(start.on)
 			if (!live || !back) return
+			if (!code_.current) restored_.current = back
 			setCode((held) => held ?? back)
 			note('note', `code held from before the reload  ${back.text}`)
 		})()
@@ -397,11 +402,15 @@ export default function App() {
 	const on = code && (connected || going || away) ? code.text : null
 	useEffect(() => saveOn(on), [on])
 
-	// Out of dev mode, the fake device is held only while the page is on it: leaving dev mode leaves it
-	// connected, and lets it go once it is not (WEB).
+	// Holding the fake device (WEB). Out of dev mode, it is held only while the page is on it, or comes
+	// back to it after a reload: leaving dev mode leaves it connected, and lets it go once it is not.
+	// Where the browser cannot open a channel, letting it go is what `letGo` does, and while it is held
+	// the page passes over saying so, as `reachable` has it.
 	useEffect(() => {
-		if (!dev && code?.fake && !connected && !going && !away && phase === null) setCode(null)
+		if (dev || !code?.fake || code === restored_.current) return
+		if (!connected && !going && !away && phase === null) setCode(null)
 	}, [dev, code, connected, going, away, phase])
+	const reachable = code?.fake ? null : unsupported
 
 	// The feed runs while the operator is looking. Hiding the page closes it, which is the decline;
 	// showing it again subscribes to `default` to resume. This is what keeps a phone in a pocket from
@@ -840,8 +849,7 @@ export default function App() {
 
 	return shell(
 		<Connect
-				// Where the browser cannot open a channel, the fake device is the one thing it can reach (WEB).
-				unsupported={code?.fake ? null : unsupported}
+				unsupported={reachable}
 				dev={dev}
 				client={client}
 				note={note}

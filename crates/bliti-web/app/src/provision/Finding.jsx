@@ -2,7 +2,7 @@
 // connecting, something else already connected, and a browser that cannot open a channel (PWEB,
 // "The page" and "Finding a device").
 
-import { Problem, Steps } from '../Reaching.jsx'
+import { FakeDevice, Problem, Steps } from '../Reaching.jsx'
 import { Title } from '../Screen.jsx'
 import Picture from './Picture.jsx'
 
@@ -29,16 +29,6 @@ export function trouble(problem) {
 	return { headline, help, detail: problem.detail }
 }
 
-/// Reaching the fake device, which dev mode offers (PWEB, "The fake device"). Held back while a find
-/// is under way, as finding a device is.
-function FakeDevice({ onFake, disabled }) {
-	return (
-		<button className="secondary block" onClick={onFake} disabled={disabled}>
-			Use the fake Iti
-		</button>
-	)
-}
-
 /// Where the browser cannot open a channel at all: that, and nothing else offered, but the fake device
 /// in dev mode (PWEB).
 export function Unsupported({ reason, dev, onFake }) {
@@ -49,7 +39,7 @@ export function Unsupported({ reason, dev, onFake }) {
 			<section>
 				<Problem>This browser can't connect to an Iti</Problem>
 				<p className="muted">{reason}</p>
-				{dev && <FakeDevice onFake={onFake} />}
+				{dev && <FakeDevice onClick={onFake} />}
 			</section>
 		</>
 	)
@@ -96,7 +86,7 @@ export default function Finding({ phase, problem, offlineReady, labels, dev, onF
 					<button className="block" onClick={onFind} disabled={phase !== null}>
 						Try again
 					</button>
-					{dev && <FakeDevice onFake={onFake} disabled={phase !== null} />}
+					{dev && <FakeDevice onClick={onFake} disabled={phase !== null} />}
 				</section>
 			</>
 		)
@@ -114,7 +104,7 @@ export default function Finding({ phase, problem, offlineReady, labels, dev, onF
 				<button className="block" onClick={onFind} disabled={phase !== null}>
 					Find Iti
 				</button>
-				{dev && <FakeDevice onFake={onFake} disabled={phase !== null} />}
+				{dev && <FakeDevice onClick={onFake} disabled={phase !== null} />}
 				{/* spec: PSHT */}
 				{labels.list.labels.length > 0 && (
 					<div className="links">

@@ -20,6 +20,15 @@ export function Steps({ names, at }) {
 	)
 }
 
+/// Reaching the fake device, which dev mode offers (WEB, PWEB, "The fake device").
+export function FakeDevice({ onClick, disabled }) {
+	return (
+		<button className="secondary block" onClick={onClick} disabled={disabled}>
+			Use the fake Iti
+		</button>
+	)
+}
+
 /// A problem, said as the one line a screen leads with.
 export function Problem({ children }) {
 	return (

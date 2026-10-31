@@ -109,9 +109,13 @@ const CAPABILITIES = {
 	acts: { scan: { interface: { wlan0: {} } } },
 }
 
-/// What each candidate of `document` is doing, as `state` carries it, in the document's order.
-const statesOf = (document) =>
-	(document.attachments ?? []).map((each, index) => (each.enabled === false ? { is: 'off' } : index === 0 ? { is: 'default-route' } : { is: 'standby' }))
+/// What each candidate of `document` is doing, as `state` carries it, in the document's order: the
+/// first enabled carries the default route.
+function statesOf(document) {
+	const attachments = document.attachments ?? []
+	const routing = attachments.findIndex((each) => each.enabled !== false)
+	return attachments.map((each, index) => (each.enabled === false ? { is: 'off' } : index === routing ? { is: 'default-route' } : { is: 'standby' }))
+}
 
 const state = (document) => ({ type: 'state', busy: false, outcome: 'applied', attachments: statesOf(document) })
 
@@ -158,11 +162,10 @@ export function createFakeClient() {
 	const say = (handlers, direction, text) => handlers?.onActivity?.(direction, text)
 	const later = (run) => setTimeout(run, 0)
 
-	// Everything of the fake device the feed carries: its hello, its facts and readings, and the end of
-	// the batch that holds them all.
+	// Everything of the fake device the feed carries: its facts and readings, and the end of the batch
+	// that holds them all.
 	function pushed(deliver) {
 		const now = Date.now()
-		deliver(message({ type: 'hello', name: 'bliti-fake', version: '0.0.0-fake' }))
 		for (const body of [...facts(now), ...readings().map((each) => ({ ...each, at: now }))]) {
 			deliver(message({ ...body, at: now }))
 		}
@@ -176,8 +179,11 @@ export function createFakeClient() {
 		const mine = channel
 		const live = { open: true }
 		feed = live
+		// The device says hello once, as the channel opens, and the feed it pushes follows.
 		later(() => {
-			if (channel === mine) pushed((event) => live.open && handlers.onEvent(event))
+			if (channel !== mine) return
+			handlers.onEvent(message({ type: 'hello', name: 'bliti-fake', version: '0.0.0-fake' }))
+			pushed((event) => live.open && handlers.onEvent(event))
 		})
 	}
 

@@ -7,6 +7,7 @@
 import { createFakeProvisionClient } from '../fake/provision.js'
 import { createLink, NEEDS_CHOOSER, unsupportedReason } from '../link.js'
 import { loadProtocol as protocol } from '../protocol.js'
+import { routed } from '../route.js'
 import {
 	Channel,
 	provisioning_image_lifetime_days,
@@ -23,16 +24,14 @@ export function createProvisionClient() {
 	const fake = createFakeProvisionClient({ limits: () => real.limits() })
 	// Whichever the channel, or the attempt at one, is with.
 	let active = real
-	return {
+	return routed(real, () => active, {
 		unsupported: real.unsupported,
 		limits: real.limits,
 		find(handlers, { fake: wanted = false } = {}) {
 			active = wanted ? fake : real
 			return active.find(handlers)
 		},
-		// What goes to whichever client the channel is with.
-		...Object.fromEntries(['reconnect', 'provision', 'disconnect'].map((name) => [name, (...args) => active[name](...args)])),
-	}
+	})
 }
 
 function createRealProvisionClient() {

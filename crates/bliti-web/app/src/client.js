@@ -20,13 +20,10 @@ import {
 } from './link.js'
 import { createFakeClient, isFakeCode } from './fake/device.js'
 import { loadProtocol as protocol } from './protocol.js'
+import { routed } from './route.js'
 import { tailscaleActSaid } from './services.js'
 
 export { CLIENT_NAME, CLIENT_VERSION, NEEDS_CHOOSER, NOTHING_PICKED }
-
-// What goes to whichever client the channel is with. Every member of the client is either here or
-// written out below, so one missing from both is missing from the client the application holds.
-const ON_CHANNEL = ['pauseFeed', 'resumeFeed', 'configure', 'power', 'curve', 'tailscale', 'tamanu', 'disconnect']
 
 /// The client the application holds: the real one, and the fake device (WEB, "The fake device"),
 /// which a code that reads to it is routed to. The rest of the application sees one client.
@@ -36,7 +33,7 @@ export function createClient() {
 	// Whichever the channel, or the attempt at one, is with.
 	let active = real
 	const using = (qr) => (qr?.fake ? fake : real)
-	return {
+	return routed(real, () => active, {
 		unsupported: real.unsupported,
 		// The fake device's code reads to it only where `fake` is set, as it is in dev mode, and
 		// otherwise reads as any other text does.
@@ -49,8 +46,7 @@ export function createClient() {
 			active = using(qr)
 			return active.reconnect(qr, handlers)
 		},
-		...Object.fromEntries(ON_CHANNEL.map((name) => [name, (...args) => active[name](...args)])),
-	}
+	})
 }
 
 function createRealClient() {
