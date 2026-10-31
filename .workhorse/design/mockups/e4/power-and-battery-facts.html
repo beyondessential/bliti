@@ -80,7 +80,8 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 .charge .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .charge .value.warn { color: var(--warn); }
 .charge .way { color: var(--muted); font-size: 0.9rem; }
-.charge-reason { margin: 8px 0 0; font-size: 0.85rem; color: var(--warn); }
+.charge-reason { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.charge-reason.warn { color: var(--warn); }
 .curve { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 /* Several batteries: the power source once, then a block per battery under its name, built-in last
    so it sits above the curve that belongs to it. */
@@ -191,7 +192,7 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 			<span class="way">Discharging</span>
 		</div>
 		<div class="bar warn"><span style="width: 14%"></span></div>
-		<p class="charge-reason">Battery is low.</p>
+		<p class="charge-reason warn">Battery is low.</p>
 		<dl class="facts">
 			<dt>Power</dt><dd>On battery</dd>
 			<dt>Time left</dt><dd>48m<span class="margin">±8m</span></dd>
