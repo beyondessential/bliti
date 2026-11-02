@@ -92,4 +92,24 @@ mod tests {
 	fn options_that_cannot_be_read_are_an_error_and_not_no_restriction() {
 		assert!(accepted("BLITI_DAEMON_ARGS=\"--no-such-option\"").is_err());
 	}
+
+	#[test]
+	fn the_shipped_options_accept_the_fleet_s_tailnet_and_configure_the_network() {
+		let env = include_str!("../../../../../../services/bliti-daemon.env");
+		assert_eq!(accepted(env), Ok(Some("bes.au".to_owned())));
+		let args = arguments(env).unwrap();
+		let words = ["bliti", "daemon"]
+			.into_iter()
+			.chain(args.split_whitespace());
+		let Command::Daemon {
+			network_backend,
+			network,
+			..
+		} = Cli::try_parse_from(words).unwrap().command
+		else {
+			panic!("the options name another command");
+		};
+		assert_eq!(network_backend, crate::NetworkBackend::Stack);
+		assert_eq!(network, std::path::Path::new("/var/lib/bliti/network.json"));
+	}
 }

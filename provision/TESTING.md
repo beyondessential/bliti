@@ -116,6 +116,11 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 - [ ] Each file under `/usr/share/bliti/provision/system/` on the medium lands at the same path in the disk's root filesystem, byte for byte and with its mode (verifies spec: PDSK, PMED)
 - [ ] `bliti.service` is enabled through `multi-user.target.wants` (verifies spec: PDSK)
+- [ ] With no network connected, `iwd` and `hostapd` are installed from the medium's `debs/`, and `dpkg -l iwd hostapd` in the disk's system shows both `ii` (verifies spec: PDSK, PMED)
+- [ ] Afterwards `iwd.service` is disabled and not masked, `hostapd.service` masked, and `wpa_supplicant.service` disabled; the disk's system carries `/etc/systemd/system/iwd.service.d/10-bliti.conf` and `/etc/systemd/system/bliti-hostapd@.service` (verifies spec: PDSK)
+- [ ] `/etc/bliti/daemon.env` on the disk passes `--network-backend stack --network /var/lib/bliti/network.json` (verifies spec: PDSK)
+- [ ] A power cut while the packages install, then running the step again, finishes the install and the step reads `done` (verifies spec: PDSK, RUN)
+- [ ] On the provisioned Iti's first boot, the app offers network configuration and reports the board's radios, not "This device has no wireless radio" (verifies spec: PDSK, NET)
 - [ ] Run again with everything in place, it passes without writing (verifies spec: PDSK)
 
 ## Step `encryption`

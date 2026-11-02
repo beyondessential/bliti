@@ -109,9 +109,12 @@ The medium's system MUST carry, in `/usr/share/bliti/provision/`:
 | `tamanu-iti-v<version>.eep` | the HAT EEPROM image, whose contents [HAT](../hat.md) defines, for each version bliti holds a source for, as `tamanu-iti-v4.0.eep` is |
 | `manifest` | the manifest |
 | `system/` | the Iti's software, each file at the path in a system's root filesystem that the step `software` of [PDSK](disk.md) installs it to, with the permission bits it installs it with |
+| `debs/` | the packages the Iti's software needs that the `pi` image lacks, which the step `software` of [PDSK](disk.md) installs, each in a file named `<package>_<version>_<architecture>.deb` |
+
+`debs/` MUST hold `iwd`, `hostapd` and the packages they depend on, without those they only recommend, other than those the `pi` image the medium is built from already satisfies.
 
 > [!NOTE]
-> The medium's system carries the Iti's software for the step to install on the disk, and does not install it itself.
+> The medium's system carries the Iti's software and its packages for the step to install on the disk, and installs neither itself.
 
 ## The manifest
 
@@ -156,6 +159,8 @@ The build MUST check the compressed `pi` image it downloads against the checksum
 The build MUST take bliti, the HAT overlay and the HAT EEPROM images from the one commit it builds.
 
 The build MUST take the newest bootloader on the default channel at the time it runs.
+
+The build MUST take the packages of `debs/` from Ubuntu's archive of the `pi` image's suite, for its architecture, at the time it runs.
 
 The build MUST produce the provisioning image as one raw disk image compressed with zstd, the SHA-256 digest of that file, and the manifest.
 

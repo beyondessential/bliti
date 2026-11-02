@@ -4,7 +4,7 @@ id: PDSK
 
 # Writing the system to the disk
 
-The step `disk` of a [run](../overview.md#run) writes the system on the [provisioning medium](../overview.md#provisioning-medium) to a Tamanu Iti's NVMe disk, the step `overlay` installs the HAT overlay into it, and the step `software` installs the Iti's software into it.
+The step `disk` of a [run](../overview.md#run) writes the system on the [provisioning medium](../overview.md#provisioning-medium) to a Tamanu Iti's NVMe disk, the step `overlay` installs the HAT overlay into it, and the step `software` installs the Iti's software into it, with the packages the Iti's network configuration needs.
 [PENC](encryption.md) specifies the step that then encrypts the disk.
 
 ## Borrowed terms
@@ -16,6 +16,9 @@ The step `disk` of a [run](../overview.md#run) writes the system on the [provisi
 | boot slot | As [PMED](medium.md) has it. |
 | HAT overlay | As [PMED](medium.md) has it. |
 | the Iti's software | The tree of files the provisioning medium carries as `system/`, as [PMED](medium.md#what-the-medium-carries) has it. |
+| the network packages | The packages `iwd` and `hostapd`, which the Iti's network configuration needs. |
+| the carried packages | The packages the provisioning medium carries as `debs/`, as [PMED](medium.md#what-the-medium-carries) has it. |
+| wholly installed | Recorded by the system's package manager as installed and configured, with nothing it began left unfinished. |
 | firmware partition | The first partition of the `pi` image, a FAT32 partition labelled `firmware` that holds the boot slots. |
 | root partition | The third partition of the `pi` image, which holds the encrypted root volume. |
 | root filesystem | The filesystem a system mounts as `/`, inside the root volume. |
@@ -137,9 +140,11 @@ The step MUST report:
 
 | done-state | where |
 | --- | --- |
-| `done` | each file of the Iti's software is installed as [Installing the Iti's software](#installing-the-itis-software) has it, and bliti's service is enabled |
-| `not-done` | the disk holds a system, and a file of the Iti's software is missing or differs, or bliti's service is not enabled |
+| `done` | each file of the Iti's software is installed as [Installing the Iti's software](#installing-the-itis-software) has it, bliti's service is enabled, the network packages are wholly installed, and each service of [The network's services](#the-networks-services) is in its state |
+| `not-done` | the disk holds a system, and a file of the Iti's software is missing or differs, bliti's service is not enabled, a network package is not wholly installed, or a service of [The network's services](#the-networks-services) is in another state |
 | `unknown` | the disk cannot be found or read, it holds no system to install into, its root volume cannot be opened, or the medium carries no software to install |
+
+The step MUST NOT need the carried packages to determine its done-state.
 
 The step SHOULD give as its reason what is missing or differs, or why the done-state is `unknown`.
 
@@ -149,13 +154,44 @@ The step MUST install each file of the Iti's software in the disk's root filesys
 
 The step MUST enable bliti's service, `bliti.service`, with a symbolic link at `/etc/systemd/system/multi-user.target.wants/bliti.service` to `/etc/systemd/system/bliti.service`, in place of whatever is at that path.
 
+The Iti's software MUST run bliti's daemon configuring the network as [NET](../network/overview.md) has it, through iwd, hostapd and systemd-networkd.
+
+The Iti's software MUST run bliti's daemon recording the configuration it holds in `/var/lib/bliti/network.json`.
+
 The step MUST fail, saying so, where the disk holds no root filesystem to install into, or the medium carries no software to install.
 
 A file the step installs MUST hold what it held before or the whole of the medium's file, with its permission bits, at every moment, including through a power cut.
 
-The step MUST flush what it writes to the disk, and MUST pass only once each file reads back as the medium carries it and the link reads back to `/etc/systemd/system/bliti.service`.
+Where a network package is not wholly installed in the disk's system, the step MUST install, from the carried packages, each one the disk's system does not hold wholly installed.
 
-Where the disk already holds each file of the Iti's software and bliti's service is enabled, the step MUST pass without writing.
+The step MUST NOT need a network connection to install the carried packages.
+
+Before it installs any, the step MUST finish whatever the disk's system's package manager left unfinished.
+
+The step MUST fail, saying so, where a network package is not wholly installed in the disk's system and the medium carries no packages.
+
+The step MUST NOT start a service of the disk's system while it installs the carried packages.
+
+> [!NOTE]
+> A power cut while the packages install leaves the disk's system's package manager unfinished, and running the step again finishes it.
+
+The step MUST put each service of [The network's services](#the-networks-services) in its state.
+
+The step MUST flush what it writes to the disk, and MUST pass only once each file reads back as the medium carries it, the link reads back to `/etc/systemd/system/bliti.service`, the network packages read back as wholly installed, and each service of [The network's services](#the-networks-services) reads back in its state.
+
+Where the disk already holds each file of the Iti's software, bliti's service is enabled, the network packages are wholly installed and each service of [The network's services](#the-networks-services) is in its state, the step MUST pass without writing.
+
+### The network's services
+
+| service | state |
+| --- | --- |
+| `iwd.service` | disabled and not masked |
+| `hostapd.service` | masked |
+| `wpa_supplicant.service` | disabled or masked, or not installed |
+
+> [!NOTE]
+> bliti's daemon starts iwd itself, and runs hostapd through its own unit, `bliti-hostapd@.service`, which the Iti's software carries.
+> wpa_supplicant would contend with iwd for the radio.
 
 ## Opening the root volume
 

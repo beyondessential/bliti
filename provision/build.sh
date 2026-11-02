@@ -161,6 +161,13 @@ done
 # The image points resolv.conf into /run, which is empty until it boots.
 mount -t tmpfs tmpfs "$root/run"
 teardown+=("umount '$root/run'")
+# What the pi image installs, read before anything is installed here.
+mkdir -p "$root/run/bliti-pristine"
+cp "$root/var/lib/dpkg/status" "$root/run/bliti-pristine/status"
+mkdir -p "$root/run/systemd/resolve"
+cp -L /etc/resolv.conf "$root/run/systemd/resolve/stub-resolv.conf"
+chroot "$root" apt-get update -q
+
 missing=()
 for path in "${!needs[@]}"; do
 	[[ -e $root$path ]] || missing+=("${needs[$path]}")
@@ -168,14 +175,8 @@ done
 if ((${#missing[@]})); then
 	mapfile -t missing < <(printf '%s\n' "${missing[@]}" | sort -u)
 	echo "installing ${missing[*]}"
-	mkdir -p "$root/run/systemd/resolve"
-	cp -L /etc/resolv.conf "$root/run/systemd/resolve/stub-resolv.conf"
-	chroot "$root" apt-get update -q
 	DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 chroot "$root" \
 		apt-get install -y -q --no-install-recommends "${missing[@]}"
-	# The image ships with no package lists, as linux-images builds it.
-	chroot "$root" apt-get clean
-	rm -rf "$root/var/lib/apt/lists/"*
 fi
 for path in "${!needs[@]}"; do
 	[[ -e $root$path ]] || {
@@ -183,6 +184,37 @@ for path in "${!needs[@]}"; do
 		exit 1
 	}
 done
+
+# The packages the step `software` installs in the disk's system for the Iti's network configuration
+# (PDSK): what iwd and hostapd need, without recommends, that the pi image does not already hold, as
+# apt would install them on the pi image as it ships.
+share=$root/usr/share/bliti/provision
+debs=$share/debs
+install -d -m 755 "$debs"
+plan=$(chroot "$root" apt-get install --simulate --no-install-recommends -q \
+	-o Dir::State::status=/run/bliti-pristine/status iwd hostapd)
+if grep -q '^Remv ' <<<"$plan"; then
+	echo "installing iwd and hostapd on the pi image would remove packages:" >&2
+	grep '^Remv ' <<<"$plan" >&2
+	exit 1
+fi
+mapfile -t carried < <(awk '/^Inst / { print $2 }' <<<"$plan")
+if ((${#carried[@]})); then
+	echo "carrying ${carried[*]}"
+	chroot "$root" sh -c 'cd "$1" && shift && exec apt-get download -q -o APT::Sandbox::User=root "$@"' \
+		sh /usr/share/bliti/provision/debs "${carried[@]}"
+fi
+for package in "${carried[@]}"; do
+	compgen -G "$debs/${package%%:*}_*.deb" >/dev/null || {
+		echo "apt downloaded no package for $package" >&2
+		exit 1
+	}
+done
+find "$debs" -name '*.deb' -exec chmod 644 {} +
+
+# The image ships with no package lists, as linux-images builds it.
+chroot "$root" apt-get clean
+rm -rf "$root/var/lib/apt/lists/"*
 
 install -D -m 755 "$bliti" "$root/usr/local/bin/bliti"
 if chroot "$root" ldd /usr/local/bin/bliti | grep 'not found'; then
@@ -199,8 +231,6 @@ install -d -m 755 "$root/etc/bliti"
 echo 'BLITI_PROVISION_ARGS=--medium /mnt/provision --board-id-source tpm-endorsement-key' \
 	>"$root/etc/bliti/provision.env"
 
-share=$root/usr/share/bliti/provision
-install -d -m 755 "$share"
 install -m 644 "$dir/pieeprom.bin" "$hat/tamanu-iti-v4.dtbo" "${eeproms[@]}" "$share/"
 install -m 644 "$manifest" "$share/manifest"
 # The Iti's software, at the paths the step `software` installs it to in the disk's system (PDSK).
@@ -212,6 +242,9 @@ install -D -m 644 "$repo/services/bliti-bluetooth-dropin.conf" \
 	"$software/etc/systemd/system/bluetooth.service.d/10-bliti.conf"
 install -D -m 644 "$repo/services/bliti-journald.conf" "$software/etc/systemd/journald.conf.d/10-bliti.conf"
 install -D -m 644 "$repo/services/bliti-daemon.env" "$software/etc/bliti/daemon.env"
+install -D -m 644 "$repo/services/bliti-iwd-dropin.conf" \
+	"$software/etc/systemd/system/iwd.service.d/10-bliti.conf"
+install -D -m 644 "$repo/services/bliti-hostapd@.service" "$software/etc/systemd/system/bliti-hostapd@.service"
 
 systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.service
 # The medium does not update its own software (PMED), and the bootloader is written by the step that

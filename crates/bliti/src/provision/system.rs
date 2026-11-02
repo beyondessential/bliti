@@ -5,11 +5,13 @@ use std::{
 	fs::{self, File, Permissions},
 	io::{self, Write as _},
 	os::unix::fs::{PermissionsExt as _, symlink},
-	path::Path,
+	path::{Path, PathBuf},
+	process::Command,
 	sync::Arc,
 };
 
 use crate::provision::{
+	exec::run,
 	luks::{Key, Luks},
 	storage::{Mounted, ROOT, Storage, partition},
 };
@@ -71,6 +73,55 @@ pub fn open_root(
 		Err(err) => {
 			luks.close(MAPPING);
 			Err(format!("the root filesystem could not be mounted: {err}"))
+		}
+	}
+}
+
+/// Mounts made under a system's root filesystem, unmounted last first when dropped.
+pub struct Mounts(Vec<PathBuf>);
+
+impl Mounts {
+	/// Bind this system's `/dev`, `/proc` and `/sys` into the system at `root`, as what runs inside it
+	/// by `chroot` needs them.
+	pub fn chroot(root: &Path) -> Result<Self, String> {
+		let mut mounts = Self(Vec::new());
+		for dir in ["dev", "proc", "sys"] {
+			mounts.bind(&Path::new("/").join(dir), &root.join(dir))?;
+		}
+		Ok(mounts)
+	}
+
+	/// Bind `source` at `target`.
+	pub fn bind(&mut self, source: &Path, target: &Path) -> Result<(), String> {
+		self.add(
+			Command::new("mount")
+				.args(["--bind", "--make-private"])
+				.arg(source),
+			target,
+		)
+	}
+
+	/// Mount an empty filesystem in memory at `target`.
+	pub fn tmpfs(&mut self, target: &Path) -> Result<(), String> {
+		self.add(
+			Command::new("mount").args(["--make-private", "-t", "tmpfs", "tmpfs"]),
+			target,
+		)
+	}
+
+	fn add(&mut self, command: &mut Command, target: &Path) -> Result<(), String> {
+		run(command.arg(target))?;
+		self.0.push(target.to_owned());
+		Ok(())
+	}
+}
+
+impl Drop for Mounts {
+	fn drop(&mut self) {
+		for target in self.0.iter().rev() {
+			if let Err(err) = run(Command::new("umount").arg("--lazy").arg(target)) {
+				tracing::warn!(%err, path = %target.display(), "cannot unmount");
+			}
 		}
 	}
 }

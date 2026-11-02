@@ -11,10 +11,12 @@ cut. Each file in this directory says where it installs and why it exists.
 place of `bliti.service`, never beside it. `provision/` builds that image, and holds the rest of what
 it installs.
 
-This file records the packages a device needs at runtime. Nothing installs them
-yet, and deployment is by hand. It is written down so that a Debian package,
-when there is one, can declare them as `Depends` instead of rediscovering them
-one failure at a time.
+This file records the packages a device needs at runtime. The provisioning
+medium carries `iwd` and `hostapd`, with what they depend on that the `pi`
+image lacks, and installs them on the disk with the rest of bliti; anything
+else is by hand. It is written down so that a Debian package, when there is
+one, can declare them as `Depends` instead of rediscovering them one failure at
+a time.
 
 ## Packages bliti needs
 
@@ -34,8 +36,10 @@ one failure at a time.
   with no `tailscale` package reports no Tailscale and lists no act, since the
   network check is that package's command.
 - **`bliti-daemon.env`**, installed at `/etc/bliti/daemon.env`, carries the
-  fleet's `--tailnet`. Without it a device accepts any tailnet. A ping with no
-  machine named tests `canopy`, unless `--ping-default` names another.
+  fleet's `--tailnet`, and runs the network configuration on the `stack`
+  backend. Without it a device accepts any tailnet and configures no network. A
+  ping with no machine named tests `canopy`, unless `--ping-default` names
+  another.
 
 ### For Tamanu
 

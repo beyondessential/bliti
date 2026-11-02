@@ -1,5 +1,5 @@
 //! The step `software`: install the Iti's software, as the medium carries it, into the system on the
-//! disk, and enable its service (PDSK).
+//! disk, with the packages its network configuration needs, and enable its service (PDSK).
 //!
 //! Interim: replaced by installing from the apt repository (G5).
 
@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use bliti_core::provisioning::report::DoneState;
 use walkdir::WalkDir;
 
+use self::network::{DEBS, Installer, Native, Status, carried, set_units, unset};
 use super::{IMAGES, blocking};
 use crate::provision::{
 	context::Context,
@@ -22,6 +23,8 @@ use crate::provision::{
 	storage::{Storage, single_disk},
 	system::{link, open_root, read, replace_with_mode},
 };
+
+mod network;
 
 /// Where, under the images, the medium carries the software, at the paths it installs to.
 const TREE: &str = "system";
@@ -44,23 +47,27 @@ struct File {
 pub struct Software {
 	storage: Arc<dyn Storage>,
 	luks: Arc<dyn Luks>,
+	installer: Arc<dyn Installer>,
 	images: PathBuf,
 }
 
 impl Software {
-	/// A step installing into the system on the disk `storage` finds.
+	/// A step installing into the system on the disk `storage` finds, with that system's own package
+	/// and service managers.
 	pub fn new(storage: Arc<dyn Storage>, luks: Arc<dyn Luks>) -> Self {
-		Self::with_images(storage, luks, IMAGES)
+		Self::with(storage, luks, Arc::new(Native), IMAGES)
 	}
 
-	fn with_images(
+	fn with(
 		storage: Arc<dyn Storage>,
 		luks: Arc<dyn Luks>,
+		installer: Arc<dyn Installer>,
 		images: impl AsRef<Path>,
 	) -> Self {
 		Self {
 			storage,
 			luks,
+			installer,
 			images: images.as_ref().to_owned(),
 		}
 	}
@@ -73,11 +80,15 @@ impl Software {
 
 	/// What the disk lacks of the software, in a phrase for each thing, or why that cannot be told.
 	async fn lacks(&self, files: Arc<[File]>) -> Result<Vec<String>, String> {
-		let (storage, luks) = (self.storage.clone(), self.luks.clone());
+		let (storage, luks, installer) = (
+			self.storage.clone(),
+			self.luks.clone(),
+			self.installer.clone(),
+		);
 		blocking(move || {
 			let disk = single_disk(&*storage)?;
 			let root = open_root(&*storage, &luks, &disk, false)?;
-			Ok(lacks(root.path(), &files))
+			Ok(lacks(root.path(), &files, &*installer))
 		})
 		.await
 	}
@@ -123,7 +134,12 @@ impl Step for Software {
 	// spec: PDSK#installing-the-itis-software
 	async fn run(&self, _context: &mut Context) -> Result<(), String> {
 		let files = self.software().await?;
-		let (storage, luks) = (self.storage.clone(), self.luks.clone());
+		let debs = self.images.join(DEBS);
+		let (storage, luks, installer) = (
+			self.storage.clone(),
+			self.luks.clone(),
+			self.installer.clone(),
+		);
 		blocking(move || {
 			let disk = single_disk(&*storage)?;
 			let mounted = open_root(&*storage, &luks, &disk, true)?;
@@ -152,7 +168,9 @@ impl Step for Software {
 				link(&place, &Path::new("/").join(SERVICE))
 					.map_err(|err| format!("cannot enable the Iti's service: {err}"))?;
 			}
-			let lacks = lacks(root, &files);
+			install_packages(root, &debs, &*installer)?;
+			set_units(root, &*installer)?;
+			let lacks = lacks(root, &files, &*installer);
 			if lacks.is_empty() {
 				Ok(())
 			} else {
@@ -208,13 +226,45 @@ fn software(tree: &Path) -> Result<Arc<[File]>, String> {
 	Ok(files.into())
 }
 
-/// A phrase for each file the root filesystem at `root` does not hold as `files` has it, and for the
-/// service where it is not enabled.
-fn lacks(root: &Path, files: &[File]) -> Vec<String> {
+/// Where the system at `root` lacks any of the packages the network configuration needs, finish what
+/// its package manager left unfinished and install those the medium carries in `debs` that the
+/// system does not wholly hold.
+// spec: PDSK#installing-the-itis-software
+fn install_packages(root: &Path, debs: &Path, installer: &dyn Installer) -> Result<(), String> {
+	let status = Status::read(root).ok();
+	if status
+		.as_ref()
+		.is_some_and(|status| status.lacks().is_empty())
+	{
+		return Ok(());
+	}
+	let carried = carried(debs)?;
+	let names: Vec<String> = carried
+		.into_iter()
+		.filter(|(package, _)| {
+			!status
+				.as_ref()
+				.is_some_and(|status| status.installed(package))
+		})
+		.map(|(_, file)| file)
+		.collect();
+	installer.install(root, debs, &names)
+}
+
+/// A phrase for each file the root filesystem at `root` does not hold as `files` has it, for the
+/// service where it is not enabled, for each package the network configuration needs that is not
+/// installed, and for each unit not in its state.
+fn lacks(root: &Path, files: &[File], installer: &dyn Installer) -> Vec<String> {
+	let packages = match Status::read(root) {
+		Ok(status) => status.lacks(),
+		Err(why) => vec![why],
+	};
 	files
 		.iter()
 		.filter_map(|file| lack(root, file))
 		.chain(unenabled(root))
+		.chain(packages)
+		.chain(unset(root, installer))
 		.collect()
 }
 
