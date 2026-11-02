@@ -185,21 +185,21 @@ test('takes an edit live, and keeps it for an offline reload', async ({ page, co
 	await page.goto('/')
 	await controlled(page)
 	const heading = page.locator('h1').first()
-	await expect(heading).toHaveText('Tamanu Iti')
+	await expect(heading).toHaveAccessibleName('Tamanu Iti')
 	await page.evaluate(() => {
 		window.__stayed = true
 	})
 	const title = `Tamanu Iti ${test.info().testId}`
 	await editing(
 		'Connect.jsx',
-		(source) => source.replaceAll('<Title title="Tamanu Iti">', `<Title title="${title}">`),
+		(source) => source.replaceAll('alt="Tamanu Iti"', `alt="${title}"`),
 		async () => {
-			await expect(heading).toHaveText(title)
+			await expect(heading).toHaveAccessibleName(title)
 			expect(await page.evaluate(() => window.__stayed)).toBe(true)
 
 			await context.setOffline(true)
 			await page.reload()
-			await expect(page.locator('h1').first()).toHaveText(title)
+			await expect(page.locator('h1').first()).toHaveAccessibleName(title)
 		},
 	)
 })

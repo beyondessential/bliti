@@ -118,32 +118,28 @@ provision-image: build-device hat-overlay hat-eeprom
 provision-image-test:
 	sudo provision/test.sh {{provision-out}}
 
-# Rasterise the application's icons from icon.svg, the one master beside them.
+# Rasterise the application's icons from the logo set in the design library, and copy the SVGs it serves.
 icons:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	# The PNG files are committed, because a build must not need a rasteriser; run this only when
-	# the master changes. Chromium will not offer to install the application unless the manifest
+	# the logo set changes. Chromium will not offer to install the application unless the manifest
 	# carries a 192px and a 512px icon, so those two are what makes it installable at all rather
 	# than merely manifested.
+	logo="$PWD/.workhorse/design/logo"
 	cd {{web-app}}/public
-	background='#cc3467'
-	# Android crops a maskable icon to a circle 80% of the tile across. The master already sits
-	# inside that circle, so the mark is rendered larger than the tile and the overflow cropped
-	# away, which fills the circle rather than leaving the flower marooned in the middle of it.
-	# Past about 112% the outermost petals cross the circle and lose their tips.
-	maskable() {
-		rsvg-convert -w "$(( $1 * 108 / 100 ))" icon.svg |
-			magick - -background "$background" -gravity center -extent "${1}x${1}" \
-				-alpha remove -alpha off -strip "PNG24:$2"
-	}
+	cp "$logo/tamanu-iti-icon.svg" icon.svg
+	cp "$logo/tamanu-iti-icon-small.svg" icon-small.svg
+	cp "$logo/tamanu-iti-logo.svg" ../src/logo.svg
+	# The maskable icon is the same artwork drawn small enough to sit inside the circle Android
+	# crops a maskable icon to, so it is rendered as it is.
 	rsvg-convert -w 192 -h 192 icon.svg -o icon-192.png
 	rsvg-convert -w 512 -h 512 icon.svg -o icon-512.png
-	maskable 192 icon-maskable-192.png
-	maskable 512 icon-maskable-512.png
+	rsvg-convert -w 192 -h 192 "$logo/tamanu-iti-icon-maskable.svg" -o icon-maskable-192.png
+	rsvg-convert -w 512 -h 512 "$logo/tamanu-iti-icon-maskable.svg" -o icon-maskable-512.png
 	# iOS takes the home-screen icon from the markup rather than the manifest, and composites it
 	# onto black wherever it is transparent, so this one is flattened.
-	rsvg-convert -w 180 -h 180 -b "$background" icon.svg -o apple-touch-icon.png
+	rsvg-convert -w 180 -h 180 -b '#326699' icon.svg -o apple-touch-icon.png
 
 # Size of the artefact the browser downloads, raw and as an origin would serve it.
 size: build-wasm

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { CLIENT_VERSION } from './client.js'
 import { FAKE_CODE } from './fake/device.js'
+import logo from './logo.svg?url'
 import { FakeDevice, Problem, Steps, Unsupported } from './Reaching.jsx'
 import { suffix } from './remembered.js'
 import { cameraAvailable, scan } from './scanner.js'
@@ -89,7 +90,7 @@ export default function Connect({
 	const fake = <FakeDevice onClick={reachFake} disabled={phase !== null} />
 	const title = (
 		<>
-			<Title title="Tamanu Iti">{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>
+			<Title title={<img src={logo} alt="Tamanu Iti" />}>{!unsupported && !offlineReady && <span className="offline">Not ready offline</span>}</Title>
 			{import.meta.env.DEV && <p className="muted">bliti-web {CLIENT_VERSION}</p>}
 		</>
 	)
