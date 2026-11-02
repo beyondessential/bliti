@@ -213,7 +213,9 @@ carried_packages() {
 	local deb name
 	for deb in "$share"/debs/*.deb; do
 		name=$(basename "$deb")
-		[[ $(chroot "$root" dpkg-deb --field "/usr/share/bliti/provision/debs/$name" Package) == "${name%%_*}" ]] ||
+		# The host's dpkg-deb: the medium's root is mounted read-only here, and it wants a temporary
+		# directory.
+		[[ $(dpkg-deb --field "$deb" Package) == "${name%%_*}" ]] ||
 			return 1
 	done
 }
