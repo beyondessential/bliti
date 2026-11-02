@@ -331,13 +331,6 @@ body.mobile .mobile-only { display: block; }
 				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
 				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
 			</ol>
-			<h3>balenaEtcher</h3>
-			<p class="muted">Etcher can't read <code>.zst</code> files, so unpack the download first. The unpacked image takes 17.8 GB of free disk.</p>
-			<ol>
-				<li>Unpack the download with <a href="https://www.7-zip.org/">7-Zip</a> 24.01 or newer: right-click the <code>.zst</code>, then <strong>7-Zip</strong>, then <strong>Extract here</strong>.</li>
-				<li>Install <a href="https://etcher.balena.io/">balenaEtcher</a> and open it.</li>
-				<li>Choose <strong>Flash from file</strong> and pick the unpacked <code>.img</code>, then <strong>Select target</strong> and pick the USB stick, and flash.</li>
-			</ol>
 			<h3>Check the download first</h3>
 			<p>In PowerShell, in the folder you downloaded to, and compare the result with the text in the <code>.sha256</code> file:</p>
 <pre>Get-FileHash -Algorithm SHA256 .\tamanu-iti-provision.img.zst</pre>
