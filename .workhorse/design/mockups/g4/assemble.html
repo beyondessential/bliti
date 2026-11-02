@@ -124,6 +124,9 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 	font-size: 0.8rem;
 }
 .steps .photo { width: 100%; max-width: 22rem; aspect-ratio: 16 / 9; margin-top: 8px; }
+.steps ol.inner { list-style: decimal; margin: 0 0 8px; padding-left: 1.25rem; }
+.steps ol.inner li { display: list-item; counter-increment: none; padding: 2px 0; border: 0; }
+.steps ol.inner li::before { content: none; }
 .use { margin: 8px 0 0; padding: 8px 12px; background: var(--page); border: 1px solid var(--line); border-radius: 6px; font-size: 0.9rem; }
 .use .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .use ul { list-style: none; margin: 4px 0 0; padding: 0; }
@@ -407,11 +410,16 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<li><b>1</b> × M2 screw to hold the drive <span class="from">X1208 pack</span> <span class="todo">size, confirm</span></li>
 				</ul></div>
 				<div class="photo">photo: the drive screw</div></div></li>
-			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, and fasten it with the M2.5 × 12 mm screw.</p>
+			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT.</strong> Its screw goes in one of the X1208's mounting holes, in place of the screw already there.</p>
+				<ol class="inner">
+					<li>Unscrew the screw from that hole <span class="todo">which hole</span>, and put it aside.</li>
+					<li>Press the HAT on, and settle it firmly.</li>
+					<li>Fasten it with the M2.5 × 12 mm screw, which is longer to reach through the HAT.</li>
+				</ol>
 				<div class="use"><span class="label">Use</span><ul>
 					<li><b>1</b> × M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
 				</ul></div>
-				<div class="photo">photo: where the screw goes</div></div></li>
+				<div class="photo">photo: the hole, and the HAT seated</div></div></li>
 			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
 			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
