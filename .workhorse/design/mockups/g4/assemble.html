@@ -1,0 +1,341 @@
+<!-- spec: assembly.md -->
+<!-- Links use the full origin so they work from this file. In assemble.html they become root-relative. -->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assemble an Iti</title>
+<style>
+/* Tokens and component shapes follow crates/bliti-web/app/src/styles.css. */
+:root {
+	--page: #fbfbfa;
+	--surface: #ffffff;
+	--line: #e4e2dd;
+	--text: #1c1917;
+	--muted: #57534e;
+	--accent: #326699;
+	--bad: #b91c1c;
+	--warn: #a16207;
+	--good: #15803d;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	padding: 16px;
+	background: var(--page);
+	color: var(--text);
+	font: 16px/1.5 system-ui, sans-serif;
+	counter-reset: step;
+}
+main { max-width: 38rem; margin: 0 auto; }
+h1 { font-size: 1.25rem; margin: 0 0 8px; }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+h3 { font-size: 1rem; margin: 16px 0 4px; }
+p { margin: 0 0 12px; }
+section {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+a { color: var(--accent); }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.lede { color: var(--muted); margin-bottom: 12px; }
+code, pre { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+pre {
+	margin: 8px 0 12px;
+	padding: 10px 12px;
+	background: var(--page);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	overflow-x: auto;
+}
+button, .button {
+	display: inline-block;
+	font: inherit;
+	padding: 12px 16px;
+	min-height: 44px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+	text-decoration: none;
+}
+.button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font-size: 0.9rem; }
+
+.notice {
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--warn);
+	border-radius: 4px;
+	padding: 8px 12px;
+	margin: 0 0 12px;
+	font-size: 0.9rem;
+}
+.notice p { margin: 0; }
+.notice p + p { margin-top: 6px; }
+
+/* Parts */
+.parts h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
+.parts h3:first-of-type { margin-top: 0; }
+.parts ul { list-style: none; margin: 0; padding: 0; }
+.parts li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+.parts li:first-child { border-top: 0; }
+.parts input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; align-self: flex-start; margin-top: 0.3rem; }
+.parts label { cursor: pointer; }
+.parts .why { display: block; color: var(--muted); font-size: 0.9rem; }
+
+/* Steps */
+ol.steps { list-style: none; margin: 0; padding: 0; }
+.steps li { counter-increment: step; display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; padding-top: 0; }
+.steps li:last-child { padding-bottom: 0; }
+.steps li::before {
+	content: counter(step);
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+	border-radius: 50%;
+	background: var(--page);
+	border: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 0.85rem;
+	line-height: 1.6rem;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+.steps .body { min-width: 0; flex: 1; }
+.steps .body > :last-child { margin-bottom: 0; }
+.steps strong { font-weight: 600; }
+.steps .aside { color: var(--muted); font-size: 0.9rem; }
+
+/* Writing the image */
+.download { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0 0 12px; }
+.download dl { margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+.download dt { color: var(--muted); font-size: 0.9rem; }
+.download dd { margin: 0; font-size: 0.9rem; }
+.tabs { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.tabs button {
+	background: transparent;
+	color: var(--muted);
+	border-radius: 6px 6px 0 0;
+	padding: 8px 14px;
+	min-height: 0;
+	border-bottom: 2px solid transparent;
+}
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.os[hidden] { display: none; }
+.os h3:first-child { margin-top: 0; }
+.os ol { margin: 4px 0 12px; padding-left: 1.25rem; }
+.os li { margin-bottom: 4px; }
+.mobile-only { display: none; }
+body.mobile .mobile-only { display: block; }
+
+.todo {
+	background: #fef3c7;
+	color: #78350f;
+	border-radius: 3px;
+	padding: 0 4px;
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<main>
+	<h1>Assemble an Iti</h1>
+	<p class="lede">This builds an Iti from its parts, provisions it, and tests it. Start the image download first, because it is large.</p>
+
+	<nav class="jump" aria-label="On this page">
+		<a href="#parts">Parts</a>
+		<a href="#assembly">Assembly</a>
+		<a href="#provisioning">Provisioning</a>
+		<a href="#closing-up">Closing up</a>
+		<a href="#testing">Testing</a>
+	</nav>
+
+	<section id="parts" class="parts">
+		<h2>Parts</h2>
+
+		<h3>Board and power</h3>
+		<ul>
+			<li><input type="checkbox" id="p-pi"><label for="p-pi">Raspberry Pi 5, and its fan</label></li>
+			<li><input type="checkbox" id="p-x1208"><label for="p-x1208">X1208 UPS board, and the X1208 case</label></li>
+			<li><input type="checkbox" id="p-cell"><label for="p-cell">One 21700 cell</label></li>
+			<li><input type="checkbox" id="p-rtc"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="why">The official rechargeable cell, with its self-adhesive pad.</span></label></li>
+			<li><input type="checkbox" id="p-hat"><label for="p-hat">Tamanu Iti HAT, and one extra screw</label></li>
+		</ul>
+
+		<h3>Storage</h3>
+		<ul>
+			<li><input type="checkbox" id="p-nvme"><label for="p-nvme">NVMe drive</label></li>
+			<li><input type="checkbox" id="p-heatsink"><label for="p-heatsink">Heatsink for the NVMe drive, and a thermal pad to stick it on</label></li>
+		</ul>
+
+		<h3>3D-printed shims</h3>
+		<ul>
+			<li><input type="checkbox" id="p-cellshim"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label></li>
+			<li><input type="checkbox" id="p-sdshim"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label></li>
+			<li><input type="checkbox" id="p-lidshim"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label></li>
+		</ul>
+		<p class="muted">Print files: <a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct file links once the v4 files are pushed</span></p>
+
+		<h3>Tools and extras</h3>
+		<ul>
+			<li><input type="checkbox" id="p-net"><label for="p-net">Network cable</label></li>
+			<li><input type="checkbox" id="p-usb"><label for="p-usb">USB cable for charging</label></li>
+			<li><input type="checkbox" id="p-driver"><label for="p-driver">Phillips screwdriver</label></li>
+		</ul>
+
+		<h3>For provisioning</h3>
+		<ul>
+			<li><input type="checkbox" id="p-stick"><label for="p-stick">A USB 3 stick of at least 32 GB<span class="why">The image fills it, and a 16 GB stick is too small. Nothing on the stick is kept.</span></label></li>
+			<li><input type="checkbox" id="p-computer"><label for="p-computer">A computer to write the stick</label></li>
+			<li><input type="checkbox" id="p-phone"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></li>
+			<li><input type="checkbox" id="p-key"><label for="p-key">A reusable Tailscale auth key, if the Iti is to join your tailnet while it is provisioned</label></li>
+		</ul>
+	</section>
+
+	<section id="image">
+		<h2>Get the provisioning image</h2>
+		<div class="download">
+			<a class="button" href="https://iti.tamanu.app/downloads/tamanu-iti-provision.img.zst" download>Download the image</a>
+			<dl>
+				<dt>Size</dt><dd>about 7.2 GB to download, 17.8 GB once written</dd>
+				<dt>Checksum</dt><dd><a href="https://iti.tamanu.app/downloads/tamanu-iti-provision.img.zst.sha256">tamanu-iti-provision.img.zst.sha256</a></dd>
+				<dt>Manifest</dt><dd><a href="https://iti.tamanu.app/downloads/tamanu-iti-provision.txt">tamanu-iti-provision.txt</a></dd>
+			</dl>
+		</div>
+		<p>The image is rebuilt every week. The provisioning page refuses one that is a month old, so download a fresh one rather than reusing a stick you wrote earlier.</p>
+
+		<h3>Write it to the stick</h3>
+		<p class="notice mobile-only">Write the stick from a computer. A phone or tablet can't.</p>
+		<div class="tabs" role="tablist" aria-label="Your computer">
+			<button role="tab" id="tab-windows" aria-controls="os-windows" aria-selected="false">Windows</button>
+			<button role="tab" id="tab-macos" aria-controls="os-macos" aria-selected="false">macOS</button>
+			<button role="tab" id="tab-linux" aria-controls="os-linux" aria-selected="false">Linux</button>
+		</div>
+
+		<div class="os" id="os-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+			<h3>Check the download first</h3>
+			<p>In PowerShell, in the folder you downloaded to, and compare the result with the text in the <code>.sha256</code> file:</p>
+<pre>Get-FileHash -Algorithm SHA256 .\tamanu-iti-provision.img.zst</pre>
+			<p class="muted">balenaEtcher can't read <code>.zst</code> files. Unpacking the image first needs 17.8 GB of free disk.</p>
+		</div>
+
+		<div class="os" id="os-macos" role="tabpanel" aria-labelledby="tab-macos" hidden>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+			<h3>Or the terminal</h3>
+			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed (<code>brew install zstd</code>):</p>
+<pre>diskutil list external
+shasum -a 256 -c tamanu-iti-provision.img.zst.sha256
+diskutil unmountDisk /dev/diskN
+zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
+			<p class="muted">Replace <code>N</code> with the stick's number. <code>dd</code> prints nothing until it finishes; press Ctrl+T to see how far it has got.</p>
+		</div>
+
+		<div class="os" id="os-linux" role="tabpanel" aria-labelledby="tab-linux" hidden>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+			<h3>Or the terminal</h3>
+			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed:</p>
+<pre>lsblk -o NAME,SIZE,TRAN,MODEL
+sha256sum -c tamanu-iti-provision.img.zst.sha256
+zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</pre>
+			<p class="muted">Replace <code>sdX</code> with the stick, as <code>lsblk</code> lists it.</p>
+		</div>
+	</section>
+
+	<section id="assembly">
+		<h2>Assembly</h2>
+		<p class="muted">Leave the lid off, with its screws out, until you are told otherwise.</p>
+		<ol class="steps">
+			<li><div class="body"><p><strong>Fit the fan</strong> to the Pi and plug it in.</p></div></li>
+			<li><div class="body"><p><strong>Plug the RTC cell</strong> into the Pi. Leave it outside for now.</p></div></li>
+			<li><div class="body"><p><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</p></div></li>
+			<li><div class="body"><p><strong>Connect the PCIe flat cable</strong> between the Pi and the X1208.</p></div></li>
+			<li><div class="body"><p><strong>Stick the heatsink</strong> onto the NVMe drive with the thermal pad, then fit the drive.</p></div></li>
+			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, with its extra screw.</p></div></li>
+			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p></div></li>
+			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
+			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
+			<li><div class="body"><p><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</p></div></li>
+			<li><div class="body"><p><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</p></div></li>
+			<li><div class="body"><p><strong>Leave the lid off</strong>, and its four screws out.</p></div></li>
+		</ol>
+		<p class="muted" style="margin-top:12px"><span class="todo">photos or drawings per step, to be added</span></p>
+	</section>
+
+	<section id="provisioning">
+		<h2>Provisioning</h2>
+		<ol class="steps">
+			<li><div class="body"><p><strong>Write the provisioning image</strong> to the USB stick, as above. No SD card is needed.</p></div></li>
+			<li><div class="body">
+				<p><strong>Plug in the stick, boot the Pi,</strong> and open the <a href="https://iti.tamanu.app/provision">provisioning page</a> in Chrome on a phone or computer. It guides you through the rest.</p>
+				<p class="aside">The page asks you to press the USER button, then the CASE switch, on the HAT. The lid is off so you can reach both.</p>
+				<p><a class="button" href="https://iti.tamanu.app/provision">Provision the Iti</a></p>
+			</div></li>
+			<li><div class="body">
+				<p><strong>When it finishes, shut the Pi down</strong> <span class="todo">how: the Pi's power button?</span> and remove the stick, the network cable and the power, in either order.</p>
+				<p class="aside">The backup supply keeps the Iti running until it has shut down, so unplugging the power first does no harm.</p>
+			</div></li>
+		</ol>
+	</section>
+
+	<section id="closing-up">
+		<h2>Closing up</h2>
+		<ol class="steps">
+			<li><div class="body"><p><strong>Stick the lid shim</strong> to the inside of the lid, where it meets the CASE switch.</p></div></li>
+			<li><div class="body"><p><strong>Screw the lid on.</strong> The Iti is ready.</p></div></li>
+		</ol>
+	</section>
+
+	<section id="testing">
+		<h2>Testing</h2>
+		<p>Boot the finished Iti and <a href="https://iti.tamanu.app/">connect to it</a> with the operator app over Bluetooth.</p>
+		<p>If provisioning didn't set up Tailscale, set it up from the app.</p>
+		<p>The Case tile in the app's device view should read closed: that confirms the lid presses the CASE switch.</p>
+		<p>The USER button stays reachable with the case closed. Press it through the case with a thin tool, such as the back of a pair of tweezers.</p>
+		<p><span class="todo">test procedure, to be written</span></p>
+	</section>
+</main>
+
+<script>
+// Pick the tab for the visitor's own system; they can change it.
+const tabs = [...document.querySelectorAll('[role="tab"]')]
+const ua = navigator.userAgent
+const mobile = /Android|iPhone|iPad|iPod/.test(ua)
+const guess = /Windows/.test(ua) ? 'windows' : /Mac/.test(ua) && !mobile ? 'macos' : /Linux|X11/.test(ua) && !mobile ? 'linux' : 'windows'
+document.body.classList.toggle('mobile', mobile)
+function show(id) {
+	for (const tab of tabs) {
+		const on = tab.id === 'tab-' + id
+		tab.setAttribute('aria-selected', on)
+		document.getElementById(tab.getAttribute('aria-controls')).hidden = !on
+	}
+}
+for (const tab of tabs) tab.addEventListener('click', () => show(tab.id.slice(4)))
+show(guess)
+</script>
+</body>
+</html>
