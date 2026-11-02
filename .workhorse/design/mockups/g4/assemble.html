@@ -467,14 +467,15 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 	<section id="provisioning">
 		<h2>Provisioning</h2>
 		<ol class="steps">
+			<li><div class="body"><p><strong>Plug in the prepared USB stick.</strong></p></div></li>
+			<li><div class="body"><p><strong>Plug in the network cable.</strong></p></div></li>
+			<li><div class="body"><p><strong>Plug in the power,</strong> in the UPS's port. The Iti boots by itself.</p></div></li>
 			<li><div class="body">
-				<p><strong>Plug in the prepared USB stick, boot the Pi,</strong> and open the <a href="https://iti.tamanu.app/provision">provisioning page</a> in Chrome on a phone or computer. It guides you through the rest.</p>
+				<p><strong>Open the <a href="https://iti.tamanu.app/provision">provisioning page</a></strong> in Chrome on a phone or computer, and go through it.</p>
 				<p><a class="button" href="https://iti.tamanu.app/provision">Provision the Iti</a></p>
 			</div></li>
-			<li><div class="body">
-				<p><strong>When it finishes, shut the Pi down</strong> <span class="todo">how: the Pi's power button?</span> and remove the stick, the network cable and the power, in either order.</p>
-				<p class="aside">The backup supply keeps the Iti running until it has shut down, so unplugging the power first does no harm.</p>
-			</div></li>
+			<li><div class="body"><p><strong>Shut the Pi down</strong> with the UPS's button <span class="todo">which press</span>, and wait until the main LED and the blue SSD LED are both off.</p></div></li>
+			<li><div class="body"><p><strong>Unplug everything:</strong> the USB stick, the network cable and the power.</p></div></li>
 		</ol>
 	</section>
 
