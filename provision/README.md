@@ -7,7 +7,7 @@ It is assembled from the `pi` image `linux-images` publishes, not built from scr
 
 | partition | holds |
 | --- | --- |
-| 1 to 3 | the `pi` image's own, with bliti in provisioning mode installed into its root and the HAT's configuration in its firmware partition |
+| 1 to 3 | the `pi` image's own, renamed `provision-firmware`, `provision-xboot` and `provision-root`, with bliti in provisioning mode installed into its root and the HAT's configuration in its firmware partition |
 | 4 | the `pi` image again, untouched, followed by its dm-verity hash tree: what the disk-write step writes to the NVMe |
 | 5 | `ITIPROV`, FAT32: what runs keep, and `manifest.txt` |
 
@@ -17,6 +17,7 @@ It is assembled from the `pi` image `linux-images` publishes, not built from scr
 | `build.sh` | assembles the image, as root |
 | `test.sh` | checks a built image against the spec, as root |
 | `root/` | files installed into the medium's root as they lie here |
+| `TESTING.md` | the checklist for taking an image through provisioning on a real board |
 
 ## Building
 
