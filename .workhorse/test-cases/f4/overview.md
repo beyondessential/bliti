@@ -43,7 +43,7 @@ There is one NVMe, so the pass runs in two cycles:
 ## Going on the air
 
 - [x] The status LED is steady amber from start on a board that is not provisioned (verifies spec: PLED)
-- [ ] A press with no run under way shows red and green alternating until a client connects, or the window ends (verifies spec: PLED)
+- [x] A press with no run under way shows red and green alternating until a client connects, or the window ends (verifies spec: PLED)
 - [ ] A press partway through a run leaves the run's pattern showing (verifies spec: PLED)
 - [x] The device does not advertise after boot until the USER button is pressed (verifies spec: PRV)
 - [x] A press advertises `ITI_PROVISION_1_` and a suffix matching the last four characters of `bliti qr`'s payload on the same board (verifies spec: PRV, QR)
