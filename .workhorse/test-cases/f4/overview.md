@@ -108,10 +108,10 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `software`
 
-- [ ] Each file under `/usr/share/bliti/provision/system/` on the medium lands at the same path in the disk's root filesystem, byte for byte and with its mode: the daemon at 0755, the rest at 0644 (verifies spec: PDSK, PMED)
-- [ ] `bliti.service` is enabled: `/etc/systemd/system/multi-user.target.wants/bliti.service` links to `/etc/systemd/system/bliti.service` (verifies spec: PDSK)
+- [x] Each file under `/usr/share/bliti/provision/system/` on the medium lands at the same path in the disk's root filesystem, byte for byte and with its mode: the daemon at 0755, the rest at 0644 (verifies spec: PDSK, PMED)
+- [x] `bliti.service` is enabled: `/etc/systemd/system/multi-user.target.wants/bliti.service` links to `/etc/systemd/system/bliti.service` (verifies spec: PDSK)
 - [ ] Run again with everything in place, it passes without writing (verifies spec: PDSK)
-- [ ] On its first boot from the NVMe the Iti runs bliti, and the operator app finds it (verifies spec: PDSK)
+- [x] On its first boot from the NVMe the Iti runs bliti, and the operator app finds it (verifies spec: PDSK)
 
 ## Step `encryption`
 
