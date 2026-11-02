@@ -72,7 +72,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [ ] Leaving the `case` prompt for five minutes fails `case` and closes the prompt, and a retry asks again (verifies spec: PHW)
 - [x] `air`, `light` and `tpm` pass, and the board is placed as 4.0 (verifies spec: PHW)
 - [x] The result lists all five checks in order and the version (verifies spec: PHW)
-- [ ] The LED blinks amber at 1 Hz while the `case` prompt waits, and green at 1 Hz while the sensor checks run (verifies spec: PLED)
+- [x] The LED blinks amber at 1 Hz while the `case` prompt waits, and green at 1 Hz while the sensor checks run (verifies spec: PLED)
 - [ ] After a run of `hardware` alone, the LED goes back to steady amber (verifies spec: PLED)
 
 ## Step `eeprom`
