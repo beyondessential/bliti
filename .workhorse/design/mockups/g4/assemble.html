@@ -264,7 +264,7 @@ body.mobile .mobile-only { display: block; }
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="why">Comes with the thermal pad that sticks it on.</span></label>
+			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="why">Comes with a thermal pad that has a clear plastic cover on each side.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.aliexpress.com/item/1005005713763821.html">AliExpress</a>, JEYI</li></ul>
@@ -405,7 +405,12 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				</ul><p class="muted" style="margin:6px 0 0"><span class="todo">from Geekworm's guide, confirm against the pack and this stack</span></p></div>
 				<div class="photo">photo: which screws, and where</div></div></li>
 			<li><div class="body"><p><strong>Connect the PCIe flat cable</strong> between the Pi and the X1208.</p></div></li>
-			<li><div class="body"><p><strong>Stick the heatsink</strong> onto the NVMe drive with the thermal pad, then fit the drive.</p>
+			<li><div class="body"><p><strong>Fit the NVMe drive</strong> with its heatsink.</p>
+				<ol class="inner">
+					<li>Peel one clear cover off the thermal pad and stick the pad to the heatsink.</li>
+					<li>Peel the other cover off and stick the heatsink, pad side down, onto the drive.</li>
+					<li>Fit the drive.</li>
+				</ol>
 				<div class="use"><span class="label">Use</span><ul>
 					<li><b>1</b> × M2 screw to hold the drive <span class="from">X1208 pack</span> <span class="todo">size, confirm</span></li>
 				</ul></div>
