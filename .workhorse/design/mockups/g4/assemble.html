@@ -77,6 +77,7 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 	margin: 0 0 12px;
 	font-size: 0.9rem;
 }
+.notice.fault { border-left-color: var(--bad); }
 .notice p { margin: 0; }
 .notice p + p { margin-top: 6px; }
 
@@ -436,15 +437,18 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				</ul></div>
 				<div class="photo">photo: the drive screw</div></div></li>
 			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT.</strong> Its screw goes in the Pi's corner mounting hole that sits nearest the middle of the X1208, in place of the screw already there.</p>
+				<p class="notice fault"><strong>Line it up carefully.</strong> Powering the Iti with the HAT misaligned will probably destroy the HAT.</p>
 				<ol class="inner">
 					<li>Unscrew the screw from that corner hole, and put it aside.</li>
+					<li>Line the HAT up with the Pi's header. Along the HAT there is a 2 × 10 socket, then a block of 2 × 6 holes with no metal in them, then the screw hole. The socket takes the first 2 × 10 pins of the Pi's header, the holes go over the next 2 × 6 pins, and the screw hole goes over the open mounting hole.</li>
 					<li>Press the HAT on, and settle it firmly.</li>
+					<li>Check that 2 × 4 pins of the Pi's header are left uncovered, at the end away from the screw.</li>
 					<li>Fasten it with the M2.5 × 12 mm screw, which is longer to reach through the HAT.</li>
 				</ol>
 				<div class="use"><span class="label">Use</span><ul>
 					<li><b>1</b> × silver M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
 				</ul></div>
-				<div class="photo">photo: the hole, and the HAT seated</div></div></li>
+				<div class="photo">photo: the HAT lined up, with the uncovered pins</div></div></li>
 			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p><p class="aside">It sits in the slot like a card, and its tab is trapped by the case so it can't be pulled out once the case is on.</p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
 			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
