@@ -45,7 +45,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] A press advertises `ITI_PROVISION_1_` and a suffix matching the last four characters of `bliti qr`'s payload on the same board (verifies spec: PRV, QR)
 - [x] Advertising stops five minutes after the press with no client (verifies spec: PRV)
 - [ ] A second press while advertising restarts the five minutes (verifies spec: PRV)
-- [ ] Advertising stops once a client connects, a press while connected does nothing, and the device stays silent after the client leaves until pressed again (verifies spec: PRV)
+- [x] Advertising stops once a client connects, a press while connected does nothing, and the device stays silent after the client leaves until pressed again (verifies spec: PRV)
 - [ ] A second client, such as `bliti connect` from the laptop, is told there is no slot free while the page is connected (verifies spec: PRV, PWEB)
 
 ## Provisioning client: finding and connecting
@@ -61,12 +61,12 @@ There is one NVMe, so the pass runs in two cycles:
 
 ## Step `hardware`
 
-- [ ] The press that put the board on the air passes `user` with no prompt (verifies spec: PHW)
+- [x] The press that put the board on the air passes `user` with no prompt (verifies spec: PHW)
 - [ ] From the console with no press yet, `user` prompts to press the USER button and passes on a press (verifies spec: PHW)
-- [ ] `case` prompts with the CASE picture, and passes only after the lever is pressed and released (verifies spec: PHW, PWEB)
+- [x] `case` prompts with the CASE picture, and passes only after the lever is pressed and released (verifies spec: PHW, PWEB)
 - [ ] Leaving the `case` prompt for five minutes fails `case` and closes the prompt, and a retry asks again (verifies spec: PHW)
-- [ ] `air`, `light` and `tpm` pass, and the board is placed as 4.0 (verifies spec: PHW)
-- [ ] The result lists all five checks in order and the version (verifies spec: PHW)
+- [x] `air`, `light` and `tpm` pass, and the board is placed as 4.0 (verifies spec: PHW)
+- [x] The result lists all five checks in order and the version (verifies spec: PHW)
 - [ ] The LED blinks amber at 1 Hz while the `case` prompt waits, and green at 1 Hz while the sensor checks run (verifies spec: PLED)
 
 ## Step `eeprom`
@@ -140,6 +140,8 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## The run as a whole
 
+- [ ] On a board whose disk holds an earlier system, `overlay`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
+- [ ] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
 - [ ] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
 - [ ] When the channel drops, the page keeps the last state marked stale, offers nothing that acts, and reconnects on its own after a press (verifies spec: PWEB)
