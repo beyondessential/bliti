@@ -94,7 +94,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 - [ ] The step's reason describes the hand-built system before the run (verifies spec: PDSK)
 - [x] Cycle 1: the dev system reads as an earlier system and is overwritten without asking (verifies spec: PDSK)
-- [ ] Cycle 2: a foreign partition table reads as another system, and the step asks to overwrite; declining fails it with the disk left as it was (verifies spec: PDSK)
+- [x] Cycle 2: a foreign partition table reads as another system, and the step asks to overwrite; declining fails it with the disk left as it was (verifies spec: PDSK)
 - [ ] Cycle 2: blanked, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
 - [ ] The write and read-back show as one progress bar (verifies spec: PDSK, PWEB)
 - [x] Afterwards the firmware partition carries `iti-image.txt` with the manifest's version and digest, and the step reads `done` (verifies spec: PDSK)
