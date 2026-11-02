@@ -90,7 +90,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 ## Step `disk`
 
 - [ ] The step's reason describes the hand-built system before the run (verifies spec: PDSK)
-- [ ] Cycle 1: the dev system reads as an earlier system and is overwritten without asking (verifies spec: PDSK)
+- [x] Cycle 1: the dev system reads as an earlier system and is overwritten without asking (verifies spec: PDSK)
 - [ ] Cycle 2: a foreign partition table reads as another system, and the step asks to overwrite; declining fails it with the disk left as it was (verifies spec: PDSK)
 - [ ] Cycle 2: blanked, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
 - [ ] The write and read-back show as one progress bar (verifies spec: PDSK, PWEB)
@@ -113,11 +113,12 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `tailscale`
 
-- [ ] The `auth-key` and `name` prompts open once `eeprom` has passed, without holding up `disk` (verifies spec: PTS)
+- [x] The `auth-key` and `name` prompts open once `eeprom` has passed, without holding up `disk` (verifies spec: PTS)
 - [ ] `name` defaults to `tamanu-iti-` and the suffix in lower case, and a name with an upper case letter or a leading hyphen is refused beneath the prompt (verifies spec: PTS, PWEB)
 - [ ] The auth key field hides what is typed, says the key must be reusable, and the key is not in Activity (verifies spec: PTS, PWEB)
 - [ ] With `auth-key` unanswered when its turn comes, the step waits, and the LED turns to blinking amber (verifies spec: PTS, PLED)
-- [ ] A saved key from a previous board answers the prompt at once, says when it was saved, and can be forgotten (verifies spec: PWEB)
+- [x] A saved key from a previous board answers the prompt at once, says when it was saved, and can be forgotten (verifies spec: PWEB)
+- [x] A typed key is answered once and kept, even where a state still showing the prompt open arrives before the device takes it (verifies spec: PWEB)
 - [ ] A rejected key fails the step, drops the saved key, and the field shows again on retry (verifies spec: PTS, PWEB)
 - [ ] A key needing approval passes, and the page says an admin has to approve the Iti (verifies spec: PTS, PWEB)
 - [ ] After a power cut between answering and the step, both prompts open again (verifies spec: PTS, RUN)
