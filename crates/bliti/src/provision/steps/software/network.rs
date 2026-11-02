@@ -272,7 +272,7 @@ impl Installer for Native {
 		if let Some(state) = stdout.lines().map(str::trim).find(|line| !line.is_empty()) {
 			return Ok(state.to_owned());
 		}
-		if String::from_utf8_lossy(&output.stderr).contains("No such file or directory") {
+		if !unit_file_present(root, unit) {
 			return Ok(NOT_FOUND.to_owned());
 		}
 		Err(failure(&command, &output))
@@ -281,6 +281,22 @@ impl Installer for Native {
 	fn set(&self, root: &Path, unit: &str, action: Action) -> Result<(), String> {
 		run(systemctl(root).args([action.verb(), unit])).map(drop)
 	}
+}
+
+/// The directories systemd loads unit files from, under a system's root.
+const UNIT_DIRS: [&str; 4] = [
+	"etc/systemd/system",
+	"run/systemd/system",
+	"usr/lib/systemd/system",
+	"lib/systemd/system",
+];
+
+/// Whether the system at `root` holds a unit file for `unit`, a mask among them, wherever systemd
+/// would load it from.
+fn unit_file_present(root: &Path, unit: &str) -> bool {
+	UNIT_DIRS
+		.iter()
+		.any(|dir| fs::symlink_metadata(root.join(dir).join(unit)).is_ok())
 }
 
 /// systemctl, acting on the system at `root`.

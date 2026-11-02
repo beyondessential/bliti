@@ -106,3 +106,21 @@ fn each_want_holds_for_its_states() {
 	assert!(Want::Masked.holds("masked"));
 	assert!(!Want::Masked.holds("disabled"));
 }
+
+#[test]
+fn a_unit_is_present_where_any_unit_directory_holds_a_file_or_a_mask_for_it() {
+	let root = tempfile::tempdir().unwrap();
+	assert!(!unit_file_present(root.path(), "iwd.service"));
+
+	let lib = root.path().join("usr/lib/systemd/system");
+	fs::create_dir_all(&lib).unwrap();
+	fs::write(lib.join("iwd.service"), "[Unit]\n").unwrap();
+	assert!(unit_file_present(root.path(), "iwd.service"));
+
+	// A mask is a link to /dev/null, which does not resolve inside the root.
+	let etc = root.path().join("etc/systemd/system");
+	fs::create_dir_all(&etc).unwrap();
+	std::os::unix::fs::symlink("/dev/null", etc.join("hostapd.service")).unwrap();
+	assert!(unit_file_present(root.path(), "hostapd.service"));
+	assert!(!unit_file_present(root.path(), "wpa_supplicant.service"));
+}
