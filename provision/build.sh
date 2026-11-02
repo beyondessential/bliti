@@ -201,8 +201,11 @@ fi
 mapfile -t carried < <(awk '/^Inst / { print $2 }' <<<"$plan")
 if ((${#carried[@]})); then
 	echo "carrying ${carried[*]}"
-	chroot "$root" sh -c 'cd "$1" && shift && exec apt-get download -q -o APT::Sandbox::User=root "$@"' \
-		sh /usr/share/bliti/provision/debs "${carried[@]}"
+	# Into a directory apt's own unprivileged user owns, so the download keeps apt's sandbox, and
+	# copied into place as root afterwards.
+	chroot "$root" sh -c 'mkdir -p /run/bliti-debs && chown _apt /run/bliti-debs'
+	chroot "$root" sh -c 'cd /run/bliti-debs && exec apt-get download -q "$@"' sh "${carried[@]}"
+	install -m 644 -o root -g root "$root"/run/bliti-debs/*.deb "$debs/"
 fi
 for package in "${carried[@]}"; do
 	compgen -G "$debs/${package%%:*}_*.deb" >/dev/null || {
