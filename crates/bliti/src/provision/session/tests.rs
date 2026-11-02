@@ -136,6 +136,7 @@ async fn the_state_is_sent_on_opening() {
 		run,
 		steps,
 		prompts,
+		..
 	} = state
 	else {
 		panic!("not a state");

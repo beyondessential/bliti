@@ -21,7 +21,7 @@ impl Manifest {
 	/// Read the manifest at `path`.
 	pub fn read(path: &Path) -> Result<Self, String> {
 		let text = fs::read_to_string(path).map_err(|err| match err.kind() {
-			io::ErrorKind::NotFound => "the provisioning medium carries no manifest".to_owned(),
+			io::ErrorKind::NotFound => "the provisioning image has no manifest".to_owned(),
 			_ => format!("cannot read the provisioning medium's manifest: {err}"),
 		})?;
 		Self::parse(&text)

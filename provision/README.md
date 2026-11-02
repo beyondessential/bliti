@@ -7,7 +7,7 @@ It is assembled from the `pi` image `linux-images` publishes, not built from scr
 
 | partition | holds |
 | --- | --- |
-| 1 to 3 | the `pi` image's own, with bliti in provisioning mode installed into its root and the HAT's configuration in its firmware partition |
+| 1 to 3 | the `pi` image's own, renamed `provision-firmware`, `provision-xboot` and `provision-root`, with bliti in provisioning mode installed into its root and the HAT's configuration in its firmware partition |
 | 4 | the `pi` image again, untouched, followed by its dm-verity hash tree: what the disk-write step writes to the NVMe |
 | 5 | `ITIPROV`, FAT32: what runs keep, and `manifest.txt` |
 
@@ -17,6 +17,7 @@ It is assembled from the `pi` image `linux-images` publishes, not built from scr
 | `build.sh` | assembles the image, as root |
 | `test.sh` | checks a built image against the spec, as root |
 | `root/` | files installed into the medium's root as they lie here |
+| `TESTING.md` | the checklist for taking an image through provisioning on a real board |
 
 ## Building
 
@@ -36,7 +37,7 @@ The build installs any package the medium needs that the `pi` image lacks throug
   A run keeps its records in `records.tsv` on the data partition.
 - The bootloader step reads and writes the Pi 5's bootloader flash on `/dev/spidev10.0` with `flashrom`, and makes its images with `rpi-eeprom-config`. Provisioning mode puts USB first in the boot order when it starts from a USB stick. `rpi-eeprom-update.service` is masked.
 - The Tailscale step runs a `tailscaled` of its own, with no tunnel and its state on the NVMe's root, so it needs the bench's network: the board on a wired connection that gives it an address. It fails, saying so, where it cannot reach Tailscale.
-- `/usr/share/bliti/provision/` holds the bootloader, the HAT overlay, the HAT EEPROM images and the manifest.
+- `/usr/share/bliti/provision/` holds the bootloader, the HAT overlay, the HAT EEPROM images and the manifest, and under `system/` the Iti's software at the paths the software step installs it to on the NVMe's root.
 
 ## Writing it
 

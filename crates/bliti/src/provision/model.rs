@@ -19,6 +19,8 @@ use super::{run::Snapshot, step::Done};
 pub struct Entry {
 	pub id: String,
 	pub title: String,
+	/// Whether carrying the step out changes the board, as a check does not.
+	pub changes_board: bool,
 	pub done: Done,
 	pub state: StepState,
 	pub progress: Option<f64>,
@@ -105,19 +107,25 @@ pub struct Model {
 	pub prompts: Vec<Open>,
 	/// What was answered, by the key it was asked under. In memory only.
 	answers: HashMap<String, Answer>,
+	/// The step that asked each question answered, by the key it was asked under.
+	asked_by: HashMap<String, usize>,
 	/// Counts the runs, so what a stopped run's task does is not taken for the next run's.
 	pub generation: u64,
+	/// Whether every step's done-state has been determined since the device started.
+	pub checked: bool,
 }
 
 impl Model {
-	pub fn new(built: Date, steps: impl IntoIterator<Item = (String, String)>) -> Self {
+	/// A model of `steps`, each as its id, its title and whether it changes the board.
+	pub fn new(built: Date, steps: impl IntoIterator<Item = (String, String, bool)>) -> Self {
 		Self {
 			built,
 			steps: steps
 				.into_iter()
-				.map(|(id, title)| Entry {
+				.map(|(id, title, changes_board)| Entry {
 					id,
 					title,
+					changes_board,
 					done: Done {
 						state: DoneState::Unknown,
 						why: None,
@@ -131,8 +139,22 @@ impl Model {
 			state: RunState::Idle,
 			prompts: Vec::new(),
 			answers: HashMap::new(),
+			asked_by: HashMap::new(),
 			generation: 0,
+			checked: false,
 		}
+	}
+
+	// spec: PLED
+	/// Whether the board is provisioned: every step that changes it reports `done`, as determined
+	/// since the device started.
+	pub fn provisioned(&self) -> bool {
+		self.checked
+			&& self
+				.steps
+				.iter()
+				.filter(|entry| entry.changes_board)
+				.all(|entry| entry.done.state == DoneState::Done)
 	}
 
 	/// The state of the device (RUN, "Run states"): `waiting` while the step being carried out has a
@@ -170,6 +192,8 @@ impl Model {
 			revision: provisioning::REVISION,
 			built: self.built,
 			run: self.run(),
+			checked: self.checked,
+			provisioned: self.provisioned(),
 			steps: self
 				.steps
 				.iter()
@@ -244,6 +268,7 @@ impl Model {
 		self.state = RunState::Idle;
 		self.prompts.clear();
 		self.answers.clear();
+		self.asked_by.clear();
 		for entry in &mut self.steps {
 			entry.state = StepState::Unchosen;
 			entry.progress = None;
@@ -296,6 +321,16 @@ impl Model {
 		let entry = &mut self.steps[index];
 		entry.state = StepState::Pending;
 		entry.reason = None;
+		// spec: RUN the step is carried out again from its beginning, asking again what it asked
+		let asked: Vec<String> = self
+			.asked_by
+			.iter()
+			.filter(|(_, step)| **step == index)
+			.map(|(key, _)| key.clone())
+			.collect();
+		for key in asked {
+			self.forget(&key);
+		}
 		self.state = RunState::Running;
 		self.generation += 1;
 		Some(index)
@@ -306,6 +341,7 @@ impl Model {
 		self.state = RunState::Finished;
 		self.prompts.clear();
 		self.answers.clear();
+		self.asked_by.clear();
 	}
 
 	/// `step` has ended: the prompts it was waiting on stop holding anything up, and the ones it asked
@@ -366,6 +402,7 @@ impl Model {
 	/// Forget what was answered under `key`.
 	pub fn forget(&mut self, key: &str) {
 		self.answers.remove(key);
+		self.asked_by.remove(key);
 	}
 
 	/// A step asks an operator to do something, and waits until it sees it done. Returns the prompt.
@@ -430,6 +467,7 @@ impl Model {
 			});
 		}
 		let open = self.prompts.remove(position);
+		self.asked_by.insert(open.key.clone(), open.step);
 		self.answers.insert(open.key, value.clone());
 		if let Some(waiter) = open.waiter {
 			let _ = waiter.send(value.clone());

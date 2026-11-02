@@ -31,6 +31,8 @@ The medium's system MUST NOT install or run bliti's ordinary daemon.
 
 The medium's system MUST NOT update its own software.
 
+The medium's system MUST NOT run Tailscale, other than as the step `tailscale` of [PTS](tailscale.md) does.
+
 The medium's system MUST open the console command of [PCON](console.md) at boot on its text console and on its serial console, without asking for a login.
 
 When the console command exits, the medium's system MUST give that console a root shell, without asking for a login.
@@ -51,6 +53,12 @@ The medium's firmware configuration MUST NOT load any overlay, other than the HA
 > A fresh board's EEPROM names no overlay, and a programmed one names the HAT overlay.
 > Loading the overlay from the configuration alone gives both the same devices, and a second overlay declaring the TPM would collide with it.
 
+The medium's firmware configuration MUST let the board boot from USB whatever current its power supply reports.
+
+> [!NOTE]
+> The Pi 5's firmware otherwise stops a USB boot on a supply that does not report 5 A, until someone presses the power button.
+> An Iti's backup supply reports less, and a factory board's bootloader configuration says nothing of it until [PBL](bootloader.md) writes it.
+
 The medium's system MUST carry the HAT overlay among the overlays of its current boot slot.
 
 The medium's system MUST make the HAT EEPROM's bus, on GPIO0 and GPIO1, available to software.
@@ -67,6 +75,17 @@ Where the disk it booted from lacks the payload or data partition, or the data p
 
 > [!NOTE]
 > A board can hold a second medium, or an NVMe written from one, and neither is the medium the board booted from.
+
+The medium's partitions MUST NOT carry any name the `pi` image gives its partitions.
+
+The medium's system MUST find its own partitions and root volume by names of its own, so that it cannot take a partition of another disk for one of its own.
+
+The medium's system MUST NOT change any disk as it boots, other than checking and repairing its data partition as [The data partition](#the-data-partition) has it.
+
+> [!NOTE]
+> The `pi` image finds its partitions by their names, and a disk written from the payload carries the same names.
+> A medium that shared them could boot the board's own disk in its place, and a board that boots its own disk with the medium still in, as [PBL](bootloader.md) has it, could take the medium's partitions for its own.
+> The `pi` image's first boot gives its disk new identifiers and grows its root, and on a medium it would act on whichever disk it took for its own.
 
 ## The payload
 
@@ -89,6 +108,10 @@ The medium's system MUST carry, in `/usr/share/bliti/provision/`:
 | `tamanu-iti-v4.dtbo` | the HAT overlay |
 | `tamanu-iti-v<version>.eep` | the HAT EEPROM image, whose contents [HAT](../hat.md) defines, for each version bliti holds a source for, as `tamanu-iti-v4.0.eep` is |
 | `manifest` | the manifest |
+| `system/` | the Iti's software, each file at the path in a system's root filesystem that the step `software` of [PDSK](disk.md) installs it to, with the permission bits it installs it with |
+
+> [!NOTE]
+> The medium's system carries the Iti's software for the step to install on the disk, and does not install it itself.
 
 ## The manifest
 

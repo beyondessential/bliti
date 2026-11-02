@@ -1,6 +1,9 @@
 //! Steps that do what a test scripts, standing in for the real ones.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+	Arc, Mutex, OnceLock,
+	atomic::{AtomicBool, Ordering},
+};
 
 use async_trait::async_trait;
 use bliti_core::provisioning::report::{DoneState, PromptKind};
@@ -22,6 +25,8 @@ pub enum Do {
 	Progress(f64),
 	Result(&'static str),
 	Confirm(&'static str),
+	/// Ask to confirm, and fail where the operator declines.
+	Require(&'static str),
 	Text(&'static str),
 	Secret(&'static str),
 	AskLater(&'static str, PromptKind),
@@ -74,6 +79,8 @@ pub struct Fake {
 	log: Log,
 	attempts: Mutex<u32>,
 	ahead: Mutex<Option<(&'static str, Question)>>,
+	undone_by: OnceLock<&'static [&'static str]>,
+	checks: AtomicBool,
 }
 
 impl Fake {
@@ -88,7 +95,19 @@ impl Fake {
 			log: log.clone(),
 			attempts: Mutex::new(0),
 			ahead: Mutex::new(None),
+			undone_by: OnceLock::new(),
+			checks: AtomicBool::new(false),
 		})
+	}
+
+	/// Have the steps `ids` undo this one.
+	pub fn undone_by_steps(&self, ids: &'static [&'static str]) {
+		self.undone_by.set(ids).expect("set once");
+	}
+
+	/// Make this a check, which changes nothing on the board.
+	pub fn checks_only(&self) {
+		self.checks.store(true, Ordering::Relaxed);
 	}
 
 	/// Have this step ask `question` ahead of its turn, once the step `after` has passed.
@@ -116,6 +135,14 @@ impl Step for Fake {
 
 	async fn done(&self) -> Done {
 		self.done.lock().unwrap().clone()
+	}
+
+	fn changes_board(&self) -> bool {
+		!self.checks.load(Ordering::Relaxed)
+	}
+
+	fn undone_by(&self) -> &[&str] {
+		self.undone_by.get().copied().unwrap_or(&[])
 	}
 
 	fn asks_after(&self) -> Option<&str> {
@@ -147,6 +174,11 @@ impl Step for Fake {
 				Do::Confirm(key) => {
 					let answer = context.confirm(key, "Sure?").await;
 					self.log.push(format!("{} confirmed {answer}", self.id));
+				}
+				Do::Require(key) => {
+					if !context.confirm(key, "Sure?").await {
+						return Err("declined".to_owned());
+					}
 				}
 				Do::Text(key) => {
 					let answer = context.text(key, "Name?").await;

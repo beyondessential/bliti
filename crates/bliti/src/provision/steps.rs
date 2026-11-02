@@ -23,6 +23,7 @@ pub mod encryption;
 pub mod hardware;
 pub mod label;
 pub mod overlay;
+pub mod software;
 pub mod tailscale;
 #[cfg(test)]
 mod testing;
@@ -46,6 +47,7 @@ pub fn all(user: Seen, name: Known, medium: &Path) -> Vec<Arc<dyn Step>> {
 		Arc::new(eeprom::Eeprom::new(board.clone(), eeprom.clone())),
 		Arc::new(disk::Disk::new(storage.clone())),
 		Arc::new(overlay::Overlay::new(storage.clone(), luks.clone())),
+		Arc::new(software::Software::new(storage.clone(), luks.clone())),
 		Arc::new(encryption::Encryption::new(
 			storage.clone(),
 			luks.clone(),

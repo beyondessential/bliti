@@ -59,10 +59,8 @@ impl Overlay {
 		let path = self.images.join(NAME);
 		blocking(move || read(&path))
 			.await
-			.map_err(|err| {
-				format!("cannot read the HAT overlay the provisioning medium carries: {err}")
-			})?
-			.ok_or_else(|| "the provisioning medium carries no HAT overlay".to_owned())
+			.map_err(|err| format!("cannot read the HAT overlay to install: {err}"))?
+			.ok_or_else(|| "there is no HAT overlay to install".to_owned())
 	}
 
 	/// What the disk lacks of the overlay, in a phrase for each place, or why that cannot be told.
@@ -88,6 +86,10 @@ impl Step for Overlay {
 
 	fn title(&self) -> &str {
 		"Install the HAT overlay"
+	}
+
+	fn undone_by(&self) -> &[&str] {
+		&["disk"]
 	}
 
 	// spec: PDSK#done-state-of-the-step-overlay

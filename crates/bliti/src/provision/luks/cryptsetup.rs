@@ -79,15 +79,7 @@ impl Luks for Cryptsetup {
 
 	fn unlocks(&self, partition: &Path, key: &Key<'_>, slot: Option<u32>) -> Result<bool, String> {
 		let arguments = Arguments::of(key)?;
-		let mut command = Command::new("cryptsetup");
-		command
-			.arg("open")
-			.arg("--test-passphrase")
-			.args(&arguments.args);
-		if let (Some(slot), Key::Empty | Key::Passphrase(_)) = (slot, key) {
-			command.arg("--key-slot").arg(slot.to_string());
-		}
-		command.arg(partition);
+		let mut command = test_command(partition, key, &arguments, slot);
 		let output = finish(&mut command)?;
 		match output.status.code() {
 			Some(0) => Ok(true),
@@ -166,14 +158,46 @@ impl Luks for Cryptsetup {
 	}
 }
 
+/// The command that tests whether `key` opens the volume on `partition`, in `slot` where it names one.
+///
+/// A passphrase is tested with the volume's tokens left out. `cryptsetup open` otherwise tries them
+/// first, and the TPM's token opens the TPM's own keyslot whatever passphrase was given.
+fn test_command(
+	partition: &Path,
+	key: &Key<'_>,
+	arguments: &Arguments,
+	slot: Option<u32>,
+) -> Command {
+	let mut command = Command::new("cryptsetup");
+	command.arg("open").arg("--test-passphrase");
+	if !matches!(key, Key::Tpm) {
+		command.arg("--disable-external-tokens");
+	}
+	command.args(&arguments.args);
+	if let (Some(slot), Key::Empty | Key::Passphrase(_)) = (slot, key) {
+		command.arg("--key-slot").arg(slot.to_string());
+	}
+	command.arg(partition);
+	command
+}
+
 /// The header of a volume with the UUID `uuid`, from `cryptsetup luksDump --dump-json-metadata`.
 fn parse(uuid: &str, json: &str) -> Result<Header, String> {
 	let bad = |what: &str| format!("the volume's header has no {what}");
 	let json: Json = serde_json::from_str(json)
 		.map_err(|err| format!("cannot read the volume's header: {err}"))?;
 
+	// The digest bound to the first data segment, whose id is whatever cryptsetup gave it.
 	let digest = json["digests"]
-		.get("0")
+		.as_object()
+		.into_iter()
+		.flatten()
+		.map(|(_, digest)| digest)
+		.find(|digest| {
+			digest["segments"]
+				.as_array()
+				.is_some_and(|segments| segments.iter().any(|segment| segment == "0"))
+		})
 		.and_then(|digest| digest["digest"].as_str())
 		.ok_or_else(|| bad("volume key digest"))?
 		.to_owned();
@@ -244,7 +268,7 @@ mod tests {
 			"0": {"type": "systemd-tpm2", "keyslots": ["2"], "tpm2-pcrs": []},
 			"1": {"type": "something-else", "keyslots": ["1"]}
 		},
-		"digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "digest": "AbC="}},
+		"digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "segments": ["0"], "digest": "AbC="}},
 		"config": {"requirements": []}
 	}"#;
 
@@ -281,6 +305,59 @@ mod tests {
 			r#""requirements": ["online-reencrypt"]"#,
 		);
 		assert!(parse("uuid", &json).unwrap().reencrypting);
+	}
+
+	/// As the `pi` image ships its root volume: one digest, whose id is not 0.
+	#[test]
+	fn the_digest_is_the_one_bound_to_the_data_segment() {
+		let json = JSON.replace(
+			r#""digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "segments": ["0"], "digest": "AbC="}}"#,
+			r#""digests": {
+				"1": {"type": "pbkdf2", "keyslots": ["1"], "segments": ["0"], "digest": "DeF="},
+				"0": {"type": "pbkdf2", "keyslots": ["0"], "segments": [], "digest": "AbC="}
+			}"#,
+		);
+		assert_eq!(parse("uuid", &json).unwrap().digest, "DeF=");
+	}
+
+	fn arguments_of(key: &Key<'_>, slot: Option<u32>) -> Vec<String> {
+		// As `Arguments::of` gives them, without the file it keeps a passphrase in.
+		let arguments = match key {
+			Key::Tpm => Arguments::of(key).unwrap(),
+			_ => Arguments {
+				args: vec!["--key-file".to_owned(), "/key".to_owned()],
+				_file: None,
+			},
+		};
+		test_command(Path::new("/dev/part"), key, &arguments, slot)
+			.get_args()
+			.map(|arg| arg.to_string_lossy().into_owned())
+			.collect()
+	}
+
+	#[test]
+	fn a_passphrase_is_tested_without_the_tokens() {
+		for key in [Key::Empty, Key::Passphrase("recovery")] {
+			let args = arguments_of(&key, Some(1));
+			assert!(
+				args.contains(&"--disable-external-tokens".to_owned()),
+				"{args:?}"
+			);
+			assert!(
+				args.windows(2).any(|pair| pair == ["--key-slot", "1"]),
+				"{args:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn the_tpm_is_tested_through_its_token() {
+		let args = arguments_of(&Key::Tpm, None);
+		assert!(args.contains(&"--token-only".to_owned()), "{args:?}");
+		assert!(
+			!args.contains(&"--disable-external-tokens".to_owned()),
+			"{args:?}"
+		);
 	}
 
 	#[test]

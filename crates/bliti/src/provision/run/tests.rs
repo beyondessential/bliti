@@ -799,3 +799,106 @@ async fn an_answer_a_step_refuses_is_refused_at_the_value() {
 	device.act(&answer("q", Answer::text("fine"))).unwrap();
 	assert!(device.watch().borrow().prompts.is_empty());
 }
+
+#[tokio::test]
+async fn a_step_an_earlier_step_undoes_is_not_done_while_that_one_is_not() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let (disk, overlay) = (
+		Fake::new("disk", &log, vec![]),
+		Fake::new("overlay", &log, vec![]),
+	);
+	overlay.undone_by_steps(&["disk"]);
+	disk.done_is(DoneState::NotDone, Some("holds an earlier system"));
+	overlay.done_is(DoneState::Done, Some("the overlay is installed"));
+	let device = device(vec![disk.clone(), overlay.clone()], &medium).await;
+
+	let held = until(&device, |s| s.checked).await;
+	assert_eq!(held.steps[1].done, DoneState::NotDone);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the overlay is installed; disk replaces it")
+	);
+
+	// What the later step cannot tell does not matter while the earlier one comes first.
+	overlay.done_is(DoneState::Unknown, Some("the disk holds no system"));
+	device.attach();
+	let held = until(&device, |s| {
+		s.steps[1].why.as_deref() == Some("disk comes first")
+	})
+	.await;
+	assert_eq!(held.steps[1].done, DoneState::NotDone);
+
+	// Where the earlier step cannot tell, the later one says what it found.
+	disk.done_is(DoneState::Unknown, None);
+	device.attach();
+	let held = until(&device, |s| s.steps[0].done == DoneState::Unknown).await;
+	assert_eq!(held.steps[1].done, DoneState::Unknown);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the disk holds no system")
+	);
+
+	overlay.done_is(DoneState::Done, Some("the overlay is installed"));
+	disk.done_is(DoneState::Done, None);
+	device.attach();
+	let held = until(&device, |s| s.steps[0].done == DoneState::Done).await;
+	assert_eq!(held.steps[1].done, DoneState::Done);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the overlay is installed")
+	);
+}
+
+#[tokio::test]
+async fn a_board_is_provisioned_once_every_step_that_changes_it_is_done() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let (check, write) = (
+		Fake::new("check", &log, vec![]),
+		Fake::new("write", &log, vec![]),
+	);
+	check.checks_only();
+	write.done_is(DoneState::NotDone, None);
+	let device = device(vec![check, write.clone()], &medium).await;
+
+	let fresh = device.watch().borrow().clone();
+	assert!(
+		!fresh.provisioned,
+		"not provisioned before anything is determined"
+	);
+	let held = until(&device, |s| s.checked).await;
+	assert!(!held.provisioned);
+
+	write.done_is(DoneState::Done, None);
+	device.attach();
+	let held = until(&device, |s| s.provisioned).await;
+	assert_eq!(
+		held.steps[0].done,
+		DoneState::NotDone,
+		"a check never counts"
+	);
+}
+
+#[tokio::test]
+async fn a_retried_step_asks_again_what_it_asked() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let steps = vec![Fake::new("a", &log, vec![Do::Require("overwrite")])];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a"])).unwrap();
+	let asked = until(&device, |s| s.run == RunState::Waiting).await;
+	device
+		.act(&answer(&asked.prompts[0].id, Answer::boolean(false)))
+		.unwrap();
+	until(&device, |s| s.run == RunState::Failed).await;
+
+	device.act(&act("retry")).unwrap();
+	let asked = until(&device, |s| s.run == RunState::Waiting).await;
+	assert_eq!(
+		asked.prompts.len(),
+		1,
+		"asked again rather than taking the old answer"
+	);
+	device
+		.act(&answer(&asked.prompts[0].id, Answer::boolean(true)))
+		.unwrap();
+	finished(&device).await;
+}

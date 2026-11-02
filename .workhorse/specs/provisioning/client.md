@@ -57,7 +57,9 @@ Where it has said either, the provisioning client MUST NOT send `provision-act`,
 
 ## Choosing the steps
 
-While the device is `idle`, the provisioning client MUST list every step in order, each with a checkbox, and each with its reason where the device gives one.
+While the device is `idle` and has not reported `checked` of [PRS](stream.md#the-state), the provisioning client MUST say that the Iti is checking the board, and MUST NOT list the steps.
+
+While the device is `idle` and has reported `checked`, the provisioning client MUST list every step in order, each with a checkbox, and each with its reason where the device gives one.
 
 The provisioning client MUST tick each step whose done-state is not `done`, as [RUN](run.md) recommends, and MUST let the operator tick and untick any step.
 
@@ -122,15 +124,19 @@ Where the step `tailscale` has passed with `needs-approval` true, the provisioni
 
 ## When the run has finished
 
-While the device is `finished`, the provisioning client MUST show the board's record of [PRS](stream.md#the-record), if a step reports one, and MUST say that it is also saved to the provisioning medium.
+While the device is `finished`, the provisioning client MUST say that the Iti is provisioned where the device reports `provisioned`, and otherwise MUST say that the run has finished and that the Iti is not yet provisioned.
+
+The provisioning client MUST show the board's record of [PRS](stream.md#the-record), if a step reports one, and MUST say that it is also saved to the provisioning medium.
 
 The provisioning client MUST show the recovery passphrase, where the record carries one, and MUST offer to copy it.
 
 While the device is `finished` and the step `label` has passed with a result the provisioning client adds to its list of labels, as [PSHT](sheet.md) has it, the provisioning client MUST say that the board's label was added to that list, and MUST NOT show the label's payload.
 
-The provisioning client MUST tell the operator to power the device off and remove the provisioning medium.
+Where the device reports `provisioned`, the provisioning client MUST tell the operator to power the device off and remove the provisioning medium.
 
 The provisioning client MUST offer to choose steps to run again, which lists the steps as [Choosing the steps](#choosing-the-steps) has it, and to provision another Iti, which disconnects and returns to finding a device.
+
+Where the device does not report `provisioned`, the provisioning client MUST offer choosing steps to run again as the primary action.
 
 The provisioning client MUST NOT send `acknowledge`.
 

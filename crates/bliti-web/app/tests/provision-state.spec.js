@@ -72,8 +72,18 @@ test.describe('the image date', () => {
 })
 
 test('each state of the device shows its screen', () => {
-	expect(['idle', 'running', 'waiting', 'failed', 'finished'].map((run) => screenOf({ run }))).toEqual([
+	expect(['idle', 'running', 'waiting', 'failed', 'finished'].map((run) => screenOf({ run, checked: true }))).toEqual([
 		'choosing',
+		'run',
+		'run',
+		'run',
+		'done',
+	])
+})
+
+test('an idle device that has not checked the board shows that it is checking, and no other state does', () => {
+	expect(['idle', 'running', 'waiting', 'failed', 'finished'].map((run) => screenOf({ run, checked: false }))).toEqual([
+		'checking',
 		'run',
 		'run',
 		'run',

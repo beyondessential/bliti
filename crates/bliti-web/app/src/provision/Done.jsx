@@ -6,7 +6,8 @@ import { useState } from 'react'
 import { Steps } from '../Reaching.jsx'
 import { REACHING } from './Finding.jsx'
 import { ordered } from './labels.js'
-import { download, downloadText, useSheetReady } from './sheet.js'
+import { SheetButton } from './Labels.jsx'
+import { useSheet } from './sheet.js'
 import { APPROVAL, awaitsApproval, labelOf, recordOf, showSaved } from './state.js'
 
 /// Copying the passphrase, and saying whether it worked.
@@ -39,28 +40,32 @@ function Copy({ text }) {
 /// finished run until it is powered off, so the record can be had again (PWEB).
 export default function Done({ state, suffix, live, labels, onAnother, onAgain, onLabels }) {
 	const record = recordOf(state.steps)
-	const ready = useSheetReady()
-	const [failed, setFailed] = useState(null)
+	const sheet = useSheet()
 	const waiting = ordered(labels.list).filter((label) => label.printed === null)
+	const name = record?.suffix ?? suffix
+	const provisioned = state.provisioned === true
+	// The primary action (PWEB, PSHT): the sheet where the board is provisioned and a label waits to be
+	// printed, running steps again where it is not provisioned, and otherwise the next board.
+	const primary = !provisioned ? 'again' : waiting.length > 0 ? 'sheet' : 'another'
 
-	// The sheet of the labels not yet printed, which are marked printed once it is downloaded (PSHT).
-	async function save() {
-		setFailed(null)
-		try {
-			await download(waiting)
-			labels.markPrinted(waiting.map((label) => label.payload))
-		} catch (error) {
-			setFailed(error.message ?? String(error))
-		}
-	}
+	const markPrinted = (printed) => labels.markPrinted(printed.map((label) => label.payload))
 	return (
 		<>
 			<Steps names={REACHING} at={3} />
 			<section>
-				<p className="done-line">Provisioned</p>
-				<p className="lead">{record?.suffix ?? suffix} is ready</p>
 				{/* spec: PWEB */}
-				<p className="muted">Power it off and remove the USB stick.</p>
+				{provisioned ? (
+					<>
+						<p className="done-line">Provisioned</p>
+						<p className="lead">{name} is ready</p>
+						<p className="muted">Power it off and remove the USB stick.</p>
+					</>
+				) : (
+					<>
+						<p className="lead">Run finished</p>
+						<p className="muted">{name} is not provisioned yet.</p>
+					</>
+				)}
 				{/* spec: PWEB */}
 				{awaitsApproval(state.steps) && <p className="muted">{APPROVAL}</p>}
 				{record && (
@@ -99,14 +104,27 @@ export default function Done({ state, suffix, live, labels, onAnother, onAgain, 
 				)}
 				{/* spec: PSHT */}
 				{labelOf(state.steps) && <p className="muted">Its label is in your list.</p>}
-				{failed && (
+				{sheet.failed && (
 					<p className="why" role="alert">
-						{failed}
+						{sheet.failed}
 					</p>
 				)}
+				{live && primary === 'again' && (
+					<button className="block go" onClick={onAgain}>
+						Run steps again
+					</button>
+				)}
 				{waiting.length > 0 && (
-					<button className="block go" onClick={save}>
-						{downloadText(waiting.length, ready)}
+					<SheetButton
+						sheet={sheet}
+						labels={waiting}
+						className={primary === 'sheet' ? 'block go' : 'block secondary go'}
+						onMade={markPrinted}
+					/>
+				)}
+				{live && primary === 'another' && (
+					<button className="block go" onClick={onAnother}>
+						Provision another Iti
 					</button>
 				)}
 				<div className="links">
@@ -117,15 +135,12 @@ export default function Done({ state, suffix, live, labels, onAnother, onAgain, 
 					)}
 					{live && (
 						<>
-							{waiting.length === 0 && (
-								<button className="block go" onClick={onAnother}>
-									Provision another Iti
+							{primary !== 'again' && (
+								<button className="link" onClick={onAgain}>
+									Run steps again
 								</button>
 							)}
-							<button className="link" onClick={onAgain}>
-								Run steps again
-							</button>
-							{waiting.length > 0 && (
+							{primary !== 'another' && (
 								<button className="link" onClick={onAnother}>
 									Provision another Iti
 								</button>

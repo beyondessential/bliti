@@ -144,6 +144,10 @@ impl Step for Tailscale {
 		"Sign in to Tailscale"
 	}
 
+	fn undone_by(&self) -> &[&str] {
+		&["disk"]
+	}
+
 	fn asks_after(&self) -> Option<&str> {
 		Some(AFTER)
 	}

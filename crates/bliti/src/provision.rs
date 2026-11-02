@@ -3,8 +3,8 @@
 //!
 //! Behaviour is specified in `.workhorse/specs/provisioning/`: PRV for the mode, RUN for runs, PRS
 //! for the stream a client drives them over, PCON for the console, PLED for the status LED, and PHW and
-//! PEEP for the steps `hardware` and `eeprom`, PDSK for the steps `disk` and `overlay`, PENC for the step
-//! `encryption`, and PBL for the step `bootloader`.
+//! PEEP for the steps `hardware` and `eeprom`, PDSK for the steps `disk`, `overlay` and `software`, PENC
+//! for the step `encryption`, and PBL for the step `bootloader`.
 //!
 //! One [`Provisioner`] owns the run and serves every front end, so a client and the console are
 //! looking at the same one.

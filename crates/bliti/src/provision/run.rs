@@ -11,7 +11,7 @@ use std::{
 
 use bliti_core::{
 	channel::messages::Message,
-	provisioning::report::{Answer, PromptReport, RunState, StepReport, StepState},
+	provisioning::report::{Answer, DoneState, PromptReport, RunState, StepReport, StepState},
 };
 use futures::FutureExt as _;
 use jiff::civil::Date;
@@ -33,6 +33,10 @@ pub struct Snapshot {
 	pub built: Date,
 	/// The state of the device.
 	pub run: RunState,
+	/// Whether every step's done-state has been determined since the device started.
+	pub checked: bool,
+	/// Whether every step that changes the board reports `done`.
+	pub provisioned: bool,
 	/// Every step in order.
 	pub steps: Vec<StepReport>,
 	/// Every open prompt.
@@ -46,6 +50,8 @@ impl Snapshot {
 			revision: self.revision,
 			built: self.built,
 			run: self.run,
+			checked: self.checked,
+			provisioned: self.provisioned,
 			steps: self.steps.clone(),
 			prompts: self.prompts.clone(),
 		}
@@ -170,9 +176,13 @@ impl Provisioner {
 	pub async fn start(steps: Vec<Arc<dyn Step>>, store: Option<Store>, built: Date) -> Self {
 		let model = Model::new(
 			built,
-			steps
-				.iter()
-				.map(|step| (step.id().to_owned(), step.title().to_owned())),
+			steps.iter().map(|step| {
+				(
+					step.id().to_owned(),
+					step.title().to_owned(),
+					step.changes_board(),
+				)
+			}),
 		);
 		let (changes, _) = watch::channel(model.snapshot());
 		let inner = Arc::new(Inner {
@@ -540,11 +550,12 @@ impl Inner {
 					.catch_unwind()
 					.await
 					.unwrap_or_else(|_| Done {
-						state: bliti_core::provisioning::report::DoneState::Unknown,
+						state: DoneState::Unknown,
 						why: Some("the check failed".to_owned()),
 					}),
 			);
 		}
+		undone(&self.steps, &mut found);
 		let mut model = self.lock();
 		if !model.at_rest() {
 			return;
@@ -552,7 +563,36 @@ impl Inner {
 		for (entry, done) in model.steps.iter_mut().zip(found) {
 			entry.done = done;
 		}
+		model.checked = true;
 		self.publish(&model);
+	}
+}
+
+// spec: RUN#done-state
+/// Report `not-done` for a step where a step before it that undoes it reports `not-done`, saying
+/// what the board holds and that the earlier step replaces it, or that the earlier step comes first.
+fn undone(steps: &[Arc<dyn Step>], found: &mut [Done]) {
+	for index in 0..steps.len() {
+		if found[index].state == DoneState::NotDone {
+			continue;
+		}
+		let undoer = steps[index]
+			.undone_by()
+			.iter()
+			.filter_map(|id| steps[..index].iter().position(|step| step.id() == *id))
+			.find(|undoer| found[*undoer].state == DoneState::NotDone);
+		if let Some(undoer) = undoer {
+			let undoing = steps[undoer].undoing();
+			let why = match (found[index].state, found[index].why.take()) {
+				(DoneState::Done, Some(holds)) => format!("{holds}; {undoing} replaces it"),
+				(DoneState::Done, None) => format!("{undoing} replaces it"),
+				_ => format!("{undoing} comes first"),
+			};
+			found[index] = Done {
+				state: DoneState::NotDone,
+				why: Some(why),
+			};
+		}
 	}
 }
 

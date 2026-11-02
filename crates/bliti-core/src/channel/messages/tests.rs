@@ -713,6 +713,8 @@ fn the_provision_messages_round_trip() {
 			revision: 1,
 			built: Date::constant(2026, 10, 29),
 			run: RunState::Idle,
+			checked: false,
+			provisioned: false,
 			steps: Vec::new(),
 			prompts: Vec::new(),
 		},
@@ -720,6 +722,8 @@ fn the_provision_messages_round_trip() {
 			revision: 2,
 			built: Date::constant(2026, 1, 5),
 			run: RunState::Waiting,
+			checked: true,
+			provisioned: true,
 			steps: vec![running, failed, passed, step("net", StepState::Unchosen)],
 			prompts: vec![
 				PromptReport {
@@ -834,6 +838,8 @@ fn provision_state_requires_its_members() {
 			"revision": 1,
 			"built": "2026-10-29",
 			"run": run,
+			"checked": true,
+			"provisioned": false,
 			"steps": [],
 			"prompts": [],
 		});
@@ -841,7 +847,15 @@ fn provision_state_requires_its_members() {
 		parse(&state.to_string())
 	};
 	assert!(state("none", "idle").is_ok());
-	for member in ["revision", "built", "run", "steps", "prompts"] {
+	for member in [
+		"revision",
+		"built",
+		"run",
+		"checked",
+		"provisioned",
+		"steps",
+		"prompts",
+	] {
 		assert!(state(member, "idle").is_err(), "{member} is required");
 	}
 	assert!(state("none", "paused").is_err());
@@ -852,7 +866,7 @@ fn provision_state_requires_its_members() {
 fn the_image_date_is_a_full_date() {
 	let wire = |built: &str| {
 		parse(&format!(
-			r#"{{"type":"provision-state","revision":1,"built":"{built}","run":"idle","steps":[],"prompts":[]}}"#
+			r#"{{"type":"provision-state","revision":1,"built":"{built}","run":"idle","checked":true,"provisioned":false,"steps":[],"prompts":[]}}"#
 		))
 	};
 	let Ok(Reading::Message(Message::ProvisionState { built, .. })) = wire("2026-10-29") else {
@@ -868,7 +882,7 @@ fn the_image_date_is_a_full_date() {
 #[test]
 fn a_step_and_a_prompt_may_carry_further_members() {
 	let read = parse(
-		r#"{"type":"provision-state","revision":1,"built":"2026-10-29","run":"running","steps":[{"id":"a","title":"A","done":"unknown","state":"running","eta":9}],"prompts":[{"id":"p","step":"a","kind":"photo","text":"Look","blocking":false,"hint":"x"}]}"#,
+		r#"{"type":"provision-state","revision":1,"built":"2026-10-29","run":"running","checked":true,"provisioned":false,"steps":[{"id":"a","title":"A","done":"unknown","state":"running","eta":9}],"prompts":[{"id":"p","step":"a","kind":"photo","text":"Look","blocking":false,"hint":"x"}]}"#,
 	)
 	.unwrap();
 	let Reading::Message(Message::ProvisionState { steps, prompts, .. }) = read else {

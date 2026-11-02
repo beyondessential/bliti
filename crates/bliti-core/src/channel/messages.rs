@@ -274,6 +274,10 @@ pub enum Message {
 		built: Date,
 		/// The state of the device.
 		run: RunState,
+		/// Whether the device has determined every step's done-state since it started.
+		checked: bool,
+		/// Whether every step that changes the board reports `done`.
+		provisioned: bool,
 		/// Every step in order.
 		steps: Vec<StepReport>,
 		/// Every open prompt, empty where none is open.
@@ -565,6 +569,8 @@ impl Message {
 				revision,
 				built,
 				run,
+				checked,
+				provisioned,
 				steps,
 				prompts,
 			} => {
@@ -572,6 +578,8 @@ impl Message {
 				map.insert("revision".to_owned(), (*revision).into());
 				map.insert("built".to_owned(), built.to_string().into());
 				map.insert("run".to_owned(), run.as_str().into());
+				map.insert("checked".to_owned(), (*checked).into());
+				map.insert("provisioned".to_owned(), (*provisioned).into());
 				map.insert("steps".to_owned(), to_array(steps));
 				map.insert("prompts".to_owned(), to_array(prompts));
 			}
@@ -769,6 +777,8 @@ impl<'de> Visitor<'de> for MessageVisitor {
 				revision: from_member(&map, "revision")?,
 				built: from_member(&map, "built")?,
 				run: from_member(&map, "run")?,
+				checked: boolean(&map, "checked")?,
+				provisioned: boolean(&map, "provisioned")?,
 				steps: from_member(&map, "steps")?,
 				prompts: from_member(&map, "prompts")?,
 			}),

@@ -2,8 +2,9 @@
 //! (PDSK, PENC).
 
 use std::{
-	fs::{self, File},
+	fs::{self, File, Permissions},
 	io::{self, Write as _},
+	os::unix::fs::{PermissionsExt as _, symlink},
 	path::Path,
 	sync::Arc,
 };
@@ -77,13 +78,41 @@ pub fn open_root(
 /// Put `content` at `path`, so that `path` holds the old content or the new at every moment,
 /// including through a power cut.
 pub fn replace(path: &Path, content: &[u8]) -> io::Result<()> {
+	put(path, content, None)
+}
+
+/// As [`replace`], with the file's permission bits `mode` from the moment it has the name.
+pub fn replace_with_mode(path: &Path, content: &[u8], mode: u32) -> io::Result<()> {
+	put(path, content, Some(mode))
+}
+
+fn put(path: &Path, content: &[u8], mode: Option<u32>) -> io::Result<()> {
 	let dir = path.parent().unwrap_or(Path::new("."));
 	let mut file = tempfile::Builder::new()
 		.prefix(".bliti-")
 		.tempfile_in(dir)?;
 	file.write_all(content)?;
+	if let Some(mode) = mode {
+		file.as_file()
+			.set_permissions(Permissions::from_mode(mode))?;
+	}
 	file.as_file().sync_all()?;
 	file.persist(path).map_err(|err| err.error)?;
+	File::open(dir)?.sync_all()
+}
+
+/// Put a symbolic link to `target` at `path`, in place of whatever is there. Where that is not a
+/// directory, `path` holds it or the link at every moment.
+pub fn link(path: &Path, target: &Path) -> io::Result<()> {
+	let dir = path.parent().unwrap_or(Path::new("."));
+	if fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir()) {
+		fs::remove_dir_all(path)?;
+	}
+	tempfile::Builder::new()
+		.prefix(".bliti-")
+		.make_in(dir, |temp| symlink(target, temp))?
+		.persist(path)
+		.map_err(|err| err.error)?;
 	File::open(dir)?.sync_all()
 }
 
@@ -108,6 +137,43 @@ mod tests {
 		replace(&path, b"new").unwrap();
 		assert_eq!(fs::read(&path).unwrap(), b"new");
 		assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+	}
+
+	#[test]
+	fn replace_with_mode_sets_the_mode_whatever_the_file_had() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("file");
+		fs::write(&path, b"old").unwrap();
+		fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
+		replace_with_mode(&path, b"new", 0o755).unwrap();
+		assert_eq!(fs::read(&path).unwrap(), b"new");
+		assert_eq!(
+			fs::metadata(&path).unwrap().permissions().mode() & 0o7777,
+			0o755
+		);
+		assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+	}
+
+	#[test]
+	fn link_replaces_a_file_a_link_or_a_directory_and_leaves_no_litter() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("link");
+		let target = Path::new("/etc/target");
+		for before in ["file", "link", "directory"] {
+			match before {
+				"file" => fs::write(&path, b"old").unwrap(),
+				"link" => symlink("/elsewhere", &path).unwrap(),
+				_ => fs::create_dir_all(path.join("inside")).unwrap(),
+			}
+			link(&path, target).unwrap();
+			assert_eq!(fs::read_link(&path).unwrap(), target, "over a {before}");
+			assert_eq!(
+				fs::read_dir(dir.path()).unwrap().count(),
+				1,
+				"over a {before}"
+			);
+			fs::remove_file(&path).unwrap();
+		}
 	}
 
 	#[test]

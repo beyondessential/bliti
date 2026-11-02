@@ -90,7 +90,10 @@ data_end=$((data_start + data_size / 512 - 1))
 echo "laying out $work"
 cp --sparse=always "$pristine" "$work"
 truncate -s $(((data_end + 1) * 512 + mib)) "$work"
+# The pi image's own partitions are renamed, because a disk written from the payload carries their
+# names, and both the medium's system and that disk's find their partitions by name (PMED).
 sgdisk --move-second-header \
+	--change-name=1:provision-firmware --change-name=2:provision-xboot --change-name=3:provision-root \
 	--new="4:$payload_start:$payload_end" --typecode=4:8300 --change-name=4:provision-payload \
 	--new="5:$data_start:$data_end" --typecode=5:0700 --change-name=5:provision-data \
 	"$work" >/dev/null
@@ -151,6 +154,13 @@ declare -A needs=(
 	[/usr/bin/systemd-cryptenroll]=systemd-cryptsetup
 	[/usr/bin/dracut]=dracut-core
 )
+for fs in dev dev/pts proc sys; do
+	mount --bind "/$fs" "$root/$fs"
+	teardown+=("umount '$root/$fs'")
+done
+# The image points resolv.conf into /run, which is empty until it boots.
+mount -t tmpfs tmpfs "$root/run"
+teardown+=("umount '$root/run'")
 missing=()
 for path in "${!needs[@]}"; do
 	[[ -e $root$path ]] || missing+=("${needs[$path]}")
@@ -158,13 +168,6 @@ done
 if ((${#missing[@]})); then
 	mapfile -t missing < <(printf '%s\n' "${missing[@]}" | sort -u)
 	echo "installing ${missing[*]}"
-	for fs in dev dev/pts proc sys; do
-		mount --bind "/$fs" "$root/$fs"
-		teardown+=("umount '$root/$fs'")
-	done
-	# The image points resolv.conf into /run, which is empty until it boots.
-	mount -t tmpfs tmpfs "$root/run"
-	teardown+=("umount '$root/run'")
 	mkdir -p "$root/run/systemd/resolve"
 	cp -L /etc/resolv.conf "$root/run/systemd/resolve/stub-resolv.conf"
 	chroot "$root" apt-get update -q
@@ -200,6 +203,15 @@ share=$root/usr/share/bliti/provision
 install -d -m 755 "$share"
 install -m 644 "$dir/pieeprom.bin" "$hat/tamanu-iti-v4.dtbo" "${eeproms[@]}" "$share/"
 install -m 644 "$manifest" "$share/manifest"
+# The Iti's software, at the paths the step `software` installs it to in the disk's system (PDSK).
+software=$share/system
+install -D -m 755 "$bliti" "$software/usr/local/bin/bliti"
+install -D -m 644 "$repo/services/bliti.service" "$software/etc/systemd/system/bliti.service"
+install -D -m 644 "$repo/services/bliti-bluetoothd.conf" "$software/etc/bluetooth/bliti.conf"
+install -D -m 644 "$repo/services/bliti-bluetooth-dropin.conf" \
+	"$software/etc/systemd/system/bluetooth.service.d/10-bliti.conf"
+install -D -m 644 "$repo/services/bliti-journald.conf" "$software/etc/systemd/journald.conf.d/10-bliti.conf"
+install -D -m 644 "$repo/services/bliti-daemon.env" "$software/etc/bliti/daemon.env"
 
 systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.service
 # The medium does not update its own software (PMED), and the bootloader is written by the step that
@@ -207,6 +219,19 @@ systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.s
 systemctl --root="$root" mask unattended-upgrades.service \
 	apt-daily.timer apt-daily.service apt-daily-upgrade.timer apt-daily-upgrade.service \
 	rpi-eeprom-update.service
+# The medium changes no disk as it boots, other than checking its data partition (PMED): the root grow
+# finds its partition by the pi image's name, and the first boot's identity rotation is left out of
+# the initramfs by provision/root's dracut configuration. Nor is it ever on a tailnet: the step that
+# signs in to Tailscale runs a tailscaled of its own (PTS). The pi image installs the units that are
+# in /etc there, where their masks have to go.
+systemctl --root="$root" mask tailscaled.service
+for unit in grow-root-filesystem.service bes-tailscale-firstboot-auth.service; do
+	systemctl --root="$root" disable "$unit"
+	rm "$root/etc/systemd/system/$unit"
+	systemctl --root="$root" mask "$unit"
+done
+sed -i -E 's#/dev/disk/by-partlabel/(firmware|xboot|root)([[:space:]])#/dev/disk/by-partlabel/provision-\1\2#' \
+	"$root/etc/crypttab" "$root/etc/fstab"
 
 echo "configuring the firmware"
 fw=$mnt/firmware
@@ -228,6 +253,10 @@ config=$fw/config.txt
 		# other dtoverlay and dtparam keeps the firmware from loading the overlay an EEPROM names.
 		dtoverlay=
 
+		# A factory board's supply reports no 5 A, and without this the firmware stops a USB boot to
+		# wait for the power button.
+		usb_max_current_enable=1
+
 	EOF
 	# tpm-slb9670 declares the TPM on SPI0 CE1, which the HAT overlay declares too.
 	grep -v '^dtoverlay=tpm-slb9670' "$config"
@@ -240,6 +269,15 @@ config=$fw/config.txt
 	EOF
 } >"$config.new"
 mv "$config.new" "$config"
+
+echo "making the medium's initramfs"
+kernels=("$root"/usr/lib/modules/*)
+((${#kernels[@]} == 1)) || {
+	echo "the root carries ${#kernels[@]} kernels, not one" >&2
+	exit 1
+}
+chroot "$root" dracut --force --kver "$(basename "${kernels[0]}")" /var/tmp/bliti-initrd.img
+mv "$root/var/tmp/bliti-initrd.img" "$fw/current/initrd.img"
 
 echo "formatting the data partition"
 mkfs.vfat -F 32 -n ITIPROV "${loop}p5" >/dev/null

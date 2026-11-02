@@ -99,6 +99,10 @@ impl Step for Disk {
 		"Write the system to the disk"
 	}
 
+	fn undoing(&self) -> &str {
+		"writing the disk"
+	}
+
 	// spec: PDSK#done-state-of-the-step-disk
 	async fn done(&self) -> Done {
 		let unknown = |why: String| Done {

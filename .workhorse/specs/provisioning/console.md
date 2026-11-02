@@ -30,6 +30,8 @@ The command MUST NOT display the characters of an answer to a `secret` prompt as
 
 The command MUST offer a retry and a stop where [RUN](run.md) accepts them, and MUST offer to acknowledge a finished run once it has shown every result.
 
+The command MUST NOT take an empty answer to that offer as acknowledging the run.
+
 ## Independence
 
 The command MUST work without the USER button having been pressed and without any client connected.

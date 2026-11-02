@@ -1,4 +1,5 @@
-// Choosing the steps of a run (PWEB, "Choosing the steps").
+// Choosing the steps of a run (PWEB, "Choosing the steps"), and choosing them again once a run has
+// finished (PWEB, "When the run has finished").
 
 import { expect, test } from '@playwright/test'
 
@@ -13,6 +14,21 @@ const STEPS = [
 
 const box = (page, title) => page.getByRole('checkbox', { name: new RegExp(`^${title}`) })
 const start = (page) => page.getByRole('button', { name: 'Start' })
+const checking = (page) => page.getByText('The Iti is checking the board')
+
+test('says the Iti is checking the board, and lists no step, until it has checked', async ({ page }) => {
+	await openChannel(page, stateOf({ checked: false, steps: STEPS.map((each) => ({ ...each, done: 'unknown' })) }))
+	await expect(checking(page)).toBeVisible()
+	await expect(page.locator('.chip')).toHaveText('K7QX')
+	await expect(page.getByRole('checkbox')).toHaveCount(0)
+	await expect(start(page)).toHaveCount(0)
+
+	await emitState(page, { steps: STEPS })
+	await expect(checking(page)).toHaveCount(0)
+	await expect(page.locator('label.pick')).toHaveCount(4)
+	await expect(box(page, 'Update the TPM firmware')).not.toBeChecked()
+	await expect(box(page, 'Check the hardware')).toBeChecked()
+})
 
 test('lists every step in order, each with a checkbox and its reason where the device gives one', async ({ page }) => {
 	await openChannel(page, stateOf({ steps: STEPS }))
@@ -44,6 +60,16 @@ test('lets any step be ticked or unticked, and keeps that as the device sends th
 	await emitState(page, { steps: STEPS })
 	await expect(box(page, 'Update the TPM firmware')).toBeChecked()
 	await expect(box(page, 'Check the hardware')).not.toBeChecked()
+})
+
+test('keeps the ticks the first checked state gave as later states differ', async ({ page }) => {
+	await openChannel(page, stateOf({ steps: STEPS }))
+	await box(page, 'Check the hardware').uncheck()
+	await emitState(page, { steps: STEPS.map((each) => ({ ...each, done: each.done === 'done' ? 'not-done' : 'done' })) })
+	await expect(box(page, 'Check the hardware')).not.toBeChecked()
+	await expect(box(page, 'Update the TPM firmware')).not.toBeChecked()
+	await expect(box(page, 'Program the EEPROM')).toBeChecked()
+	await expect(box(page, 'Write the system to the disk')).toBeChecked()
 })
 
 test('starts a run of the steps ticked, in order, as the primary action', async ({ page }) => {
@@ -84,4 +110,43 @@ test('does not send a second start while the first is awaiting its answer', asyn
 	await start(page).click()
 	await expect(start(page)).toBeDisabled()
 	expect(await acts(page)).toHaveLength(1)
+})
+
+test.describe('once the run has finished', () => {
+	const finished = (provisioned) =>
+		stateOf({ run: 'finished', provisioned, steps: STEPS.map((each) => ({ ...each, state: 'passed' })) })
+	const again = (page) => page.getByRole('button', { name: 'Run steps again' })
+	const another = (page) => page.getByRole('button', { name: 'Provision another Iti' })
+	const powerOff = (page) => page.getByText('Power it off and remove the USB stick.')
+
+	test('says the Iti is provisioned where the device reports it, and to power it off', async ({ page }) => {
+		await openChannel(page, finished(true))
+		await expect(page.getByText('Provisioned', { exact: true })).toBeVisible()
+		await expect(page.getByText('K7QX is ready')).toBeVisible()
+		await expect(powerOff(page)).toBeVisible()
+		await expect(another(page)).toHaveClass(/block go/)
+		await expect(again(page)).toHaveClass(/link/)
+	})
+
+	test('says the run has finished and the Iti is not yet provisioned otherwise, with running steps again first', async ({ page }) => {
+		await openChannel(page, finished(false))
+		await expect(page.getByText('Run finished')).toBeVisible()
+		await expect(page.getByText('K7QX is not provisioned yet.')).toBeVisible()
+		await expect(page.getByText('Provisioned', { exact: true })).toHaveCount(0)
+		await expect(page.getByText('K7QX is ready')).toHaveCount(0)
+		await expect(powerOff(page)).toHaveCount(0)
+		await expect(again(page)).toHaveClass(/block go/)
+		await expect(another(page)).toHaveClass(/link/)
+		await again(page).click()
+		await expect(page.getByText('Choose what to do')).toBeVisible()
+		await expect(page.locator('label.pick')).toHaveCount(4)
+	})
+
+	test('follows the device from not provisioned to provisioned', async ({ page }) => {
+		await openChannel(page, finished(false))
+		await expect(page.getByText('Run finished')).toBeVisible()
+		await emitState(page, finished(true))
+		await expect(page.getByText('K7QX is ready')).toBeVisible()
+		await expect(powerOff(page)).toBeVisible()
+	})
 })

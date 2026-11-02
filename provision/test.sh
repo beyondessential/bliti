@@ -52,13 +52,18 @@ done <"$dir/$name.txt"
 # Smaller than any USB stick or SD card sold as 32 GB holds.
 check "the image fits a 32 GB stick" test "$(stat -c %s "$image")" -le 29000000000
 
-# The pi image's partitions, unchanged, then the payload and the data partition.
+# The pi image's partitions, renamed, then the payload and the data partition.
 layout() {
-	sfdisk --dump "$1" | grep '^/' | sed 's/^[^:]*: //' | head -n "$2"
+	sfdisk --dump "$1" | grep '^/' | sed -e 's/^[^:]*: //' -e 's/, name="[^"]*"//' | head -n "$2"
 }
-check "the pi image's partitions come first, unchanged" \
+names() {
+	sfdisk --dump "$1" | grep '^/' | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' '
+}
+check "the pi image's partitions come first, in place" \
 	test "$(layout "$image" 3)" = "$(layout "$pristine" 3)"
 check "the image holds five partitions" test "$(sfdisk --dump "$image" | grep -c '^/')" -eq 5
+check "no partition carries a name of the pi image's" test "$(names "$image")" = \
+	"provision-firmware provision-xboot provision-root provision-payload provision-data "
 
 loop=$(losetup --partscan --read-only --show --find "$image")
 teardown+=("losetup -d '$loop'")
@@ -156,22 +161,69 @@ masked() {
 	done
 }
 check "nothing upgrades packages unattended" masked
+tailscale_masked() {
+	local unit
+	for unit in tailscaled.service bes-tailscale-firstboot-auth.service; do
+		[[ $(readlink "$root/etc/systemd/system/$unit") == /dev/null ]] || return 1
+	done
+}
+check "the medium runs no Tailscale of its own" tailscale_masked
+check "the root does not grow at boot" \
+	test "$(readlink "$root/etc/systemd/system/grow-root-filesystem.service")" = /dev/null
+own_names() {
+	grep -q 'by-partlabel/provision-root\s' "$root/etc/crypttab" &&
+		grep -q 'by-partlabel/provision-firmware\s' "$root/etc/fstab" &&
+		grep -q 'by-partlabel/provision-xboot\s' "$root/etc/fstab" &&
+		! grep -qE 'by-partlabel/(firmware|xboot|root)\s' "$root/etc/crypttab" "$root/etc/fstab"
+}
+check "crypttab and fstab name the medium's own partitions" own_names
 
 check "the root carries the bootloader" cmp -s "$dir/pieeprom.bin" "$share/pieeprom.bin"
 check "the root carries the HAT overlay" cmp -s "$repo/target/hat/tamanu-iti-v4.dtbo" "$share/tamanu-iti-v4.dtbo"
 for eep in "$repo"/target/hat/tamanu-iti-v*.eep; do
 	check "the root carries $(basename "$eep")" cmp -s "$eep" "$share/$(basename "$eep")"
 done
+# The Iti's software the step `software` installs: where it installs, its source, and its mode.
+software=(
+	"usr/local/bin/bliti|$repo/target/device/aarch64-unknown-linux-gnu/release/bliti|755"
+	"etc/systemd/system/bliti.service|$repo/services/bliti.service|644"
+	"etc/bluetooth/bliti.conf|$repo/services/bliti-bluetoothd.conf|644"
+	"etc/systemd/system/bluetooth.service.d/10-bliti.conf|$repo/services/bliti-bluetooth-dropin.conf|644"
+	"etc/systemd/journald.conf.d/10-bliti.conf|$repo/services/bliti-journald.conf|644"
+	"etc/bliti/daemon.env|$repo/services/bliti-daemon.env|644"
+)
+for entry in "${software[@]}"; do
+	IFS='|' read -r path source mode <<<"$entry"
+	check "the root carries /$path to install" cmp -s "$source" "$share/system/$path"
+	check "/$path to install has mode $mode" test "$(stat -c %a "$share/system/$path")" = "$mode"
+done
+check "the root carries no other software to install" \
+	test "$(find "$share/system" -not -type d | wc -l)" -eq "${#software[@]}"
 
 config=$fw/config.txt
 check "the firmware loads no overlay an EEPROM names" \
 	test "$(grep -v '^\s*\(#.*\)\?$' "$config" | head -n1)" = "dtoverlay="
 check "the firmware loads the HAT overlay" grep -qx 'dtoverlay=tamanu-iti-v4' "$config"
 check "the firmware does not load tpm-slb9670" bash -c "! grep -q '^\s*dtoverlay=tpm-slb9670' '$config'"
+check "the firmware boots USB on any supply" \
+	bash -c "awk '/^\[/ { exit } { print }' '$config' | grep -qx 'usb_max_current_enable=1'"
 check "the firmware brings up the ID bus" \
 	grep -qx 'dtoverlay=i2c-gpio,i2c_gpio_sda=0,i2c_gpio_scl=1,bus=9' "$config"
 check "the boot slot carries the HAT overlay" \
 	cmp -s "$repo/target/hat/tamanu-iti-v4.dtbo" "$fw/current/overlays/tamanu-iti-v4.dtbo"
+
+# The initramfs, read with the medium's own lsinitrd.
+for fs in dev proc; do
+	mount --bind "/$fs" "$root/$fs"
+	teardown+=("umount '$root/$fs'")
+done
+mount --bind "$fw" "$root/mnt"
+teardown+=("umount '$root/mnt'")
+initrd=/mnt/current/initrd.img
+check "the initramfs unlocks the medium's own root" bash -c \
+	"chroot '$root' lsinitrd -f etc/crypttab '$initrd' | grep -q 'by-partlabel/provision-root\s'"
+check "the initramfs leaves the first boot's identity rotation out" bash -c \
+	"! chroot '$root' lsinitrd '$initrd' | grep -q bes-identity"
 
 undo
 
@@ -187,10 +239,12 @@ verity=bliti-provision-test-verity-$$
 veritysetup open --hash-offset="${manifest[PAYLOAD_HASH_OFFSET]}" \
 	"${loop}p4" "$verity" "${loop}p4" "${manifest[PAYLOAD_ROOT_HASH]}"
 teardown+=("veritysetup close '$verity'")
+# uutils dd 0.8 to 0.10, as Ubuntu 26.04 ships, fails every direct read of a verity device.
+dd=$(command -v gnudd || command -v dd)
 check "a corrupt payload block fails its read" bash -c \
-	"! dd if=/dev/mapper/$verity of=/dev/null bs=4096 skip=$block count=1 iflag=direct status=none 2>/dev/null"
+	"! $dd if=/dev/mapper/$verity of=/dev/null bs=4096 skip=$block count=1 iflag=direct status=none 2>/dev/null"
 check "an intact payload block reads" \
-	dd if="/dev/mapper/$verity" of=/dev/null bs=4096 skip=$((block + 1)) count=1 iflag=direct status=none
+	"$dd" if="/dev/mapper/$verity" of=/dev/null bs=4096 skip=$((block + 1)) count=1 iflag=direct status=none
 undo
 
 # A pi image that does not match its release's checksum fails the fetch.

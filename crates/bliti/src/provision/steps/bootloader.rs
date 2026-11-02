@@ -62,10 +62,8 @@ impl Bootloader {
 		);
 		blocking(move || {
 			let image = fs::read(&bootloader).map_err(|err| match err.kind() {
-				io::ErrorKind::NotFound => {
-					"the provisioning medium carries no bootloader".to_owned()
-				}
-				_ => format!("cannot read the bootloader the provisioning medium carries: {err}"),
+				io::ErrorKind::NotFound => "there is no bootloader to install".to_owned(),
+				_ => format!("cannot read the bootloader to install: {err}"),
 			})?;
 			let manifest = fs::read_to_string(&manifest)
 				.map_err(|err| format!("cannot read the provisioning medium's manifest: {err}"))?;
@@ -93,7 +91,7 @@ impl Bootloader {
 		let mut differences = Vec::new();
 		if held.date < medium {
 			differences.push(format!(
-				"the bootloader is dated {} and the medium carries one dated {medium}",
+				"the bootloader is from {}, and we can install one from {medium}",
 				held.date
 			));
 		}
@@ -131,7 +129,7 @@ impl Step for Bootloader {
 			Done {
 				state: DoneState::Done,
 				why: Some(format!(
-					"the bootloader is dated {}, with the Iti's configuration",
+					"the bootloader is from {}, with the Iti's configuration",
 					held.date
 				)),
 			}

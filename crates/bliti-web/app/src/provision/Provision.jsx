@@ -8,7 +8,7 @@ import { CLIENT_VERSION } from '../link.js'
 import { useOfflineReady } from '../offline.js'
 import { Unsupported } from '../Reaching.jsx'
 import { Activity, Title, TitleTaps, useDevMode } from '../Screen.jsx'
-import Choosing from './Choosing.jsx'
+import Choosing, { Checking } from './Choosing.jsx'
 import Done from './Done.jsx'
 import Finding, { trouble } from './Finding.jsx'
 import { createProvisionClient } from './client.js'
@@ -99,12 +99,13 @@ export default function Provision() {
 	const suffix = device?.suffix
 	const why = state && limits ? refusal(state, { ...limits, today: civilDate() }) : null
 	const screen = state && limits && !why ? (state.run === 'finished' && again ? 'choosing' : screenOf(state)) : null
-	const named = screen === 'choosing' || screen === 'done' ? undefined : `Code ending ${suffix}`
+	const named = ['checking', 'choosing', 'done'].includes(screen) ? undefined : `Code ending ${suffix}`
 	const live = connected
 	const start = (steps) => act('start', { steps })
 
 	let body
 	if (why) body = <Refused refusal={why} />
+	else if (screen === 'checking') body = <Checking suffix={suffix} />
 	else if (screen === 'choosing') {
 		body = <Choosing state={state} suffix={suffix} live={live} busy={awaiting.length > 0} onStart={start} />
 	} else if (screen === 'run') {

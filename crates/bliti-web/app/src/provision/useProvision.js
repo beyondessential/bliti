@@ -340,8 +340,12 @@ export default function useProvision(client, note) {
 			if (name === 'answer') setRefusals(({ [prompt]: _, ...rest }) => rest)
 			note('out', actSaid(name, { ...members, secret }))
 			if (name === 'answer' && secret && prompt === 'auth-key' && typeof value === 'string' && value !== '') {
-				// Typed here rather than answered from storage, so it is kept for the next board.
-				if (!fromStorage) saveKey(value)
+				// Typed here rather than answered from storage, so it is kept for the next board, and the
+				// saved key does not answer the same prompt again.
+				if (!fromStorage) {
+					saveKey(value)
+					keyPrompt_.current = true
+				}
 			}
 			try {
 				if (!stream_.current) throw new Error('Not connected to the Iti.')

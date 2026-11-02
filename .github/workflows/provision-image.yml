@@ -77,6 +77,9 @@ jobs:
     needs: decide
     if: needs.decide.outputs.build == 'true'
     runs-on: ubuntu-26.04-arm
+    env:
+      # A directory the cache can hold, rather than the podman volume a build uses by default.
+      BLITI_DEVICE_CARGO: ${{ github.workspace }}/target/device-cargo
     steps:
       # The commit the pull request holds, not the merge commit the run checks out, so the manifest
       # names one someone can find.
@@ -93,22 +96,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             just jq zstd gdisk cryptsetup-bin dosfstools device-tree-compiler raspi-utils-eeprom
+      # The daemon's crate registry and target directory, restored on every run and saved only from
+      # main, as ci.yml's caches are, so a pull request reads main's and writes none of its own.
+      - uses: actions/cache/restore@v6.1.0
+        with:
+          path: |
+            target/device-cargo
+            target/device
+          key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
+          restore-keys: |
+            provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-
+            provision-device-
       - name: Build
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: just provision-image
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: |
+            target/device-cargo
+            target/device
+          key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
       - name: Test
         run: just provision-image-test
+      # The image unarchived, as an artifact named after it, so it is neither zipped nor unzipped on
+      # its way to the jobs that publish it.
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: provision-image
+          path: target/provision/tamanu-iti-provision.img.zst
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: provision-image-description
           path: |
-            target/provision/tamanu-iti-provision.img.zst
             target/provision/tamanu-iti-provision.img.zst.sha256
             target/provision/tamanu-iti-provision.txt
           if-no-files-found: error
           retention-days: 1
-          compression-level: 0
 
   production:
     name: Publish
@@ -126,7 +153,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: provision-image
+          name: tamanu-iti-provision.img.zst
+          path: target/provision
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image-description
           path: target/provision
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
@@ -159,7 +190,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: provision-image
+          name: tamanu-iti-provision.img.zst
+          path: target/provision
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image-description
           path: target/provision
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:

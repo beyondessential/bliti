@@ -55,7 +55,7 @@ Where local storage cannot be used, the provisioning client MUST hold the list f
 
 The provisioning client MUST offer opening the list while finding a device and when the run has finished, whenever the list holds a label, and MUST say how many labels in it are unprinted.
 
-Where the list holds an unprinted label, the provisioning client MUST offer downloading the sheet of the unprinted labels as the primary action of the finished screen.
+Where the list holds an unprinted label and the device reports `provisioned`, the provisioning client MUST offer downloading the sheet of the unprinted labels as the primary action of the finished screen.
 
 ## Choosing what to print
 
@@ -75,6 +75,8 @@ Wherever the provisioning client offers downloading a sheet, it MUST say how ful
 
 > [!NOTE]
 > The action tells an operator how many sheets of sticker paper to load and how much of the last is wasted.
+
+From when the operator asks for a sheet until it is ready, the provisioning client MUST say that it is making the sheet, and MUST NOT start making another.
 
 The provisioning client MUST mark each label on the sheet it downloaded as printed, as of the download.
 

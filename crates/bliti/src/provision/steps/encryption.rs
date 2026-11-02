@@ -105,6 +105,10 @@ impl Step for Encryption {
 		"Set up disk encryption"
 	}
 
+	fn undone_by(&self) -> &[&str] {
+		&["disk"]
+	}
+
 	// spec: PENC#done-state
 	async fn done(&self) -> Done {
 		let unknown = |why: String| Done {

@@ -51,8 +51,10 @@ export function refusal(state, { revisions: [lowest, highest], lifetime, today }
 	return null
 }
 
-/// The screen a state shows: `choosing`, `run` or `done` (PWEB).
+/// The screen a state shows: `checking`, `choosing`, `run` or `done` (PWEB). An idle device that has
+/// not yet found every step's done-state is checking the board.
 export function screenOf(state) {
+	if (state.run === 'idle' && !state.checked) return 'checking'
 	return SCREENS[state.run] ?? 'run'
 }
 

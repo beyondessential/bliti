@@ -366,13 +366,16 @@ pub fn message() -> impl Strategy<Value = Message> {
 			1u32..4,
 			built(),
 			prop::sample::select(RunState::ALL),
+			any::<(bool, bool)>(),
 			prop::collection::vec(step_report(), 0..4),
 			prop::collection::vec(prompt_report(), 0..3),
 		)
-			.prop_map(|(revision, built, run, steps, prompts)| Message::ProvisionState {
+			.prop_map(|(revision, built, run, (checked, provisioned), steps, prompts)| Message::ProvisionState {
 				revision,
 				built,
 				run,
+				checked,
+				provisioned,
 				steps,
 				prompts,
 			}),
@@ -467,7 +470,8 @@ mod tests {
 	fn the_configuration_optional_members_are_reached() {
 		let (mut capabilities, mut failed, mut reached, mut addressed, mut unaddressed) =
 			(0, 0, 0, 0, 0);
-		for message in sample(4000) {
+		// A failure carrying a stage is rare among every message, so the sample is large.
+		for message in sample(8000) {
 			match &message {
 				Message::Configuration {
 					capabilities: Some(_),

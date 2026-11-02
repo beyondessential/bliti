@@ -63,6 +63,8 @@ A device MUST refuse an act at the paths below.
 | `revision` | integer | yes | the revision of the steps the device offers, as [The revision](#the-revision) has it |
 | `built` | string | yes | the date the image on the provisioning medium was built, as [The image's date](#the-images-date) has it |
 | `run` | string | yes | the state of the device, one of `idle`, `running`, `waiting`, `failed` and `finished` |
+| `checked` | boolean | yes | whether the device has determined every step's done-state since it started, as [RUN](run.md#done-state) has it |
+| `provisioned` | boolean | yes | whether the board is provisioned, as [RUN](run.md#done-state) has it |
 | `steps` | array | yes | every step in order, each as below |
 | `prompts` | array | yes | every open prompt, each as below, and empty where none is open |
 
