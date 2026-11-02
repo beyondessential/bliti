@@ -40,7 +40,8 @@ A device MUST determine every step's done-state when it enters the `idle` or `fi
 
 A device MUST report `unknown` for a step whose done-state it has not determined since it started.
 
-A step that a step before it undoes, as the spec defining the step says, MUST report `not-done` where that earlier step reports anything but `done`, and MUST give as its reason what the board holds and that the earlier step replaces it.
+A step that a step before it undoes, as the spec defining the step says, MUST report `not-done` where that earlier step reports `not-done`, whatever the step would report otherwise.
+Its reason MUST say what the board holds and that the earlier step replaces it, where the step would report `done`, and otherwise that the earlier step comes first.
 
 > [!NOTE]
 > Writing the disk replaces the system the later steps installed into, so on a board whose disk is to be written again they are offered ticked, while the reason still says what the board holds now.

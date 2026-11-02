@@ -14,6 +14,8 @@ Read off the board on 2026-11-02, before any of this ran:
 
 The medium is a 64 GB USB3 stick, written from the PR preview's image. For debugging without the serial console, which needs the case taken apart, the stick's root gets the laptop's SSH key for `ubuntu`, so the medium is reachable over the LAN on `end0`. Nothing under test reads that key.
 
+Raspberry Pi's bootloader of 2026-09-25, the default channel's and the one `bootloader` installs, ignores `usb_max_current_enable` in `config.txt` (rpi-eeprom issue 899, fixed on the latest channel from 2026-10-21). A board carrying it stops a USB boot on the backup supply until its power button is pressed, which the cycle 2 boot needed.
+
 The board runs on its X1208 backup supply, so pulling the mains does not cut its power. A power cut, wherever a case below calls for one, is the UPS's three-press power cut. The serial console is on the Pi's UART through a Debug Probe.
 
 There is one NVMe, so the pass runs in two cycles:
@@ -36,7 +38,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [ ] The console command opens on HDMI with no login (verifies spec: PMED)
 - [x] `/proc/device-tree/hat/` shows the EEPROM, `/dev/i2c-3` and the TPM are up, and only the HAT overlay declares the TPM (verifies spec: PMED, HAT)
 - [x] Cycle 1: booted from the stick with USB already first, the device leaves the bootloader unwritten (verifies spec: PRV)
-- [ ] Cycle 2: booted from the stick with USB last, the device puts USB first before any step runs, keeping SD then NVMe after it (`0xf614`) (verifies spec: PRV)
+- [x] Cycle 2: booted from the stick with USB last, the device puts USB first before any step runs, keeping SD then NVMe after it (`0xf614`) (verifies spec: PRV)
 
 ## Going on the air
 

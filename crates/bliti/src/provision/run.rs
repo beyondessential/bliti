@@ -569,26 +569,28 @@ impl Inner {
 }
 
 // spec: RUN#done-state
-/// Report `not-done` for a step that is done where a step before it that undoes it is not, saying
-/// what the board holds and what replaces it.
+/// Report `not-done` for a step where a step before it that undoes it reports `not-done`, saying
+/// what the board holds and that the earlier step replaces it, or that the earlier step comes first.
 fn undone(steps: &[Arc<dyn Step>], found: &mut [Done]) {
 	for index in 0..steps.len() {
-		if found[index].state != DoneState::Done {
+		if found[index].state == DoneState::NotDone {
 			continue;
 		}
 		let undoer = steps[index]
 			.undone_by()
 			.iter()
 			.filter_map(|id| steps[..index].iter().position(|step| step.id() == *id))
-			.find(|undoer| found[*undoer].state != DoneState::Done);
+			.find(|undoer| found[*undoer].state == DoneState::NotDone);
 		if let Some(undoer) = undoer {
-			let replaces = format!("{} replaces it", steps[undoer].undoing());
+			let undoing = steps[undoer].undoing();
+			let why = match (found[index].state, found[index].why.take()) {
+				(DoneState::Done, Some(holds)) => format!("{holds}; {undoing} replaces it"),
+				(DoneState::Done, None) => format!("{undoing} replaces it"),
+				_ => format!("{undoing} comes first"),
+			};
 			found[index] = Done {
 				state: DoneState::NotDone,
-				why: Some(match found[index].why.take() {
-					Some(holds) => format!("{holds}; {replaces}"),
-					None => replaces,
-				}),
+				why: Some(why),
 			};
 		}
 	}

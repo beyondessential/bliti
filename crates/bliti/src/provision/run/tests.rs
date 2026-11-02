@@ -810,7 +810,7 @@ async fn a_step_an_earlier_step_undoes_is_not_done_while_that_one_is_not() {
 	overlay.undone_by_steps(&["disk"]);
 	disk.done_is(DoneState::NotDone, Some("holds an earlier system"));
 	overlay.done_is(DoneState::Done, Some("the overlay is installed"));
-	let device = device(vec![disk.clone(), overlay], &medium).await;
+	let device = device(vec![disk.clone(), overlay.clone()], &medium).await;
 
 	let held = until(&device, |s| s.checked).await;
 	assert_eq!(held.steps[1].done, DoneState::NotDone);
@@ -819,6 +819,26 @@ async fn a_step_an_earlier_step_undoes_is_not_done_while_that_one_is_not() {
 		Some("the overlay is installed; disk replaces it")
 	);
 
+	// What the later step cannot tell does not matter while the earlier one comes first.
+	overlay.done_is(DoneState::Unknown, Some("the disk holds no system"));
+	device.attach();
+	let held = until(&device, |s| {
+		s.steps[1].why.as_deref() == Some("disk comes first")
+	})
+	.await;
+	assert_eq!(held.steps[1].done, DoneState::NotDone);
+
+	// Where the earlier step cannot tell, the later one says what it found.
+	disk.done_is(DoneState::Unknown, None);
+	device.attach();
+	let held = until(&device, |s| s.steps[0].done == DoneState::Unknown).await;
+	assert_eq!(held.steps[1].done, DoneState::Unknown);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the disk holds no system")
+	);
+
+	overlay.done_is(DoneState::Done, Some("the overlay is installed"));
 	disk.done_is(DoneState::Done, None);
 	device.attach();
 	let held = until(&device, |s| s.steps[0].done == DoneState::Done).await;
