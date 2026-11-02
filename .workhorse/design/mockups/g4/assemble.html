@@ -80,6 +80,15 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 .notice p { margin: 0; }
 .notice p + p { margin-top: 6px; }
 
+/* A section the reader ticks off collapses to its heading. */
+.head { display: flex; gap: 10px; align-items: center; }
+.head h2 { margin: 0; }
+.head label { cursor: pointer; }
+.head input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; }
+.image-body { margin-top: 12px; }
+#image:has(#image-done:checked) .image-body { display: none; }
+#image:has(#image-done:checked) h2 { text-decoration: line-through; }
+
 /* Parts */
 .parts h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
 .parts h3:first-of-type { margin-top: 0; }
@@ -308,7 +317,11 @@ body.mobile .mobile-only { display: block; }
 	</section>
 
 	<section id="image">
-		<h2>Get the provisioning image</h2>
+		<div class="head">
+			<input type="checkbox" id="image-done">
+			<h2><label for="image-done">Get the provisioning image</label></h2>
+		</div>
+		<div class="image-body">
 		<div class="download">
 			<a class="button" href="https://iti.tamanu.app/downloads/tamanu-iti-provision.img.zst" download>Download the image</a>
 			<dl>
@@ -396,6 +409,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
 <pre>lsblk -o NAME,SIZE,TRAN,MODEL
 zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</pre>
 			<p class="muted">Replace <code>sdX</code> with the stick, as <code>lsblk</code> lists it.</p>
+		</div>
 		</div>
 	</section>
 
