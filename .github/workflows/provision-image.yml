@@ -99,16 +99,22 @@ jobs:
         run: just provision-image
       - name: Test
         run: just provision-image-test
+      # The image unarchived, as an artifact named after it, so it is neither zipped nor unzipped on
+      # its way to the jobs that publish it.
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: provision-image
+          path: target/provision/tamanu-iti-provision.img.zst
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: provision-image-description
           path: |
-            target/provision/tamanu-iti-provision.img.zst
             target/provision/tamanu-iti-provision.img.zst.sha256
             target/provision/tamanu-iti-provision.txt
           if-no-files-found: error
           retention-days: 1
-          compression-level: 0
 
   production:
     name: Publish
@@ -126,7 +132,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: provision-image
+          name: tamanu-iti-provision.img.zst
+          path: target/provision
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image-description
           path: target/provision
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
@@ -159,7 +169,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: provision-image
+          name: tamanu-iti-provision.img.zst
+          path: target/provision
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: provision-image-description
           path: target/provision
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
