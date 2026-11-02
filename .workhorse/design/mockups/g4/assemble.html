@@ -145,6 +145,9 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 .parts .links { font-size: 0.9rem; }
 .parts .links li { padding: 2px 0; }
 
+.ready { text-align: center; font-size: 1.25rem; border-color: var(--accent); }
+.ready span { font-size: 1.5rem; }
+
 /* Steps */
 ol.steps { list-style: none; margin: 0; padding: 0; }
 ol.steps > li { counter-increment: step; display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
@@ -459,6 +462,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<li><span class="todo">which black screws from the case pack, how many, and which holes</span></li>
 				</ul></div>
 				<div class="photo">photo: the screws and holes</div></div></li>
+			<li><div class="body"><p><strong>Stick the lid shim</strong> to the inside of the lid, where it meets the CASE switch.</p></div></li>
 			<li><div class="body"><p><strong>Leave the lid off</strong>, and its four screws out.</p></div></li>
 		</ol>
 		<p class="muted" style="margin-top:12px"><span class="todo">photos or drawings per step, to be added</span></p>
@@ -482,13 +486,17 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 	<section id="closing-up">
 		<h2>Closing up</h2>
 		<ol class="steps">
-			<li><div class="body"><p><strong>Stick the lid shim</strong> to the inside of the lid, where it meets the CASE switch.</p></div></li>
-			<li><div class="body"><p><strong>Screw the lid on.</strong> The Iti is ready.</p>
+			<li><div class="body"><p><strong>Fit the lid</strong> onto the case.</p></div></li>
+			<li><div class="body"><p><strong>Screw the lid on.</strong></p>
 				<div class="use"><span class="label">Use</span><ul>
 					<li><b>4</b> × black <span class="todo">screw size</span> <span class="from">case pack</span></li>
 				</ul></div>
 				<div class="photo">photo: the lid screws</div></div></li>
 		</ol>
+	</section>
+
+	<section class="ready" aria-label="The Iti is ready">
+		<span aria-hidden="true">🎉</span> The Iti is ready.
 	</section>
 
 	<section id="testing">
