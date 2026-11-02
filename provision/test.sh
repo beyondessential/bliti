@@ -187,7 +187,7 @@ verity=bliti-provision-test-verity-$$
 veritysetup open --hash-offset="${manifest[PAYLOAD_HASH_OFFSET]}" \
 	"${loop}p4" "$verity" "${loop}p4" "${manifest[PAYLOAD_ROOT_HASH]}"
 teardown+=("veritysetup close '$verity'")
-# uutils dd, Ubuntu's dd from 25.10, fails every direct read of a verity device with EINVAL.
+# uutils dd 0.8 to 0.10, as Ubuntu 26.04 ships, fails every direct read of a verity device.
 dd=$(command -v gnudd || command -v dd)
 check "a corrupt payload block fails its read" bash -c \
 	"! $dd if=/dev/mapper/$verity of=/dev/null bs=4096 skip=$block count=1 iflag=direct status=none 2>/dev/null"
