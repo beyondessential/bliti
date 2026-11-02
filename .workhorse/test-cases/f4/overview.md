@@ -3,25 +3,28 @@
 On-device test pass over the whole provisioning flow, run on `tamanu-iti-v4-prototype` (rev B, Pi 5).
 The sections are in the order they can be run. Several steps destroy what is on the board, so later sections depend on earlier ones having left the board as they describe.
 
-## What the prototype is today
+## The bench
 
 Read off the board on 2026-11-02, before any of this ran:
 
 - The HAT EEPROM already holds the 4.0 image (programmed by hand): `/proc/device-tree/hat/` reads Tamanu Iti v4.0, `product_id` `0x0004`, `product_ver` `0x0000`, and the Tamanu Iti UUID.
 - The sensor bus answers at `0x53` (LTR-308) and `0x77` (BME680). The hardware handoff's `0x76` for the BME680 is wrong, and the specs and code are right.
-- The bootloader is dated 2025-12-08, and its configuration is already exactly PBL's, `BOOT_ORDER=0xf61` included. That order has no USB, so a USB stick does not boot this board as it stands, and the first medium has to be an SD card.
-- The NVMe holds a hand-built system on the pi image's layout, with the dev deploy setup and Tailscale on it. The `disk` step erases it.
+- The bootloader is dated 2025-12-08. Its configuration was PBL's, `BOOT_ORDER=0xf61`, which has no USB, so it was set back to the Pi's stock configuration (`BOOT_ORDER=0xf461`, `POWER_OFF_ON_HALT=0`) on the same bootloader to stand in for a factory board.
+- The NVMe holding the hand-built dev system is swapped for a blank one. The original is kept as the fixture for a disk holding another system.
+
+The medium is a 64 GB USB3 stick, written from the PR preview's image. For debugging without the serial console, which needs the case taken apart, the stick's root gets the laptop's SSH key for `ubuntu`, so the medium is reachable over the LAN on `end0`. Nothing under test reads that key.
 
 ## Medium
 
 - [ ] The provisioning image builds and publishes from main, with `provision-image-test` passing (verifies spec: PMED)
 - [ ] `/downloads/tamanu-iti-provision.img.zst`, its `.sha256` and its `.txt` manifest download from iti.tamanu.app, and the digest matches (verifies spec: PMED)
 - [ ] The manifest has every entry in order, and `BLITI_COMMIT` is the main commit under test (verifies spec: PMED)
-- [ ] The image written to a 32 GB SD card boots the prototype into provisioning mode (verifies spec: PMED)
+- [ ] The image written to the USB stick boots the prototype into provisioning mode (verifies spec: PMED)
 - [ ] The data partition reads on the laptop as FAT32 `ITIPROV`, with `manifest.txt` at its root (verifies spec: PMED)
 - [ ] The console command opens on HDMI and on the serial console with no login, and exiting it gives a root shell (verifies spec: PMED)
 - [ ] `/proc/device-tree/hat/` shows the EEPROM, `/dev/i2c-3` and the TPM are up, and only the HAT overlay declares the TPM (verifies spec: PMED, HAT)
-- [ ] Booted from an SD card, the device leaves the boot order alone (verifies spec: PRV)
+- [ ] Booted from the stick, the device puts USB first before any step runs, keeping SD then NVMe after it (`0xf614`) (verifies spec: PRV)
+- [ ] Booted again from the stick with USB already first, the device leaves the bootloader unwritten (verifies spec: PRV)
 
 ## Going on the air
 
@@ -72,10 +75,11 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 ## Step `disk`
 
 - [ ] The step's reason describes the hand-built system before the run (verifies spec: PDSK)
-- [ ] Where the disk holds another system, the step asks to overwrite, and declining fails it with the disk left as it was (verifies spec: PDSK)
+- [ ] On the blank drive, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
+- [ ] With the original dev NVMe swapped back in, the step describes what it holds, and where that is another system it asks to overwrite, declining fails it with the disk left as it was (verifies spec: PDSK)
 - [ ] The write and read-back show as one progress bar (verifies spec: PDSK, PWEB)
 - [ ] Afterwards the firmware partition carries `iti-image.txt` with the manifest's version and digest, and the step reads `done` (verifies spec: PDSK)
-- [ ] A power cut partway through the write resumes the run at boot with no client, and restarts `disk` from its beginning without asking (verifies spec: RUN, PDSK)
+- [ ] A power cut partway through the write boots the stick again, resumes the run with no client, and restarts `disk` from its beginning without asking (verifies spec: PRV, RUN, PDSK)
 
 ## Step `overlay`
 
@@ -105,7 +109,8 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `bootloader`
 
-- [ ] With the board's bootloader older than the medium's, the step updates it and keeps the configuration as PBL has it (verifies spec: PBL)
+- [ ] With the board's 2025-12-08 bootloader older than the medium's, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
+- [ ] After the step, the board boots its NVMe with the stick still in (verifies spec: PBL)
 - [ ] With a configuration differing by one setting, the step reads `not-done`, names what differs, and writes the configuration (verifies spec: PBL)
 - [ ] Run again with both current, it passes without writing (verifies spec: PBL)
 - [ ] The step never asks the operator anything (verifies spec: PBL)
@@ -122,7 +127,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## The run as a whole
 
-- [ ] A full run from SD with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
+- [ ] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
 - [ ] When the channel drops, the page keeps the last state marked stale, offers nothing that acts, and reconnects on its own after a press (verifies spec: PWEB)
 - [ ] The console and the page connected together show the same run, and an answer from either is taken (verifies spec: PCON, RUN)
@@ -136,22 +141,15 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## First boot of the provisioned board
 
-- [ ] With the medium removed, the board boots its NVMe and unlocks the root volume from the TPM unattended (verifies spec: PENC)
+- [ ] The board boots its NVMe and unlocks the root volume from the TPM unattended (verifies spec: PENC)
 - [ ] It comes up on the tailnet under the name given (verifies spec: PTS)
 - [ ] `/proc/device-tree/hat/` names the board, and `/dev/i2c-3` and the TPM are up from the installed overlay (verifies spec: HAT, PDSK)
 - [ ] With bliti's ordinary daemon installed, the `product` fact reports Tamanu Iti v4.0 (verifies spec: NFO, HAT)
 - [ ] After a kernel update, the new boot slot still carries the HAT overlay (verifies spec: PDSK)
 
-## Booting from a USB stick
+## Not coverable on this bench
 
-Needs a boot order with USB in it, and a disk that does not boot first. Set the bootloader configuration back to the Pi's default from the medium's root shell, and wipe the NVMe, to stand in for a factory board.
-
-- [ ] A USB stick boots the board, and provisioning mode puts USB first before any step runs (verifies spec: PRV)
-- [ ] After `disk`, a reboot comes back to the stick and resumes the run (verifies spec: PRV, RUN)
-- [ ] After `bootloader`, the board boots its NVMe with the stick still in (verifies spec: PBL)
-
-## Not coverable on one board
-
+- [ ] Booted from an SD card, the device leaves the boot order alone (verifies spec: PRV)
 - [ ] One medium serving two boards keeps each board's run and record apart (verifies spec: RUN, PENC)
 - [ ] A board whose TPM gives no board ID advertises the `FAULT` suffix, and `encryption` refuses it (verifies spec: PRV, PENC)
 - [ ] A board with no NVMe fails `disk` and `overlay`, saying so (verifies spec: PDSK)
