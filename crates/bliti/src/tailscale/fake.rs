@@ -269,12 +269,16 @@ impl LocalApi for Fake {
 
 	async fn start(&self, prefs: Prefs, auth_key: Option<Secret>) -> Result<(), ApiError> {
 		self.record(&format!(
-			"start key={} hostname={}",
+			"start key={} hostname={} ssh={}",
 			auth_key.is_some(),
 			prefs
 				.get("Hostname")
 				.and_then(|name| name.as_str())
-				.unwrap_or("?")
+				.unwrap_or("?"),
+			prefs
+				.get("RunSSH")
+				.and_then(|ssh| ssh.as_bool())
+				.unwrap_or(false)
 		))?;
 		let mut inner = self.inner();
 		inner.key_accepted = auth_key.map(|key| key.expose() == GOOD_KEY && !inner.stuck);

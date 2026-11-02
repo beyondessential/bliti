@@ -237,7 +237,7 @@ async fn an_auth_key_signs_in_and_registers_the_name() {
 	assert!(
 		fake.calls()
 			.iter()
-			.any(|call| call == "start key=true hostname=iti-7")
+			.any(|call| call == "start key=true hostname=iti-7 ssh=true")
 	);
 }
 
@@ -583,7 +583,7 @@ async fn a_caller_that_is_no_client_signs_in_by_key_and_names_the_machine() {
 	assert!(
 		fake.calls()
 			.iter()
-			.any(|call| call == "start key=true hostname=iti-7")
+			.any(|call| call == "start key=true hostname=iti-7 ssh=true")
 	);
 	assert!(!fake.calls().contains(&"logout".to_owned()));
 }
