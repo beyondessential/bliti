@@ -78,8 +78,8 @@ jobs:
     if: needs.decide.outputs.build == 'true'
     runs-on: ubuntu-26.04-arm
     env:
-      # Outside the checkout, as a directory the cache can hold rather than a podman volume.
-      BLITI_DEVICE_CARGO: ${{ github.workspace }}/../device-cargo
+      # A directory the cache can hold, rather than the podman volume a build uses by default.
+      BLITI_DEVICE_CARGO: ${{ github.workspace }}/target/device-cargo
     steps:
       # The commit the pull request holds, not the merge commit the run checks out, so the manifest
       # names one someone can find.
@@ -101,7 +101,7 @@ jobs:
       - uses: actions/cache/restore@v6.1.0
         with:
           path: |
-            ${{ env.BLITI_DEVICE_CARGO }}
+            target/device-cargo
             target/device
           key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
           restore-keys: |
@@ -115,7 +115,7 @@ jobs:
         uses: actions/cache/save@v6.1.0
         with:
           path: |
-            ${{ env.BLITI_DEVICE_CARGO }}
+            target/device-cargo
             target/device
           key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
       - name: Test

@@ -78,12 +78,18 @@ build-device:
 	# The crate registry lives in a named volume, or in the directory BLITI_DEVICE_CARGO names, which
 	# CI caches.
 	cargo=${BLITI_DEVICE_CARGO:-bliti-build-device-cargo}
-	if [[ $cargo == /* ]]; then mkdir -p "$cargo"; cargo="$cargo:z"; fi
+	# A path is a directory of the host's, which is relabelled for the container; a name is a volume,
+	# which is not. The option goes after the destination, as `-v` takes source:destination:options.
+	registry="$cargo:/cargo"
+	if [[ $cargo == /* ]]; then
+		mkdir -p "$cargo"
+		registry="$registry:z"
+	fi
 	# Its own target directory: the build scripts it compiles link the container's glibc, not the
 	# host's, so they cannot share one with a host build.
 	"$engine" run --rm "${user[@]}" \
 		-v "$PWD:/bliti:z" -w /bliti \
-		-v "$cargo:/cargo" \
+		-v "$registry" \
 		-e BLITI_BUILD -e CARGO_TARGET_DIR=target/device \
 		"$image" cargo build --release --locked --target aarch64-unknown-linux-gnu -p bliti
 
