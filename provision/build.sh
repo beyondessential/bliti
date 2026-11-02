@@ -228,6 +228,10 @@ config=$fw/config.txt
 		# other dtoverlay and dtparam keeps the firmware from loading the overlay an EEPROM names.
 		dtoverlay=
 
+		# A factory board's supply reports no 5 A, and without this the firmware stops a USB boot to
+		# wait for the power button.
+		usb_max_current_enable=1
+
 	EOF
 	# tpm-slb9670 declares the TPM on SPI0 CE1, which the HAT overlay declares too.
 	grep -v '^dtoverlay=tpm-slb9670' "$config"

@@ -168,6 +168,8 @@ check "the firmware loads no overlay an EEPROM names" \
 	test "$(grep -v '^\s*\(#.*\)\?$' "$config" | head -n1)" = "dtoverlay="
 check "the firmware loads the HAT overlay" grep -qx 'dtoverlay=tamanu-iti-v4' "$config"
 check "the firmware does not load tpm-slb9670" bash -c "! grep -q '^\s*dtoverlay=tpm-slb9670' '$config'"
+check "the firmware boots USB on any supply" \
+	bash -c "awk '/^\[/ { exit } { print }' '$config' | grep -qx 'usb_max_current_enable=1'"
 check "the firmware brings up the ID bus" \
 	grep -qx 'dtoverlay=i2c-gpio,i2c_gpio_sda=0,i2c_gpio_scl=1,bus=9' "$config"
 check "the boot slot carries the HAT overlay" \

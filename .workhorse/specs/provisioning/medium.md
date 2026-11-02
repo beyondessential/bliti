@@ -51,6 +51,12 @@ The medium's firmware configuration MUST NOT load any overlay, other than the HA
 > A fresh board's EEPROM names no overlay, and a programmed one names the HAT overlay.
 > Loading the overlay from the configuration alone gives both the same devices, and a second overlay declaring the TPM would collide with it.
 
+The medium's firmware configuration MUST let the board boot from USB whatever current its power supply reports.
+
+> [!NOTE]
+> The Pi 5's firmware otherwise stops a USB boot on a supply that does not report 5 A, until someone presses the power button.
+> An Iti's backup supply reports less, and a factory board's bootloader configuration says nothing of it until [PBL](bootloader.md) writes it.
+
 The medium's system MUST carry the HAT overlay among the overlays of its current boot slot.
 
 The medium's system MUST make the HAT EEPROM's bus, on GPIO0 and GPIO1, available to software.
