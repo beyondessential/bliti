@@ -264,7 +264,7 @@ body.mobile .mobile-only { display: block; }
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="why">Comes with a thermal pad that has a clear plastic cover on each side.</span></label>
+			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="why">Comes with a thermal pad.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.aliexpress.com/item/1005005713763821.html">AliExpress</a>, JEYI</li></ul>
@@ -273,17 +273,17 @@ body.mobile .mobile-only { display: block; }
 
 		<h3>3D-printed shims</h3>
 		<ul>
-			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label>
+			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim</label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.scad">OpenSCAD source</a></li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label>
+			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim</label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.scad">OpenSCAD source</a></li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label>
+			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim</label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.scad">OpenSCAD source</a></li></ul>
@@ -295,7 +295,7 @@ body.mobile .mobile-only { display: block; }
 			<li><input type="checkbox" id="p-net"><div class="item"><label for="p-net">Network cable</label></div></li>
 			<li><input type="checkbox" id="p-usb"><div class="item"><label for="p-usb">USB cable for charging</label></div></li>
 			<li><input type="checkbox" id="p-driver"><div class="item"><label for="p-driver">Phillips screwdriver</label></div></li>
-			<li><input type="checkbox" id="p-hex"><div class="item"><label for="p-hex">2 mm hex bit<span class="why">Only if the HAT's screw has a hex socket, which usually takes this size.</span></label></div></li>
+			<li><input type="checkbox" id="p-hex"><div class="item"><label for="p-hex">2 mm hex bit<span class="why">Only if the screw has a hex socket.</span></label></div></li>
 		</ul>
 
 		<h3>For provisioning</h3>
@@ -396,7 +396,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<h2>Assembly</h2>
 		<p class="muted">Leave the lid off, with its screws out, until you are told otherwise.</p>
 		<ol class="steps">
-			<li><div class="body"><p><strong>Fit the fan</strong> to the Pi and plug it in.</p></div></li>
+			<li><div class="body"><p><strong>Fit the Active Cooler</strong> to the Pi and plug it in.</p></div></li>
 			<li><div class="body"><p><strong>Plug the RTC cell</strong> into the Pi. Leave it outside for now.</p></div></li>
 			<li><div class="body"><p><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</p>
 				<div class="use"><span class="label">Use</span><ul>
