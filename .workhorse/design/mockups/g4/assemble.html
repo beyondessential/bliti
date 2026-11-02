@@ -366,6 +366,13 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
 				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
 				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
 			</ol>
+			<h3>GNOME Disks</h3>
+			<p class="muted">Disks comes with GNOME. Unpack the download first, which takes 17.8 GB of free disk.</p>
+			<ol>
+				<li>Unpack the download with <code>zstd -d tamanu-iti-provision.img.zst</code>, which leaves <code>tamanu-iti-provision.img</code> beside it.</li>
+				<li>Open Disks and select the USB stick in the list of drives.</li>
+				<li>Open the drive's menu and choose <strong>Restore Disk Image</strong>, pick the unpacked <code>.img</code>, and start restoring.</li>
+			</ol>
 			<h3>balenaEtcher</h3>
 			<p class="muted">Etcher can't read <code>.zst</code> files, so unpack the download first. The unpacked image takes 17.8 GB of free disk.</p>
 			<ol>
