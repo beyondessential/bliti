@@ -104,9 +104,9 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `encryption`
 
-- [ ] Afterwards the root volume has a new UUID and volume key, exactly two keyslots, and the empty passphrase no longer opens it (verifies spec: PENC)
-- [ ] The recovery passphrase is six lowercase words of five or more characters joined by hyphens, and it opens the volume (verifies spec: PENC)
-- [ ] `records.tsv` on the data partition gains one tab-separated line: suffix, 4.0, the volume's UUID, the passphrase, and a UTC time (verifies spec: PENC)
+- [x] Afterwards the root volume has a new UUID and volume key, exactly two keyslots, and the empty passphrase no longer opens it (verifies spec: PENC)
+- [x] The recovery passphrase is six lowercase words of five or more characters joined by hyphens, and it opens the volume (verifies spec: PENC)
+- [x] `records.tsv` on the data partition gains one tab-separated line: suffix, 4.0, the volume's UUID, the passphrase, and a UTC time (verifies spec: PENC)
 - [ ] The passphrase appears in no journal line, on the device or in the page's Activity (verifies spec: PENC, PWEB)
 - [ ] A power cut during re-encryption resumes it on the next run, and the volume still opens (verifies spec: PENC)
 - [ ] The step reads `done` afterwards, and re-running it passes without changes (verifies spec: PENC)
@@ -126,35 +126,35 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `bootloader`
 
-- [ ] With the board's 2025-12-08 bootloader older than the medium's 2026-09-25, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
+- [x] With the board's 2025-12-08 bootloader older than the medium's 2026-09-25, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
 - [ ] After the step, the board boots its NVMe with the stick still in (verifies spec: PBL)
 - [ ] With a configuration differing by one setting, the step reads `not-done`, names what differs, and writes the configuration (verifies spec: PBL)
 - [ ] Run again with both current, it passes without writing (verifies spec: PBL)
-- [ ] The step never asks the operator anything (verifies spec: PBL)
+- [x] The step never asks the operator anything (verifies spec: PBL)
 
 ## Step `label` and the sheet
 
-- [ ] The step passes with the board's payload, version 4.0 and a time, and the page says the label was added rather than showing the payload (verifies spec: PLBL, PWEB)
+- [x] The step passes with the board's payload, version 4.0 and a time, and the page says the label was added rather than showing the payload (verifies spec: PLBL, PWEB)
 - [ ] `label` run alone on a blank EEPROM still gives version 4.0 from the sensors (verifies spec: PLBL)
 - [ ] The sheet is an A4 PDF in a 3 by 9 grid of 50 by 30 mm labels, the QR code scans as the board's payload, and the suffix and "Tamanu Iti v4.0" read beside it (verifies spec: PSHT)
 - [ ] A label printed at 100% on a laser printer scans with a phone camera (verifies spec: PSHT)
 - [ ] Downloading marks the label printed, and checking back at the finished board adds no second label (verifies spec: PSHT)
 - [ ] Running `label` again replaces the label as unprinted (verifies spec: PSHT)
-- [ ] The download action states how full the sheet is (verifies spec: PSHT)
+- [x] The download action states how full the sheet is (verifies spec: PSHT)
 
 ## The run as a whole
 
 - [ ] On a board whose disk holds an earlier system, `overlay`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
 - [ ] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
-- [ ] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
+- [x] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
 - [ ] When the channel drops, the page keeps the last state marked stale, offers nothing that acts, and reconnects on its own after a press (verifies spec: PWEB)
 - [ ] The console and the page connected together show the same run, and an answer from either is taken (verifies spec: PCON, RUN)
 - [ ] A second answer to the same prompt is refused (verifies spec: RUN)
 - [ ] A failed run survives a reboot as `failed`, with the LED blinking red at 3 Hz, and needs a retry to go on (verifies spec: RUN, PLED)
-- [ ] Stop while `waiting` or `failed` returns to `idle` and closes every prompt (verifies spec: RUN)
-- [ ] The finished screen shows the recovery passphrase with a copy button, says it is also on the medium, and says to power off and remove the medium (verifies spec: PWEB)
+- [x] Stop while `waiting` or `failed` returns to `idle` and closes every prompt (verifies spec: RUN)
+- [x] The finished screen shows the recovery passphrase with a copy button, says it is also on the medium, and says to power off and remove the medium (verifies spec: PWEB)
 - [ ] A finished board rebooted from the medium comes up `idle` (verifies spec: RUN)
 - [ ] The console takes a `secret` answer without echoing it, and an empty answer as the default (verifies spec: PCON)
 - [ ] The console drives a whole run with no USER press and no client (verifies spec: PCON)
