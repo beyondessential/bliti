@@ -276,17 +276,17 @@ body.mobile .mobile-only { display: block; }
 			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
-					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.scad">OpenSCAD source</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
-					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.scad">OpenSCAD source</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
-					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.scad">OpenSCAD source</a></li></ul>
 				</div></details></div></li>
 		</ul>
 
@@ -425,7 +425,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<li><b>1</b> × M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
 				</ul></div>
 				<div class="photo">photo: the hole, and the HAT seated</div></div></li>
-			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p></div></li>
+			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p><p class="aside">It sits in the slot like a card, and its tab is trapped by the case so it can't be pulled out once the case is on.</p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
 			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
 			<li><div class="body"><p><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</p></div></li>
