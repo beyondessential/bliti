@@ -90,7 +90,10 @@ data_end=$((data_start + data_size / 512 - 1))
 echo "laying out $work"
 cp --sparse=always "$pristine" "$work"
 truncate -s $(((data_end + 1) * 512 + mib)) "$work"
+# The pi image's own partitions are renamed, because a disk written from the payload carries their
+# names, and both the medium's system and that disk's find their partitions by name (PMED).
 sgdisk --move-second-header \
+	--change-name=1:provision-firmware --change-name=2:provision-xboot --change-name=3:provision-root \
 	--new="4:$payload_start:$payload_end" --typecode=4:8300 --change-name=4:provision-payload \
 	--new="5:$data_start:$data_end" --typecode=5:0700 --change-name=5:provision-data \
 	"$work" >/dev/null
@@ -151,6 +154,13 @@ declare -A needs=(
 	[/usr/bin/systemd-cryptenroll]=systemd-cryptsetup
 	[/usr/bin/dracut]=dracut-core
 )
+for fs in dev dev/pts proc sys; do
+	mount --bind "/$fs" "$root/$fs"
+	teardown+=("umount '$root/$fs'")
+done
+# The image points resolv.conf into /run, which is empty until it boots.
+mount -t tmpfs tmpfs "$root/run"
+teardown+=("umount '$root/run'")
 missing=()
 for path in "${!needs[@]}"; do
 	[[ -e $root$path ]] || missing+=("${needs[$path]}")
@@ -158,13 +168,6 @@ done
 if ((${#missing[@]})); then
 	mapfile -t missing < <(printf '%s\n' "${missing[@]}" | sort -u)
 	echo "installing ${missing[*]}"
-	for fs in dev dev/pts proc sys; do
-		mount --bind "/$fs" "$root/$fs"
-		teardown+=("umount '$root/$fs'")
-	done
-	# The image points resolv.conf into /run, which is empty until it boots.
-	mount -t tmpfs tmpfs "$root/run"
-	teardown+=("umount '$root/run'")
 	mkdir -p "$root/run/systemd/resolve"
 	cp -L /etc/resolv.conf "$root/run/systemd/resolve/stub-resolv.conf"
 	chroot "$root" apt-get update -q
@@ -207,6 +210,12 @@ systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.s
 systemctl --root="$root" mask unattended-upgrades.service \
 	apt-daily.timer apt-daily.service apt-daily-upgrade.timer apt-daily-upgrade.service \
 	rpi-eeprom-update.service
+# The medium changes no disk as it boots, other than checking its data partition (PMED). The root grow
+# finds its partition by the pi image's name, and the first boot's identity rotation is left out of
+# the initramfs by provision/root's dracut configuration.
+systemctl --root="$root" mask grow-root-filesystem.service
+sed -i -E 's#/dev/disk/by-partlabel/(firmware|xboot|root)([[:space:]])#/dev/disk/by-partlabel/provision-\1\2#' \
+	"$root/etc/crypttab" "$root/etc/fstab"
 
 echo "configuring the firmware"
 fw=$mnt/firmware
@@ -244,6 +253,15 @@ config=$fw/config.txt
 	EOF
 } >"$config.new"
 mv "$config.new" "$config"
+
+echo "making the medium's initramfs"
+kernels=("$root"/usr/lib/modules/*)
+((${#kernels[@]} == 1)) || {
+	echo "the root carries ${#kernels[@]} kernels, not one" >&2
+	exit 1
+}
+chroot "$root" dracut --force --kver "$(basename "${kernels[0]}")" /var/tmp/bliti-initrd.img
+mv "$root/var/tmp/bliti-initrd.img" "$fw/current/initrd.img"
 
 echo "formatting the data partition"
 mkfs.vfat -F 32 -n ITIPROV "${loop}p5" >/dev/null

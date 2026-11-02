@@ -52,13 +52,18 @@ done <"$dir/$name.txt"
 # Smaller than any USB stick or SD card sold as 32 GB holds.
 check "the image fits a 32 GB stick" test "$(stat -c %s "$image")" -le 29000000000
 
-# The pi image's partitions, unchanged, then the payload and the data partition.
+# The pi image's partitions, renamed, then the payload and the data partition.
 layout() {
-	sfdisk --dump "$1" | grep '^/' | sed 's/^[^:]*: //' | head -n "$2"
+	sfdisk --dump "$1" | grep '^/' | sed -e 's/^[^:]*: //' -e 's/, name="[^"]*"//' | head -n "$2"
 }
-check "the pi image's partitions come first, unchanged" \
+names() {
+	sfdisk --dump "$1" | grep '^/' | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' '
+}
+check "the pi image's partitions come first, in place" \
 	test "$(layout "$image" 3)" = "$(layout "$pristine" 3)"
 check "the image holds five partitions" test "$(sfdisk --dump "$image" | grep -c '^/')" -eq 5
+check "no partition carries a name of the pi image's" test "$(names "$image")" = \
+	"provision-firmware provision-xboot provision-root provision-payload provision-data "
 
 loop=$(losetup --partscan --read-only --show --find "$image")
 teardown+=("losetup -d '$loop'")
@@ -156,6 +161,15 @@ masked() {
 	done
 }
 check "nothing upgrades packages unattended" masked
+check "the root does not grow at boot" \
+	test "$(readlink "$root/etc/systemd/system/grow-root-filesystem.service")" = /dev/null
+own_names() {
+	grep -q 'by-partlabel/provision-root\s' "$root/etc/crypttab" &&
+		grep -q 'by-partlabel/provision-firmware\s' "$root/etc/fstab" &&
+		grep -q 'by-partlabel/provision-xboot\s' "$root/etc/fstab" &&
+		! grep -qE 'by-partlabel/(firmware|xboot|root)\s' "$root/etc/crypttab" "$root/etc/fstab"
+}
+check "crypttab and fstab name the medium's own partitions" own_names
 
 check "the root carries the bootloader" cmp -s "$dir/pieeprom.bin" "$share/pieeprom.bin"
 check "the root carries the HAT overlay" cmp -s "$repo/target/hat/tamanu-iti-v4.dtbo" "$share/tamanu-iti-v4.dtbo"
@@ -174,6 +188,19 @@ check "the firmware brings up the ID bus" \
 	grep -qx 'dtoverlay=i2c-gpio,i2c_gpio_sda=0,i2c_gpio_scl=1,bus=9' "$config"
 check "the boot slot carries the HAT overlay" \
 	cmp -s "$repo/target/hat/tamanu-iti-v4.dtbo" "$fw/current/overlays/tamanu-iti-v4.dtbo"
+
+# The initramfs, read with the medium's own lsinitrd.
+for fs in dev proc; do
+	mount --bind "/$fs" "$root/$fs"
+	teardown+=("umount '$root/$fs'")
+done
+mount --bind "$fw" "$root/boot/firmware"
+teardown+=("umount '$root/boot/firmware'")
+initrd=/boot/firmware/current/initrd.img
+check "the initramfs unlocks the medium's own root" bash -c \
+	"chroot '$root' lsinitrd -f etc/crypttab '$initrd' | grep -q 'by-partlabel/provision-root\s'"
+check "the initramfs leaves the first boot's identity rotation out" bash -c \
+	"! chroot '$root' lsinitrd '$initrd' | grep -q bes-identity"
 
 undo
 

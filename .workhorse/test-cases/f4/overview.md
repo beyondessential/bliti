@@ -29,6 +29,8 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] The stick's payload verifies against the manifest's root hash (verifies spec: PMED)
 - [x] The manifest has every entry in order, and `BLITI_COMMIT` is the commit under test (verifies spec: PMED)
 - [ ] The image written to the USB stick boots the prototype into provisioning mode (verifies spec: PMED)
+- [ ] On the backup supply, which reports less than 5 A, the stick boots without the power button being pressed (verifies spec: PMED)
+- [ ] With a pi-image system on the NVMe, the stick boots its own root, and the NVMe's partition table and LUKS identifiers come through the boot unchanged (verifies spec: PMED)
 - [x] The data partition reads on the laptop as FAT32 `ITIPROV`, with `manifest.txt` at its root (verifies spec: PMED)
 - [ ] The console command opens on HDMI and on the serial console with no login, and exiting it gives a root shell (verifies spec: PMED)
 - [ ] `/proc/device-tree/hat/` shows the EEPROM, `/dev/i2c-3` and the TPM are up, and only the HAT overlay declares the TPM (verifies spec: PMED, HAT)

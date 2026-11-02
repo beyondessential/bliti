@@ -74,6 +74,17 @@ Where the disk it booted from lacks the payload or data partition, or the data p
 > [!NOTE]
 > A board can hold a second medium, or an NVMe written from one, and neither is the medium the board booted from.
 
+The medium's partitions MUST NOT carry any name the `pi` image gives its partitions.
+
+The medium's system MUST find its own partitions and root volume by names of its own, so that it cannot take a partition of another disk for one of its own.
+
+The medium's system MUST NOT change any disk as it boots, other than checking and repairing its data partition as [The data partition](#the-data-partition) has it.
+
+> [!NOTE]
+> The `pi` image finds its partitions by their names, and a disk written from the payload carries the same names.
+> A medium that shared them could boot the board's own disk in its place, and a board that boots its own disk with the medium still in, as [PBL](bootloader.md) has it, could take the medium's partitions for its own.
+> The `pi` image's first boot gives its disk new identifiers and grows its root, and on a medium it would act on whichever disk it took for its own.
+
 ## The payload
 
 The payload partition MUST hold the `pi` image the medium's system is built from, decompressed, byte for byte, from the partition's first byte.
