@@ -59,7 +59,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] Closing the chooser without a pick says only a just-pressed Iti is listed, and offers it again (verifies spec: PWEB)
 - [ ] Cancel while connecting returns to finding a device (verifies spec: PWEB)
 - [x] Connected, the page names the Iti by its suffix and offers to disconnect (verifies spec: PWEB)
-- [ ] Connected before the board has found every step's done-state, the page says the Iti is checking the board and lists no step until it has (verifies spec: PWEB)
+- [x] Connected before the board has found every step's done-state, the page says the Iti is checking the board and lists no step until it has (verifies spec: PWEB)
 - [x] Every step is listed in order with its done-state reason, `done` steps unticked and the rest ticked, and start is unavailable with nothing ticked (verifies spec: PWEB, RUN)
 - [ ] The fake device in dev mode connects as `FAKE`, passes every chosen step at once, and adds no label (verifies spec: PWEB)
 - [ ] Pictures of the USER button, CASE switch and ID WP pads show with the phone offline after a first load (verifies spec: PWEB)
