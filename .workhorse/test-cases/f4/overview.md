@@ -9,22 +9,29 @@ Read off the board on 2026-11-02, before any of this ran:
 
 - The HAT EEPROM already holds the 4.0 image (programmed by hand): `/proc/device-tree/hat/` reads Tamanu Iti v4.0, `product_id` `0x0004`, `product_ver` `0x0000`, and the Tamanu Iti UUID.
 - The sensor bus answers at `0x53` (LTR-308) and `0x77` (BME680). The hardware handoff's `0x76` for the BME680 is wrong, and the specs and code are right.
-- The bootloader is dated 2025-12-08. Its configuration was PBL's, `BOOT_ORDER=0xf61`, which has no USB, so it was set back to the Pi's stock configuration (`BOOT_ORDER=0xf461`, `POWER_OFF_ON_HALT=0`) on the same bootloader to stand in for a factory board.
-- The NVMe holding the hand-built dev system is swapped for a blank one. The original is kept as the fixture for a disk holding another system.
+- The bootloader is dated 2025-12-08. Its configuration was PBL's, `BOOT_ORDER=0xf61`, which has no USB.
+- The NVMe holds the hand-built dev system, laid out as the pi image with its partition labels.
 
 The medium is a 64 GB USB3 stick, written from the PR preview's image. For debugging without the serial console, which needs the case taken apart, the stick's root gets the laptop's SSH key for `ubuntu`, so the medium is reachable over the LAN on `end0`. Nothing under test reads that key.
+
+There is one NVMe, so the pass runs in two cycles:
+
+1. The bootloader configuration is set to the Pi's stock one with USB first (`BOOT_ORDER=0xf614`) on the same bootloader, so the stick boots over the dev system. `disk` takes that system for an earlier one. Once the run finishes, and before the board reboots, the laptop's key goes into the new root from the medium, unlocked by the TPM. That keeps a way back in once `bootloader` has taken USB out of the boot order.
+2. From the provisioned system, the bootloader configuration is set to the Pi's stock one (`BOOT_ORDER=0xf461`, USB last) and the NVMe is given a foreign partition table, to stand in for a factory board. After the overwrite prompt is declined, the drive is blanked from the medium for a run on a blank disk.
 
 ## Medium
 
 - [ ] The provisioning image builds and publishes from main, with `provision-image-test` passing (verifies spec: PMED)
-- [ ] `/downloads/tamanu-iti-provision.img.zst`, its `.sha256` and its `.txt` manifest download from iti.tamanu.app, and the digest matches (verifies spec: PMED)
+- [x] `/downloads/tamanu-iti-provision.img.zst`, its `.sha256` and its `.txt` manifest download from the PR preview, and the digest matches (verifies spec: PMED)
+- [ ] The same three download from iti.tamanu.app once main publishes (verifies spec: PMED)
+- [x] The stick's payload verifies against the manifest's root hash (verifies spec: PMED)
 - [x] The manifest has every entry in order, and `BLITI_COMMIT` is the commit under test (verifies spec: PMED)
 - [ ] The image written to the USB stick boots the prototype into provisioning mode (verifies spec: PMED)
-- [ ] The data partition reads on the laptop as FAT32 `ITIPROV`, with `manifest.txt` at its root (verifies spec: PMED)
+- [x] The data partition reads on the laptop as FAT32 `ITIPROV`, with `manifest.txt` at its root (verifies spec: PMED)
 - [ ] The console command opens on HDMI and on the serial console with no login, and exiting it gives a root shell (verifies spec: PMED)
 - [ ] `/proc/device-tree/hat/` shows the EEPROM, `/dev/i2c-3` and the TPM are up, and only the HAT overlay declares the TPM (verifies spec: PMED, HAT)
-- [ ] Booted from the stick, the device puts USB first before any step runs, keeping SD then NVMe after it (`0xf614`) (verifies spec: PRV)
-- [ ] Booted again from the stick with USB already first, the device leaves the bootloader unwritten (verifies spec: PRV)
+- [ ] Cycle 1: booted from the stick with USB already first, the device leaves the bootloader unwritten (verifies spec: PRV)
+- [ ] Cycle 2: booted from the stick with USB last, the device puts USB first before any step runs, keeping SD then NVMe after it (`0xf614`) (verifies spec: PRV)
 
 ## Going on the air
 
@@ -75,8 +82,9 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 ## Step `disk`
 
 - [ ] The step's reason describes the hand-built system before the run (verifies spec: PDSK)
-- [ ] On the blank drive, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
-- [ ] With the original dev NVMe swapped back in, the step describes what it holds, and where that is another system it asks to overwrite, declining fails it with the disk left as it was (verifies spec: PDSK)
+- [ ] Cycle 1: the dev system reads as an earlier system and is overwritten without asking (verifies spec: PDSK)
+- [ ] Cycle 2: a foreign partition table reads as another system, and the step asks to overwrite; declining fails it with the disk left as it was (verifies spec: PDSK)
+- [ ] Cycle 2: blanked, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
 - [ ] The write and read-back show as one progress bar (verifies spec: PDSK, PWEB)
 - [ ] Afterwards the firmware partition carries `iti-image.txt` with the manifest's version and digest, and the step reads `done` (verifies spec: PDSK)
 - [ ] A power cut partway through the write boots the stick again, resumes the run with no client, and restarts `disk` from its beginning without asking (verifies spec: PRV, RUN, PDSK)
@@ -109,7 +117,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## Step `bootloader`
 
-- [ ] With the board's 2025-12-08 bootloader older than the medium's, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
+- [ ] With the board's 2025-12-08 bootloader older than the medium's 2026-09-25, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
 - [ ] After the step, the board boots its NVMe with the stick still in (verifies spec: PBL)
 - [ ] With a configuration differing by one setting, the step reads `not-done`, names what differs, and writes the configuration (verifies spec: PBL)
 - [ ] Run again with both current, it passes without writing (verifies spec: PBL)
