@@ -178,7 +178,8 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [x] The board boots its NVMe and unlocks the root volume from the TPM unattended (verifies spec: PENC)
 - [x] It comes up on the tailnet under the name given (verifies spec: PTS)
 - [x] `/proc/device-tree/hat/` names the board, and `/dev/i2c-3` and the TPM are up from the installed overlay (verifies spec: HAT, PDSK)
-- [ ] With bliti's ordinary daemon installed, the `product` fact reports Tamanu Iti v4.0 (verifies spec: NFO, HAT)
+- [x] With bliti's ordinary daemon installed, the `product` fact reports Tamanu Iti v4.0 (verifies spec: NFO, HAT)
+- [x] The app disconnects and connects again in the same tab without a reload (verifies spec: WEB)
 - [ ] After a kernel update, the new boot slot still carries the HAT overlay (verifies spec: PDSK)
 
 ## Not coverable on this bench
