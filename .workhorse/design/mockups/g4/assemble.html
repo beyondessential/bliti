@@ -110,7 +110,7 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 .parts details[open] summary { color: var(--accent); border-color: var(--accent); }
 .parts summary svg { width: 1.25rem; height: 1.25rem; }
 .parts .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
-.parts .photo {
+.photo {
 	flex: none;
 	width: 7rem;
 	aspect-ratio: 4 / 3;
@@ -123,6 +123,12 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 	color: var(--muted);
 	font-size: 0.8rem;
 }
+.steps .photo { width: 100%; max-width: 22rem; aspect-ratio: 16 / 9; margin-top: 8px; }
+.use { margin: 8px 0 0; padding: 8px 12px; background: var(--page); border: 1px solid var(--line); border-radius: 6px; font-size: 0.9rem; }
+.use .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.use ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.use li { padding: 2px 0; }
+.use .from { color: var(--muted); }
 .parts .links { font-size: 0.9rem; }
 .parts .links li { padding: 2px 0; }
 
@@ -212,12 +218,12 @@ body.mobile .mobile-only { display: block; }
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0531/Raspberry-Pi-Official-Active-Cooler-for-Raspberry">PB Tech</a></li><li><a href="https://www.raspberrypi.com/products/active-cooler/">Raspberry Pi</a>, for other sellers</li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-x1208"><div class="item"><label for="p-x1208">X1208 UPS board<span class="why">The 1-cell 21700 UPS with an NVMe slot.</span></label>
+			<li><input type="checkbox" id="p-x1208"><div class="item"><label for="p-x1208">X1208 UPS board<span class="why">The 1-cell 21700 UPS with an NVMe slot. It comes with spacers and screws, more than you need. The steps say which to use.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://geekworm.com/products/x1208?variant=51300730044729">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1208">Documentation</a></li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208</label>
+			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208<span class="why">It comes with a pack of screws, more than you need. The steps say which to use.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://geekworm.com/products/x1207-c1">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1207-C1">Documentation</a></li></ul>
@@ -369,15 +375,32 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<ol class="steps">
 			<li><div class="body"><p><strong>Fit the fan</strong> to the Pi and plug it in.</p></div></li>
 			<li><div class="body"><p><strong>Plug the RTC cell</strong> into the Pi. Leave it outside for now.</p></div></li>
-			<li><div class="body"><p><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</p></div></li>
+			<li><div class="body"><p><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</p>
+				<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × M2.5 × 13.5 mm spacers <span class="from">X1208 pack</span></li>
+					<li><b>8</b> × M2.5 × 5 mm screws, four from below into the spacers and four to fasten the board <span class="from">X1208 pack</span></li>
+				</ul><p class="muted" style="margin:6px 0 0"><span class="todo">from Geekworm's guide, confirm against the pack and this stack</span></p></div>
+				<div class="photo">photo: which screws, and where</div></div></li>
 			<li><div class="body"><p><strong>Connect the PCIe flat cable</strong> between the Pi and the X1208.</p></div></li>
-			<li><div class="body"><p><strong>Stick the heatsink</strong> onto the NVMe drive with the thermal pad, then fit the drive.</p></div></li>
-			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, and fasten it with the M2.5 × 12 mm screw.</p></div></li>
+			<li><div class="body"><p><strong>Stick the heatsink</strong> onto the NVMe drive with the thermal pad, then fit the drive.</p>
+				<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × M2 screw to hold the drive <span class="from">X1208 pack</span> <span class="todo">size, confirm</span></li>
+				</ul></div>
+				<div class="photo">photo: the drive screw</div></div></li>
+			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, and fasten it with the M2.5 × 12 mm screw.</p>
+				<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
+				</ul></div>
+				<div class="photo">photo: where the screw goes</div></div></li>
 			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
 			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
 			<li><div class="body"><p><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</p></div></li>
-			<li><div class="body"><p><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</p></div></li>
+			<li><div class="body"><p><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</p>
+				<div class="use"><span class="label">Use</span><ul>
+					<li><span class="todo">which screws from the case pack, how many, and which holes</span></li>
+				</ul></div>
+				<div class="photo">photo: the screws and holes</div></div></li>
 			<li><div class="body"><p><strong>Leave the lid off</strong>, and its four screws out.</p></div></li>
 		</ol>
 		<p class="muted" style="margin-top:12px"><span class="todo">photos or drawings per step, to be added</span></p>
@@ -403,7 +426,11 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<h2>Closing up</h2>
 		<ol class="steps">
 			<li><div class="body"><p><strong>Stick the lid shim</strong> to the inside of the lid, where it meets the CASE switch.</p></div></li>
-			<li><div class="body"><p><strong>Screw the lid on.</strong> The Iti is ready.</p></div></li>
+			<li><div class="body"><p><strong>Screw the lid on.</strong> The Iti is ready.</p>
+				<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × <span class="todo">screw size</span> <span class="from">case pack</span></li>
+				</ul></div>
+				<div class="photo">photo: the lid screws</div></div></li>
 		</ol>
 	</section>
 
