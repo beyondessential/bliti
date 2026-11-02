@@ -172,8 +172,17 @@ fn parse(uuid: &str, json: &str) -> Result<Header, String> {
 	let json: Json = serde_json::from_str(json)
 		.map_err(|err| format!("cannot read the volume's header: {err}"))?;
 
+	// The digest bound to the first data segment, whose id is whatever cryptsetup gave it.
 	let digest = json["digests"]
-		.get("0")
+		.as_object()
+		.into_iter()
+		.flatten()
+		.map(|(_, digest)| digest)
+		.find(|digest| {
+			digest["segments"]
+				.as_array()
+				.is_some_and(|segments| segments.iter().any(|segment| segment == "0"))
+		})
 		.and_then(|digest| digest["digest"].as_str())
 		.ok_or_else(|| bad("volume key digest"))?
 		.to_owned();
@@ -244,7 +253,7 @@ mod tests {
 			"0": {"type": "systemd-tpm2", "keyslots": ["2"], "tpm2-pcrs": []},
 			"1": {"type": "something-else", "keyslots": ["1"]}
 		},
-		"digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "digest": "AbC="}},
+		"digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "segments": ["0"], "digest": "AbC="}},
 		"config": {"requirements": []}
 	}"#;
 
@@ -281,6 +290,19 @@ mod tests {
 			r#""requirements": ["online-reencrypt"]"#,
 		);
 		assert!(parse("uuid", &json).unwrap().reencrypting);
+	}
+
+	/// As the `pi` image ships its root volume: one digest, whose id is not 0.
+	#[test]
+	fn the_digest_is_the_one_bound_to_the_data_segment() {
+		let json = JSON.replace(
+			r#""digests": {"0": {"type": "pbkdf2", "keyslots": ["0", "1", "2"], "segments": ["0"], "digest": "AbC="}}"#,
+			r#""digests": {
+				"1": {"type": "pbkdf2", "keyslots": ["1"], "segments": ["0"], "digest": "DeF="},
+				"0": {"type": "pbkdf2", "keyslots": ["0"], "segments": [], "digest": "AbC="}
+			}"#,
+		);
+		assert_eq!(parse("uuid", &json).unwrap().digest, "DeF=");
 	}
 
 	#[test]
