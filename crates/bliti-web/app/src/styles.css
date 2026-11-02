@@ -133,6 +133,7 @@ video { width: 100%; border-radius: 6px; background: #000; }
 .bar { height: 4px; background: #eceae5; border-radius: 2px; position: relative; overflow: visible; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
 .bar.warn > span { background: var(--warn); }
+.bar.bad > span { background: var(--bad); }
 .bar .trip { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.5; }
 .spark { display: block; width: 100%; height: 32px; margin-top: 8px; }
 
@@ -227,6 +228,21 @@ button.secondary.danger { color: var(--bad); border-color: var(--bad); }
 
 /* What the device gives for its battery, above the battery section's rows (CSCR). */
 .learnt { margin: 0 0 10px; }
+
+/* A battery's charge headlined in a tile's type, its direction beside it and its scale beneath; the
+   power source once above the batteries where there are several, and the curve below a rule (CSCR). */
+.charge { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; }
+.charge .value { font-size: 1.7rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.charge .value .margin { font-size: 0.8rem; }
+.charge .way { color: var(--muted); font-size: 0.9rem; }
+.charge .warn, .charge-reason.warn { color: var(--warn); }
+.charge .bad, .charge-reason.bad { color: var(--bad); }
+.charge-reason { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.facts dd .reason { display: block; color: var(--muted); }
+.facts dd.warn .reason, .facts dd.bad .reason { color: inherit; }
+.facts.source { margin: 0 0 14px; }
+.battery + .battery, .curve { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.battery .which { display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 2px; }
 
 /* A confirmation takes its act's button's place, beneath the act it asks about (CSCR). */
 .acts li.asking { display: block; }

@@ -29,11 +29,47 @@ export function reasonOf(entry) {
 	return entry.traits?.status?.reason ?? null
 }
 
-/// Whether a reading should draw an operator's attention. Only the two states with a notion of
-/// difficulty do; skipped and broken say nothing is wrong with the thing measured, only that there is
-/// no value.
-export function isTrouble(entry) {
-	return statusOf(entry) === 'warning' || statusOf(entry) === 'failed'
+/// The tone an entry is coloured by its status. A passed entry carries no colour (VIEW).
+export function tone(entry) {
+	switch (statusOf(entry)) {
+		case 'warning':
+			return 'warn'
+		case 'failed':
+		case 'broken':
+			return 'bad'
+		default:
+			return ''
+	}
+}
+
+/// The headline for an entry with a value, or a marker for one without. Skipped and broken both have
+/// no value and are distinguished: skipped shows a dash, broken shows it is unavailable (VIEW).
+export function headline(entry) {
+	if (hasValue(entry)) return formatValue(entry)
+	return statusOf(entry) === 'broken' ? 'unavailable' : '—'
+}
+
+/// The entries held, grouped by name in the order they arrived.
+export function groupByName(entries) {
+	const byName = new Map()
+	for (const entry of entries) {
+		if (!byName.has(entry.name)) byName.set(entry.name, [])
+		byName.get(entry.name).push(entry)
+	}
+	return byName
+}
+
+/// The name a device gives the battery fitted inside it, the one whose backup supply it manages (NFO).
+export const BUILT_IN = 'built-in'
+
+/// Which battery a reading is about.
+export function batteryName(entry) {
+	return entry.traits?.battery?.name ?? ''
+}
+
+/// The entry among `entries` about the same battery as `charge`, paired by the battery's name (NFO).
+export function partnerOf(entries, charge) {
+	return entries.find((entry) => batteryName(entry) === batteryName(charge))
 }
 
 /// Whether the entry has a value at all. Skipped and broken carry none (NFO). Tolerates a missing
@@ -101,6 +137,8 @@ const LABELS = {
 	light: 'Light',
 	'power-source': 'Power',
 	'battery-charge': 'Battery',
+	'battery-voltage': 'Voltage',
+	'battery-direction': 'Direction',
 	'battery-time-to-empty': 'Time left',
 	'battery-time-to-full': 'Time to full',
 	'channel-clients': 'Connected',

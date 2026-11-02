@@ -29,6 +29,25 @@ const fact = (name, value) =>
 const reading = (measurement, value) =>
 	message({ type: 'reading', at: 1, measurement, traits: { status: { is: 'passed' } }, kind: 'fraction', value })
 
+/// A battery reading of `measurement` for the battery named `name`, as NFO carries one.
+const cell = (measurement, name, { kind = 'fraction', unit, value, status = 'passed', reason, margin } = {}) =>
+	message({
+		type: 'reading',
+		at: 1,
+		measurement,
+		traits: { status: { is: status, ...(reason && { reason }) }, battery: { name }, ...(margin && { margin }) },
+		kind,
+		...(unit && { unit }),
+		...(value !== undefined && { value }),
+	})
+const charge = (name, value, extra) => cell('battery-charge', name, { value, ...extra })
+const direction = (name, value, extra) => cell('battery-direction', name, { kind: 'text', value, ...extra })
+const voltage = (name, value, extra) => cell('battery-voltage', name, { kind: 'quantity', unit: 'volts', value, ...extra })
+const toFull = (name, value, margin) => cell('battery-time-to-full', name, { kind: 'duration', value, margin })
+const toEmpty = (name, value, margin) => cell('battery-time-to-empty', name, { kind: 'duration', value, margin })
+const source = (value) =>
+	message({ type: 'reading', at: 1, measurement: 'power-source', traits: { status: { is: 'passed' } }, kind: 'text', value })
+
 const title = (page) => page.getByRole('heading', { level: 1 })
 const power = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Power' }) })
 const battery = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Battery' }) })
@@ -54,9 +73,10 @@ async function openPower(page, acts = ['restart', 'reboot', 'power-off'], { open
 	if (acts.length > 0) await power(page).waitFor()
 }
 
-/// Open the power and battery screen of a device that lists every act and answers `curve` with `curves`.
-async function openBattery(page, curves = CURVES) {
-	await openChannel(page)
+/// Open the power and battery screen of a device that lists every act, answers `curve` with `curves`,
+/// and reports `readings`, by default a built-in battery's charge.
+async function openBattery(page, curves = CURVES, ...readings) {
+	await openChannel(page, ...(readings.length > 0 ? readings : [charge('built-in', 0.82)]))
 	await answer(page, 'curve', curves)
 	await openPower(page, undefined, { open: false })
 	await battery(page).waitFor()
@@ -233,18 +253,130 @@ test.describe('the battery section', () => {
 		await expect(battery(page)).not.toContainText('recharge')
 	})
 
-	// A device older than this build never answers `curve`, and one managing no backup supply answers
-	// with no document; both look like a device with nothing to offer here (CSCR).
-	test('is left out until the device answers, and where it answers with no document', async ({ page }) => {
+	test('is left out where the device reports no charge, whatever it answers on curve', async ({ page }) => {
 		await openPower(page)
+		await sayOnCurve(page, CURVES)
 		await expect(power(page)).toBeVisible()
 		await expect(battery(page)).toHaveCount(0)
 
+		await feed(page, charge('built-in', 0.5))
+		await expect(battery(page)).toBeVisible()
+	})
+
+	// A device older than this build never answers `curve`, and one managing no backup supply answers
+	// with no document; both look like a device with no curve to offer (CSCR).
+	test('leaves out the curve until the device answers, and where it answers with no document', async ({ page }) => {
+		await openChannel(page, charge('built-in', 0.82))
+		await answer(page, 'power', message({ type: 'acts', acts: ['reboot'] }))
+		await openPowerScreen(page)
+		await expect(battery(page).locator('.charge .value')).toHaveText('82%')
+		await expect(battery(page).locator('.curve')).toHaveCount(0)
+
 		await sayOnCurve(page, message({ type: 'curves' }))
-		await expect(battery(page)).toHaveCount(0)
+		await expect(battery(page).locator('.curve')).toHaveCount(0)
 
 		await sayOnCurve(page, CURVES)
-		await expect(battery(page)).toBeVisible()
+		await expect(battery(page).locator('.curve')).toBeVisible()
+	})
+
+	// A curve is learnt only for the built-in battery (CSCR, NFO).
+	test('leaves out the curve where the device reports no built-in battery', async ({ page }) => {
+		await openBattery(page, CURVES, charge('Eaton 3S', 0.9))
+		await expect(battery(page).locator('.charge .value')).toHaveText('90%')
+		await expect(battery(page).locator('.curve')).toHaveCount(0)
+		await expect(battery(page).getByRole('button', { name: 'Export' })).toHaveCount(0)
+	})
+
+	test('headlines a battery with its charge and direction, its scale beneath, then its figures', async ({
+		page,
+	}) => {
+		await openBattery(
+			page,
+			CURVES,
+			source('via-backup'),
+			charge('built-in', 0.82),
+			direction('built-in', 'charging'),
+			toFull('built-in', 4800, 900),
+			voltage('built-in', 3.98),
+		)
+		const block = battery(page).locator('.battery')
+		await expect(block).toHaveCount(1)
+		await expect(block.locator('.which')).toHaveCount(0)
+		await expect(block.locator('.charge')).toHaveText('82%Charging')
+		await expect(block.locator('.bar > span')).toHaveAttribute('style', 'width: 82%;')
+		await expect(block.locator('.facts dt')).toHaveText(['Power', 'Time to full', 'Voltage'])
+		await expect(block.locator('.facts dd')).toHaveText(['On backup', '1h 20m±15m', '3.98 V'])
+	})
+
+	// Several batteries: named, by name with the built-in last above its curve, the power source once (CSCR).
+	test('shows a named block for each battery, the built-in last, with the power source once above', async ({
+		page,
+	}) => {
+		await openBattery(
+			page,
+			CURVES,
+			source('battery'),
+			charge('built-in', 0.62),
+			charge('Eaton 3S', 0.4),
+			charge('APC', 1),
+			voltage('Eaton 3S', 12.6),
+			voltage('built-in', 3.7),
+			toEmpty('built-in', 2880, 480),
+		)
+		await expect(battery(page).locator('.facts.source')).toHaveText('PowerOn battery')
+		const blocks = battery(page).locator('.battery')
+		await expect(blocks.locator('.which')).toHaveText(['APC', 'Eaton 3S', 'built-in'])
+		await expect(blocks.locator('.charge .value')).toHaveText(['100%', '40%', '62%'])
+		await expect(blocks.nth(0).locator('.facts')).toHaveCount(0)
+		await expect(blocks.nth(1).locator('.facts')).toHaveText('Voltage12.6 V')
+		await expect(blocks.nth(2).locator('.facts')).toHaveText('Time left48m±8mVoltage3.7 V')
+		await expect(battery(page).locator('.battery + .curve')).toBeVisible()
+	})
+
+	test('colours each entry by its status and shows the reason of any not passed', async ({ page }) => {
+		await openBattery(
+			page,
+			CURVES,
+			charge('built-in', 0.14, { status: 'warning', reason: 'Battery is low.' }),
+			direction('built-in', 'discharging'),
+		)
+		await expect(battery(page).locator('.charge .value')).toHaveClass(/warn/)
+		await expect(battery(page).locator('.bar')).toHaveClass(/warn/)
+		await expect(battery(page).locator('.charge-reason')).toHaveText('Battery is low.')
+
+		await feed(page, charge('built-in', 0.04, { status: 'failed', reason: 'Battery is low.' }))
+		await expect(battery(page).locator('.charge .value')).toHaveClass(/bad/)
+		await expect(battery(page).locator('.bar')).toHaveClass(/bad/)
+		await expect(battery(page).locator('.charge .value')).toHaveText('4%')
+	})
+
+	test('shows a skipped or broken entry as having no value, telling the two apart, with its reason', async ({
+		page,
+	}) => {
+		await openBattery(
+			page,
+			CURVES,
+			charge('built-in', 0.5),
+			direction('built-in', undefined, { status: 'skipped', reason: 'still watching the voltage' }),
+			voltage('built-in', undefined, { status: 'broken', reason: 'the gauge did not answer' }),
+		)
+		await expect(battery(page).locator('.charge .way')).toHaveText('—')
+		await expect(battery(page).locator('.charge-reason')).toHaveText('still watching the voltage')
+		const dd = battery(page).locator('.facts dd')
+		await expect(dd).toHaveText('unavailablethe gauge did not answer')
+		await expect(dd).toHaveClass(/bad/)
+	})
+
+	test('shows the latest of each entry, and removes one the device ends', async ({ page }) => {
+		await openBattery(page, CURVES, charge('built-in', 0.5), toFull('built-in', 3600, 600))
+		await expect(battery(page).locator('.facts dt')).toHaveText(['Time to full'])
+
+		await feed(page, charge('built-in', 0.55), toFull('built-in', 3000, 300))
+		await expect(battery(page).locator('.charge .value')).toHaveText('55%')
+		await expect(battery(page).locator('.facts dd')).toHaveText('50m±5m')
+
+		await feed(page, cell('battery-time-to-full', 'built-in', { kind: 'duration', status: 'ended' }))
+		await expect(battery(page).locator('.facts')).toHaveCount(0)
 	})
 
 	test('shows the figures from the latest curves the device sent', async ({ page }) => {
@@ -330,6 +462,20 @@ test.describe('the battery section', () => {
 		await battery(page).getByRole('button', { name: 'Reset' }).click()
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Reset' }).click()
 		await expect(battery(page).getByText('this device manages no backup supply')).toBeVisible()
+		await expect(battery(page).getByRole('button', { name: 'Reset' })).toBeEnabled()
+	})
+
+	// A confirmation left open while the built-in battery went away does not come back with it.
+	test('drops a confirmation once the device stops reporting the built-in battery', async ({ page }) => {
+		await openBattery(page)
+		await battery(page).getByRole('button', { name: 'Reset' }).click()
+		await expect(page.getByRole('alertdialog')).toBeVisible()
+
+		await feed(page, charge('built-in', undefined, { status: 'ended' }), charge('Eaton 3S', 0.9))
+		await expect(battery(page).locator('.curve')).toHaveCount(0)
+		await feed(page, charge('built-in', 0.82))
+		await expect(battery(page).locator('.curve')).toBeVisible()
+		await expect(page.getByRole('alertdialog')).toHaveCount(0)
 		await expect(battery(page).getByRole('button', { name: 'Reset' })).toBeEnabled()
 	})
 

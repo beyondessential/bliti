@@ -1,9 +1,22 @@
-// The power and battery screen of CSCR: the acts of CTL the device offers, and its battery curve
-// (CRV), each act, import and reset confirmed before it is asked for.
+// The power and battery screen of CSCR: the acts of CTL the device offers, its batteries as the
+// facts and readings of NFO give them, and its battery curve (CRV), each act, import and reset
+// confirmed before it is asked for.
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { formatDuration } from './readings.js'
+import { face } from './Face.jsx'
+import {
+	BUILT_IN,
+	batteryName,
+	formatDuration,
+	groupByName,
+	identityKey,
+	labelOf,
+	partnerOf,
+	reasonOf,
+	scaleOf,
+	tone,
+} from './readings.js'
 
 /// The acts this build knows, in the order it offers them, and what it calls each (CSCR).
 export const ACTS = [
@@ -33,7 +46,7 @@ export const ACTS = [
 	},
 ]
 
-export default function Power({ client, onActivity, onEvent, onAccepted }) {
+export default function Power({ client, entries, onActivity, onEvent, onAccepted }) {
 	// The acts the device listed that this build knows, or null until it has listed them. A device older
 	// than this build never answers, and looks like one offering nothing (CSCR).
 	const [acts, setActs] = useState(null)
@@ -139,7 +152,7 @@ export default function Power({ client, onActivity, onEvent, onAccepted }) {
 					{refused && <p className="why reason">{refused}</p>}
 				</section>
 			)}
-			<Battery client={client} onActivity={onActivity} onEvent={onEvent} />
+			<Battery client={client} entries={entries} onActivity={onActivity} onEvent={onEvent} />
 		</>
 	)
 }
@@ -147,20 +160,72 @@ export default function Power({ client, onActivity, onEvent, onAccepted }) {
 /// The name an exported curve document is saved under.
 const EXPORTED = 'battery-curve.json'
 
-/// The battery section: what the device gives for a full charge and a full recharge, and its curve
-/// to export, import and reset (CSCR). Left out until the device answers `curve` with a document,
-/// so a device older than this build, or one managing no backup supply, looks like one with nothing
-/// to offer here.
-function Battery({ client, onActivity, onEvent }) {
+/// The battery section: a block for each battery the device reports a charge for, and beneath the
+/// built-in one what the device gives for a full charge and a full recharge, and its curve to export,
+/// import and reset (CSCR). Left out where the device reports no charge.
+function Battery({ client, entries, onActivity, onEvent }) {
+	const curve = useCurve({ client, onActivity, onEvent })
+	const { drop } = curve
+
+	const byName = groupByName(entries)
+	const group = (name) => byName.get(name) ?? []
+
+	// By name, with the built-in battery last so its curve sits beside it (CSCR).
+	const charges = [...group('battery-charge')].sort(
+		(a, b) =>
+			(batteryName(a) === BUILT_IN) - (batteryName(b) === BUILT_IN) ||
+			batteryName(a).localeCompare(batteryName(b)),
+	)
+	// A device without a built-in battery has no curve to offer, whatever it answers (CSCR).
+	const curved = Boolean(curve.curves?.document) && charges.some((entry) => batteryName(entry) === BUILT_IN)
+
+	// What the curve was confirming or waiting on goes with it, so it cannot come back with the battery.
+	useEffect(() => {
+		if (!curved) drop()
+	}, [curved, drop])
+
+	if (charges.length === 0) return null
+
+	const source = group('power-source')[0]
+	const several = charges.length > 1
+
+	return (
+		<section>
+			<h2>Battery</h2>
+			{several && source && (
+				<dl className="facts source">
+					<Fact entry={source} />
+				</dl>
+			)}
+			{charges.map((charge) => (
+				<Cell
+					key={identityKey(charge)}
+					charge={charge}
+					direction={partnerOf(group('battery-direction'), charge)}
+					named={several}
+					facts={[
+						several ? null : source,
+						partnerOf(group('battery-time-to-empty'), charge),
+						partnerOf(group('battery-time-to-full'), charge),
+						partnerOf(group('battery-voltage'), charge),
+					].filter(Boolean)}
+				/>
+			))}
+			{curved && <Curve curve={curve} />}
+		</section>
+	)
+}
+
+/// The curve stream, open as long as the screen is (CSCR), with the curves it last carried, the import
+/// or reset being confirmed or waited on, and the device's refusal of one.
+function useCurve({ client, onActivity, onEvent }) {
 	const [curves, setCurves] = useState(null)
 	// The import or reset being confirmed: `{ reset: true }`, or the file picked and what it held.
 	const [confirming, setConfirming] = useState(null)
 	const [asking, setAsking] = useState(false)
 	const [refused, setRefused] = useState(null)
 	const stream = useRef(null)
-	const picker = useRef(null)
 
-	// The stream lasts as long as the screen is open, as the power stream does (CSCR).
 	useEffect(() => {
 		let live = true
 		let opened = null
@@ -199,7 +264,11 @@ function Battery({ client, onActivity, onEvent }) {
 		}
 	}, [client, onActivity, onEvent])
 
-	if (!curves?.document) return null
+	const drop = useCallback(() => {
+		setConfirming(null)
+		setAsking(false)
+		setRefused(null)
+	}, [])
 
 	function confirm(what) {
 		setRefused(null)
@@ -219,16 +288,28 @@ function Battery({ client, onActivity, onEvent }) {
 		}
 	}
 
-	async function picked(event) {
-		const file = event.target.files?.[0]
-		// Cleared so picking the same file again is still a change.
-		event.target.value = ''
-		if (!file) return
+	async function pick(file) {
 		try {
 			confirm({ name: file.name, document: JSON.parse(await file.text()) })
 		} catch {
 			setRefused(`${file.name} is not JSON.`)
 		}
+	}
+
+	return { curves, confirming, asking, refused, confirm, ask, cancel: () => setConfirming(null), pick, drop }
+}
+
+/// The curve beneath the built-in battery: what the device gives for a full charge and a full
+/// recharge, and the curve to export, import and reset, or the import or reset being confirmed in
+/// place of the rows (CSCR).
+function Curve({ curve }) {
+	const { curves, confirming, asking, refused } = curve
+	const picker = useRef(null)
+	function picked(event) {
+		const file = event.target.files?.[0]
+		// Cleared so picking the same file again is still a change.
+		event.target.value = ''
+		if (file) curve.pick(file)
 	}
 
 	const figures = [
@@ -237,10 +318,9 @@ function Battery({ client, onActivity, onEvent }) {
 	].filter(Boolean)
 
 	return (
-		<section>
-			<h2>Battery</h2>
+		<div className="curve">
 			{confirming ? (
-				<Confirmation what={confirming} onConfirm={ask} onCancel={() => setConfirming(null)} />
+				<Confirmation what={confirming} onConfirm={curve.ask} onCancel={curve.cancel} />
 			) : (
 				<>
 					{figures.length > 0 && (
@@ -278,7 +358,7 @@ function Battery({ client, onActivity, onEvent }) {
 								<span className="name">Reset curve</span>
 								<span className="muted">Do this after changing the battery cell.</span>
 							</div>
-							<button className="secondary danger" onClick={() => confirm({ reset: true })} disabled={asking}>
+							<button className="secondary danger" onClick={() => curve.confirm({ reset: true })} disabled={asking}>
 								Reset
 							</button>
 						</li>
@@ -287,7 +367,53 @@ function Battery({ client, onActivity, onEvent }) {
 			)}
 			<input ref={picker} type="file" accept=".json,application/json" hidden onChange={picked} />
 			{refused && <p className="why reason">{refused}</p>}
-		</section>
+		</div>
+	)
+}
+
+/// One battery: its charge headlined with its direction beside it and its scale beneath, the reason
+/// of either where there is one, then its figures. Named only where the device reports several (CSCR).
+function Cell({ charge, direction, named, facts }) {
+	const scale = scaleOf(charge)
+
+	return (
+		<div className="battery">
+			{named && <span className="which">{batteryName(charge)}</span>}
+			<div className="charge">
+				<span className={`value ${tone(charge)}`}>{face(charge)}</span>
+				{direction && <span className={`way ${tone(direction)}`}>{face(direction)}</span>}
+			</div>
+			{scale !== null && (
+				<div className={`bar ${tone(charge)}`}>
+					<span style={{ width: `${scale * 100}%` }} />
+				</div>
+			)}
+			{[charge, direction].filter((entry) => entry && reasonOf(entry)).map((entry) => (
+				<p key={entry.name} className={`charge-reason ${tone(entry)}`}>
+					{reasonOf(entry)}
+				</p>
+			))}
+			{facts.length > 0 && (
+				<dl className="facts">
+					{facts.map((entry) => (
+						<Fact key={entry.name} entry={entry} />
+					))}
+				</dl>
+			)}
+		</div>
+	)
+}
+
+/// A labelled figure of a battery, coloured by its status, with its reason beneath where it has one.
+function Fact({ entry }) {
+	return (
+		<>
+			<dt>{labelOf(entry.name)}</dt>
+			<dd className={tone(entry) || undefined}>
+				{face(entry)}
+				{reasonOf(entry) && <span className="reason">{reasonOf(entry)}</span>}
+			</dd>
+		</>
 	)
 }
 

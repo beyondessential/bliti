@@ -131,6 +131,17 @@ test.describe('the face and the reveal', () => {
 		await expect(page.locator('.tile .bar')).toHaveCount(1)
 	})
 
+	// The scale is coloured by status as the face is: a warning amber, a failure red (VIEW).
+	test('a scale is coloured by its reading\'s status', async ({ page }) => {
+		await openChannel(page)
+		await openReadings(page)
+		await feed(page, reading('cpu-usage', { kind: 'fraction', value: 0.9, traits: { status: { is: 'warning', reason: 'busy' } } }))
+		await page.getByRole('button', { name: /Processor/ }).click()
+		await expect(page.locator('.tile .bar')).toHaveClass(/warn/)
+		await feed(page, reading('cpu-usage', { kind: 'fraction', value: 0.99, traits: { status: { is: 'failed', reason: 'pegged' } } }))
+		await expect(page.locator('.tile .bar')).toHaveClass(/bad/)
+	})
+
 	// A reading the device declared but could not take shows it failed, with why (VIEW).
 	test('a broken reading shows it is unavailable, with its reason', async ({ page }) => {
 		await openChannel(page)
@@ -455,7 +466,7 @@ test.describe('batteries', () => {
 		await expect(page.locator('.tile')).toHaveCount(1)
 		await page.getByRole('button', { name: /Battery/ }).click()
 		const reveal = page.locator('.tile.expanded .detail')
-		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time left'])
+		await expect(reveal.locator('dt')).toHaveText(['Voltage', 'Direction', 'Time left'])
 		await expect(reveal.locator('dd').last()).toHaveText('54m±8m')
 		await expect(reveal.locator('dd').last().locator('.margin')).toHaveText('±8m')
 
@@ -466,7 +477,7 @@ test.describe('batteries', () => {
 		)
 		await feed(page, direction(about, 'charging'))
 		await feed(page, time('battery-time-to-full', about, 5100, 1200))
-		await expect(reveal.locator('dt')).toHaveText(['Battery Voltage', 'Battery Direction', 'Time to full'])
+		await expect(reveal.locator('dt')).toHaveText(['Voltage', 'Direction', 'Time to full'])
 		await expect(reveal.locator('dd').last()).toHaveText('1h 25m±20m')
 		await expect(page.locator('.tile')).toHaveCount(1)
 	})
