@@ -107,6 +107,8 @@ pub struct Model {
 	pub prompts: Vec<Open>,
 	/// What was answered, by the key it was asked under. In memory only.
 	answers: HashMap<String, Answer>,
+	/// The step that asked each question answered, by the key it was asked under.
+	asked_by: HashMap<String, usize>,
 	/// Counts the runs, so what a stopped run's task does is not taken for the next run's.
 	pub generation: u64,
 	/// Whether every step's done-state has been determined since the device started.
@@ -137,6 +139,7 @@ impl Model {
 			state: RunState::Idle,
 			prompts: Vec::new(),
 			answers: HashMap::new(),
+			asked_by: HashMap::new(),
 			generation: 0,
 			checked: false,
 		}
@@ -265,6 +268,7 @@ impl Model {
 		self.state = RunState::Idle;
 		self.prompts.clear();
 		self.answers.clear();
+		self.asked_by.clear();
 		for entry in &mut self.steps {
 			entry.state = StepState::Unchosen;
 			entry.progress = None;
@@ -317,6 +321,16 @@ impl Model {
 		let entry = &mut self.steps[index];
 		entry.state = StepState::Pending;
 		entry.reason = None;
+		// spec: RUN the step is carried out again from its beginning, asking again what it asked
+		let asked: Vec<String> = self
+			.asked_by
+			.iter()
+			.filter(|(_, step)| **step == index)
+			.map(|(key, _)| key.clone())
+			.collect();
+		for key in asked {
+			self.forget(&key);
+		}
 		self.state = RunState::Running;
 		self.generation += 1;
 		Some(index)
@@ -327,6 +341,7 @@ impl Model {
 		self.state = RunState::Finished;
 		self.prompts.clear();
 		self.answers.clear();
+		self.asked_by.clear();
 	}
 
 	/// `step` has ended: the prompts it was waiting on stop holding anything up, and the ones it asked
@@ -387,6 +402,7 @@ impl Model {
 	/// Forget what was answered under `key`.
 	pub fn forget(&mut self, key: &str) {
 		self.answers.remove(key);
+		self.asked_by.remove(key);
 	}
 
 	/// A step asks an operator to do something, and waits until it sees it done. Returns the prompt.
@@ -451,6 +467,7 @@ impl Model {
 			});
 		}
 		let open = self.prompts.remove(position);
+		self.asked_by.insert(open.key.clone(), open.step);
 		self.answers.insert(open.key, value.clone());
 		if let Some(waiter) = open.waiter {
 			let _ = waiter.send(value.clone());

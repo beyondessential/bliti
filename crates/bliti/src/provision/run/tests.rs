@@ -877,3 +877,28 @@ async fn a_board_is_provisioned_once_every_step_that_changes_it_is_done() {
 		"a check never counts"
 	);
 }
+
+#[tokio::test]
+async fn a_retried_step_asks_again_what_it_asked() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let steps = vec![Fake::new("a", &log, vec![Do::Require("overwrite")])];
+	let device = device(steps, &medium).await;
+	device.act(&start(&["a"])).unwrap();
+	let asked = until(&device, |s| s.run == RunState::Waiting).await;
+	device
+		.act(&answer(&asked.prompts[0].id, Answer::boolean(false)))
+		.unwrap();
+	until(&device, |s| s.run == RunState::Failed).await;
+
+	device.act(&act("retry")).unwrap();
+	let asked = until(&device, |s| s.run == RunState::Waiting).await;
+	assert_eq!(
+		asked.prompts.len(),
+		1,
+		"asked again rather than taking the old answer"
+	);
+	device
+		.act(&answer(&asked.prompts[0].id, Answer::boolean(true)))
+		.unwrap();
+	finished(&device).await;
+}

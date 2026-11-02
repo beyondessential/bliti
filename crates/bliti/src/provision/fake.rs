@@ -25,6 +25,8 @@ pub enum Do {
 	Progress(f64),
 	Result(&'static str),
 	Confirm(&'static str),
+	/// Ask to confirm, and fail where the operator declines.
+	Require(&'static str),
 	Text(&'static str),
 	Secret(&'static str),
 	AskLater(&'static str, PromptKind),
@@ -172,6 +174,11 @@ impl Step for Fake {
 				Do::Confirm(key) => {
 					let answer = context.confirm(key, "Sure?").await;
 					self.log.push(format!("{} confirmed {answer}", self.id));
+				}
+				Do::Require(key) => {
+					if !context.confirm(key, "Sure?").await {
+						return Err("declined".to_owned());
+					}
 				}
 				Do::Text(key) => {
 					let answer = context.text(key, "Name?").await;

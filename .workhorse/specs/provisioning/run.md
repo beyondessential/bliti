@@ -99,6 +99,8 @@ A device that accepts `start` in `finished` MUST discard the finished run.
 
 A device that accepts `retry` MUST carry out the failed step again from its beginning, and MUST NOT carry out again a step that has passed.
 
+A device that accepts `retry` MUST discard the answers to the prompts the failed step asked, so that the step asks them again.
+
 A device that accepts `stop` or `acknowledge` MUST enter `idle`.
 
 A device MUST enter `failed` when a step fails, MUST record why, and MUST NOT carry out any later step.
