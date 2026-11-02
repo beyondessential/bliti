@@ -138,7 +138,8 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] `label` run alone on a blank EEPROM still gives version 4.0 from the sensors (verifies spec: PLBL)
 - [ ] The sheet is an A4 PDF in a 3 by 9 grid of 50 by 30 mm labels, the QR code scans as the board's payload, and the suffix and "Tamanu Iti v4.0" read beside it (verifies spec: PSHT)
 - [ ] A label printed at 100% on a laser printer scans with a phone camera (verifies spec: PSHT)
-- [ ] Downloading marks the label printed, and checking back at the finished board adds no second label (verifies spec: PSHT)
+- [x] Downloading marks the label printed, and a printed label can be ticked to print again (verifies spec: PSHT)
+- [ ] Checking back at the finished board adds no second label (verifies spec: PSHT)
 - [ ] Running `label` again replaces the label as unprinted (verifies spec: PSHT)
 - [x] The download action states how full the sheet is (verifies spec: PSHT)
 
