@@ -25,6 +25,8 @@ check() {
 	shift
 	if "$@"; then pass "$what"; else fail "$what"; fi
 }
+# Run a command with its output dropped, so a check's own line still shows.
+quietly() { "$@" >/dev/null; }
 
 image=$dir/test.img
 pristine=$dir/test-pi.img
@@ -73,7 +75,7 @@ data=${loop}p5
 
 check "the data partition is FAT32" test "$(blkid -p -o value -s VERSION "$data")" = FAT32
 check "the data partition is labelled ITIPROV" test "$(blkid -p -o value -s LABEL "$data")" = ITIPROV
-check "the data partition is clean" fsck.vfat -n "$data" >/dev/null
+check "the data partition is clean" quietly fsck.vfat -n "$data"
 
 size=${manifest[PI_IMAGE_SIZE]}
 check "the payload begins with the pi image" \
@@ -149,7 +151,7 @@ check "the root carries what the disk and encryption steps run" test \
 	-x "$root/usr/sbin/cryptsetup" -a -x "$root/usr/sbin/veritysetup" -a \
 	-x "$root/usr/sbin/blkid" -a -x "$root/usr/sbin/losetup" -a -x "$root/usr/sbin/blockdev"
 check "the root can make an initramfs that unlocks from the TPM" \
-	compgen -G "$root/usr/lib/dracut/modules.d/*tpm2-tss" >/dev/null
+	quietly compgen -G "$root/usr/lib/dracut/modules.d/*tpm2-tss"
 check "the root carries tailscaled, which the Tailscale step runs" test -x "$root/usr/sbin/tailscaled"
 check "the root holds no package lists" test -z "$(find "$root/var/lib/apt/lists" -maxdepth 1 -type f)"
 masked() {
@@ -191,6 +193,8 @@ software=(
 	"etc/systemd/system/bluetooth.service.d/10-bliti.conf|$repo/services/bliti-bluetooth-dropin.conf|644"
 	"etc/systemd/journald.conf.d/10-bliti.conf|$repo/services/bliti-journald.conf|644"
 	"etc/bliti/daemon.env|$repo/services/bliti-daemon.env|644"
+	"etc/systemd/system/iwd.service.d/10-bliti.conf|$repo/services/bliti-iwd-dropin.conf|644"
+	"etc/systemd/system/bliti-hostapd@.service|$repo/services/bliti-hostapd@.service|644"
 )
 for entry in "${software[@]}"; do
 	IFS='|' read -r path source mode <<<"$entry"
@@ -199,6 +203,23 @@ for entry in "${software[@]}"; do
 done
 check "the root carries no other software to install" \
 	test "$(find "$share/system" -not -type d | wc -l)" -eq "${#software[@]}"
+check "the daemon to install configures the network" \
+	grep -q -- '--network-backend stack --network /var/lib/bliti/network.json' "$share/system/etc/bliti/daemon.env"
+# The packages the step `software` installs for the network configuration, which the pi image lacks.
+for package in iwd hostapd; do
+	check "the root carries $package to install" quietly compgen -G "$share/debs/${package}_*_arm64.deb"
+done
+carried_packages() {
+	local deb name
+	for deb in "$share"/debs/*.deb; do
+		name=$(basename "$deb")
+		# The host's dpkg-deb: the medium's root is mounted read-only here, and it wants a temporary
+		# directory.
+		[[ $(dpkg-deb --field "$deb" Package) == "${name%%_*}" ]] ||
+			return 1
+	done
+}
+check "each package to install is named by its file" carried_packages
 
 config=$fw/config.txt
 check "the firmware loads no overlay an EEPROM names" \

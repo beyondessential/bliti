@@ -7,7 +7,7 @@ use std::{
 	process::Command,
 };
 
-use super::{read, replace};
+use super::{Mounts, read, replace};
 use crate::provision::exec::run;
 
 /// What `crypttab` says of the root volume where it unlocks from the TPM: the volume by its
@@ -122,34 +122,12 @@ impl Initramfs for Dracut {
 
 	fn make(&self, root: &Path, kernel: &str) -> Result<PathBuf, String> {
 		const OUT: &str = "var/tmp/bliti-initrd.img";
-		let mut binds = Vec::new();
-		for dir in ["dev", "proc", "sys"] {
-			let target = root.join(dir);
-			run(Command::new("mount")
-				.args(["--bind", "--make-private"])
-				.arg(Path::new("/").join(dir))
-				.arg(&target))?;
-			binds.push(target);
-		}
-		let _unbind = Unbind(binds);
+		let _mounts = Mounts::chroot(root)?;
 		run(Command::new("chroot")
 			.arg(root)
 			.args(["dracut", "--force", "--kver", kernel])
 			.arg(Path::new("/").join(OUT)))?;
 		Ok(root.join(OUT))
-	}
-}
-
-/// Unmounts the bind mounts, last first, when dropped.
-struct Unbind(Vec<PathBuf>);
-
-impl Drop for Unbind {
-	fn drop(&mut self) {
-		for target in self.0.iter().rev() {
-			if let Err(err) = run(Command::new("umount").arg("--lazy").arg(target)) {
-				tracing::warn!(%err, path = %target.display(), "cannot unmount");
-			}
-		}
 	}
 }
 
