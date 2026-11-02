@@ -14,6 +14,8 @@ Read off the board on 2026-11-02, before any of this ran:
 
 The medium is a 64 GB USB3 stick, written from the PR preview's image. For debugging without the serial console, which needs the case taken apart, the stick's root gets the laptop's SSH key for `ubuntu`, so the medium is reachable over the LAN on `end0`. Nothing under test reads that key.
 
+The board runs on its X1208 backup supply, so pulling the mains does not cut its power. A power cut, wherever a case below calls for one, is the UPS's three-press power cut. The serial console is on the Pi's UART through a Debug Probe.
+
 There is one NVMe, so the pass runs in two cycles:
 
 1. The bootloader configuration is set to the Pi's stock one with USB first (`BOOT_ORDER=0xf614`) on the same bootloader, so the stick boots over the dev system. `disk` takes that system for an earlier one. Once the run finishes, and before the board reboots, the laptop's key goes into the new root from the medium, unlocked by the TPM. That keeps a way back in once `bootloader` has taken USB out of the boot order.
