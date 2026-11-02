@@ -84,11 +84,29 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 .parts h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
 .parts h3:first-of-type { margin-top: 0; }
 .parts ul { list-style: none; margin: 0; padding: 0; }
-.parts li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
-.parts li:first-child { border-top: 0; }
+.parts > ul > li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+.parts > ul > li:first-child { border-top: 0; }
 .parts input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; align-self: flex-start; margin-top: 0.3rem; }
 .parts label { cursor: pointer; }
+.parts .item { min-width: 0; flex: 1; }
 .parts .why { display: block; color: var(--muted); font-size: 0.9rem; }
+.parts details summary { color: var(--accent); font-size: 0.85rem; cursor: pointer; width: fit-content; }
+.parts .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
+.parts .photo {
+	flex: none;
+	width: 7rem;
+	aspect-ratio: 4 / 3;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px dashed var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--muted);
+	font-size: 0.8rem;
+}
+.parts .links { font-size: 0.9rem; }
+.parts .links li { padding: 2px 0; }
 
 /* Steps */
 ol.steps { list-style: none; margin: 0; padding: 0; }
@@ -161,43 +179,104 @@ body.mobile .mobile-only { display: block; }
 
 	<section id="parts" class="parts">
 		<h2>Parts</h2>
+		<p class="muted">Open a part for a photo and where to get it.</p>
 
 		<h3>Board and power</h3>
 		<ul>
-			<li><input type="checkbox" id="p-pi"><label for="p-pi">Raspberry Pi 5, and its fan</label></li>
-			<li><input type="checkbox" id="p-x1208"><label for="p-x1208">X1208 UPS board, and the X1208 case</label></li>
-			<li><input type="checkbox" id="p-cell"><label for="p-cell">One 21700 cell</label></li>
-			<li><input type="checkbox" id="p-rtc"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="why">The official rechargeable cell, with its self-adhesive pad.</span></label></li>
-			<li><input type="checkbox" id="p-hat"><label for="p-hat">Tamanu Iti HAT, and one extra screw</label></li>
+			<li><input type="checkbox" id="p-pi"><div class="item"><label for="p-pi">Raspberry Pi 5</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://www.raspberrypi.com/products/raspberry-pi-5/">Raspberry Pi 5</a>, any memory size <span class="todo">confirm any size works</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-fan"><div class="item"><label for="p-fan">Fan for the Pi</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://www.raspberrypi.com/products/active-cooler/">Raspberry Pi Active Cooler</a> <span class="todo">confirm this is the fan</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-x1208"><div class="item"><label for="p-x1208">X1208 UPS board</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://geekworm.com/products/x1208">Geekworm X1208</a></li><li><a href="https://wiki.geekworm.com/X1208">X1208 documentation</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1208 case</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://wiki.geekworm.com/X1207-C1">Geekworm X1207-C1</a>, the metal case made for the X1208 <span class="todo">confirm this is the case</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-cell"><div class="item"><label for="p-cell">One 21700 cell<span class="why">Unprotected, with no protection circuit, and no more than 70.3 mm long, as Geekworm specifies.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">cell model and supplier</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-rtc"><div class="item"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="why">The official rechargeable cell, with its self-adhesive pad.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://www.raspberrypi.com/products/rtc-battery/">Raspberry Pi RTC Battery</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-hat"><div class="item"><label for="p-hat">Tamanu Iti HAT</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">where to get a HAT</span></li><li><a href="https://github.com/beyondessential/tamanu-iti-hat">Design files</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-screw"><div class="item"><label for="p-screw">One M2.5 × 12 mm machine screw<span class="why">Holds the HAT down. The head is flat-topped, not countersunk, with a Phillips or a hex socket.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">supplier</span></li></ul>
+				</div></details></div></li>
 		</ul>
 
 		<h3>Storage</h3>
 		<ul>
-			<li><input type="checkbox" id="p-nvme"><label for="p-nvme">NVMe drive</label></li>
-			<li><input type="checkbox" id="p-heatsink"><label for="p-heatsink">Heatsink for the NVMe drive, and a thermal pad to stick it on</label></li>
+			<li><input type="checkbox" id="p-nvme"><div class="item"><label for="p-nvme">NVMe drive<span class="why">The X1208 takes M.2 2230, 2242 and 2280 drives.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">drive model, size and supplier</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">Heatsink for the NVMe drive</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">heatsink model and supplier</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-pad"><div class="item"><label for="p-pad">Thermal pad to stick the heatsink on</label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><span class="todo">pad size and supplier</span></li></ul>
+				</div></details></div></li>
 		</ul>
 
 		<h3>3D-printed shims</h3>
 		<ul>
-			<li><input type="checkbox" id="p-cellshim"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label></li>
-			<li><input type="checkbox" id="p-sdshim"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label></li>
-			<li><input type="checkbox" id="p-lidshim"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label></li>
+			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label>
+				<details><summary>Photo and where to get it</summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
+				</div></details></div></li>
 		</ul>
-		<p class="muted">Print files: <a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct file links once the v4 files are pushed</span></p>
 
 		<h3>Tools and extras</h3>
 		<ul>
-			<li><input type="checkbox" id="p-net"><label for="p-net">Network cable</label></li>
-			<li><input type="checkbox" id="p-usb"><label for="p-usb">USB cable for charging</label></li>
-			<li><input type="checkbox" id="p-driver"><label for="p-driver">Phillips screwdriver</label></li>
+			<li><input type="checkbox" id="p-net"><div class="item"><label for="p-net">Network cable</label></div></li>
+			<li><input type="checkbox" id="p-usb"><div class="item"><label for="p-usb">USB cable for charging</label></div></li>
+			<li><input type="checkbox" id="p-driver"><div class="item"><label for="p-driver">Phillips screwdriver</label></div></li>
+			<li><input type="checkbox" id="p-hex"><div class="item"><label for="p-hex">2 mm hex bit<span class="why">Only if the HAT's screw has a hex socket, which usually takes this size.</span></label></div></li>
 		</ul>
 
 		<h3>For provisioning</h3>
 		<ul>
-			<li><input type="checkbox" id="p-stick"><label for="p-stick">A USB 3 stick of at least 32 GB<span class="why">The image fills it, and a 16 GB stick is too small. Nothing on the stick is kept.</span></label></li>
-			<li><input type="checkbox" id="p-computer"><label for="p-computer">A computer to write the stick</label></li>
-			<li><input type="checkbox" id="p-phone"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></li>
-			<li><input type="checkbox" id="p-key"><label for="p-key">A reusable Tailscale auth key, if the Iti is to join your tailnet while it is provisioned</label></li>
+			<li><input type="checkbox" id="p-stick"><div class="item"><label for="p-stick">A USB 3 stick of at least 32 GB<span class="why">The image fills it, and a 16 GB stick is too small. Nothing on the stick is kept.</span></label></div></li>
+			<li><input type="checkbox" id="p-computer"><div class="item"><label for="p-computer">A computer to write the stick</label></div></li>
+			<li><input type="checkbox" id="p-phone"><div class="item"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></div></li>
+			<li><input type="checkbox" id="p-key"><div class="item"><label for="p-key">A reusable Tailscale auth key, if the Iti is to join your tailnet while it is provisioned</label></div></li>
 		</ul>
 	</section>
 
@@ -275,10 +354,10 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li><div class="body"><p><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</p></div></li>
 			<li><div class="body"><p><strong>Connect the PCIe flat cable</strong> between the Pi and the X1208.</p></div></li>
 			<li><div class="body"><p><strong>Stick the heatsink</strong> onto the NVMe drive with the thermal pad, then fit the drive.</p></div></li>
-			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, with its extra screw.</p></div></li>
+			<li><div class="body"><p><strong>Fit the Tamanu Iti HAT</strong>, and fasten it with the M2.5 × 12 mm screw.</p></div></li>
 			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
-			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
+			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
 			<li><div class="body"><p><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</p></div></li>
 			<li><div class="body"><p><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</p></div></li>
 			<li><div class="body"><p><strong>Leave the lid off</strong>, and its four screws out.</p></div></li>
