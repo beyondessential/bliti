@@ -94,12 +94,12 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] Cycle 2: a foreign partition table reads as another system, and the step asks to overwrite; declining fails it with the disk left as it was (verifies spec: PDSK)
 - [ ] Cycle 2: blanked, the step reads `not-done` as blank and writes without asking (verifies spec: PDSK)
 - [ ] The write and read-back show as one progress bar (verifies spec: PDSK, PWEB)
-- [ ] Afterwards the firmware partition carries `iti-image.txt` with the manifest's version and digest, and the step reads `done` (verifies spec: PDSK)
+- [x] Afterwards the firmware partition carries `iti-image.txt` with the manifest's version and digest, and the step reads `done` (verifies spec: PDSK)
 - [ ] A power cut partway through the write boots the stick again, resumes the run with no client, and restarts `disk` from its beginning without asking (verifies spec: PRV, RUN, PDSK)
 
 ## Step `overlay`
 
-- [ ] `tamanu-iti-v4.dtbo` lands in the current boot slot's `overlays` and in `/etc/flash-kernel/dtbs/overlays/`, byte for byte the medium's (verifies spec: PDSK)
+- [x] `tamanu-iti-v4.dtbo` lands in the current boot slot's `overlays` and in `/etc/flash-kernel/dtbs/overlays/`, byte for byte the medium's (verifies spec: PDSK)
 - [ ] Run again with both in place, it passes without writing (verifies spec: PDSK)
 
 ## Step `encryption`
@@ -127,7 +127,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 ## Step `bootloader`
 
 - [x] With the board's 2025-12-08 bootloader older than the medium's 2026-09-25, the step updates it, and leaves exactly PBL's configuration (verifies spec: PBL)
-- [ ] After the step, the board boots its NVMe with the stick still in (verifies spec: PBL)
+- [x] After the step, the board boots its NVMe with the stick still in (verifies spec: PBL)
 - [ ] With a configuration differing by one setting, the step reads `not-done`, names what differs, and writes the configuration (verifies spec: PBL)
 - [ ] Run again with both current, it passes without writing (verifies spec: PBL)
 - [x] The step never asks the operator anything (verifies spec: PBL)
@@ -150,7 +150,8 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [x] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
-- [ ] When the channel drops, the page keeps the last state marked stale, offers nothing that acts, and reconnects on its own after a press (verifies spec: PWEB)
+- [x] When the channel drops, the page keeps the last state marked stale, and offers only the chooser and a USER press (verifies spec: PWEB)
+- [ ] Once the channel has dropped, the page reconnects on its own after a press (verifies spec: PWEB)
 - [ ] The console and the page connected together show the same run, and an answer from either is taken (verifies spec: PCON, RUN)
 - [ ] A second answer to the same prompt is refused (verifies spec: RUN)
 - [ ] A failed run survives a reboot as `failed`, with the LED blinking red at 3 Hz, and needs a retry to go on (verifies spec: RUN, PLED)
@@ -162,9 +163,9 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 
 ## First boot of the provisioned board
 
-- [ ] The board boots its NVMe and unlocks the root volume from the TPM unattended (verifies spec: PENC)
-- [ ] It comes up on the tailnet under the name given (verifies spec: PTS)
-- [ ] `/proc/device-tree/hat/` names the board, and `/dev/i2c-3` and the TPM are up from the installed overlay (verifies spec: HAT, PDSK)
+- [x] The board boots its NVMe and unlocks the root volume from the TPM unattended (verifies spec: PENC)
+- [x] It comes up on the tailnet under the name given (verifies spec: PTS)
+- [x] `/proc/device-tree/hat/` names the board, and `/dev/i2c-3` and the TPM are up from the installed overlay (verifies spec: HAT, PDSK)
 - [ ] With bliti's ordinary daemon installed, the `product` fact reports Tamanu Iti v4.0 (verifies spec: NFO, HAT)
 - [ ] After a kernel update, the new boot slot still carries the HAT overlay (verifies spec: PDSK)
 
