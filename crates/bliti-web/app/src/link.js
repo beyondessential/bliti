@@ -44,6 +44,27 @@ export function createLink() {
 	// Bumped on disconnect, so an open still in flight when the operator lets the device go does not
 	// leave a channel behind it.
 	let generation = 0
+	// The characteristic the device notifies this client on, while notifications on it are on.
+	let notifying = null
+
+	/// Drop the GATT connection to `held`, turning notifications off first. Left on, BlueZ turns them
+	/// on again as soon as the page connects next, before it has read its slot, and the device opens
+	/// a session the page is not listening on (CHN). An open begun meanwhile owns the connection, so
+	/// it is not dropped from under it.
+	async function drop(held) {
+		const tx = notifying
+		const at = generation
+		notifying = null
+		if (!held?.gatt?.connected) return
+		if (tx) {
+			try {
+				await tx.stopNotifications()
+			} catch {
+				// The link may already be going; disconnecting below is what matters.
+			}
+		}
+		if (at === generation && held.gatt.connected) held.gatt.disconnect()
+	}
 
 	return {
 		/// The device picked, and the channel last opened to it.
@@ -88,7 +109,7 @@ export function createLink() {
 			}
 			detach()
 			detach = () => {}
-			if (device.gatt.connected) device.gatt.disconnect()
+			await drop(device)
 
 			const server = await device.gatt.connect()
 			current()
@@ -142,6 +163,7 @@ export function createLink() {
 			// Subscribing to notifications is what opens a session: it is the point at which the device
 			// can send. Not to be confused with a bliti subscription, which is a stream.
 			await deviceTx.startNotifications()
+			notifying = deviceTx
 			current()
 			say('note', 'notifications on, opening the session')
 
@@ -163,9 +185,10 @@ export function createLink() {
 			generation++
 			detach()
 			detach = () => {}
-			if (device?.gatt?.connected) device.gatt.disconnect()
+			const held = device
 			device = null
 			channel = null
+			return drop(held)
 		},
 	}
 }
