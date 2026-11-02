@@ -15,3 +15,5 @@ The test pass itself is the card's test cases. This plan holds what the pass tur
 - [ ] The console's offer to acknowledge a finished run defaults to yes, so a stray Enter discards it.
 - [ ] CI caches nothing for the image build. Run `fetch.sh` beside the daemon build, and cache the device build's target directory and crate registry.
 - [ ] `tailscaled` runs on the medium from boot, as the pi image enables it. Check what the Tailscale step leaves running.
+- [ ] Implement PLED's board-level states: provisioned from the done-states, and red and green alternating while on the air with no run under way.
+- [ ] The finished screen says "Provisioned" after a run of some steps, and its "Run steps again" is a small link under "Provision another Iti", so a finished board reads as one that cannot be provisioned further.

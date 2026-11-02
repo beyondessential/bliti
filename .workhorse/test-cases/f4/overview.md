@@ -40,7 +40,9 @@ There is one NVMe, so the pass runs in two cycles:
 
 ## Going on the air
 
-- [x] The status LED is steady amber from start with no run held (verifies spec: PLED)
+- [x] The status LED is steady amber from start on a board that is not provisioned (verifies spec: PLED)
+- [ ] A press with no run under way shows red and green alternating until a client connects, or the window ends (verifies spec: PLED)
+- [ ] A press partway through a run leaves the run's pattern showing (verifies spec: PLED)
 - [x] The device does not advertise after boot until the USER button is pressed (verifies spec: PRV)
 - [x] A press advertises `ITI_PROVISION_1_` and a suffix matching the last four characters of `bliti qr`'s payload on the same board (verifies spec: PRV, QR)
 - [x] Advertising stops five minutes after the press with no client (verifies spec: PRV)
@@ -68,6 +70,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] `air`, `light` and `tpm` pass, and the board is placed as 4.0 (verifies spec: PHW)
 - [x] The result lists all five checks in order and the version (verifies spec: PHW)
 - [ ] The LED blinks amber at 1 Hz while the `case` prompt waits, and green at 1 Hz while the sensor checks run (verifies spec: PLED)
+- [ ] After a run of `hardware` alone, the LED goes back to steady amber (verifies spec: PLED)
 
 ## Step `eeprom`
 
@@ -143,6 +146,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] On a board whose disk holds an earlier system, `overlay`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
 - [ ] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
 - [ ] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
+- [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
 - [ ] When the channel drops, the page keeps the last state marked stale, offers nothing that acts, and reconnects on its own after a press (verifies spec: PWEB)
 - [ ] The console and the page connected together show the same run, and an answer from either is taken (verifies spec: PCON, RUN)
@@ -150,7 +154,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] A failed run survives a reboot as `failed`, with the LED blinking red at 3 Hz, and needs a retry to go on (verifies spec: RUN, PLED)
 - [ ] Stop while `waiting` or `failed` returns to `idle` and closes every prompt (verifies spec: RUN)
 - [ ] The finished screen shows the recovery passphrase with a copy button, says it is also on the medium, and says to power off and remove the medium (verifies spec: PWEB)
-- [ ] A finished board rebooted from the medium comes up `idle` with steady amber (verifies spec: RUN, PLED)
+- [ ] A finished board rebooted from the medium comes up `idle` (verifies spec: RUN)
 - [ ] The console takes a `secret` answer without echoing it, and an empty answer as the default (verifies spec: PCON)
 - [ ] The console drives a whole run with no USER press and no client (verifies spec: PCON)
 
