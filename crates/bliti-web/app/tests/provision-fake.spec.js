@@ -52,12 +52,23 @@ test('is idle with every step listed and ticked, and no medium refused', async (
 	await expect(page.getByText('Choose what to do')).toBeVisible()
 })
 
+test('checks the board for a moment once connected, listing no step until it has', async ({ page }) => {
+	await page.addInitScript(() => (window.__blitiTimings = { checking: 1000 }))
+	await open(page)
+	await devMode(page)
+	await fake(page).click()
+	await expect(page.getByText('The Iti is checking the board')).toBeVisible()
+	await expect(page.getByRole('checkbox')).toHaveCount(0)
+	await expect(page.getByText('Choose what to do')).toBeVisible()
+	await expect(page.locator('label.pick')).toHaveCount(9)
+})
+
 test('finishes a run at once with the steps chosen, and no record', async ({ page }) => {
 	await connected(page)
 	await box(page, 'Program the EEPROM').uncheck()
 	await page.getByRole('button', { name: 'Start' }).click()
-	await expect(page.getByText('Provisioned')).toBeVisible()
-	await expect(page.getByText('FAKE is ready')).toBeVisible()
+	await expect(page.getByText('Run finished')).toBeVisible()
+	await expect(page.getByText('FAKE is not provisioned yet.')).toBeVisible()
 	await expect(page.getByText('Recovery passphrase')).toHaveCount(0)
 	await expect(page.getByText('Saved', { exact: true })).toHaveCount(0)
 	const said = page.locator('.log .line .said').filter({ hasText: /^provision-state  finished/ })
@@ -65,10 +76,21 @@ test('finishes a run at once with the steps chosen, and no record', async ({ pag
 	await expect(said).toContainText('eeprom unchosen')
 })
 
+test('is provisioned by a run of every step but the checks', async ({ page }) => {
+	await connected(page)
+	await box(page, 'Check the hardware').uncheck()
+	await box(page, 'Make the label').uncheck()
+	await page.getByRole('button', { name: 'Start' }).click()
+	await expect(page.getByText('Provisioned', { exact: true })).toBeVisible()
+	await expect(page.getByText('FAKE is ready')).toBeVisible()
+	const said = page.locator('.log .line .said').filter({ hasText: /^provision-state  finished/ })
+	await expect(said).toContainText('hardware unchosen')
+})
+
 test('adds no label to the list, and does not say it did', async ({ page }) => {
 	await connected(page)
 	await page.getByRole('button', { name: 'Start' }).click()
-	await expect(page.getByText('Provisioned')).toBeVisible()
+	await expect(page.getByText('Provisioned', { exact: true })).toBeVisible()
 	await expect(page.getByText('Its label is in your list.')).toHaveCount(0)
 	await expect(page.getByRole('button', { name: /^Labels/ })).toHaveCount(0)
 	await page.getByRole('button', { name: 'Provision another Iti' }).click()
@@ -82,7 +104,7 @@ test('runs again when the steps are chosen again', async ({ page }) => {
 	await expect(page.getByText('Choose what to do')).toBeVisible()
 	await box(page, 'Check the hardware').uncheck()
 	await page.getByRole('button', { name: 'Start' }).click()
-	await expect(page.getByText('Provisioned')).toBeVisible()
+	await expect(page.getByText('Provisioned', { exact: true })).toBeVisible()
 })
 
 test('records what it and the page said', async ({ page }) => {
@@ -114,7 +136,7 @@ test.describe('in a browser that cannot open a channel', () => {
 	test('connects, and says so again once let go of', async ({ page }) => {
 		await connected(page, { bluetooth: false })
 		await page.getByRole('button', { name: 'Start' }).click()
-		await expect(page.getByText('Provisioned')).toBeVisible()
+		await expect(page.getByText('Provisioned', { exact: true })).toBeVisible()
 		await page.getByRole('button', { name: 'Provision another Iti' }).click()
 		await expect(page.getByText("This browser can't connect to an Iti")).toBeVisible()
 		await expect(fake(page)).toBeVisible()
