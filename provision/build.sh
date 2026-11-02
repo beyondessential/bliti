@@ -213,6 +213,9 @@ systemctl --root="$root" mask unattended-upgrades.service \
 # The medium changes no disk as it boots, other than checking its data partition (PMED). The root grow
 # finds its partition by the pi image's name, and the first boot's identity rotation is left out of
 # the initramfs by provision/root's dracut configuration.
+# The pi image installs that unit in /etc, where its mask has to go.
+systemctl --root="$root" disable grow-root-filesystem.service
+rm "$root/etc/systemd/system/grow-root-filesystem.service"
 systemctl --root="$root" mask grow-root-filesystem.service
 sed -i -E 's#/dev/disk/by-partlabel/(firmware|xboot|root)([[:space:]])#/dev/disk/by-partlabel/provision-\1\2#' \
 	"$root/etc/crypttab" "$root/etc/fstab"
