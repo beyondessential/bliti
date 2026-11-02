@@ -147,10 +147,10 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 
 /* Steps */
 ol.steps { list-style: none; margin: 0; padding: 0; }
-.steps li { counter-increment: step; display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
-.steps li:first-child { border-top: 0; padding-top: 0; }
-.steps li:last-child { padding-bottom: 0; }
-.steps li::before {
+ol.steps > li { counter-increment: step; display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+ol.steps > li:first-child { border-top: 0; padding-top: 0; }
+ol.steps > li:last-child { padding-bottom: 0; }
+ol.steps > li::before {
 	content: counter(step);
 	flex: none;
 	width: 1.75rem;
@@ -451,9 +451,10 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				<div class="photo">photo: the HAT lined up, with the uncovered pins</div></div></li>
 			<li><div class="body"><p><strong>Fit the SD slot shim.</strong></p><p class="aside">It sits in the slot like a card, and its tab is trapped by the case so it can't be pulled out once the case is on.</p></div></li>
 			<li><div class="body"><p><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</p></div></li>
-			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p><p class="aside">Technically it goes under it, between the cell and the bottom of the case.</p></div></li>
+			<li><div class="body"><p><strong>Flip the assembly over,</strong> so the cell holder faces up.</p></div></li>
+			<li><div class="body"><p><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</p></div></li>
 			<li><div class="body"><p><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</p></div></li>
-			<li><div class="body"><p><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</p>
+			<li><div class="body"><p><strong>Flip the assembly back, put it in the case</strong>, and screw it to the bottom of the case.</p>
 				<div class="use"><span class="label">Use</span><ul>
 					<li><span class="todo">which black screws from the case pack, how many, and which holes</span></li>
 				</ul></div>
@@ -467,13 +468,11 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<h2>Provisioning</h2>
 		<ol class="steps">
 			<li><div class="body"><p><strong>Write the provisioning image</strong> to the USB stick, as above. No SD card is needed.</p></div></li>
-			<li><div class="body"><p><strong>Flip the Iti over.</strong> <span class="todo">which way up, and why the directions need it</span></p></div></li>
 			<li><div class="body">
 				<p><strong>Plug in the stick, boot the Pi,</strong> and open the <a href="https://iti.tamanu.app/provision">provisioning page</a> in Chrome on a phone or computer. It guides you through the rest.</p>
 				<p class="aside">The page asks you to press the USER button, then the CASE switch, on the HAT. The lid is off so you can reach both.</p>
 				<p><a class="button" href="https://iti.tamanu.app/provision">Provision the Iti</a></p>
 			</div></li>
-			<li><div class="body"><p><strong>Flip the Iti back.</strong></p></div></li>
 			<li><div class="body">
 				<p><strong>When it finishes, shut the Pi down</strong> <span class="todo">how: the Pi's power button?</span> and remove the stick, the network cable and the power, in either order.</p>
 				<p class="aside">The backup supply keeps the Iti running until it has shut down, so unplugging the power first does no harm.</p>
