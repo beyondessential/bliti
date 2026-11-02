@@ -164,7 +164,7 @@ test('the page is titled Tamanu Iti', async ({ page }) => {
 	await page.addInitScript(installFakeClient)
 	await page.goto('/')
 	await expect(page).toHaveTitle('Tamanu Iti')
-	await expect(title(page)).toHaveText('Tamanu Iti')
+	await expect(title(page)).toHaveAccessibleName('Tamanu Iti')
 })
 
 test('a browser that cannot open a channel says so and offers nothing else', async ({ page }) => {
