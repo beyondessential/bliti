@@ -95,6 +95,18 @@ test('keeps a typed key in local storage with the time it was saved, and never r
 	expect((await activity(page)).join('\n')).not.toContain(KEY)
 })
 
+test('answers a typed key once, and keeps it, where the device still shows the prompt open', async ({ page }) => {
+	await openChannel(page, asking())
+	await row(page).getByLabel('Tailscale auth key for this Iti.').fill(KEY)
+	await row(page).getByRole('button', { name: 'Save' }).first().click()
+	await expect.poll(() => acts(page)).toHaveLength(1)
+	// A state from before the device took the answer, which still shows the prompt open.
+	await emitState(page, asking())
+	await page.waitForTimeout(100)
+	expect(await acts(page)).toEqual([{ act: 'answer', prompt: 'auth-key', value: KEY }])
+	expect(JSON.parse(await stored(page)).key).toBe(KEY)
+})
+
 test('answers the prompt from the saved key at once, without the field, and says so', async ({ page }) => {
 	await saved(page, 2 * DAY)
 	await openChannel(page, asking())

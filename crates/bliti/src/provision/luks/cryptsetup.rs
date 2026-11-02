@@ -79,15 +79,7 @@ impl Luks for Cryptsetup {
 
 	fn unlocks(&self, partition: &Path, key: &Key<'_>, slot: Option<u32>) -> Result<bool, String> {
 		let arguments = Arguments::of(key)?;
-		let mut command = Command::new("cryptsetup");
-		command
-			.arg("open")
-			.arg("--test-passphrase")
-			.args(&arguments.args);
-		if let (Some(slot), Key::Empty | Key::Passphrase(_)) = (slot, key) {
-			command.arg("--key-slot").arg(slot.to_string());
-		}
-		command.arg(partition);
+		let mut command = test_command(partition, key, &arguments, slot);
 		let output = finish(&mut command)?;
 		match output.status.code() {
 			Some(0) => Ok(true),
@@ -164,6 +156,29 @@ impl Luks for Cryptsetup {
 			tracing::warn!(%err, name, "cannot close a volume");
 		}
 	}
+}
+
+/// The command that tests whether `key` opens the volume on `partition`, in `slot` where it names one.
+///
+/// A passphrase is tested with the volume's tokens left out. `cryptsetup open` otherwise tries them
+/// first, and the TPM's token opens the TPM's own keyslot whatever passphrase was given.
+fn test_command(
+	partition: &Path,
+	key: &Key<'_>,
+	arguments: &Arguments,
+	slot: Option<u32>,
+) -> Command {
+	let mut command = Command::new("cryptsetup");
+	command.arg("open").arg("--test-passphrase");
+	if !matches!(key, Key::Tpm) {
+		command.arg("--disable-external-tokens");
+	}
+	command.args(&arguments.args);
+	if let (Some(slot), Key::Empty | Key::Passphrase(_)) = (slot, key) {
+		command.arg("--key-slot").arg(slot.to_string());
+	}
+	command.arg(partition);
+	command
 }
 
 /// The header of a volume with the UUID `uuid`, from `cryptsetup luksDump --dump-json-metadata`.
@@ -303,6 +318,46 @@ mod tests {
 			}"#,
 		);
 		assert_eq!(parse("uuid", &json).unwrap().digest, "DeF=");
+	}
+
+	fn arguments_of(key: &Key<'_>, slot: Option<u32>) -> Vec<String> {
+		// As `Arguments::of` gives them, without the file it keeps a passphrase in.
+		let arguments = match key {
+			Key::Tpm => Arguments::of(key).unwrap(),
+			_ => Arguments {
+				args: vec!["--key-file".to_owned(), "/key".to_owned()],
+				_file: None,
+			},
+		};
+		test_command(Path::new("/dev/part"), key, &arguments, slot)
+			.get_args()
+			.map(|arg| arg.to_string_lossy().into_owned())
+			.collect()
+	}
+
+	#[test]
+	fn a_passphrase_is_tested_without_the_tokens() {
+		for key in [Key::Empty, Key::Passphrase("recovery")] {
+			let args = arguments_of(&key, Some(1));
+			assert!(
+				args.contains(&"--disable-external-tokens".to_owned()),
+				"{args:?}"
+			);
+			assert!(
+				args.windows(2).any(|pair| pair == ["--key-slot", "1"]),
+				"{args:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn the_tpm_is_tested_through_its_token() {
+		let args = arguments_of(&Key::Tpm, None);
+		assert!(args.contains(&"--token-only".to_owned()), "{args:?}");
+		assert!(
+			!args.contains(&"--disable-external-tokens".to_owned()),
+			"{args:?}"
+		);
 	}
 
 	#[test]

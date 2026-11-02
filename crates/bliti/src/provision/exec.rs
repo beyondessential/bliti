@@ -19,9 +19,14 @@ pub fn finish(command: &mut Command) -> Result<Output, String> {
 		.map_err(|err| format!("cannot run {name}: {err}"))
 }
 
-/// Why `command` failed with `output`: its name, its status and the last line it said.
+/// Why `command` failed with `output`: its name and subcommand, its status and the last line it said.
 pub fn failure(command: &Command, output: &Output) -> String {
-	let name = command.get_program().to_string_lossy();
+	let mut name = command.get_program().to_string_lossy().into_owned();
+	if let Some(sub) = command.get_args().next().map(|arg| arg.to_string_lossy())
+		&& !sub.starts_with('-')
+	{
+		name = format!("{name} {sub}");
+	}
 	let stderr = String::from_utf8_lossy(&output.stderr);
 	let said = stderr.lines().rev().find(|line| !line.trim().is_empty());
 	format!(
