@@ -19,8 +19,8 @@ The test pass itself is the card's test cases. This plan holds what the pass tur
 - [x] CI caches nothing for the image build. Run `fetch.sh` beside the daemon build, and cache the device build's target directory and crate registry.
 - [x] `tailscaled` ran on the medium from boot, as the pi image enables it. The medium masks it, and its first-boot sign-in, and the step `tailscale` runs its own.
 - [x] Implement PLED's board-level states: provisioned from the done-states, and red and green alternating while on the air with no run under way.
-- [ ] The finished screen says "Provisioned" after a run of some steps, and its "Run steps again" is a small link under "Provision another Iti", so a finished board reads as one that cannot be provisioned further.
+- [x] The finished screen says "Provisioned" after a run of some steps, and its "Run steps again" is a small link under "Provision another Iti", so a finished board reads as one that cannot be provisioned further.
 - [x] Closing the payload's verity mapping after `disk` failed as still in use: the mapping's own file was still open. Closed first now; to confirm on the board.
-- [ ] On connecting, the page lists every step ticked, without the Iti's code, until the device has determined the done-states, then changes the ticks. It should say it is checking the board and hold the list back until then.
-- [ ] Downloading the sheet shows nothing between the click and the PDF opening. The button should say it is making the sheet, and not take a second click, until the PDF is ready.
+- [x] On connecting, the page lists every step ticked, without the Iti's code, until the device has determined the done-states, then changes the ticks. It should say it is checking the board and hold the list back until then.
+- [x] Downloading the sheet shows nothing between the click and the PDF opening. The button should say it is making the sheet, and not take a second click, until the PDF is ready.
 - [ ] Not bliti's: on the `pi` image, SSH as `ubuntu` keeps reporting the password expired (`pam_unix(sshd:account) … root enforced`) after the forced change, and after `/etc/shadow` shows it changed, while a console login is let in. Raise with linux-images.
