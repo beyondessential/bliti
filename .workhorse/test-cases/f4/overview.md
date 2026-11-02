@@ -61,7 +61,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] Connected, the page names the Iti by its suffix and offers to disconnect (verifies spec: PWEB)
 - [x] Connected before the board has found every step's done-state, the page says the Iti is checking the board and lists no step until it has (verifies spec: PWEB)
 - [x] Every step is listed in order with its done-state reason, `done` steps unticked and the rest ticked, and start is unavailable with nothing ticked (verifies spec: PWEB, RUN)
-- [ ] The fake device in dev mode connects as `FAKE`, passes every chosen step at once, and adds no label (verifies spec: PWEB)
+- [x] The fake device in dev mode connects as `FAKE`, passes every chosen step at once, and adds no label (verifies spec: PWEB)
 - [ ] Pictures of the USER button, CASE switch and ID WP pads show with the phone offline after a first load (verifies spec: PWEB)
 
 ## Step `hardware`
@@ -153,11 +153,11 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] Checking back at the finished board adds no second label (verifies spec: PSHT)
 - [ ] Running `label` again replaces the label as unprinted (verifies spec: PSHT)
 - [x] The download action states how full the sheet is (verifies spec: PSHT)
-- [ ] From pressing download until the sheet is ready, the page says it is making the sheet and offers no second download (verifies spec: PSHT)
+- [x] From pressing download until the sheet is ready, the page says it is making the sheet and offers no second download (verifies spec: PSHT)
 
 ## The run as a whole
 
-- [ ] On a board whose disk holds an earlier system, `overlay`, `software`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
+- [x] On a board whose disk holds an earlier system, `overlay`, `software`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
 - [x] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
 - [x] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
@@ -165,7 +165,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [x] When the channel drops, the page keeps the last state marked stale, and offers only the chooser and a USER press (verifies spec: PWEB)
 - [ ] Once the channel has dropped, the page reconnects on its own after a press (verifies spec: PWEB)
 - [ ] The console and the page connected together show the same run, and an answer from either is taken (verifies spec: PCON, RUN)
-- [ ] A second answer to the same prompt is refused (verifies spec: RUN)
+- [x] A second answer to the same prompt is refused (verifies spec: RUN)
 - [ ] A failed run survives a reboot as `failed`, with the LED blinking red at 3 Hz, and needs a retry to go on (verifies spec: RUN, PLED)
 - [x] Stop while `waiting` or `failed` returns to `idle` and closes every prompt (verifies spec: RUN)
 - [x] The finished screen shows the recovery passphrase with a copy button, says it is also on the medium, and says to power off and remove the medium (verifies spec: PWEB)
