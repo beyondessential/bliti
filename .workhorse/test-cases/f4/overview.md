@@ -42,8 +42,8 @@ There is one NVMe, so the pass runs in two cycles:
 
 - [x] The status LED is steady amber from start with no run held (verifies spec: PLED)
 - [x] The device does not advertise after boot until the USER button is pressed (verifies spec: PRV)
-- [ ] A press advertises `ITI_PROVISION_1_` and a suffix matching the last four characters of `bliti qr`'s payload on the same board (verifies spec: PRV, QR)
-- [ ] Advertising stops five minutes after the press with no client (verifies spec: PRV)
+- [x] A press advertises `ITI_PROVISION_1_` and a suffix matching the last four characters of `bliti qr`'s payload on the same board (verifies spec: PRV, QR)
+- [x] Advertising stops five minutes after the press with no client (verifies spec: PRV)
 - [ ] A second press while advertising restarts the five minutes (verifies spec: PRV)
 - [ ] Advertising stops once a client connects, a press while connected does nothing, and the device stays silent after the client leaves until pressed again (verifies spec: PRV)
 - [ ] A second client, such as `bliti connect` from the laptop, is told there is no slot free while the page is connected (verifies spec: PRV, PWEB)
