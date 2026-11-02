@@ -158,7 +158,7 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 ## The run as a whole
 
 - [ ] On a board whose disk holds an earlier system, `overlay`, `software`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
-- [ ] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
+- [x] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
 - [x] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
 - [ ] Closing the page mid-run leaves the run going, and pressing USER then reconnecting shows where it stands (verifies spec: RUN, PWEB)
