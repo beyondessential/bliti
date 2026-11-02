@@ -98,7 +98,7 @@ impl Eeprom {
 		let path = self.images.join(format!("tamanu-iti-v{version}.eep"));
 		blocking(move || std::fs::read(path)).await.map_err(|err| {
 			if err.kind() == std::io::ErrorKind::NotFound {
-				format!("the provisioning medium carries no image for v{version}")
+				format!("there are no EEPROM contents to install for v{version}")
 			} else {
 				format!("cannot read the image for v{version}: {err}")
 			}

@@ -364,7 +364,7 @@ async fn a_medium_without_the_image_fails_naming_the_version() {
 	rig.start();
 	let step = rig.ended().await;
 	assert_eq!(step.state, StepState::Failed);
-	assert!(step.reason.unwrap().contains("no image for v4.0"));
+	assert!(step.reason.unwrap().contains("no EEPROM contents to install for v4.0"));
 }
 
 // spec: PEEP
@@ -434,7 +434,7 @@ async fn done_is_unknown_where_it_cannot_be_told() {
 	let missing = step(Ok(0x61), Fake::holding(&image), &[]);
 	let done = missing.step.done().await;
 	assert_eq!(done.state, DoneState::Unknown);
-	assert!(done.why.unwrap().contains("no image for v4.0"));
+	assert!(done.why.unwrap().contains("no EEPROM contents to install for v4.0"));
 
 	let (unreadable, _) = standard(Arc::new(Unreachable));
 	let done = unreadable.step.done().await;
