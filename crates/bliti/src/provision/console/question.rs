@@ -182,8 +182,9 @@ pub fn read_menu(question: &Question, line: &str) -> Typed {
 		(_, "q" | "quit") => Verb::Quit,
 		(Question::Waiting | Question::Failed, "s" | "stop") => Verb::Stop,
 		(Question::Failed, "r" | "retry") => Verb::Retry,
-		(Question::Finished, "" | "y" | "yes" | "a" | "acknowledge") => Verb::Acknowledge,
-		(Question::Finished, "n" | "no") => Verb::Quit,
+		(Question::Finished, "y" | "yes" | "a" | "acknowledge") => Verb::Acknowledge,
+		// spec: PCON a finished run is kept unless the operator says otherwise
+		(Question::Finished, "" | "n" | "no") => Verb::Quit,
 		_ => return Typed::Bad(menu_hint(question).to_owned()),
 	};
 	Typed::Verb(verb)
@@ -208,6 +209,8 @@ mod tests {
 			revision: 1,
 			built: jiff::civil::date(2026, 10, 29),
 			run,
+			checked: true,
+			provisioned: false,
 			steps: vec![StepReport {
 				id: "a".to_owned(),
 				title: "a".to_owned(),
@@ -415,7 +418,7 @@ mod tests {
 		assert_eq!(verb(Question::Waiting, ":stop"), Typed::Verb(Verb::Stop));
 		assert_eq!(verb(Question::Waiting, "q"), Typed::Verb(Verb::Quit));
 		assert!(matches!(verb(Question::Waiting, "retry"), Typed::Bad(_)));
-		assert_eq!(verb(Question::Finished, ""), Typed::Verb(Verb::Acknowledge));
+		assert_eq!(verb(Question::Finished, ""), Typed::Verb(Verb::Quit));
 		assert_eq!(
 			verb(Question::Finished, "y"),
 			Typed::Verb(Verb::Acknowledge)

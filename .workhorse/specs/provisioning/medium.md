@@ -31,6 +31,8 @@ The medium's system MUST NOT install or run bliti's ordinary daemon.
 
 The medium's system MUST NOT update its own software.
 
+The medium's system MUST NOT run Tailscale, other than as the step `tailscale` of [PTS](tailscale.md) does.
+
 The medium's system MUST open the console command of [PCON](console.md) at boot on its text console and on its serial console, without asking for a login.
 
 When the console command exits, the medium's system MUST give that console a root shell, without asking for a login.
@@ -106,6 +108,10 @@ The medium's system MUST carry, in `/usr/share/bliti/provision/`:
 | `tamanu-iti-v4.dtbo` | the HAT overlay |
 | `tamanu-iti-v<version>.eep` | the HAT EEPROM image, whose contents [HAT](../hat.md) defines, for each version bliti holds a source for, as `tamanu-iti-v4.0.eep` is |
 | `manifest` | the manifest |
+| `system/` | the Iti's software, each file at the path in a system's root filesystem that the step `software` of [PDSK](disk.md) installs it to, with the permission bits it installs it with |
+
+> [!NOTE]
+> The medium's system carries the Iti's software for the step to install on the disk, and does not install it itself.
 
 ## The manifest
 

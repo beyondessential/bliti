@@ -18,14 +18,17 @@ const [ONE, TWO] = PAYLOADS
 
 const STORAGE = 'bliti.provision.labels'
 
-/// A finished run whose step `label` made `payload` at `at`.
-const finished = (payload, at = '2026-10-31T01:00:00Z', version = '4.0') =>
+/// A finished run, of a board that is provisioned unless `provisioned` says otherwise, whose step
+/// `label` made `payload` at `at`.
+const finished = (payload, at = '2026-10-31T01:00:00Z', version = '4.0', provisioned = true) =>
 	stateOf({
 		run: 'finished',
+		provisioned,
 		steps: [step('label', { title: 'Make the label', state: 'passed', result: { payload, version, at } })],
 	})
 
 const sheet = (page) => page.getByRole('button', { name: /^Download sheet/ })
+const making = (page) => page.getByRole('button', { name: 'Making the sheet' })
 const link = (page) => page.getByRole('button', { name: /^Labels \(/ })
 const kept = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key)), STORAGE)
 
@@ -40,6 +43,20 @@ async function seed(page, labels) {
 		},
 		[STORAGE, labels],
 	)
+}
+
+/// Hold every sheet once it is asked for, until `window.__blitiSheetRelease` is called.
+async function holdSheet(page) {
+	await page.addInitScript(() => {
+		window.__blitiSheetHold = new Promise((resolve) => (window.__blitiSheetRelease = resolve))
+	})
+}
+
+/// How many downloads the page has started, from here on.
+function countDownloads(page) {
+	const counted = { count: 0 }
+	page.on('download', () => counted.count++)
+	return counted
 }
 
 const held = (payload, extra = {}) => ({ payload, version: '4.0', at: '2026-10-30T01:00:00Z', printed: null, ...extra })
@@ -58,6 +75,28 @@ test('the sheet is the primary action of the finished screen while a label is un
 	await expect(sheet(page)).toHaveText('Download sheet (4% filled)')
 	await expect(sheet(page)).not.toHaveClass(/secondary/)
 	await expect(page.getByRole('button', { name: 'Provision another Iti' })).not.toHaveClass(/go/)
+})
+
+test('the sheet is not the primary action where the board is not provisioned', async ({ page }) => {
+	await openChannel(page, finished(ONE, undefined, undefined, false))
+	await expect(sheet(page)).toHaveText('Download sheet (4% filled)')
+	await expect(sheet(page)).toHaveClass(/secondary/)
+	await expect(page.getByRole('button', { name: 'Run steps again' })).toHaveClass(/block go/)
+	await expect(page.getByRole('button', { name: 'Run steps again' })).not.toHaveClass(/secondary/)
+})
+
+test('says it is making the sheet from the finished screen until it is ready, and makes no other', async ({ page }) => {
+	await holdSheet(page)
+	await openChannel(page, finished(ONE))
+	const downloads = countDownloads(page)
+	await sheet(page).click()
+	await expect(making(page)).toBeDisabled()
+	await making(page).evaluate((button) => button.click())
+	await expect(link(page)).toHaveText('Labels (1 not printed)')
+	await Promise.all([page.waitForEvent('download'), page.evaluate(() => window.__blitiSheetRelease())])
+	await expect(making(page)).toHaveCount(0)
+	await expect(link(page)).toHaveText('Labels (0 not printed)')
+	expect(downloads.count).toBe(1)
 })
 
 test('downloading from the finished screen gives a PDF and marks the label printed', async ({ page }) => {
@@ -149,6 +188,22 @@ test('a printed label is printed again by ticking it, and no download is offered
 	const [download] = await Promise.all([page.waitForEvent('download'), sheet(page).click()])
 	expect((await readFile(await download.path())).subarray(0, 5).toString()).toBe('%PDF-')
 	expect((await kept(page)).labels[0].printed).not.toBe('2026-10-30T02:00:00.000Z')
+})
+
+test('says it is making the sheet from the list until it is ready, and makes no other', async ({ page }) => {
+	await holdSheet(page)
+	await seed(page, [held(ONE), held(TWO)])
+	await openProvision(page)
+	await link(page).click()
+	const downloads = countDownloads(page)
+	await sheet(page).click()
+	await expect(making(page)).toBeDisabled()
+	await making(page).evaluate((button) => button.click())
+	await Promise.all([page.waitForEvent('download'), page.evaluate(() => window.__blitiSheetRelease())])
+	await expect(making(page)).toHaveCount(0)
+	await expect(page.getByRole('checkbox', { name: 'Print HZVU' })).not.toBeChecked()
+	expect((await kept(page)).labels.every((label) => label.printed !== null)).toBe(true)
+	expect(downloads.count).toBe(1)
 })
 
 test('says how full the sheet is for one page, several pages, and pages with none to spare', async ({ page }) => {

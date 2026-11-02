@@ -31,6 +31,21 @@ pub trait Step: Send + Sync {
 	/// stands and never from the record of an earlier run.
 	async fn done(&self) -> Done;
 
+	/// Whether carrying the step out changes the board. A check changes nothing.
+	fn changes_board(&self) -> bool {
+		true
+	}
+
+	/// The ids of the steps before this one that undo what it produces, where they are carried out.
+	fn undone_by(&self) -> &[&str] {
+		&[]
+	}
+
+	/// What carrying this step out is called where it undoes a later step, as "writing the disk".
+	fn undoing(&self) -> &str {
+		self.title()
+	}
+
 	/// The id of the step after which this one asks for what it will need, ahead of its own turn.
 	///
 	/// A step that returns one is asked through [`Step::ask_ahead`] once that step, and every step

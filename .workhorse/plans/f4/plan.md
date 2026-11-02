@@ -11,13 +11,16 @@ The test pass itself is the card's test cases. This plan holds what the pass tur
 
 ## To fix
 
-- [ ] Steps that writing the disk undoes (`overlay`, `encryption`, `tailscale`) are offered unticked where the disk being replaced already has them, so a re-provision with the defaults leaves a system without the HAT overlay or Tailscale. Decided: the device reports them not-done, or in a state of their own, where `disk` is not done, and the board as it stands is shown apart from the list of steps to run. Needs a RUN change first.
-- [ ] The console's offer to acknowledge a finished run defaults to yes, so a stray Enter discards it.
-- [ ] CI caches nothing for the image build. Run `fetch.sh` beside the daemon build, and cache the device build's target directory and crate registry.
-- [ ] `tailscaled` runs on the medium from boot, as the pi image enables it. Check what the Tailscale step leaves running.
-- [ ] Implement PLED's board-level states: provisioned from the done-states, and red and green alternating while on the air with no run under way.
+- [x] A provisioned Iti ran no bliti: nothing installed it. The step `software` installs the medium's own bliti, its service and its configuration. Interim until G5 installs it from the apt repository F5 sets up.
+- [x] `provision-state` carries `checked` and `provisioned`, for the page and the LED.
+
+- [x] Steps that writing the disk undoes (`overlay`, `software`, `encryption`, `tailscale`) report not-done while `disk` is not done, saying what the board holds and that writing the disk replaces it (RUN).
+- [x] The console's offer to acknowledge a finished run defaults to yes, so a stray Enter discards it.
+- [x] CI caches nothing for the image build. Run `fetch.sh` beside the daemon build, and cache the device build's target directory and crate registry.
+- [x] `tailscaled` ran on the medium from boot, as the pi image enables it. The medium masks it, and its first-boot sign-in, and the step `tailscale` runs its own.
+- [x] Implement PLED's board-level states: provisioned from the done-states, and red and green alternating while on the air with no run under way.
 - [ ] The finished screen says "Provisioned" after a run of some steps, and its "Run steps again" is a small link under "Provision another Iti", so a finished board reads as one that cannot be provisioned further.
-- [ ] Closing the payload's verity mapping after `disk` fails as still in use, leaving `bliti-payload` mapped. Find what still holds it (the mapping's file, or the loop device for its partitions) and close it first.
+- [x] Closing the payload's verity mapping after `disk` failed as still in use: the mapping's own file was still open. Closed first now; to confirm on the board.
 - [ ] On connecting, the page lists every step ticked, without the Iti's code, until the device has determined the done-states, then changes the ticks. It should say it is checking the board and hold the list back until then.
 - [ ] Downloading the sheet shows nothing between the click and the PDF opening. The button should say it is making the sheet, and not take a second click, until the PDF is ready.
 - [ ] Not bliti's: on the `pi` image, SSH as `ubuntu` keeps reporting the password expired (`pam_unix(sshd:account) … root enforced`) after the forced change, and after `/etc/shadow` shows it changed, while a console login is let in. Raise with linux-images.

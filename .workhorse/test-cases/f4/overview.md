@@ -57,6 +57,7 @@ There is one NVMe, so the pass runs in two cycles:
 - [x] Closing the chooser without a pick says only a just-pressed Iti is listed, and offers it again (verifies spec: PWEB)
 - [ ] Cancel while connecting returns to finding a device (verifies spec: PWEB)
 - [x] Connected, the page names the Iti by its suffix and offers to disconnect (verifies spec: PWEB)
+- [ ] Connected before the board has found every step's done-state, the page says the Iti is checking the board and lists no step until it has (verifies spec: PWEB)
 - [x] Every step is listed in order with its done-state reason, `done` steps unticked and the rest ticked, and start is unavailable with nothing ticked (verifies spec: PWEB, RUN)
 - [ ] The fake device in dev mode connects as `FAKE`, passes every chosen step at once, and adds no label (verifies spec: PWEB)
 - [ ] Pictures of the USER button, CASE switch and ID WP pads show with the phone offline after a first load (verifies spec: PWEB)
@@ -102,6 +103,13 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [x] `tamanu-iti-v4.dtbo` lands in the current boot slot's `overlays` and in `/etc/flash-kernel/dtbs/overlays/`, byte for byte the medium's (verifies spec: PDSK)
 - [ ] Run again with both in place, it passes without writing (verifies spec: PDSK)
 
+## Step `software`
+
+- [ ] Each file under `/usr/share/bliti/provision/system/` on the medium lands at the same path in the disk's root filesystem, byte for byte and with its mode: the daemon at 0755, the rest at 0644 (verifies spec: PDSK, PMED)
+- [ ] `bliti.service` is enabled: `/etc/systemd/system/multi-user.target.wants/bliti.service` links to `/etc/systemd/system/bliti.service` (verifies spec: PDSK)
+- [ ] Run again with everything in place, it passes without writing (verifies spec: PDSK)
+- [ ] On its first boot from the NVMe the Iti runs bliti, and the operator app finds it (verifies spec: PDSK)
+
 ## Step `encryption`
 
 - [x] Afterwards the root volume has a new UUID and volume key, exactly two keyslots, and the empty passphrase no longer opens it (verifies spec: PENC)
@@ -142,10 +150,11 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] Checking back at the finished board adds no second label (verifies spec: PSHT)
 - [ ] Running `label` again replaces the label as unprinted (verifies spec: PSHT)
 - [x] The download action states how full the sheet is (verifies spec: PSHT)
+- [ ] From pressing download until the sheet is ready, the page says it is making the sheet and offers no second download (verifies spec: PSHT)
 
 ## The run as a whole
 
-- [ ] On a board whose disk holds an earlier system, `overlay`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
+- [ ] On a board whose disk holds an earlier system, `overlay`, `software`, `encryption` and `tailscale` are offered ticked while `disk` is not done, since writing the disk undoes them, and the page shows what the board holds apart from the steps to run (verifies spec: RUN, PWEB)
 - [ ] The console's offer to acknowledge a finished run does not default to discarding it (verifies spec: PCON)
 - [x] A full run from the stick with every step ticked finishes with the LED steady green (verifies spec: RUN, PLED)
 - [ ] A provisioned board that boots the medium again shows steady green from start (verifies spec: PLED)
@@ -174,4 +183,4 @@ To set the EEPROM up for each case below, bridge the ID WP pads and write it fro
 - [ ] Booted from an SD card, the device leaves the boot order alone (verifies spec: PRV)
 - [ ] One medium serving two boards keeps each board's run and record apart (verifies spec: RUN, PENC)
 - [ ] A board whose TPM gives no board ID advertises the `FAULT` suffix, and `encryption` refuses it (verifies spec: PRV, PENC)
-- [ ] A board with no NVMe fails `disk` and `overlay`, saying so (verifies spec: PDSK)
+- [ ] A board with no NVMe fails `disk`, `overlay` and `software`, saying so (verifies spec: PDSK)

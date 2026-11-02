@@ -77,6 +77,9 @@ jobs:
     needs: decide
     if: needs.decide.outputs.build == 'true'
     runs-on: ubuntu-26.04-arm
+    env:
+      # Outside the checkout, as a directory the cache can hold rather than a podman volume.
+      BLITI_DEVICE_CARGO: ${{ github.workspace }}/../device-cargo
     steps:
       # The commit the pull request holds, not the merge commit the run checks out, so the manifest
       # names one someone can find.
@@ -93,10 +96,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             just jq zstd gdisk cryptsetup-bin dosfstools device-tree-compiler raspi-utils-eeprom
+      # The daemon's crate registry and target directory, restored on every run and saved only from
+      # main, as ci.yml's caches are, so a pull request reads main's and writes none of its own.
+      - uses: actions/cache/restore@v6.1.0
+        with:
+          path: |
+            ${{ env.BLITI_DEVICE_CARGO }}
+            target/device
+          key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
+          restore-keys: |
+            provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-
+            provision-device-
       - name: Build
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: just provision-image
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: |
+            ${{ env.BLITI_DEVICE_CARGO }}
+            target/device
+          key: provision-device-${{ hashFiles('Cargo.lock', 'crates/bliti/Containerfile') }}-${{ github.sha }}
       - name: Test
         run: just provision-image-test
       # The image unarchived, as an artifact named after it, so it is neither zipped nor unzipped on

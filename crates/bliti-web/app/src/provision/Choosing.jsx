@@ -6,12 +6,32 @@ import { Steps } from '../Reaching.jsx'
 import { REACHING } from './Finding.jsx'
 import { ticked } from './state.js'
 
+/// The device is idle and has not yet found every step's done-state, so no step is listed.
+export function Checking({ suffix }) {
+	// spec: PWEB
+	return (
+		<>
+			<Steps names={REACHING} at={2} />
+			<section>
+				<p className="done-line">Connected</p>
+				<p className="lead" role="status">
+					<span className="spinner" aria-hidden="true" />
+					The Iti is checking the board
+				</p>
+				<span className="chip">{suffix}</span>
+			</section>
+		</>
+	)
+}
+
 /// Every step in order with a checkbox, ticked unless the board already has what it makes, and
 /// starting a run of those ticked. `live` is whether the device can be asked anything.
 export default function Choosing({ state, suffix, live, busy, onStart }) {
-	// What the operator has changed, over the ticks the steps' done-states give.
+	// The ticks the steps' done-states gave when the list was first shown, so a later state does not
+	// change them under the operator, and what the operator has changed over them.
+	const [seeded] = useState(() => Object.fromEntries(state.steps.map((step) => [step.id, ticked(step)])))
 	const [changed, setChanged] = useState({})
-	const isTicked = (step) => changed[step.id] ?? ticked(step)
+	const isTicked = (step) => changed[step.id] ?? seeded[step.id] ?? ticked(step)
 	const chosen = state.steps.filter(isTicked).map((step) => step.id)
 
 	return (

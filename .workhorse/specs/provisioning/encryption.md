@@ -91,6 +91,8 @@ The step MUST report the record it saved as the member `record` of its result, a
 
 ## Done-state
 
+The step `disk` of [PDSK](disk.md) undoes this step, as [RUN](run.md#done-state) has it.
+
 The step MUST determine its done-state by reading the disk and asking the TPM, and MUST NOT change the disk to do so.
 
 The step MUST report:

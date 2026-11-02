@@ -217,6 +217,8 @@ mod tests {
 			revision: 1,
 			built: jiff::civil::date(2026, 10, 29),
 			run,
+			checked: true,
+			provisioned: false,
 			steps,
 			prompts,
 		}

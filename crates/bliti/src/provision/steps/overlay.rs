@@ -88,6 +88,10 @@ impl Step for Overlay {
 		"Install the HAT overlay"
 	}
 
+	fn undone_by(&self) -> &[&str] {
+		&["disk"]
+	}
+
 	// spec: PDSK#done-state-of-the-step-overlay
 	async fn done(&self) -> Done {
 		let unknown = |why: String| Done {

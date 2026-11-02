@@ -20,6 +20,7 @@ A device in provisioning mode MUST offer the steps below, in this order.
 | `eeprom` | Program the EEPROM | [PEEP](eeprom.md) |
 | `disk` | Write the system to the disk | [PDSK](disk.md) |
 | `overlay` | Install the HAT overlay | [PDSK](disk.md) |
+| `software` | Install the Iti's software | [PDSK](disk.md) |
 | `encryption` | Set up disk encryption | [PENC](encryption.md) |
 | `tailscale` | Sign in to Tailscale | [PTS](tailscale.md) |
 | `bootloader` | Configure the bootloader | [PBL](bootloader.md) |
@@ -38,6 +39,13 @@ A device MUST determine a done-state from the board as it stands, and MUST NOT i
 A device MUST determine every step's done-state when it enters the `idle` or `finished` state, and whenever a provisioning stream is opened or the console attaches while it is in either.
 
 A device MUST report `unknown` for a step whose done-state it has not determined since it started.
+
+A step that a step before it undoes, as the spec defining the step says, MUST report `not-done` where that earlier step reports anything but `done`, and MUST give as its reason what the board holds and that the earlier step replaces it.
+
+> [!NOTE]
+> Writing the disk replaces the system the later steps installed into, so on a board whose disk is to be written again they are offered ticked, while the reason still says what the board holds now.
+
+A board is provisioned where every step that changes the board reports `done`, the device having determined every done-state since it started.
 
 A client SHOULD offer a step reported `done` unticked, and every other step ticked.
 

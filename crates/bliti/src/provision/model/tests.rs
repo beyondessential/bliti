@@ -4,8 +4,8 @@ fn model() -> Model {
 	Model::new(
 		crate::provision::fake::BUILT,
 		[
-			("one".to_owned(), "One".to_owned()),
-			("two".to_owned(), "Two".to_owned()),
+			("one".to_owned(), "One".to_owned(), true),
+			("two".to_owned(), "Two".to_owned(), true),
 		],
 	)
 }

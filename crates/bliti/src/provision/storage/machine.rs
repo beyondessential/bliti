@@ -132,7 +132,7 @@ impl Storage for Machine {
 			}
 		};
 		Ok(Box::new(Verity {
-			file: file.take(manifest.size),
+			file: Some(file.take(manifest.size)),
 			mapper,
 			loop_device: Mutex::new(None),
 		}))
@@ -171,7 +171,8 @@ fn close_verity() {
 
 /// The payload read through its dm-verity mapping.
 struct Verity {
-	file: io::Take<File>,
+	/// Taken before the mapping is closed, which an open file on it would hold.
+	file: Option<io::Take<File>>,
 	mapper: PathBuf,
 	/// The loop device the payload's partitions are read through, once they have been.
 	loop_device: Mutex<Option<PathBuf>>,
@@ -179,7 +180,10 @@ struct Verity {
 
 impl Read for Verity {
 	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-		self.file.read(buf)
+		match &mut self.file {
+			Some(file) => file.read(buf),
+			None => Ok(0),
+		}
 	}
 }
 
@@ -209,6 +213,7 @@ impl Payload for Verity {
 
 impl Drop for Verity {
 	fn drop(&mut self) {
+		drop(self.file.take());
 		let held = self.loop_device.get_mut().ok().and_then(Option::take);
 		if let Some(device) = held
 			&& let Err(err) = run(Command::new("losetup").arg("-d").arg(&device))

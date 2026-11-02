@@ -81,6 +81,8 @@ The step MUST report as its result `needs-approval`, a boolean that is true wher
 
 ## Done-state
 
+The step `disk` of [PDSK](disk.md) undoes this step, as [RUN](run.md#done-state) has it.
+
 The step MUST determine its done-state by opening the root volume, mounting the root filesystem read-only, reading its Tailscale state, and closing them again, and MUST NOT write to the disk while it does.
 
 The step MUST report:

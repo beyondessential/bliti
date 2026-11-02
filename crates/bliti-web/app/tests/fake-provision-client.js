@@ -144,13 +144,15 @@ export function daysAgo(days, from = new Date()) {
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-/// A `provision-state` as the device sends it: revision 1, an image built today, and no prompt open,
-/// unless `body` says otherwise.
+/// A `provision-state` as the device sends it: revision 1, an image built today, every step's
+/// done-state found, the board not provisioned, and no prompt open, unless `body` says otherwise.
 export const stateOf = (body = {}) => ({
 	type: 'provision-state',
 	revision: 1,
 	built: daysAgo(0),
 	run: 'idle',
+	checked: true,
+	provisioned: false,
 	steps: [step('hardware', { title: 'Check the hardware' }), step('eeprom', { title: 'Program the EEPROM' })],
 	prompts: [],
 	...body,

@@ -78,9 +78,10 @@ pub async fn run(options: Options) -> Result<()> {
 	)
 	.await;
 
+	let (on_air, on_air_rx) = tokio::sync::watch::channel(false);
 	let _led = match led::Sysfs::open() {
 		Ok(sysfs) => Some(AbortOnDrop(
-			tokio::spawn(led::drive(sysfs, provisioner.watch())).abort_handle(),
+			tokio::spawn(led::drive(sysfs, provisioner.watch(), on_air_rx)).abort_handle(),
 		)),
 		Err(err) => {
 			tracing::warn!(%err, "cannot use the status LED; the state will not be shown on it");
@@ -156,6 +157,7 @@ pub async fn run(options: Options) -> Result<()> {
 		adapter: adapter.clone(),
 		local_name: name,
 		registered: None,
+		on_air,
 	};
 	let result = tokio::select! {
 		_ = window::keep(user, air, window_events) => Ok(()),
@@ -193,6 +195,8 @@ struct Radio {
 	adapter: bluer::Adapter,
 	local_name: String,
 	registered: Option<bluer::adv::AdvertisementHandle>,
+	/// Whether the device is on the air, for the status LED.
+	on_air: tokio::sync::watch::Sender<bool>,
 }
 
 #[async_trait]
@@ -204,11 +208,13 @@ impl Air for Radio {
 			.await
 			.map_err(|err| err.to_string())?;
 		self.registered = Some(handle);
+		self.on_air.send_replace(true);
 		tracing::info!(local_name = %self.local_name, "advertising");
 		Ok(())
 	}
 
 	async fn off(&mut self) {
+		self.on_air.send_replace(false);
 		if self.registered.take().is_some() {
 			// Unregistering reaches BlueZ asynchronously, and the controller has only a few advertising
 			// slots, which registering the next advertisement while this one withdraws exhausts.

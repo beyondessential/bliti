@@ -4,7 +4,7 @@ id: PDSK
 
 # Writing the system to the disk
 
-The step `disk` of a [run](../overview.md#run) writes the system on the [provisioning medium](../overview.md#provisioning-medium) to a Tamanu Iti's NVMe disk, and the step `overlay` installs the HAT overlay into it.
+The step `disk` of a [run](../overview.md#run) writes the system on the [provisioning medium](../overview.md#provisioning-medium) to a Tamanu Iti's NVMe disk, the step `overlay` installs the HAT overlay into it, and the step `software` installs the Iti's software into it.
 [PENC](encryption.md) specifies the step that then encrypts the disk.
 
 ## Borrowed terms
@@ -15,6 +15,7 @@ The step `disk` of a [run](../overview.md#run) writes the system on the [provisi
 | manifest | As [PMED](medium.md#the-manifest) has it. |
 | boot slot | As [PMED](medium.md) has it. |
 | HAT overlay | As [PMED](medium.md) has it. |
+| the Iti's software | The tree of files the provisioning medium carries as `system/`, as [PMED](medium.md#what-the-medium-carries) has it. |
 | firmware partition | The first partition of the `pi` image, a FAT32 partition labelled `firmware` that holds the boot slots. |
 | root partition | The third partition of the `pi` image, which holds the encrypted root volume. |
 | root filesystem | The filesystem a system mounts as `/`, inside the root volume. |
@@ -23,7 +24,7 @@ The step `disk` of a [run](../overview.md#run) writes the system on the [provisi
 
 The disk MUST be the board's NVMe drive.
 
-Both steps MUST fail, saying so, where the board has no NVMe drive or has more than one.
+Each step of this spec MUST fail, saying so, where the board has no NVMe drive or has more than one.
 
 The step `disk` MUST fail, saying so, where the drive is smaller than the payload's size in the manifest.
 
@@ -87,6 +88,8 @@ The step MUST report its progress as a fraction over the write and the read-back
 
 ## Done-state of the step `overlay`
 
+The step `disk` undoes the step `overlay`, as [RUN](run.md#done-state) has it.
+
 The step MUST determine its done-state by reading the disk, and MUST NOT change the disk to do so.
 
 The step MUST open the disk's root volume to read its root filesystem, as [Opening the root volume](#opening-the-root-volume) has it, and MUST close it again.
@@ -121,6 +124,38 @@ A file at the overlay's name MUST NOT hold anything other than the whole overlay
 The step MUST flush each file to the disk, and MUST pass only once both read back as the overlay the medium carries.
 
 Where both places already hold the overlay, the step MUST pass without writing.
+
+## Done-state of the step `software`
+
+The step `disk` undoes the step `software`, as [RUN](run.md#done-state) has it.
+
+The step MUST determine its done-state by reading the disk, and MUST NOT change the disk to do so.
+
+The step MUST open the disk's root volume to read its root filesystem, as [Opening the root volume](#opening-the-root-volume) has it, and MUST close it again.
+
+The step MUST report:
+
+| done-state | where |
+| --- | --- |
+| `done` | each file of the Iti's software is installed as [Installing the Iti's software](#installing-the-itis-software) has it, and bliti's service is enabled |
+| `not-done` | the disk holds a system, and a file of the Iti's software is missing or differs, or bliti's service is not enabled |
+| `unknown` | the disk cannot be found or read, it holds no system to install into, its root volume cannot be opened, or the medium carries no software to install |
+
+The step SHOULD give as its reason what is missing or differs, or why the done-state is `unknown`.
+
+## Installing the Iti's software
+
+The step MUST install each file of the Iti's software in the disk's root filesystem, at the path it has under `system/`, byte for byte and with the permission bits the medium gives it.
+
+The step MUST enable bliti's service, `bliti.service`, with a symbolic link at `/etc/systemd/system/multi-user.target.wants/bliti.service` to `/etc/systemd/system/bliti.service`, in place of whatever is at that path.
+
+The step MUST fail, saying so, where the disk holds no root filesystem to install into, or the medium carries no software to install.
+
+A file the step installs MUST hold what it held before or the whole of the medium's file, with its permission bits, at every moment, including through a power cut.
+
+The step MUST flush what it writes to the disk, and MUST pass only once each file reads back as the medium carries it and the link reads back to `/etc/systemd/system/bliti.service`.
+
+Where the disk already holds each file of the Iti's software and bliti's service is enabled, the step MUST pass without writing.
 
 ## Opening the root volume
 

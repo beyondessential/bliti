@@ -1,4 +1,5 @@
-//! The status LED of a device in provisioning mode, showing the state of its run (PLED).
+//! The status LED of a device in provisioning mode, showing whether the board is provisioned, whether
+//! it is on the air, and how its run stands (PLED).
 //!
 //! Driven only from provisioning mode: nothing outside it starts a [`drive`], which is how a device
 //! that is not in provisioning mode leaves the LED alone (PLED).
@@ -107,12 +108,33 @@ impl Led for Sysfs {
 	}
 }
 
-/// What the LED does for a state of the run (PLED, "The states").
+/// What the LED does for a state of the device (PLED, "The states").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Pattern {
 	Steady(Colour),
 	/// Lit then dark, this many times a second.
 	Blink(Colour, u32),
+	/// Red alone then green alone, each for half a second.
+	Alternate,
+}
+
+/// What the LED shows: the run's state, whether the board is provisioned, and whether the device is
+/// on the air.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Shown {
+	run: RunState,
+	provisioned: bool,
+	on_air: bool,
+}
+
+impl Shown {
+	fn of(snapshot: &Snapshot, on_air: bool) -> Self {
+		Self {
+			run: snapshot.run,
+			provisioned: snapshot.provisioned,
+			on_air,
+		}
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,29 +156,34 @@ impl Colour {
 }
 
 impl Pattern {
-	// spec: PLED
-	fn of(run: RunState) -> Self {
-		match run {
-			RunState::Idle => Self::Steady(Colour::Amber),
+	// spec: PLED the first state of the table that applies
+	fn of(shown: Shown) -> Self {
+		match shown.run {
 			RunState::Running => Self::Blink(Colour::Green, 1),
 			RunState::Waiting => Self::Blink(Colour::Amber, 1),
+			_ if shown.on_air => Self::Alternate,
 			RunState::Failed => Self::Blink(Colour::Red, 3),
-			RunState::Finished => Self::Steady(Colour::Green),
+			_ if shown.provisioned => Self::Steady(Colour::Green),
+			_ => Self::Steady(Colour::Amber),
 		}
 	}
 }
 
-/// Show the state of the run on `led`, from the moment this starts, for as long as the run's state
-/// is watched.
+/// Show the device's state on `led`, from the moment this starts, for as long as the run's state is
+/// watched. `air` is whether the device is on the air.
 ///
 /// A change of pattern takes effect at once, at the start of the new one, wherever the old one was.
-/// A change in the snapshot that leaves the run's state alone does not disturb a blink.
-pub async fn drive<L: Led>(mut led: L, mut state: watch::Receiver<Snapshot>) {
+/// A change that leaves what is shown alone does not disturb a blink.
+pub async fn drive<L: Led>(
+	mut led: L,
+	mut state: watch::Receiver<Snapshot>,
+	mut air: watch::Receiver<bool>,
+) {
 	let mut failing = false;
-	let mut run = state.borrow_and_update().run;
+	let mut shown = Shown::of(&state.borrow_and_update(), *air.borrow_and_update());
 	loop {
-		let pattern = Pattern::of(run);
-		let mut changed = std::pin::pin!(next_run(&mut state, run));
+		let pattern = Pattern::of(shown);
+		let changed = std::pin::pin!(next_shown(&mut state, &mut air, shown));
 		let next = match pattern {
 			Pattern::Steady(colour) => {
 				let (red, green) = colour.lit();
@@ -167,37 +194,70 @@ pub async fn drive<L: Led>(mut led: L, mut state: watch::Receiver<Snapshot>) {
 				// Half of each cycle lit, then half dark.
 				let half = Duration::from_secs(1) / (2 * hz);
 				let (red, green) = colour.lit();
-				let mut lit = true;
-				let mut at = Instant::now();
-				loop {
-					if lit {
-						show(&mut led, red, green, &mut failing).await;
-					} else {
-						show(&mut led, false, false, &mut failing).await;
-					}
-					at += half;
-					lit = !lit;
-					tokio::select! {
-						next = &mut changed => break next,
-						_ = sleep_until(at) => {}
-					}
-				}
+				cycle(
+					&mut led,
+					&mut failing,
+					half,
+					[(red, green), (false, false)],
+					changed,
+				)
+				.await
+			}
+			Pattern::Alternate => {
+				let half = Duration::from_millis(500);
+				let (red, green) = (Colour::Red.lit(), Colour::Green.lit());
+				cycle(&mut led, &mut failing, half, [red, green], changed).await
 			}
 		};
 		match next {
-			Some(next) => run = next,
+			Some(next) => shown = next,
 			None => return,
 		}
 	}
 }
 
-/// Resolve with the run's state when it is no longer `current`, or `None` once nothing can change it.
-async fn next_run(state: &mut watch::Receiver<Snapshot>, current: RunState) -> Option<RunState> {
+/// Show the two halves of a cycle in turn, each for `half`, until `changed` resolves, and resolve
+/// with it.
+async fn cycle<L: Led>(
+	led: &mut L,
+	failing: &mut bool,
+	half: Duration,
+	halves: [(bool, bool); 2],
+	mut changed: std::pin::Pin<&mut impl std::future::Future<Output = Option<Shown>>>,
+) -> Option<Shown> {
+	let mut at = Instant::now();
+	for (red, green) in halves.into_iter().cycle() {
+		show(led, red, green, failing).await;
+		at += half;
+		tokio::select! {
+			next = &mut changed => return next,
+			_ = sleep_until(at) => {}
+		}
+	}
+	unreachable!("a cycle never ends")
+}
+
+/// Resolve with what is to be shown when it is no longer `current`, or `None` once the run's state
+/// can no longer change.
+async fn next_shown(
+	state: &mut watch::Receiver<Snapshot>,
+	air: &mut watch::Receiver<bool>,
+	current: Shown,
+) -> Option<Shown> {
+	let mut air_open = true;
 	loop {
-		state.changed().await.ok()?;
-		let run = state.borrow_and_update().run;
-		if run != current {
-			return Some(run);
+		tokio::select! {
+			changed = state.changed() => changed.ok()?,
+			changed = air.changed(), if air_open => {
+				if changed.is_err() {
+					air_open = false;
+					continue;
+				}
+			}
+		}
+		let shown = Shown::of(&state.borrow_and_update(), *air.borrow_and_update());
+		if shown != current {
+			return Some(shown);
 		}
 	}
 }
@@ -255,6 +315,7 @@ mod tests {
 		log: Log,
 		fail: Arc<Mutex<bool>>,
 		state: watch::Sender<Snapshot>,
+		air: watch::Sender<bool>,
 		driver: tokio::task::JoinHandle<()>,
 	}
 
@@ -263,6 +324,8 @@ mod tests {
 			revision: 1,
 			built: jiff::civil::date(2026, 10, 29),
 			run,
+			checked: true,
+			provisioned: false,
 			steps: Vec::new(),
 			prompts: Vec::new(),
 		}
@@ -273,6 +336,7 @@ mod tests {
 			let log = Log::default();
 			let fail = Arc::new(Mutex::new(false));
 			let (state, rx) = watch::channel(snapshot(run));
+			let (air, air_rx) = watch::channel(false);
 			let driver = tokio::spawn(drive(
 				Fake {
 					log: log.clone(),
@@ -280,11 +344,13 @@ mod tests {
 					fail: fail.clone(),
 				},
 				rx,
+				air_rx,
 			));
 			Self {
 				log,
 				fail,
 				state,
+				air,
 				driver,
 			}
 		}
@@ -297,7 +363,18 @@ mod tests {
 		}
 
 		async fn change(&self, run: RunState) {
-			self.state.send_replace(snapshot(run));
+			self.state.send_modify(|snapshot| snapshot.run = run);
+			self.settle().await;
+		}
+
+		async fn provisioned(&self, provisioned: bool) {
+			self.state
+				.send_modify(|snapshot| snapshot.provisioned = provisioned);
+			self.settle().await;
+		}
+
+		async fn on_air(&self, on_air: bool) {
+			self.air.send_replace(on_air);
 			self.settle().await;
 		}
 
@@ -381,12 +458,58 @@ mod tests {
 	}
 
 	#[tokio::test(start_paused = true)]
-	async fn finished_is_green_and_steady() {
+	async fn a_provisioned_board_is_green_and_steady() {
 		let rig = Rig::new(RunState::Finished);
-		rig.settle().await;
+		rig.provisioned(true).await;
 		assert_eq!(rig.shown(), [(0, GREEN_ON)]);
 		pass(Duration::from_secs(30)).await;
 		assert_eq!(rig.shown(), [(0, GREEN_ON)]);
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn a_finished_run_that_left_the_board_unprovisioned_is_amber() {
+		let rig = Rig::new(RunState::Finished);
+		rig.settle().await;
+		pass(Duration::from_secs(5)).await;
+		assert_eq!(rig.shown(), [(0, AMBER)]);
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn on_the_air_alternates_red_and_green_each_half_second() {
+		let rig = Rig::new(RunState::Idle);
+		rig.on_air(true).await;
+		pass(Duration::from_millis(1500) + MS).await;
+		assert_eq!(
+			rig.shown(),
+			[
+				(0, RED_ON),
+				(500, GREEN_ON),
+				(1000, RED_ON),
+				(1500, GREEN_ON)
+			]
+		);
+		rig.on_air(false).await;
+		assert_eq!(rig.shown().last(), Some(&(1501, AMBER)));
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn on_the_air_shows_over_a_failed_run_and_a_provisioned_board() {
+		let rig = Rig::new(RunState::Failed);
+		rig.provisioned(true).await;
+		rig.on_air(true).await;
+		assert_eq!(rig.shown().last(), Some(&(0, RED_ON)));
+		pass(Duration::from_millis(500) + MS).await;
+		assert_eq!(rig.shown().last(), Some(&(500, GREEN_ON)));
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn on_the_air_does_not_show_over_a_run_under_way() {
+		let rig = Rig::new(RunState::Running);
+		rig.on_air(true).await;
+		pass(Duration::from_millis(1000) + MS).await;
+		assert_eq!(rig.shown(), [(0, GREEN_ON), (500, OFF), (1000, GREEN_ON)]);
+		rig.change(RunState::Waiting).await;
+		assert_eq!(rig.shown().last(), Some(&(1001, AMBER)));
 	}
 
 	#[tokio::test(start_paused = true)]
@@ -409,6 +532,7 @@ mod tests {
 	#[tokio::test(start_paused = true)]
 	async fn a_change_while_dark_lights_the_new_pattern_without_waiting_out_the_dark() {
 		let rig = Rig::new(RunState::Running);
+		rig.provisioned(true).await;
 		pass(Duration::from_millis(700)).await;
 		assert_eq!(rig.shown().last(), Some(&(500, OFF)));
 		rig.change(RunState::Finished).await;
@@ -481,23 +605,34 @@ mod tests {
 
 	#[test]
 	fn every_state_has_a_pattern_of_the_table() {
-		assert_eq!(Pattern::of(RunState::Idle), Pattern::Steady(Colour::Amber));
+		let of = |run, provisioned, on_air| {
+			Pattern::of(Shown {
+				run,
+				provisioned,
+				on_air,
+			})
+		};
+		for (provisioned, on_air) in [(false, false), (true, true)] {
+			assert_eq!(
+				of(RunState::Running, provisioned, on_air),
+				Pattern::Blink(Colour::Green, 1)
+			);
+			assert_eq!(
+				of(RunState::Waiting, provisioned, on_air),
+				Pattern::Blink(Colour::Amber, 1)
+			);
+		}
+		for run in [RunState::Idle, RunState::Failed, RunState::Finished] {
+			assert_eq!(of(run, false, true), Pattern::Alternate);
+		}
 		assert_eq!(
-			Pattern::of(RunState::Running),
-			Pattern::Blink(Colour::Green, 1)
-		);
-		assert_eq!(
-			Pattern::of(RunState::Waiting),
-			Pattern::Blink(Colour::Amber, 1)
-		);
-		assert_eq!(
-			Pattern::of(RunState::Failed),
+			of(RunState::Failed, true, false),
 			Pattern::Blink(Colour::Red, 3)
 		);
-		assert_eq!(
-			Pattern::of(RunState::Finished),
-			Pattern::Steady(Colour::Green)
-		);
+		for run in [RunState::Idle, RunState::Finished] {
+			assert_eq!(of(run, true, false), Pattern::Steady(Colour::Green));
+			assert_eq!(of(run, false, false), Pattern::Steady(Colour::Amber));
+		}
 	}
 
 	mod sysfs {

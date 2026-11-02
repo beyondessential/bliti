@@ -435,6 +435,8 @@ fn a_provision_state_is_described_as_the_wire_names_it() {
 			revision: 1,
 			built: jiff::civil::Date::constant(2026, 10, 29),
 			run: RunState::Idle,
+			checked: true,
+			provisioned: false,
 			steps: Vec::new(),
 			prompts: Vec::new(),
 		}
@@ -445,4 +447,6 @@ fn a_provision_state_is_described_as_the_wire_names_it() {
 	assert_eq!(described["message"]["revision"], 1);
 	assert_eq!(described["message"]["built"], "2026-10-29");
 	assert_eq!(described["message"]["run"], "idle");
+	assert_eq!(described["message"]["checked"], true);
+	assert_eq!(described["message"]["provisioned"], false);
 }

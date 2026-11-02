@@ -13,7 +13,7 @@ Amber is red and green lit together.
 A blink at 1 Hz is one cycle of lit and dark each second, and a blink at 3 Hz is three.
 Red and green alternating is red alone then green alone, each for half a second.
 
-A board is provisioned where every step that changes the board reports a done-state of `done`, as [RUN](run.md#done-state) has it.
+A board is provisioned as [RUN](run.md#done-state) has it.
 
 A device in provisioning mode MUST show the first of these states that applies.
 
@@ -27,8 +27,6 @@ A device in provisioning mode MUST show the first of these states that applies.
 | ready | otherwise | amber, steady |
 
 A device MUST show its state from the moment provisioning mode starts.
-
-A device MUST take a board as not provisioned until it has determined every step's done-state since it started.
 
 A device MUST NOT drive the status LED when it is not in provisioning mode.
 

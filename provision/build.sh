@@ -203,6 +203,15 @@ share=$root/usr/share/bliti/provision
 install -d -m 755 "$share"
 install -m 644 "$dir/pieeprom.bin" "$hat/tamanu-iti-v4.dtbo" "${eeproms[@]}" "$share/"
 install -m 644 "$manifest" "$share/manifest"
+# The Iti's software, at the paths the step `software` installs it to in the disk's system (PDSK).
+software=$share/system
+install -D -m 755 "$bliti" "$software/usr/local/bin/bliti"
+install -D -m 644 "$repo/services/bliti.service" "$software/etc/systemd/system/bliti.service"
+install -D -m 644 "$repo/services/bliti-bluetoothd.conf" "$software/etc/bluetooth/bliti.conf"
+install -D -m 644 "$repo/services/bliti-bluetooth-dropin.conf" \
+	"$software/etc/systemd/system/bluetooth.service.d/10-bliti.conf"
+install -D -m 644 "$repo/services/bliti-journald.conf" "$software/etc/systemd/journald.conf.d/10-bliti.conf"
+install -D -m 644 "$repo/services/bliti-daemon.env" "$software/etc/bliti/daemon.env"
 
 systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.service
 # The medium does not update its own software (PMED), and the bootloader is written by the step that
@@ -210,13 +219,17 @@ systemctl --root="$root" enable bliti-provision-medium.service bliti-provision.s
 systemctl --root="$root" mask unattended-upgrades.service \
 	apt-daily.timer apt-daily.service apt-daily-upgrade.timer apt-daily-upgrade.service \
 	rpi-eeprom-update.service
-# The medium changes no disk as it boots, other than checking its data partition (PMED). The root grow
+# The medium changes no disk as it boots, other than checking its data partition (PMED): the root grow
 # finds its partition by the pi image's name, and the first boot's identity rotation is left out of
-# the initramfs by provision/root's dracut configuration.
-# The pi image installs that unit in /etc, where its mask has to go.
-systemctl --root="$root" disable grow-root-filesystem.service
-rm "$root/etc/systemd/system/grow-root-filesystem.service"
-systemctl --root="$root" mask grow-root-filesystem.service
+# the initramfs by provision/root's dracut configuration. Nor is it ever on a tailnet: the step that
+# signs in to Tailscale runs a tailscaled of its own (PTS). The pi image installs the units that are
+# in /etc there, where their masks have to go.
+systemctl --root="$root" mask tailscaled.service
+for unit in grow-root-filesystem.service bes-tailscale-firstboot-auth.service; do
+	systemctl --root="$root" disable "$unit"
+	rm "$root/etc/systemd/system/$unit"
+	systemctl --root="$root" mask "$unit"
+done
 sed -i -E 's#/dev/disk/by-partlabel/(firmware|xboot|root)([[:space:]])#/dev/disk/by-partlabel/provision-\1\2#' \
 	"$root/etc/crypttab" "$root/etc/fstab"
 

@@ -161,6 +161,13 @@ masked() {
 	done
 }
 check "nothing upgrades packages unattended" masked
+tailscale_masked() {
+	local unit
+	for unit in tailscaled.service bes-tailscale-firstboot-auth.service; do
+		[[ $(readlink "$root/etc/systemd/system/$unit") == /dev/null ]] || return 1
+	done
+}
+check "the medium runs no Tailscale of its own" tailscale_masked
 check "the root does not grow at boot" \
 	test "$(readlink "$root/etc/systemd/system/grow-root-filesystem.service")" = /dev/null
 own_names() {
@@ -176,6 +183,22 @@ check "the root carries the HAT overlay" cmp -s "$repo/target/hat/tamanu-iti-v4.
 for eep in "$repo"/target/hat/tamanu-iti-v*.eep; do
 	check "the root carries $(basename "$eep")" cmp -s "$eep" "$share/$(basename "$eep")"
 done
+# The Iti's software the step `software` installs: where it installs, its source, and its mode.
+software=(
+	"usr/local/bin/bliti|$repo/target/device/aarch64-unknown-linux-gnu/release/bliti|755"
+	"etc/systemd/system/bliti.service|$repo/services/bliti.service|644"
+	"etc/bluetooth/bliti.conf|$repo/services/bliti-bluetoothd.conf|644"
+	"etc/systemd/system/bluetooth.service.d/10-bliti.conf|$repo/services/bliti-bluetooth-dropin.conf|644"
+	"etc/systemd/journald.conf.d/10-bliti.conf|$repo/services/bliti-journald.conf|644"
+	"etc/bliti/daemon.env|$repo/services/bliti-daemon.env|644"
+)
+for entry in "${software[@]}"; do
+	IFS='|' read -r path source mode <<<"$entry"
+	check "the root carries /$path to install" cmp -s "$source" "$share/system/$path"
+	check "/$path to install has mode $mode" test "$(stat -c %a "$share/system/$path")" = "$mode"
+done
+check "the root carries no other software to install" \
+	test "$(find "$share/system" -not -type d | wc -l)" -eq "${#software[@]}"
 
 config=$fw/config.txt
 check "the firmware loads no overlay an EEPROM names" \

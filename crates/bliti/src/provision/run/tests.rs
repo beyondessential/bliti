@@ -799,3 +799,61 @@ async fn an_answer_a_step_refuses_is_refused_at_the_value() {
 	device.act(&answer("q", Answer::text("fine"))).unwrap();
 	assert!(device.watch().borrow().prompts.is_empty());
 }
+
+#[tokio::test]
+async fn a_step_an_earlier_step_undoes_is_not_done_while_that_one_is_not() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let (disk, overlay) = (
+		Fake::new("disk", &log, vec![]),
+		Fake::new("overlay", &log, vec![]),
+	);
+	overlay.undone_by_steps(&["disk"]);
+	disk.done_is(DoneState::NotDone, Some("holds an earlier system"));
+	overlay.done_is(DoneState::Done, Some("the overlay is installed"));
+	let device = device(vec![disk.clone(), overlay], &medium).await;
+
+	let held = until(&device, |s| s.checked).await;
+	assert_eq!(held.steps[1].done, DoneState::NotDone);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the overlay is installed; disk replaces it")
+	);
+
+	disk.done_is(DoneState::Done, None);
+	device.attach();
+	let held = until(&device, |s| s.steps[0].done == DoneState::Done).await;
+	assert_eq!(held.steps[1].done, DoneState::Done);
+	assert_eq!(
+		held.steps[1].why.as_deref(),
+		Some("the overlay is installed")
+	);
+}
+
+#[tokio::test]
+async fn a_board_is_provisioned_once_every_step_that_changes_it_is_done() {
+	let (log, medium) = (Log::default(), Medium::new());
+	let (check, write) = (
+		Fake::new("check", &log, vec![]),
+		Fake::new("write", &log, vec![]),
+	);
+	check.checks_only();
+	write.done_is(DoneState::NotDone, None);
+	let device = device(vec![check, write.clone()], &medium).await;
+
+	let fresh = device.watch().borrow().clone();
+	assert!(
+		!fresh.provisioned,
+		"not provisioned before anything is determined"
+	);
+	let held = until(&device, |s| s.checked).await;
+	assert!(!held.provisioned);
+
+	write.done_is(DoneState::Done, None);
+	device.attach();
+	let held = until(&device, |s| s.provisioned).await;
+	assert_eq!(
+		held.steps[0].done,
+		DoneState::NotDone,
+		"a check never counts"
+	);
+}

@@ -2,12 +2,12 @@
 // the provisioning page reaches with no channel and no Bluetooth.
 //
 // It stands in at the messages of MSG, as the fake of the page that reaches a device does. It is idle
-// once connected, and a run it is asked to start passes every step chosen at once and finishes, with no
-// result for any step, so it adds nothing to the list of labels.
+// once connected, checking the board for a moment first, and a run it is asked to start passes every
+// step chosen at once and finishes, with no result for any step, so it adds nothing to the list of
+// labels. The board is provisioned once a run has passed every step but the checks.
 
 import { civilDate } from '../provision/state.js'
 import { FAKE_SUFFIX } from './name.js'
-
 
 // Every step of RUN, in its order.
 const STEPS = [
@@ -15,11 +15,15 @@ const STEPS = [
 	['eeprom', 'Program the EEPROM'],
 	['disk', 'Write the system to the disk'],
 	['overlay', 'Install the HAT overlay'],
+	['software', "Install the Iti's software"],
 	['encryption', 'Set up disk encryption'],
 	['tailscale', 'Sign in to Tailscale'],
 	['bootloader', 'Configure the bootloader'],
 	['label', 'Make the label'],
 ]
+
+// The steps that only check the board, which a board is provisioned without.
+const CHECKS = ['hardware', 'label']
 
 const message = (body) => ({ kind: 'message', message: body })
 
@@ -27,16 +31,21 @@ const message = (body) => ({ kind: 'message', message: body })
 // can lengthen it, to act within it.
 const SEEN = (__TEST_SEAM__ && window.__blitiTimings?.seen) || 50
 
+// How long it checks the board once connected, enough for the page to show it.
+const CHECKING = (__TEST_SEAM__ && window.__blitiTimings?.checking) || 300
+
 /// A `provision-state` of the fake device in `run`, with each step of `chosen` as `passed`, or as
 /// `pending` while the run is `running`, and `unchosen` for the rest, of the revision and the date the
-/// page implements.
-function stateOf(revision, run, chosen = []) {
+/// page implements. `provisioned` is whether a run has passed every step but the checks.
+function stateOf(revision, { run, checked, provisioned }, chosen = []) {
 	const chosenState = run === 'running' ? 'pending' : 'passed'
 	return {
 		type: 'provision-state',
 		revision,
 		built: civilDate(),
 		run,
+		checked,
+		provisioned,
 		steps: STEPS.map(([id, title]) => ({ id, title, done: 'not-done', state: chosen.includes(id) ? chosenState : 'unchosen' })),
 		prompts: [],
 	}
@@ -72,13 +81,20 @@ export function createFakeProvisionClient({ limits }) {
 			let live = true
 			end = () => (live = false)
 			let run = 'idle'
+			let checked = false
+			let provisioned = false
 			let chosen = []
 			const emit = (...bodies) =>
 				setTimeout(() => {
 					for (const body of bodies) if (live) onEvent(message(body))
 				}, 0)
-			const settle = () => stateOf(revision, run, chosen)
+			const settle = () => stateOf(revision, { run, checked, provisioned }, chosen)
 			emit(settle())
+			setTimeout(() => {
+				if (!live) return
+				checked = true
+				onEvent(message(settle()))
+			}, CHECKING)
 
 			// Each act is answered once. Only `start` and `acknowledge` are ever accepted, because the fake
 			// device never holds a prompt, and never fails, waits or runs for any time.
@@ -97,6 +113,7 @@ export function createFakeProvisionClient({ limits }) {
 					return setTimeout(() => {
 						if (!live || run !== 'running') return
 						run = 'finished'
+						provisioned = STEPS.every(([id]) => CHECKS.includes(id) || chosen.includes(id))
 						onEvent(message(settle()))
 					}, SEEN)
 				}

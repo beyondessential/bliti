@@ -75,11 +75,15 @@ build-device:
 		podman) user=(--userns=keep-id) ;;
 		*) user=(--user "$(id -u):$(id -g)") ;;
 	esac
+	# The crate registry lives in a named volume, or in the directory BLITI_DEVICE_CARGO names, which
+	# CI caches.
+	cargo=${BLITI_DEVICE_CARGO:-bliti-build-device-cargo}
+	if [[ $cargo == /* ]]; then mkdir -p "$cargo"; cargo="$cargo:z"; fi
 	# Its own target directory: the build scripts it compiles link the container's glibc, not the
 	# host's, so they cannot share one with a host build.
 	"$engine" run --rm "${user[@]}" \
 		-v "$PWD:/bliti:z" -w /bliti \
-		-v bliti-build-device-cargo:/cargo \
+		-v "$cargo:/cargo" \
 		-e BLITI_BUILD -e CARGO_TARGET_DIR=target/device \
 		"$image" cargo build --release --locked --target aarch64-unknown-linux-gnu -p bliti
 
@@ -110,8 +114,15 @@ provision-out := justfile_directory() / "target/provision"
 # its manifest into target/provision/.
 #
 # Build the provisioning image.
-provision-image: build-device hat-overlay hat-eeprom
-	provision/fetch.sh {{provision-out}}
+provision-image: hat-overlay hat-eeprom
+	#!/usr/bin/env bash
+	set -euo pipefail
+	# Fetched beside the daemon's build, which needs nothing the fetch brings.
+	provision/fetch.sh {{provision-out}} &
+	fetch=$!
+	trap 'kill "$fetch" 2>/dev/null || true' EXIT
+	just build-device
+	wait "$fetch"
 	sudo env BLITI_COMMIT=$(git rev-parse HEAD) provision/build.sh {{provision-out}}
 
 # Check the provisioning image in target/provision/ against its spec, under sudo.

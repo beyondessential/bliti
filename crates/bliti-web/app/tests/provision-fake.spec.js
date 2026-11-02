@@ -45,7 +45,7 @@ test('connects with no chooser and is named FAKE', async ({ page }) => {
 
 test('is idle with every step listed and ticked, and no medium refused', async ({ page }) => {
 	await connected(page)
-	await expect(page.locator('label.pick')).toHaveCount(8)
+	await expect(page.locator('label.pick')).toHaveCount(9)
 	await expect(page.locator('label.pick').first()).toHaveText('Check the hardware')
 	await expect(page.locator('label.pick').last()).toHaveText('Make the label')
 	for (const label of await page.locator('label.pick input').all()) await expect(label).toBeChecked()

@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { Title } from '../Screen.jsx'
 import { ordered } from './labels.js'
-import { download, downloadText, useSheetReady } from './sheet.js'
+import { downloadText, useSheet } from './sheet.js'
 import { showSaved } from './state.js'
 
 /// What the label says of when it was made and printed.
@@ -12,9 +12,29 @@ function when(label) {
 	return label.printed ? `Printed ${showSaved(label.printed)}` : `Added ${showSaved(label.at)}`
 }
 
+/// The button that downloads the sheet of `labels` through `sheet`, saying it is making the sheet
+/// while it is (PSHT).
+export function SheetButton({ sheet, labels, className, onMade }) {
+	const { ready, making, make } = sheet
+	// spec: PSHT
+	return (
+		<button className={className} disabled={making || labels.length === 0} onClick={() => make(labels, onMade)}>
+			{making ? (
+				<>
+					<span className="spinner" aria-hidden="true" />
+					Making the sheet
+				</>
+			) : (
+				downloadText(labels.length, ready)
+			)}
+		</button>
+	)
+}
+
+
 /// `labels` is the page's hold on the list, and `onBack` leaves it.
 export default function Labels({ labels, onBack }) {
-	const ready = useSheetReady()
+	const sheet = useSheet()
 	const held = ordered(labels.list)
 	// What the operator has changed, over the ticks the labels' printed state gives.
 	const [changed, setChanged] = useState({})
@@ -22,17 +42,10 @@ export default function Labels({ labels, onBack }) {
 	const chosen = held.filter(isTicked)
 	// The label being asked about removing.
 	const [removing, setRemoving] = useState(null)
-	const [failed, setFailed] = useState(null)
 
-	async function save() {
-		setFailed(null)
-		try {
-			await download(chosen)
-			labels.markPrinted(chosen.map((label) => label.payload))
-			setChanged({})
-		} catch (error) {
-			setFailed(error.message ?? String(error))
-		}
+	function made(printed) {
+		labels.markPrinted(printed.map((label) => label.payload))
+		setChanged({})
 	}
 
 	function remove(label) {
@@ -87,14 +100,12 @@ export default function Labels({ labels, onBack }) {
 								</li>
 							))}
 						</ul>
-						{failed && (
+						{sheet.failed && (
 							<p className="why" role="alert">
-								{failed}
+								{sheet.failed}
 							</p>
 						)}
-						<button className="block" disabled={chosen.length === 0} onClick={save}>
-							{downloadText(chosen.length, ready)}
-						</button>
+						<SheetButton sheet={sheet} labels={chosen} className="block" onMade={made} />
 					</>
 				)}
 				{!labels.kept && (

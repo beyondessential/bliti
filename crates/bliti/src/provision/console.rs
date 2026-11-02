@@ -195,6 +195,8 @@ impl<O: io::Write> Console<O> {
 				revision,
 				built,
 				run,
+				checked,
+				provisioned,
 				steps,
 				prompts,
 			} => {
@@ -202,6 +204,8 @@ impl<O: io::Write> Console<O> {
 					revision: *revision,
 					built: *built,
 					run: *run,
+					checked: *checked,
+					provisioned: *provisioned,
 					steps: steps.clone(),
 					prompts: prompts.clone(),
 				};
@@ -315,7 +319,7 @@ impl<O: io::Write> Console<O> {
 			Question::Waiting => "stop to end the run, or q to leave it running> ".to_owned(),
 			Question::Failed => "retry, stop to end the run, or q to leave it> ".to_owned(),
 			Question::Finished => {
-				"Acknowledge the finished run, which discards it? [Y/n]> ".to_owned()
+				"Acknowledge the finished run, which discards it? [y/N]> ".to_owned()
 			}
 		};
 		write!(self.out, "{marker}")?;

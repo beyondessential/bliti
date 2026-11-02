@@ -64,6 +64,10 @@ impl<L: Line + Clone + Sync> Step for Hardware<L> {
 		"Check the hardware"
 	}
 
+	fn changes_board(&self) -> bool {
+		false
+	}
+
 	// spec: PHW
 	async fn done(&self) -> Done {
 		Done {
