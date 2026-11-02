@@ -18,7 +18,7 @@ The medium is a 64 GB USB3 stick, written from the PR preview's image. For debug
 
 - [ ] The provisioning image builds and publishes from main, with `provision-image-test` passing (verifies spec: PMED)
 - [ ] `/downloads/tamanu-iti-provision.img.zst`, its `.sha256` and its `.txt` manifest download from iti.tamanu.app, and the digest matches (verifies spec: PMED)
-- [ ] The manifest has every entry in order, and `BLITI_COMMIT` is the main commit under test (verifies spec: PMED)
+- [x] The manifest has every entry in order, and `BLITI_COMMIT` is the commit under test (verifies spec: PMED)
 - [ ] The image written to the USB stick boots the prototype into provisioning mode (verifies spec: PMED)
 - [ ] The data partition reads on the laptop as FAT32 `ITIPROV`, with `manifest.txt` at its root (verifies spec: PMED)
 - [ ] The console command opens on HDMI and on the serial console with no login, and exiting it gives a root shell (verifies spec: PMED)
