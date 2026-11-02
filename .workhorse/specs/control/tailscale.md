@@ -102,6 +102,11 @@ A device MUST refuse a `METHOD` it does not recognise, at `$['method']`.
 
 A device MUST register under its own hostname where `NAME` is absent.
 
+A device MUST sign in with Tailscale SSH turned on.
+
+> [!NOTE]
+> Tailscale SSH is how the fleet reaches its machines, as `linux-images` signs them in, and it does not depend on the system's own passwords.
+
 `sign-in` is carried out when Tailscale reaches `running` or `needs-approval` in a tailnet the device accepts.
 
 A device MAY be configured to accept a single tailnet, by means outside this protocol.

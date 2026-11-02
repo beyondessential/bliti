@@ -168,6 +168,8 @@ impl Inner {
 			let mut prefs = daemon.api.prefs().await?;
 			prefs.insert("WantRunning".to_owned(), true.into());
 			prefs.insert("Hostname".to_owned(), name.unwrap_or_default().into());
+			// spec: TSC Tailscale SSH on, as the image's own sign-in has it
+			prefs.insert("RunSSH".to_owned(), true.into());
 			daemon.api.start(prefs, key.clone()).await?;
 			daemon.api.login_interactive().await
 		};
