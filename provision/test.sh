@@ -194,9 +194,9 @@ for fs in dev proc; do
 	mount --bind "/$fs" "$root/$fs"
 	teardown+=("umount '$root/$fs'")
 done
-mount --bind "$fw" "$root/boot/firmware"
-teardown+=("umount '$root/boot/firmware'")
-initrd=/boot/firmware/current/initrd.img
+mount --bind "$fw" "$root/mnt"
+teardown+=("umount '$root/mnt'")
+initrd=/mnt/current/initrd.img
 check "the initramfs unlocks the medium's own root" bash -c \
 	"chroot '$root' lsinitrd -f etc/crypttab '$initrd' | grep -q 'by-partlabel/provision-root\s'"
 check "the initramfs leaves the first boot's identity rotation out" bash -c \
