@@ -187,10 +187,12 @@ verity=bliti-provision-test-verity-$$
 veritysetup open --hash-offset="${manifest[PAYLOAD_HASH_OFFSET]}" \
 	"${loop}p4" "$verity" "${loop}p4" "${manifest[PAYLOAD_ROOT_HASH]}"
 teardown+=("veritysetup close '$verity'")
+# uutils dd, Ubuntu's dd from 25.10, fails every direct read of a verity device with EINVAL.
+dd=$(command -v gnudd || command -v dd)
 check "a corrupt payload block fails its read" bash -c \
-	"! dd if=/dev/mapper/$verity of=/dev/null bs=4096 skip=$block count=1 iflag=direct status=none 2>/dev/null"
+	"! $dd if=/dev/mapper/$verity of=/dev/null bs=4096 skip=$block count=1 iflag=direct status=none 2>/dev/null"
 check "an intact payload block reads" \
-	dd if="/dev/mapper/$verity" of=/dev/null bs=4096 skip=$((block + 1)) count=1 iflag=direct status=none
+	"$dd" if="/dev/mapper/$verity" of=/dev/null bs=4096 skip=$((block + 1)) count=1 iflag=direct status=none
 undo
 
 # A pi image that does not match its release's checksum fails the fetch.
