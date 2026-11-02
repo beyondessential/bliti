@@ -87,10 +87,28 @@ nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font
 .parts > ul > li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
 .parts > ul > li:first-child { border-top: 0; }
 .parts input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; align-self: flex-start; margin-top: 0.3rem; }
-.parts label { cursor: pointer; }
 .parts .item { min-width: 0; flex: 1; }
 .parts .why { display: block; color: var(--muted); font-size: 0.9rem; }
-.parts details summary { color: var(--accent); font-size: 0.85rem; cursor: pointer; width: fit-content; }
+.parts > ul > li { position: relative; }
+.parts label { display: block; padding-right: 2.75rem; cursor: pointer; }
+.parts details summary {
+	position: absolute;
+	top: 2px;
+	right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	color: var(--muted);
+	cursor: pointer;
+	list-style: none;
+}
+.parts details summary::-webkit-details-marker { display: none; }
+.parts details[open] summary { color: var(--accent); border-color: var(--accent); }
+.parts summary svg { width: 1.25rem; height: 1.25rem; }
 .parts .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
 .parts .photo {
 	flex: none;
@@ -165,6 +183,7 @@ body.mobile .mobile-only { display: block; }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/></symbol></svg>
 <main>
 	<h1>Assemble an Iti</h1>
 	<p class="lede">Follow this guide to build an Iti from its parts, provision it, and test it. The provisioning image is a large download, so start it first.</p>
@@ -179,52 +198,52 @@ body.mobile .mobile-only { display: block; }
 
 	<section id="parts" class="parts">
 		<h2>Parts</h2>
-		<p class="muted">Open a part for a photo and where to get it.</p>
+		<p class="muted">The photo icon on a part shows it and where to get it.</p>
 
 		<h3>Board and power</h3>
 		<ul>
 			<li><input type="checkbox" id="p-pi"><div class="item"><label for="p-pi">Raspberry Pi 5, 8 GB</label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0502/Raspberry-Pi-5-8GB-LPDDR4-24GHz-Quad-Core-ARM-Cort">PB Tech</a></li><li><a href="https://www.raspberrypi.com/products/raspberry-pi-5/">Raspberry Pi</a>, for other sellers</li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-fan"><div class="item"><label for="p-fan">Raspberry Pi Active Cooler<span class="why">The Pi's fan.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0531/Raspberry-Pi-Official-Active-Cooler-for-Raspberry">PB Tech</a></li><li><a href="https://www.raspberrypi.com/products/active-cooler/">Raspberry Pi</a>, for other sellers</li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-x1208"><div class="item"><label for="p-x1208">X1208 UPS board<span class="why">The 1-cell 21700 UPS with an NVMe slot.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://geekworm.com/products/x1208?variant=51300730044729">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1208">Documentation</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208</label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://geekworm.com/products/x1207-c1">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1207-C1">Documentation</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-psu"><div class="item"><label for="p-psu">Raspberry Pi 27W USB-C power supply<span class="why">Plugs into the X1208, not the Pi.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0511/Raspberry-Pi-Official-27W-Power-Supply-White-AU-Pl">PB Tech</a>, Australian and New Zealand plug</li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-cell"><div class="item"><label for="p-cell">One Samsung 21700 58E cell, 5500 mAh<span class="why">The X1208 takes an unprotected cell, with no protection circuit, no more than 70.3 mm long.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://cell-supply.co.nz/product/samsung_58e/">Cell Supply NZ</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-rtc"><div class="item"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="why">The official rechargeable cell, with its self-adhesive pad.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0532/Raspberry-Pi-Official-Real-Time-Clock-RTC-Battery">PB Tech</a></li><li><a href="https://www.adafruit.com/product/5817">Adafruit</a></li><li><a href="https://www.raspberrypi.com/products/rtc-battery/">Raspberry Pi</a>, for other sellers</li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-hat"><div class="item"><label for="p-hat">Tamanu Iti HAT, revision B</label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><span class="todo">how to get a HAT: made by PCBWay from the design files</span></li><li><a href="https://github.com/beyondessential/tamanu-iti-hat">Design files</a></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-screw"><div class="item"><label for="p-screw">One M2.5 × 12 mm machine screw<span class="why">Holds the HAT down. The head is flat-topped, not countersunk, with a Phillips or a hex socket.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.theboltholder.co.nz/view-product/screws/m2p5x12-pan-phillips-mt-ss304/m2p5x12-pan-phillips-mt-ss304">The Boltholder</a>, stainless pan head, Phillips</li></ul>
 				</div></details></div></li>
@@ -233,11 +252,11 @@ body.mobile .mobile-only { display: block; }
 		<h3>Storage</h3>
 		<ul>
 			<li><input type="checkbox" id="p-nvme"><div class="item"><label for="p-nvme">M.2 NVMe drive, M key<span class="why">2230, 2242 or 2280 long, any brand. We fit 500 GB.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="why">Comes with the thermal pad that sticks it on.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://www.aliexpress.com/item/1005005713763821.html">AliExpress</a>, JEYI</li></ul>
 				</div></details></div></li>
@@ -246,17 +265,17 @@ body.mobile .mobile-only { display: block; }
 		<h3>3D-printed shims</h3>
 		<ul>
 			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim<span class="why">Sits between the 21700 cell and the bottom of the case so it doesn't rattle, and has a slot for the RTC cell.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim<span class="why">Blocks the SD card slot.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim<span class="why">Sticks to the inside of the lid over the CASE switch. The metal lid doesn't flex or reach the lever on its own.</span></label>
-				<details><summary>Photo and where to get it</summary><div class="more">
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<div class="photo">photo</div>
 					<ul class="links"><li><a href="https://github.com/beyondessential/tamanu-iti-case">Tamanu Iti case repository</a> <span class="todo">direct link to the file</span></li></ul>
 				</div></details></div></li>
