@@ -17,3 +17,4 @@ The test pass itself is the card's test cases. This plan holds what the pass tur
 - [ ] `tailscaled` runs on the medium from boot, as the pi image enables it. Check what the Tailscale step leaves running.
 - [ ] Implement PLED's board-level states: provisioned from the done-states, and red and green alternating while on the air with no run under way.
 - [ ] The finished screen says "Provisioned" after a run of some steps, and its "Run steps again" is a small link under "Provision another Iti", so a finished board reads as one that cannot be provisioned further.
+- [ ] Closing the payload's verity mapping after `disk` fails as still in use, leaving `bliti-payload` mapped. Find what still holds it (the mapping's file, or the loop device for its partitions) and close it first.
