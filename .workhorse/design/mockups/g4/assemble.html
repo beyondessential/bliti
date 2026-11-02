@@ -319,7 +319,7 @@ body.mobile .mobile-only { display: block; }
 		</div>
 		<p>The image is rebuilt every week. The provisioning page refuses one that is a month old, so download a fresh one rather than reusing a stick you wrote earlier.</p>
 
-		<h3>Write it to the stick</h3>
+		<h3>Check it, then write it to the stick</h3>
 		<p class="notice mobile-only">Write the stick from a computer. A phone or tablet can't.</p>
 		<div class="tabs" role="tablist" aria-label="Your computer">
 			<button role="tab" id="tab-windows" aria-controls="os-windows" aria-selected="false">Windows</button>
@@ -328,18 +328,23 @@ body.mobile .mobile-only { display: block; }
 		</div>
 
 		<div class="os" id="os-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in PowerShell in that folder.</p>
+<pre>(Get-FileHash -Algorithm SHA256 .\tamanu-iti-provision.img.zst).Hash -eq (Get-Content .\tamanu-iti-provision.img.zst.sha256).Split(' ')[0]</pre>
+			<p class="muted">It prints <code>True</code> when the download is intact. Otherwise, download the image again.</p>
 			<h3>Raspberry Pi Imager</h3>
 			<ol>
 				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
 				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
 				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
 			</ol>
-			<h3>Check the download first</h3>
-			<p>In PowerShell, in the folder you downloaded to, and compare the result with the text in the <code>.sha256</code> file:</p>
-<pre>Get-FileHash -Algorithm SHA256 .\tamanu-iti-provision.img.zst</pre>
 		</div>
 
 		<div class="os" id="os-macos" role="tabpanel" aria-labelledby="tab-macos" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in a terminal in that folder.</p>
+<pre>shasum -a 256 -c tamanu-iti-provision.img.zst.sha256</pre>
+			<p class="muted">It prints <code>tamanu-iti-provision.img.zst: OK</code> when the download is intact. Otherwise, download the image again.</p>
 			<h3>Raspberry Pi Imager</h3>
 			<ol>
 				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
@@ -356,13 +361,16 @@ body.mobile .mobile-only { display: block; }
 			<h3>Or the terminal</h3>
 			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed (<code>brew install zstd</code>):</p>
 <pre>diskutil list external
-shasum -a 256 -c tamanu-iti-provision.img.zst.sha256
 diskutil unmountDisk /dev/diskN
 zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
 			<p class="muted">Replace <code>N</code> with the stick's number. <code>dd</code> prints nothing until it finishes; press Ctrl+T to see how far it has got.</p>
 		</div>
 
 		<div class="os" id="os-linux" role="tabpanel" aria-labelledby="tab-linux" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in a terminal in that folder.</p>
+<pre>sha256sum -c tamanu-iti-provision.img.zst.sha256</pre>
+			<p class="muted">It prints <code>tamanu-iti-provision.img.zst: OK</code> when the download is intact. Otherwise, download the image again.</p>
 			<h3>Raspberry Pi Imager</h3>
 			<ol>
 				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
@@ -386,7 +394,6 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
 			<h3>Or the terminal</h3>
 			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed:</p>
 <pre>lsblk -o NAME,SIZE,TRAN,MODEL
-sha256sum -c tamanu-iti-provision.img.zst.sha256
 zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</pre>
 			<p class="muted">Replace <code>sdX</code> with the stick, as <code>lsblk</code> lists it.</p>
 		</div>
