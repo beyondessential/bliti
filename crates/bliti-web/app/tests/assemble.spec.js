@@ -294,6 +294,13 @@ test.describe('the parts a step needs', () => {
 	})
 })
 
+test('ends with marking the Iti as tested, after the Testing section', async ({ page }) => {
+	await page.goto(PAGE)
+	const last = page.locator('.build > li').last()
+	await expect(last).toContainText('Mark the Iti as tested')
+	await expect(page.locator('#testing .build > li')).toHaveCount(1)
+})
+
 test.describe('starting over', () => {
 	test('is offered only once every step is done', async ({ page }) => {
 		await page.goto(PAGE)
