@@ -53,6 +53,7 @@ input {
 .row > * { flex: 1 1 auto; }
 .code { font-family: ui-monospace, monospace; font-size: 0.85rem; word-break: break-all; }
 .muted { color: var(--muted); font-size: 0.9rem; }
+a { color: var(--accent); }
 .bad { color: var(--bad); }
 .warn { color: var(--warn); }
 .good { color: var(--good); }

@@ -65,6 +65,7 @@ test('lists each page under the path it is navigated at', async () => {
 	const urls = (await built()).list.entries.map((entry) => entry.url)
 	expect(urls).toContain('/')
 	expect(urls).toContain('/provision')
+	expect(urls).toContain('/assemble')
 	expect(urls.filter((url) => url.endsWith('.html'))).toEqual([])
 })
 
