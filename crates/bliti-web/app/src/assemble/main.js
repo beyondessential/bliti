@@ -31,10 +31,12 @@ function guess() {
 for (const tab of tabs) tab.addEventListener('click', () => show(tab.id.slice('tab-'.length)))
 show(guess())
 
-// A step is ticked by its number. Starting over clears the steps and the parts of one Iti, and keeps
-// the image and the parts of provisioning, because a stick is written once for a batch.
+// A step opens to its photo or video, and one is open at a time. Its number ticks it off, which closes
+// it. Starting over clears the steps and the parts of one Iti, and keeps the image and the parts of
+// provisioning, because a stick is written once for a batch.
 guide.classList.add('ticks')
 const steps = [...document.querySelectorAll('.build > li')]
+const panels = steps.map((step) => step.querySelector('details'))
 const again = document.getElementById('again')
 const progress = document.getElementById('progress')
 
@@ -49,6 +51,17 @@ function mark(step, number, on) {
 	step.classList.toggle('done', on)
 	button.setAttribute('aria-pressed', on)
 	button.textContent = on ? '✓' : number
+	if (on) step.querySelector('details').open = false
+}
+
+for (const panel of panels) {
+	panel.addEventListener('toggle', () => {
+		if (panel.open) for (const other of panels) if (other !== panel) other.open = false
+		for (const video of panel.querySelectorAll('video')) {
+			if (panel.open) video.play()?.catch(() => {})
+			else video.pause()
+		}
+	})
 }
 
 steps.forEach((step, index) => {
@@ -64,10 +77,51 @@ steps.forEach((step, index) => {
 	})
 })
 
+// Once the reader has ticked a part of this Iti, each step says how many of its parts they have, and
+// names what is missing, so they can do the steps they can and fetch the rest as they come to it.
+const parts = new Map([...document.querySelectorAll('.parts input')].map((box) => [box.id, box]))
+const nameOf = (id) => document.querySelector(`label[for="${id}"]`).firstChild.textContent.trim()
+
+for (const step of steps) {
+	if (!step.dataset.needs) continue
+	const pill = document.createElement('span')
+	pill.className = 'pill'
+	pill.hidden = true
+	step.querySelector('summary').append(pill)
+	const missing = document.createElement('p')
+	missing.className = 'missing'
+	missing.hidden = true
+	step.querySelector('.detail').prepend(missing)
+}
+
+function sortParts() {
+	const started = [...parts.values()].some((box) => box.checked && !box.closest('.keep'))
+	for (const step of steps) {
+		if (!step.dataset.needs) continue
+		const needs = step.dataset.needs.split(' ')
+		const lacking = needs.filter((id) => !parts.get(id).checked)
+		const short = started && lacking.length > 0
+		step.classList.toggle('short', short)
+		const pill = step.querySelector('.pill')
+		const missing = step.querySelector('.missing')
+		pill.hidden = !short
+		missing.hidden = !short
+		pill.textContent = `${needs.length - lacking.length} of ${needs.length} parts`
+		missing.textContent = `Still needed: ${lacking.map(nameOf).join(', ')}.`
+	}
+}
+document.querySelector('.parts').addEventListener('change', sortParts)
+
 again.addEventListener('click', () => {
 	steps.forEach((step, index) => mark(step, index + 1, false))
 	for (const box of document.querySelectorAll('.parts > ul:not(.keep) input')) box.checked = false
+	for (const panel of panels) panel.open = false
+	panels[0].open = true
+	sortParts()
 	count()
-	window.scrollTo({ top: 0, behavior: 'smooth' })
+	document.getElementById('parts').scrollIntoView({ behavior: 'smooth' })
 })
+
+panels[0].open = true
+sortParts()
 count()

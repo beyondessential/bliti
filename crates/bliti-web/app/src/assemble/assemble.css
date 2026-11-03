@@ -157,6 +157,35 @@
 .guide .num[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide .build > li.done .body { opacity: 0.55; }
 .guide .build .body { min-width: 0; flex: 1; }
+.guide .build summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
+.guide .build summary::-webkit-details-marker { display: none; }
+.guide .build summary .title { flex: 1; min-width: 0; }
+.guide .build summary::after {
+	content: "";
+	flex: none;
+	width: 7px;
+	height: 7px;
+	margin: 0 4px 3px 0;
+	border-right: 2px solid var(--muted);
+	border-bottom: 2px solid var(--muted);
+	transform: rotate(45deg);
+}
+.guide .build details[open] > summary::after { margin: 5px 4px 0 0; transform: rotate(-135deg); }
+.guide .build .detail { margin-top: 8px; }
+.guide .build .detail > :last-child { margin-bottom: 0; }
+.guide .build video { display: block; width: 100%; max-width: 22rem; margin-top: 8px; border-radius: 6px; }
+/* How many of a step's parts are in hand, once the reader has started ticking parts. */
+.guide .pill {
+	flex: none;
+	padding: 0 8px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	color: var(--muted);
+	font-size: 0.75rem;
+	white-space: nowrap;
+}
+.guide .build > li.short summary .title { color: var(--muted); opacity: 0.65; }
+.guide .missing { color: var(--muted); font-size: 0.9rem; }
 .guide .build .body > :last-child { margin-bottom: 0; }
 .guide .build strong { font-weight: 600; }
 .guide .build .aside { color: var(--muted); font-size: 0.9rem; }

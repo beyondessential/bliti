@@ -127,6 +127,108 @@ test.describe('the steps', () => {
 	})
 })
 
+const panel = (page, index) => page.locator('.build > li').nth(index).locator('details')
+const heading = (page, index) => page.locator('.build > li').nth(index).locator('summary')
+
+test.describe('opening a step', () => {
+	test('starts with the first step open and the rest closed', async ({ page }) => {
+		await page.goto(PAGE)
+		await expect(panel(page, 0)).toHaveJSProperty('open', true)
+		const count = await page.locator('.build > li').count()
+		for (let i = 1; i < count; i++) await expect(panel(page, i)).toHaveJSProperty('open', false)
+	})
+
+	test('opens a step when it is clicked, and closes the one that was open', async ({ page }) => {
+		await page.goto(PAGE)
+		await heading(page, 2).click()
+		await expect(panel(page, 2)).toHaveJSProperty('open', true)
+		await expect(panel(page, 0)).toHaveJSProperty('open', false)
+	})
+
+	test('shows a photo or video where a step is open', async ({ page }) => {
+		await page.goto(PAGE)
+		await expect(panel(page, 0).locator('.photo, video').first()).toBeVisible()
+	})
+
+	test('closes a step when it is ticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).first().click()
+		await expect(panel(page, 0)).toHaveJSProperty('open', false)
+		await expect(page.locator('.build > li').first()).toHaveClass(/done/)
+	})
+
+	test('plays a step\'s video as it opens, and stops it as it closes', async ({ page }) => {
+		await page.addInitScript(() => {
+			window.__played = []
+			HTMLMediaElement.prototype.play = function () {
+				window.__played.push(`play ${this.id}`)
+				return Promise.resolve()
+			}
+			HTMLMediaElement.prototype.pause = function () {
+				window.__played.push(`pause ${this.id}`)
+			}
+		})
+		await page.goto(PAGE)
+		await page.evaluate(() => {
+			const video = document.createElement('video')
+			video.id = 'two'
+			video.loop = true
+			video.muted = true
+			document.querySelectorAll('.build > li')[1].querySelector('.detail').append(video)
+		})
+		await heading(page, 1).click()
+		await expect.poll(() => page.evaluate(() => window.__played)).toContain('play two')
+		await heading(page, 2).click()
+		await expect.poll(() => page.evaluate(() => window.__played)).toContain('pause two')
+	})
+})
+
+test.describe('the parts a step needs', () => {
+	const pill = (page, index) => page.locator('.build > li').nth(index).locator('.pill')
+
+	test('are not mentioned until a part is ticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await expect(page.locator('.pill:visible')).toHaveCount(0)
+		await expect(page.locator('.build > li.short')).toHaveCount(0)
+	})
+
+	test('are counted once a part is ticked, and named in the step', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.locator('#p-pi').check()
+		await expect(pill(page, 0)).toHaveText('1 of 2 parts')
+		await expect(page.locator('.build > li').first()).toHaveClass(/short/)
+		await expect(page.locator('.build > li').first().locator('.missing')).toContainText('Raspberry Pi Active Cooler')
+	})
+
+	test('are met when every part of a step is ticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.locator('#p-pi').check()
+		await page.locator('#p-fan').check()
+		await expect(pill(page, 0)).toBeHidden()
+		await expect(page.locator('.build > li').first()).not.toHaveClass(/short/)
+	})
+
+	test('leave a step that needs none alone', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.locator('#p-pi').check()
+		await expect(page.locator('.build > li').nth(8)).not.toHaveClass(/short/)
+	})
+
+	test('are not mentioned once every part is unticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.locator('#p-pi').check()
+		await page.locator('#p-pi').uncheck()
+		await expect(page.locator('.pill:visible')).toHaveCount(0)
+	})
+
+	test('name only parts the page lists', async ({ page }) => {
+		await page.goto(PAGE)
+		const known = await page.locator('.parts input').evaluateAll((boxes) => boxes.map((box) => box.id))
+		const needed = await page.locator('.build > li[data-needs]').evaluateAll((steps) => steps.flatMap((step) => step.dataset.needs.split(' ')))
+		for (const id of needed) expect(known).toContain(id)
+	})
+})
+
 test.describe('starting over', () => {
 	test('is offered only once every step is done', async ({ page }) => {
 		await page.goto(PAGE)
@@ -155,6 +257,16 @@ test.describe('starting over', () => {
 		await expect(page.locator('#image-done')).toBeChecked()
 		await expect(page.getByRole('button', { name: 'Do a new one' })).toBeDisabled()
 		await expect(numbers(page).first()).toHaveText('1')
+	})
+
+	test('opens the first step again, and returns to the parts', async ({ page }) => {
+		await page.goto(PAGE)
+		const count = await numbers(page).count()
+		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
+		await expect(panel(page, 0)).toHaveJSProperty('open', false)
+		await page.getByRole('button', { name: 'Do a new one' }).click()
+		await expect(panel(page, 0)).toHaveJSProperty('open', true)
+		await expect(page.locator('#parts')).toBeInViewport()
 	})
 })
 
