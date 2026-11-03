@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#326699">
+<link rel="icon" href="/icon-small.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<!-- iOS takes the home-screen icon from here rather than from the manifest. -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Test an Iti</title>
+</head>
+<body>
+<main class="guide">
+	<h1>Test an Iti</h1>
+	<p class="lede">Follow this guide to test an assembled Iti and mark it tested.</p>
+
+	<section id="parts" class="parts">
+		<h2>Parts</h2>
+		<h3>The Iti</h3>
+		<ul>
+			<li><input type="checkbox" id="t-iti"><div class="item"><label for="t-iti">The assembled Iti</label></div></li>
+		</ul>
+		<h3>For testing</h3>
+		<ul class="keep">
+			<li><input type="checkbox" id="t-psu"><div class="item"><label for="t-psu">USB-C cable and power<span class="about">Any desk supply or laptop will do. We ship the Raspberry Pi 27W supply.</span></label></div></li>
+			<li><input type="checkbox" id="t-net"><div class="item"><label for="t-net">Network cable</label></div></li>
+			<li><input type="checkbox" id="t-wifi"><div class="item"><label for="t-wifi">Wi-Fi network name and password</label></div></li>
+			<li><input type="checkbox" id="t-phone"><div class="item"><label for="t-phone">A phone with Bluetooth and Chrome</label></div></li>
+		</ul>
+	</section>
+
+	<section id="testing">
+		<h2>Testing</h2>
+		<ol class="build">
+			<li data-needs="t-iti t-psu t-net"><div class="body"><details><summary><span class="title"><strong>Plug in the network cable and the power.</strong> The Iti boots by itself.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="t-phone"><div class="body"><details><summary><span class="title"><strong>Connect to the Iti</strong> with the <a href="/">operator app</a> over Bluetooth.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Set up Tailscale</strong> from the app, if provisioning did not.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Check the Case tile</strong> in the app's device view reads closed. That confirms the lid presses the CASE switch.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Press the USER button</strong> through the closed case, with a thin tool such as the back of a pair of tweezers.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="t-wifi"><div class="body"><details><summary><span class="title"><strong>Run the test procedure.</strong> <span class="todo">to be written</span></span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Mark the Iti as tested</strong> in inventory.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+		</ol>
+	</section>
+
+	<div class="again">
+		<button id="again" disabled>Do a new one</button>
+	</div>
+</main>
+<script type="module" src="/src/assemble/test.js"></script>
+</body>
+</html>

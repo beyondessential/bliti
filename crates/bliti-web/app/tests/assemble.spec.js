@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { openProvision } from './fake-provision-client.js'
+import { heading, numbers, panel, tickParts } from './guide.js'
 
 // The assembly guide (ASM): a page beside the operator app and the provisioning client, at its own
 // path, with the provisioning client linking to it and it linking back.
@@ -14,16 +15,6 @@ const LINUX = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0 S
 const PHONE = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36'
 
 const controlled = (page) => page.waitForFunction(() => navigator.serviceWorker.controller !== null)
-const numbers = (page) => page.locator('.build > li .num')
-
-// Every part of the list ticked, as a reader with everything to hand has it, so the order of the steps
-// is all that holds them.
-const tickParts = (page) =>
-	page.evaluate(() => {
-		for (const box of document.querySelectorAll('.parts input')) box.checked = true
-		document.querySelector('.parts').dispatchEvent(new Event('change'))
-	})
-
 test('serves the guide at its path, titled Assemble an Iti', async ({ page }) => {
 	await page.goto(PAGE)
 	await expect(page).toHaveTitle(TITLE)
@@ -38,6 +29,19 @@ test('links to the provisioning client, and the provisioning client links back',
 	await page.getByRole('link', { name: 'Follow the assembly guide' }).click()
 	await expect(page).toHaveURL(PAGE)
 	await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible()
+})
+
+test('links to the testing and shipping pages after the Iti is ready', async ({ page }) => {
+	await page.goto(PAGE)
+	await expect(page.locator('.ready')).toContainText('The Iti is ready.')
+	await expect(page.getByRole('link', { name: 'test it' })).toHaveAttribute('href', '/test')
+	await expect(page.getByRole('link', { name: 'ship it' })).toHaveAttribute('href', '/ship')
+})
+
+test('no longer carries the testing and shipping sections', async ({ page }) => {
+	await page.goto(PAGE)
+	await expect(page.locator('#testing, #shipping')).toHaveCount(0)
+	await expect(page.getByText('steps done')).toHaveCount(0)
 })
 
 test('links to the provisioning image, its digest and its manifest', async ({ page }) => {
@@ -121,24 +125,12 @@ test.describe('the steps', () => {
 		await expect(first).toHaveText('1')
 	})
 
-	test('count how many are done', async ({ page }) => {
-		await page.goto(PAGE)
-		await tickParts(page)
-		const total = await numbers(page).count()
-		await expect(page.locator('#progress')).toHaveText(`0 of ${total} steps done`)
-		await numbers(page).nth(0).click()
-		await expect(page.locator('#progress')).toHaveText(`1 of ${total} steps done`)
-	})
-
 	test('do not number a step whose number is a button twice', async ({ page }) => {
 		await page.goto(PAGE)
 		const before = await page.locator('.build > li').first().evaluate((li) => getComputedStyle(li, '::before').content)
 		expect(before).toBe('none')
 	})
 })
-
-const panel = (page, index) => page.locator('.build > li').nth(index).locator('details')
-const heading = (page, index) => page.locator('.build > li').nth(index).locator('summary')
 
 test.describe('the order of the steps', () => {
 	test('lets only the first step be ticked to begin with', async ({ page }) => {
@@ -353,13 +345,6 @@ test.describe('the parts a step needs', () => {
 	})
 })
 
-test('ends with marking the Iti as tested, after the Testing section', async ({ page }) => {
-	await page.goto(PAGE)
-	const last = page.locator('.build > li').last()
-	await expect(last).toContainText('Mark the Iti as tested')
-	await expect(page.locator('#testing .build > li')).toHaveCount(1)
-})
-
 test.describe('starting over', () => {
 	test('is offered only once every step is done', async ({ page }) => {
 		await page.goto(PAGE)
@@ -409,52 +394,6 @@ test('opens a part to show its sources, closed until then', async ({ page }) => 
 	await expect(sources).toBeHidden()
 	await pi.locator('summary').click()
 	await expect(sources).toBeVisible()
-})
-
-test.describe('shipping', () => {
-	const shipping = (page) => page.locator('#shipping details')
-
-	test('is closed until it is opened', async ({ page }) => {
-		await page.goto(PAGE)
-		await expect(shipping(page)).toHaveJSProperty('open', false)
-		await page.locator('#shipping summary').click()
-		await expect(shipping(page)).toHaveJSProperty('open', true)
-	})
-
-	test('is opened by the link in the index', async ({ page }) => {
-		await page.goto(PAGE)
-		await page.getByRole('link', { name: 'Shipping' }).click()
-		await expect(shipping(page)).toHaveJSProperty('open', true)
-	})
-
-	test('is opened by a visit to its address', async ({ page }) => {
-		await page.goto(`${PAGE}#shipping`)
-		await expect(shipping(page)).toHaveJSProperty('open', true)
-	})
-
-	test('gives the HS codes, the weights and the lithium declaration', async ({ page }) => {
-		await page.goto(PAGE)
-		await page.locator('#shipping summary').click()
-		await expect(page.locator('#shipping')).toContainText('8471.30.00.31')
-		await expect(page.locator('#shipping')).toContainText('8504.40.30.59')
-		await expect(page.locator('#shipping')).toContainText('150 g')
-		await expect(page.locator('#shipping')).toContainText('UN3481')
-		await expect(page.locator('#shipping')).toContainText('packing instruction 967, section II')
-		await expect(page.locator('#shipping')).toContainText('20 Wh')
-		await expect(page.locator('#shipping')).toContainText('No more than 4 Itis in a package')
-	})
-
-	test('is not one of the steps starting over waits on', async ({ page }) => {
-		await page.goto(PAGE)
-		await tickParts(page)
-		const count = await numbers(page).count()
-		await page.locator('#shipping summary').click()
-		await page.locator('#s-sticker').check()
-		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
-		await expect(page.getByRole('button', { name: 'Do a new one' })).toBeEnabled()
-		await page.getByRole('button', { name: 'Do a new one' }).click()
-		await expect(page.locator('#s-sticker')).not.toBeChecked()
-	})
 })
 
 test.describe('offline after one load of the operator app', () => {

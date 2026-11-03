@@ -46,10 +46,10 @@
 .guide #image:has(#image-done:checked) h2 { text-decoration: line-through; }
 
 /* Parts: a ticked list, each part with its photo and where to get it behind an icon. */
-.guide :is(.parts, .ship) h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
-.guide :is(.parts, .ship) h3:first-of-type { margin-top: 0; }
-.guide :is(.parts, .ship) ul { list-style: none; margin: 0; padding: 0; }
-.guide :is(.parts, .ship) > ul > li {
+.guide .parts h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
+.guide .parts h3:first-of-type { margin-top: 0; }
+.guide .parts ul { list-style: none; margin: 0; padding: 0; }
+.guide .parts > ul > li {
 	position: relative;
 	display: flex;
 	gap: 10px;
@@ -57,12 +57,12 @@
 	padding: 10px 0;
 	border-top: 1px solid var(--line);
 }
-.guide :is(.parts, .ship) > ul > li:first-child { border-top: 0; }
-.guide :is(.parts, .ship) input[type="checkbox"] { align-self: flex-start; margin-top: 0.3rem; }
-.guide :is(.parts, .ship) .item { min-width: 0; flex: 1; }
-.guide :is(.parts, .ship) label { display: block; padding-right: 2.5rem; cursor: pointer; }
+.guide .parts > ul > li:first-child { border-top: 0; }
+.guide .parts input[type="checkbox"] { align-self: flex-start; margin-top: 0.3rem; }
+.guide .parts .item { min-width: 0; flex: 1; }
+.guide .parts label { display: block; padding-right: 2.5rem; cursor: pointer; }
 .guide .about { display: block; color: var(--muted); font-size: 0.9rem; }
-.guide :is(.parts, .ship) details summary {
+.guide .parts details summary {
 	position: absolute;
 	top: 6px;
 	right: 0;
@@ -77,10 +77,10 @@
 	cursor: pointer;
 	list-style: none;
 }
-.guide :is(.parts, .ship) details summary::-webkit-details-marker { display: none; }
-.guide :is(.parts, .ship) details[open] summary { color: var(--accent); border-color: var(--accent); }
-.guide :is(.parts, .ship) summary svg { width: 1.1rem; height: 1.1rem; }
-.guide :is(.parts, .ship) .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
+.guide .parts details summary::-webkit-details-marker { display: none; }
+.guide .parts details[open] summary { color: var(--accent); border-color: var(--accent); }
+.guide .parts summary svg { width: 1.1rem; height: 1.1rem; }
+.guide .parts .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
 .guide .sources { font-size: 0.9rem; }
 .guide .sources li { padding: 2px 0; }
 
@@ -210,26 +210,11 @@
 
 .guide .ready { text-align: center; font-size: 1.25rem; border-color: var(--accent); }
 .guide .ready span { font-size: 1.5rem; }
-.guide .again { display: flex; gap: 12px; align-items: center; }
+.guide .again { margin: 0 0 12px; }
+.guide .next { text-align: center; }
 
-/* Shipping folds up behind its heading, and carries a table of what to declare. */
-.guide .ship summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
-.guide .ship summary::-webkit-details-marker { display: none; }
-.guide .ship summary h2 { margin: 0; }
-.guide .ship summary::after {
-	content: "";
-	flex: none;
-	width: 7px;
-	height: 7px;
-	margin: -4px 4px 0 0;
-	border-right: 2px solid var(--muted);
-	border-bottom: 2px solid var(--muted);
-	transform: rotate(45deg);
-}
-.guide .ship[open] > summary::after { margin: 4px 4px 0 0; transform: rotate(-135deg); }
-.guide .ship[open] > summary { margin-bottom: 12px; }
-.guide .ship h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
-.guide .ship table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 0.9rem; }
-.guide .ship th { text-align: left; font-weight: 600; color: var(--muted); }
-.guide .ship th, .guide .ship td { padding: 6px 12px 6px 0; border-top: 1px solid var(--line); }
-.guide .ship thead th { border-top: 0; }
+/* What to declare when shipping. */
+.guide table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 0.9rem; }
+.guide th { text-align: left; font-weight: 600; color: var(--muted); }
+.guide th, .guide td { padding: 6px 12px 6px 0; border-top: 1px solid var(--line); }
+.guide thead th { border-top: 0; }

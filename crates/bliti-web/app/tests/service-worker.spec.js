@@ -66,6 +66,8 @@ test('lists each page under the path it is navigated at', async () => {
 	expect(urls).toContain('/')
 	expect(urls).toContain('/provision')
 	expect(urls).toContain('/assemble')
+	expect(urls).toContain('/test')
+	expect(urls).toContain('/ship')
 	expect(urls.filter((url) => url.endsWith('.html'))).toEqual([])
 })
 

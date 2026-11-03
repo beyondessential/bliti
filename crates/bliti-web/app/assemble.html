@@ -14,15 +14,13 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/></symbol></svg>
 <main class="guide">
 	<h1>Assemble an Iti</h1>
-	<p class="lede">Follow this guide to build an Iti from its parts, provision it, and test it.</p>
+	<p class="lede">Follow this guide to build an Iti from its parts and provision it.</p>
 
 	<nav class="jump" aria-label="On this page">
 		<a href="#parts">Parts</a>
 		<a href="#assembly">Assembly</a>
 		<a href="#provisioning">Provisioning</a>
 		<a href="#closing-up">Closing up</a>
-		<a href="#testing">Testing</a>
-		<a href="#shipping">Shipping</a>
 	</nav>
 
 	<section id="parts" class="parts">
@@ -385,58 +383,11 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<span aria-hidden="true">🎉</span> The Iti is ready.
 	</section>
 
-	<section id="testing">
-		<h2>Testing</h2>
-		<p>Boot the finished Iti and <a href="/">connect to it</a> with the operator app over Bluetooth.</p>
-		<p>If provisioning didn't set up Tailscale, set it up from the app.</p>
-		<p>The Case tile in the app's device view should read closed: that confirms the lid presses the CASE switch.</p>
-		<p>The USER button stays reachable with the case closed. Press it through the case with a thin tool, such as the back of a pair of tweezers.</p>
-		<p><span class="todo">test procedure, to be written</span></p>
-		<ol class="build">
-			<li><div class="body"><details><summary><span class="title"><strong>Mark the Iti as tested</strong> in inventory.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
-		</ol>
-	</section>
-	<section id="shipping">
-		<details class="ship">
-			<summary><h2>Shipping</h2></summary>
-			<p class="muted">A tested Iti can wait in storage and ship later.</p>
-			<h3>You need</h3>
-			<ul>
-				<li><input type="checkbox" id="s-iti"><div class="item"><label for="s-iti">The finished, tested Iti</label></div></li>
-				<li><input type="checkbox" id="s-psu"><div class="item"><label for="s-psu">A 27W power supply</label></div></li>
-				<li><input type="checkbox" id="s-box"><div class="item"><label for="s-box">A box and packing <span class="todo">to be decided</span></label></div></li>
-			</ul>
-			<h3>Prepare it for its destination</h3>
-			<p class="muted">Optional, but recommended.</p>
-			<ul>
-				<li><input type="checkbox" id="s-prepare"><div class="item"><label for="s-prepare">Install and configure its software for where it is going, such as Tamanu <span class="todo">what exactly</span></label></div></li>
-				<li><input type="checkbox" id="s-network"><div class="item"><label for="s-network">Set up its network for the destination, in the <a href="/">operator app</a></label></div></li>
-			</ul>
-			<h3>Send it</h3>
-			<ul>
-				<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the Iti has its sticker</label></div></li>
-				<li><input type="checkbox" id="s-send"><div class="item"><label for="s-send">Pack it in the box with the packing, and the power supply, and send it</label></div></li>
-				<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Mark it as sent in inventory, and to whom</label></div></li>
-			</ul>
-			<h3>Declaring it</h3>
-			<table>
-				<thead><tr><th>Item</th><th>HS code</th><th>Weight</th></tr></thead>
-				<tbody>
-					<tr><td>Tamanu Iti</td><td>8471.30.00.31</td><td>about 300 g <span class="todo">weigh one</span></td></tr>
-					<tr><td>27W power supply</td><td>8504.40.30.59</td><td>150 g</td></tr>
-				</tbody>
-			</table>
-			<p class="notice">Contains a lithium-ion cell. Ship under UN3481, packing instruction 967, section II. The cell is 20 Wh. No more than 4 Itis in a package. <span class="todo">check the limit</span></p>
-		</details>
-	</section>
+	<p class="next">Next: <a href="/test">test it</a>, then <a href="/ship">ship it</a>.</p>
 
-	<section class="again">
+	<div class="again">
 		<button id="again" disabled>Do a new one</button>
-		<span class="muted" id="progress"></span>
-	</section>
+	</div>
 </main>
 <script type="module" src="/src/assemble/main.js"></script>
 </body>
