@@ -157,6 +157,39 @@ test.describe('opening a step', () => {
 		await expect(page.locator('.build > li').first()).toHaveClass(/done/)
 	})
 
+	test('opens the next step when one is ticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).nth(0).click()
+		await expect(panel(page, 1)).toHaveJSProperty('open', true)
+		await expect(panel(page, 0)).toHaveJSProperty('open', false)
+	})
+
+	test('skips a next step that is already done', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).nth(2).click()
+		await numbers(page).nth(0).click()
+		await expect(panel(page, 1)).toHaveJSProperty('open', true)
+		await numbers(page).nth(1).click()
+		await expect(panel(page, 3)).toHaveJSProperty('open', true)
+		await expect(panel(page, 2)).toHaveJSProperty('open', false)
+	})
+
+	test('opens nothing after the last step is ticked', async ({ page }) => {
+		await page.goto(PAGE)
+		const count = await numbers(page).count()
+		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
+		for (let i = 0; i < count; i++) await expect(panel(page, i)).toHaveJSProperty('open', false)
+	})
+
+	test('does not open the next step when a step is unticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).nth(0).click()
+		await heading(page, 4).click()
+		await numbers(page).nth(0).click()
+		await expect(panel(page, 4)).toHaveJSProperty('open', true)
+		await expect(panel(page, 1)).toHaveJSProperty('open', false)
+	})
+
 	test('plays a step\'s video as it opens, and stops it as it closes', async ({ page }) => {
 		await page.addInitScript(() => {
 			window.__played = []

@@ -64,6 +64,14 @@ for (const panel of panels) {
 	})
 }
 
+// Ticking a step opens the next one that is not done, so the reader follows the guide down.
+function openNext(index) {
+	const next = steps.findIndex((step, at) => at > index && !step.classList.contains('done'))
+	if (next === -1) return
+	panels[next].open = true
+	steps[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+
 steps.forEach((step, index) => {
 	const number = index + 1
 	const button = document.createElement('button')
@@ -72,7 +80,9 @@ steps.forEach((step, index) => {
 	step.prepend(button)
 	mark(step, number, false)
 	button.addEventListener('click', () => {
-		mark(step, number, !step.classList.contains('done'))
+		const on = !step.classList.contains('done')
+		mark(step, number, on)
+		if (on) openNext(index)
 		count()
 	})
 })
