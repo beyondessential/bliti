@@ -386,15 +386,19 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<h3>You need</h3>
 			<ul>
 				<li><input type="checkbox" id="s-iti"><div class="item"><label for="s-iti">The finished, tested Iti</label></div></li>
-				<li><input type="checkbox" id="s-psu"><div class="item"><label for="s-psu">A 27W power supply<span class="about">Optional, but recommended.</span></label></div></li>
+				<li><input type="checkbox" id="s-psu"><div class="item"><label for="s-psu">A 27W power supply</label></div></li>
 				<li><input type="checkbox" id="s-box"><div class="item"><label for="s-box">A box and packing <span class="todo">to be decided</span></label></div></li>
 			</ul>
-			<h3>Steps</h3>
+			<h3>Prepare it for its destination</h3>
+			<p class="muted">Optional, but recommended.</p>
 			<ul>
 				<li><input type="checkbox" id="s-prepare"><div class="item"><label for="s-prepare">Prepare the Iti for where it is going <span class="todo">what to install and configure</span></label></div></li>
 				<li><input type="checkbox" id="s-network"><div class="item"><label for="s-network">Set up its network for the destination, in the <a href="/">operator app</a></label></div></li>
 				<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the sticker is on properly, and record its barcode</label></div></li>
 				<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Record in inventory that the Iti, by its serial, is shipped, and where to</label></div></li>
+			</ul>
+			<h3>Send it</h3>
+			<ul>
 				<li><input type="checkbox" id="s-send"><div class="item"><label for="s-send">Pack it in the box with the packing, and the power supply, and send it</label></div></li>
 			</ul>
 			<h3>Declaring it</h3>

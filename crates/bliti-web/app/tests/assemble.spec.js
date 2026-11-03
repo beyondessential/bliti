@@ -116,7 +116,7 @@ test.describe('the steps', () => {
 		await page.goto(PAGE)
 		const total = await numbers(page).count()
 		await expect(page.locator('#progress')).toHaveText(`0 of ${total} steps done`)
-		await numbers(page).nth(2).click()
+		await numbers(page).nth(0).click()
 		await expect(page.locator('#progress')).toHaveText(`1 of ${total} steps done`)
 	})
 
@@ -129,6 +129,48 @@ test.describe('the steps', () => {
 
 const panel = (page, index) => page.locator('.build > li').nth(index).locator('details')
 const heading = (page, index) => page.locator('.build > li').nth(index).locator('summary')
+
+test.describe('the order of the steps', () => {
+	test('lets only the first step be ticked to begin with', async ({ page }) => {
+		await page.goto(PAGE)
+		await expect(numbers(page).nth(0)).toBeEnabled()
+		await expect(numbers(page).nth(1)).toBeDisabled()
+		await expect(numbers(page).nth(5)).toBeDisabled()
+	})
+
+	test('lets the next step be ticked once a step is done', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).nth(0).click()
+		await expect(numbers(page).nth(1)).toBeEnabled()
+		await expect(numbers(page).nth(2)).toBeDisabled()
+	})
+
+	test('lets only the last step done be unticked', async ({ page }) => {
+		await page.goto(PAGE)
+		await numbers(page).nth(0).click()
+		await numbers(page).nth(1).click()
+		await expect(numbers(page).nth(0)).toBeDisabled()
+		await expect(numbers(page).nth(1)).toBeEnabled()
+		await numbers(page).nth(1).click()
+		await expect(numbers(page).nth(0)).toBeEnabled()
+		await expect(numbers(page).nth(1)).toBeEnabled()
+	})
+
+	test('still opens a step that cannot be ticked yet, to read it', async ({ page }) => {
+		await page.goto(PAGE)
+		await heading(page, 8).click()
+		await expect(panel(page, 8)).toHaveJSProperty('open', true)
+	})
+
+	test('begins again at the first step after starting over', async ({ page }) => {
+		await page.goto(PAGE)
+		const count = await numbers(page).count()
+		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
+		await page.getByRole('button', { name: 'Do a new one' }).click()
+		await expect(numbers(page).nth(0)).toBeEnabled()
+		await expect(numbers(page).nth(1)).toBeDisabled()
+	})
+})
 
 test.describe('opening a step', () => {
 	test('starts with the first step open and the rest closed', async ({ page }) => {
@@ -162,16 +204,6 @@ test.describe('opening a step', () => {
 		await numbers(page).nth(0).click()
 		await expect(panel(page, 1)).toHaveJSProperty('open', true)
 		await expect(panel(page, 0)).toHaveJSProperty('open', false)
-	})
-
-	test('skips a next step that is already done', async ({ page }) => {
-		await page.goto(PAGE)
-		await numbers(page).nth(2).click()
-		await numbers(page).nth(0).click()
-		await expect(panel(page, 1)).toHaveJSProperty('open', true)
-		await numbers(page).nth(1).click()
-		await expect(panel(page, 3)).toHaveJSProperty('open', true)
-		await expect(panel(page, 2)).toHaveJSProperty('open', false)
 	})
 
 	test('opens nothing after the last step is ticked', async ({ page }) => {

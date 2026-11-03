@@ -154,6 +154,7 @@
 	font-size: 0.85rem;
 	font-variant-numeric: tabular-nums;
 }
+.guide .num:disabled { background: var(--page); opacity: 0.5; cursor: default; }
 .guide .num[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide .build > li.done .body { opacity: 0.55; }
 .guide .build .body { min-width: 0; flex: 1; }

@@ -64,12 +64,24 @@ for (const panel of panels) {
 	})
 }
 
-// Ticking a step opens the next one that is not done, so the reader follows the guide down.
+// Steps are done in order, so the done ones are always a run from the first. Only the next step can
+// be ticked, and only the last one done can be unticked. Any step can still be opened to read.
+function sync() {
+	const first = steps.findIndex((step) => !step.classList.contains('done'))
+	const next = first === -1 ? steps.length : first
+	steps.forEach((step, index) => {
+		const button = step.querySelector('.num')
+		button.disabled = index !== next && index !== next - 1
+		button.title = button.disabled && index > next ? 'Do the steps before this first' : ''
+	})
+}
+
+// Ticking a step opens the one after it, so the reader follows the guide down.
 function openNext(index) {
-	const next = steps.findIndex((step, at) => at > index && !step.classList.contains('done'))
-	if (next === -1) return
-	panels[next].open = true
-	steps[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+	const next = steps[index + 1]
+	if (!next) return
+	next.querySelector('details').open = true
+	next.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
 steps.forEach((step, index) => {
@@ -83,6 +95,7 @@ steps.forEach((step, index) => {
 		const on = !step.classList.contains('done')
 		mark(step, number, on)
 		if (on) openNext(index)
+		sync()
 		count()
 	})
 })
@@ -128,12 +141,14 @@ again.addEventListener('click', () => {
 	for (const panel of panels) panel.open = false
 	panels[0].open = true
 	sortParts()
+	sync()
 	count()
 	document.getElementById('parts').scrollIntoView({ behavior: 'smooth' })
 })
 
 panels[0].open = true
 sortParts()
+sync()
 count()
 
 // The link in the page's index opens the shipping section it points at.
