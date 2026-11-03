@@ -383,10 +383,10 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<span aria-hidden="true">🎉</span> The Iti is ready.
 	</section>
 
-	<p class="next">Next: <a href="/test">test it</a>, then <a href="/ship">ship it</a>.</p>
-
-	<div class="again">
+	<div class="actions">
 		<button id="again" disabled>Do a new one</button>
+		<a class="button secondary" href="/test">Test it</a>
+		<a class="button secondary" href="/ship">Ship it</a>
 	</div>
 </main>
 <script type="module" src="/src/assemble/main.js"></script>

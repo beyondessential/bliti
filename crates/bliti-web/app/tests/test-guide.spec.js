@@ -78,6 +78,12 @@ test.describe('the steps', () => {
 	})
 })
 
+test('links to the assembly guide and the shipping guide', async ({ page }) => {
+	await page.goto(PAGE)
+	await expect(page.getByRole('link', { name: 'Assemble', exact: true })).toHaveAttribute('href', '/assemble')
+	await expect(page.getByRole('link', { name: 'Ship it' })).toHaveAttribute('href', '/ship')
+})
+
 test.describe('starting over', () => {
 	test('is offered once every step is done', async ({ page }) => {
 		await page.goto(PAGE)
@@ -103,7 +109,7 @@ test.describe('starting over', () => {
 	test('has no tile or count beside it', async ({ page }) => {
 		await page.goto(PAGE)
 		await expect(page.getByText('steps done')).toHaveCount(0)
-		const border = await page.locator('.again').evaluate((el) => getComputedStyle(el).borderTopWidth)
+		const border = await page.locator('.actions').evaluate((el) => getComputedStyle(el).borderTopWidth)
 		expect(border).toBe('0px')
 	})
 })

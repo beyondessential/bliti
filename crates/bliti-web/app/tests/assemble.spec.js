@@ -34,8 +34,19 @@ test('links to the provisioning client, and the provisioning client links back',
 test('links to the testing and shipping pages after the Iti is ready', async ({ page }) => {
 	await page.goto(PAGE)
 	await expect(page.locator('.ready')).toContainText('The Iti is ready.')
-	await expect(page.getByRole('link', { name: 'test it' })).toHaveAttribute('href', '/test')
-	await expect(page.getByRole('link', { name: 'ship it' })).toHaveAttribute('href', '/ship')
+	await expect(page.getByRole('link', { name: 'Test it' })).toHaveAttribute('href', '/test')
+	await expect(page.getByRole('link', { name: 'Ship it' })).toHaveAttribute('href', '/ship')
+})
+
+test('puts starting over and the links to the other pages on one row', async ({ page }) => {
+	await page.goto(PAGE)
+	const tops = []
+	for (const target of [
+		page.getByRole('button', { name: 'Do a new one' }),
+		page.getByRole('link', { name: 'Test it' }),
+		page.getByRole('link', { name: 'Ship it' }),
+	]) tops.push((await target.boundingBox()).y)
+	expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(2)
 })
 
 test('no longer carries the testing and shipping sections', async ({ page }) => {

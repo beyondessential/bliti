@@ -210,8 +210,10 @@
 
 .guide .ready { text-align: center; font-size: 1.25rem; border-color: var(--accent); }
 .guide .ready span { font-size: 1.5rem; }
-.guide .again { margin: 0 0 12px; }
-.guide .next { text-align: center; }
+/* The actions at the foot of a page: starting over, and the other pages, on one row. */
+.guide .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.guide .actions button, .guide .actions .button { padding: 8px 14px; min-height: 0; font-size: 0.9rem; }
+.guide .button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 
 /* What to declare when shipping. */
 .guide table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 0.9rem; }

@@ -13,6 +13,17 @@ test('serves the guide at its path, titled Ship an Iti', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible()
 })
 
+test('links to the assembly guide and the testing guide', async ({ page }) => {
+	await page.goto(PAGE)
+	await expect(page.getByRole('link', { name: 'Assemble', exact: true })).toHaveAttribute('href', '/assemble')
+	await expect(page.getByRole('link', { name: 'Test it' })).toHaveAttribute('href', '/test')
+})
+
+test('does not open by saying a tested Iti can wait in storage', async ({ page }) => {
+	await page.goto(PAGE)
+	await expect(page.getByText('can wait in storage')).toHaveCount(0)
+})
+
 test('says what it needs, with the supply required', async ({ page }) => {
 	await page.goto(PAGE)
 	const needs = page.locator('section', { has: page.getByRole('heading', { name: 'You need' }) })
