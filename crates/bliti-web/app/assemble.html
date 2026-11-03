@@ -122,6 +122,7 @@
 			<li><input type="checkbox" id="p-stick"><div class="item"><label for="p-stick">A USB 3 stick of at least 32 GB</label></div></li>
 			<li><input type="checkbox" id="p-computer"><div class="item"><label for="p-computer">A computer to write the stick</label></div></li>
 			<li><input type="checkbox" id="p-phone"><div class="item"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></div></li>
+			<li><input type="checkbox" id="p-paper"><div class="item"><label for="p-paper">Sticker paper, and a printer to print on it <span class="todo">which paper, and what size</span></label></div></li>
 			<li><input type="checkbox" id="p-key"><div class="item"><label for="p-key">A Tailscale auth key<span class="about">Reusable, lasting 7 days, tagged like a Tamanu demo server.</span></label></div></li>
 		</ul>
 	</section>
@@ -339,6 +340,10 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<p><a class="button" href="/provision">Provision the Iti</a></p>
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Print the sheet of labels</strong> from the provisioning page, on sticker paper. The page offers it once provisioning has finished.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
 			<li><div class="body"><details><summary><span class="title"><strong>Shut the Pi down</strong> with one press of the UPS's button, and wait until the main LED and the blue SSD LED are both off.</span></summary>
 				<div class="detail">
 					<div class="photo">photo or video</div>
@@ -364,7 +369,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					</ul></div>
 					<div class="photo">photo: the lid screws</div>
 				</div></details></div></li>
-			<li><div class="body"><details><summary><span class="title"><strong>Put the sticker on</strong> the bottom of the Iti, over one of its screws.</span></summary>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Put the sticker on</strong> the bottom of the Iti, over one of its screws. Peel its label from the printed sheet.</span></summary>
 				<div class="detail">
 					<p class="aside">The sticker covers the screw, so lifting it shows the case has been opened. It is a weak seal, not a lock.</p>
 					<div class="photo">photo: the sticker, and which screw it covers</div>
