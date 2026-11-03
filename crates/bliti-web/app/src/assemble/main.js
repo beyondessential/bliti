@@ -65,14 +65,18 @@ for (const panel of panels) {
 }
 
 // Steps are done in order, so the done ones are always a run from the first. Only the next step can
-// be ticked, and only the last one done can be unticked. Any step can still be opened to read.
+// be ticked, and only once the parts it needs are ticked. Only the last one done can be unticked. Any
+// step can still be opened to read.
+const hasParts = (step) => !step.dataset.needs || step.dataset.needs.split(' ').every((id) => parts.get(id).checked)
+
 function sync() {
 	const first = steps.findIndex((step) => !step.classList.contains('done'))
 	const next = first === -1 ? steps.length : first
 	steps.forEach((step, index) => {
 		const button = step.querySelector('.num')
-		button.disabled = index !== next && index !== next - 1
-		button.title = button.disabled && index > next ? 'Do the steps before this first' : ''
+		const tickable = index === next && hasParts(step)
+		button.disabled = !tickable && index !== next - 1
+		button.title = !button.disabled || index < next ? '' : index > next ? 'Do the steps before this first' : 'Tick the parts it needs first'
 	})
 }
 
@@ -100,8 +104,8 @@ steps.forEach((step, index) => {
 	})
 })
 
-// Once the reader has ticked a part of this Iti, each step says how many of its parts they have, and
-// names what is missing, so they can do the steps they can and fetch the rest as they come to it.
+// Each step says how many of its parts the reader has, and names what is missing, so they can do the
+// steps they can and fetch the rest as they come to it.
 const parts = new Map([...document.querySelectorAll('.parts input')].map((box) => [box.id, box]))
 const nameOf = (id) => document.querySelector(`label[for="${id}"]`).firstChild.textContent.trim()
 
@@ -118,12 +122,11 @@ for (const step of steps) {
 }
 
 function sortParts() {
-	const started = [...parts.values()].some((box) => box.checked && !box.closest('.keep'))
 	for (const step of steps) {
 		if (!step.dataset.needs) continue
 		const needs = step.dataset.needs.split(' ')
 		const lacking = needs.filter((id) => !parts.get(id).checked)
-		const short = started && lacking.length > 0
+		const short = lacking.length > 0
 		step.classList.toggle('short', short)
 		const pill = step.querySelector('.pill')
 		const missing = step.querySelector('.missing')
@@ -133,7 +136,10 @@ function sortParts() {
 		missing.textContent = `Still needed: ${lacking.map(nameOf).join(', ')}.`
 	}
 }
-document.querySelector('.parts').addEventListener('change', sortParts)
+document.querySelector('.parts').addEventListener('change', () => {
+	sortParts()
+	sync()
+})
 
 again.addEventListener('click', () => {
 	steps.forEach((step, index) => mark(step, index + 1, false))
