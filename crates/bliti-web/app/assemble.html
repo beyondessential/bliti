@@ -64,10 +64,10 @@
 					<img class="photo" src="/photos/hat.webp" alt="The Tamanu Iti HAT, seen from above" width="640" height="640" loading="lazy">
 					<ul class="sources"><li><a href="https://www.pcbway.com/">PCBWay</a>, PCBA assembly, from the design files. A batch takes about a month to order and build, so HATs come from stock when you assemble.</li><li><a href="https://github.com/beyondessential/tamanu-iti-hat">Design files</a></li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-screw"><div class="item"><label for="p-screw">One M2.5 × 12 mm machine screw<span class="about">Silver. Flat-topped head, not countersunk. Phillips or hex socket.</span></label>
+			<li><input type="checkbox" id="p-screw"><div class="item"><label for="p-screw">One M2.5 × 12 mm machine screw<span class="about">Silver. Flat-topped head, not countersunk. Hex socket, as pictured, or Phillips.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<img class="photo" src="/photos/screw.webp" alt="The M2.5 × 12 mm screw" width="640" height="640" loading="lazy">
-					<ul class="sources"><li><a href="https://www.theboltholder.co.nz/view-product/screws/m2p5x12-pan-phillips-mt-ss304/m2p5x12-pan-phillips-mt-ss304">The Boltholder</a>, stainless pan head, Phillips</li></ul>
+					<ul class="sources"><li><a href="https://theboltholder.co.nz/view-product/socket-screws/m2p5x12-socket-cap-full-thrd-ss304/m2p5x12-socket-cap-full-thrd-ss304">The Boltholder</a>, stainless socket cap, hex socket, as pictured</li><li><a href="https://www.theboltholder.co.nz/view-product/screws/m2p5x12-pan-phillips-mt-ss304/m2p5x12-pan-phillips-mt-ss304">The Boltholder</a>, stainless pan head, Phillips</li></ul>
 				</div></details></div></li>
 		</ul>
 
@@ -229,6 +229,11 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 	<section id="assembly">
 		<h2>Assembly</h2>
 		<ol class="build">
+			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Unscrew the lid</strong> from the case, and take out what is inside.</span></summary>
+				<div class="detail">
+					<p class="aside">The case ships closed, with its parts inside. Keep the lid screws: they screw the lid back on at the end, and they are the same as the screws that fasten the assembly to the bottom of the case.</p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
 			<li data-needs="p-pi p-fan"><div class="body"><details><summary><span class="title"><strong>Fit the Active Cooler</strong> to the Pi and plug it in.</span></summary>
 				<div class="detail">
 					<div class="photo">photo or video</div>
@@ -302,7 +307,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Flip the assembly back, put it in the case</strong>, and screw it to the bottom of the case.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
-					<li><span class="todo">which black screws from the case pack, how many, and which holes</span></li>
+					<li>black screws <span class="from">the lid screws, set aside in the first step</span> <span class="todo">how many, and which holes</span></li>
 					</ul></div>
 					<div class="photo">photo: the screws and holes</div>
 				</div></details></div></li>
@@ -369,7 +374,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Screw the lid on.</strong></span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
-					<li><b>4</b> × black <span class="todo">screw size</span> <span class="from">case pack</span></li>
+					<li><b>4</b> × black <span class="todo">screw size</span> <span class="from">the lid screws, set aside in the first step</span></li>
 					</ul></div>
 					<div class="photo">photo: the lid screws</div>
 				</div></details></div></li>

@@ -58,7 +58,7 @@ test('no longer carries the testing and shipping sections', async ({ page }) => 
 test('shows photos that load, each described', async ({ page }) => {
 	await page.goto(PAGE)
 	await page.evaluate(() => document.querySelectorAll('.parts details').forEach((details) => (details.open = true)))
-	await heading(page, 4).click()
+	await heading(page, 5).click()
 	const photos = await page.locator('img.photo').all()
 	expect(photos.length).toBeGreaterThan(0)
 	for (const photo of photos) {
@@ -198,8 +198,8 @@ test.describe('the order of the steps', () => {
 		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
 		await page.getByRole('button', { name: 'Do a new one' }).click()
 		await expect(numbers(page).nth(0)).toBeDisabled()
-		await page.locator('#p-pi').check()
-		await page.locator('#p-fan').check()
+		await page.locator('#p-case').check()
+		await page.locator('#p-driver').check()
 		await expect(numbers(page).nth(0)).toBeEnabled()
 		await expect(numbers(page).nth(1)).toBeDisabled()
 	})
@@ -210,9 +210,9 @@ test.describe('the parts a step is held for', () => {
 		await page.goto(PAGE)
 		await expect(numbers(page).nth(0)).toBeDisabled()
 		await expect(numbers(page).nth(0)).toHaveAttribute('title', 'Tick the parts it needs first')
-		await page.locator('#p-pi').check()
+		await page.locator('#p-case').check()
 		await expect(numbers(page).nth(0)).toBeDisabled()
-		await page.locator('#p-fan').check()
+		await page.locator('#p-driver').check()
 		await expect(numbers(page).nth(0)).toBeEnabled()
 	})
 
@@ -220,25 +220,25 @@ test.describe('the parts a step is held for', () => {
 		await page.goto(PAGE)
 		await tickParts(page)
 		await page.locator('#p-hat').uncheck()
-		for (let i = 0; i < 5; i++) await numbers(page).nth(i).click()
-		await expect(numbers(page).nth(5)).toBeDisabled()
+		for (let i = 0; i < 6; i++) await numbers(page).nth(i).click()
+		await expect(numbers(page).nth(6)).toBeDisabled()
 		await page.locator('#p-hat').check()
-		await expect(numbers(page).nth(5)).toBeEnabled()
+		await expect(numbers(page).nth(6)).toBeEnabled()
 	})
 
 	test('leave a step that needs no part to the order alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await tickParts(page)
-		for (let i = 0; i < 8; i++) await numbers(page).nth(i).click()
+		for (let i = 0; i < 9; i++) await numbers(page).nth(i).click()
 		await page.locator('#p-pi').uncheck()
-		await expect(numbers(page).nth(8)).toBeEnabled()
+		await expect(numbers(page).nth(9)).toBeEnabled()
 	})
 
 	test('still let the last step done be unticked if a part is unticked after', async ({ page }) => {
 		await page.goto(PAGE)
 		await tickParts(page)
 		await numbers(page).nth(0).click()
-		await page.locator('#p-pi').uncheck()
+		await page.locator('#p-case').uncheck()
 		await expect(numbers(page).nth(0)).toBeEnabled()
 	})
 })
@@ -330,34 +330,34 @@ test.describe('the parts a step needs', () => {
 		await page.goto(PAGE)
 		await expect(pill(page, 0)).toHaveText('0 of 2 parts')
 		await expect(page.locator('.build > li').first()).toHaveClass(/short/)
-		await expect(page.locator('.build > li').first().locator('.missing')).toContainText('Raspberry Pi 5, 8 GB')
+		await expect(page.locator('.build > li').first().locator('.missing')).toContainText('X1207-C1 metal case for the X1208')
 	})
 
 	test('are counted as parts are ticked, and named in the step', async ({ page }) => {
 		await page.goto(PAGE)
-		await page.locator('#p-pi').check()
+		await page.locator('#p-case').check()
 		await expect(pill(page, 0)).toHaveText('1 of 2 parts')
-		await expect(page.locator('.build > li').first().locator('.missing')).toContainText('Raspberry Pi Active Cooler')
+		await expect(page.locator('.build > li').first().locator('.missing')).toContainText('Phillips screwdriver')
 	})
 
 	test('are met when every part of a step is ticked', async ({ page }) => {
 		await page.goto(PAGE)
-		await page.locator('#p-pi').check()
-		await page.locator('#p-fan').check()
+		await page.locator('#p-case').check()
+		await page.locator('#p-driver').check()
 		await expect(pill(page, 0)).toBeHidden()
 		await expect(page.locator('.build > li').first()).not.toHaveClass(/short/)
 	})
 
 	test('leave a step that needs none alone', async ({ page }) => {
 		await page.goto(PAGE)
-		await page.locator('#p-pi').check()
-		await expect(page.locator('.build > li').nth(8)).not.toHaveClass(/short/)
+		await page.locator('#p-case').check()
+		await expect(page.locator('.build > li').nth(9)).not.toHaveClass(/short/)
 	})
 
 	test('are counted again once a part is unticked', async ({ page }) => {
 		await page.goto(PAGE)
-		await page.locator('#p-pi').check()
-		await page.locator('#p-pi').uncheck()
+		await page.locator('#p-case').check()
+		await page.locator('#p-case').uncheck()
 		await expect(pill(page, 0)).toHaveText('0 of 2 parts')
 	})
 
