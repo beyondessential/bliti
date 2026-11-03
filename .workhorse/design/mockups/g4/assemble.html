@@ -65,6 +65,8 @@ button, .button {
 	text-decoration: none;
 }
 .button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+button:disabled { background: var(--muted); opacity: 0.5; cursor: default; }
+.again { display: flex; gap: 12px; align-items: center; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
 nav.jump { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font-size: 0.9rem; }
@@ -167,6 +169,22 @@ ol.steps > li::before {
 	text-align: center;
 	font-variant-numeric: tabular-nums;
 }
+.js ol.steps > li::before { content: none; }
+.num {
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+	min-height: 0;
+	padding: 0;
+	border-radius: 50%;
+	background: var(--page);
+	border: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 0.85rem;
+	font-variant-numeric: tabular-nums;
+}
+.num[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.steps li.done .body { opacity: 0.55; }
 .steps .body { min-width: 0; flex: 1; }
 .steps .body > :last-child { margin-bottom: 0; }
 .steps strong { font-weight: 600; }
@@ -312,7 +330,7 @@ body.mobile .mobile-only { display: block; }
 		</ul>
 
 		<h3>For provisioning</h3>
-		<ul>
+		<ul class="keep">
 			<li><input type="checkbox" id="p-stick"><div class="item"><label for="p-stick">A USB 3 stick of at least 32 GB</label></div></li>
 			<li><input type="checkbox" id="p-computer"><div class="item"><label for="p-computer">A computer to write the stick</label></div></li>
 			<li><input type="checkbox" id="p-phone"><div class="item"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></div></li>
@@ -514,9 +532,52 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<p>The USER button stays reachable with the case closed. Press it through the case with a thin tool, such as the back of a pair of tweezers.</p>
 		<p><span class="todo">test procedure, to be written</span></p>
 	</section>
+	<section class="again">
+		<button id="again" disabled>Do a new one</button>
+		<span class="muted" id="progress"></span>
+	</section>
 </main>
 
 <script>
+// Steps tick off by their number. "Do a new one" clears them and the per-Iti parts, and leaves the
+// stick and the other provisioning parts alone, because the stick is written once per batch.
+document.documentElement.classList.add('js')
+const steps = [...document.querySelectorAll('ol.steps > li')]
+const again = document.getElementById('again')
+const progress = document.getElementById('progress')
+function refresh() {
+	const done = steps.filter(li => li.classList.contains('done')).length
+	progress.textContent = `${done} of ${steps.length} steps done`
+	again.disabled = done !== steps.length
+}
+steps.forEach((li, i) => {
+	const n = i + 1
+	const num = document.createElement('button')
+	num.className = 'num'
+	num.textContent = n
+	num.setAttribute('aria-pressed', 'false')
+	num.setAttribute('aria-label', `Step ${n} done`)
+	num.addEventListener('click', () => {
+		const on = li.classList.toggle('done')
+		num.setAttribute('aria-pressed', on)
+		num.textContent = on ? '\u2713' : n
+		refresh()
+	})
+	li.prepend(num)
+})
+again.addEventListener('click', () => {
+	for (const li of steps) {
+		li.classList.remove('done')
+		const num = li.querySelector('.num')
+		num.setAttribute('aria-pressed', 'false')
+		num.textContent = steps.indexOf(li) + 1
+	}
+	for (const box of document.querySelectorAll('.parts > ul:not(.keep) input')) box.checked = false
+	refresh()
+	window.scrollTo({ top: 0, behavior: 'smooth' })
+})
+refresh()
+
 // Pick the tab for the visitor's own system; they can change it.
 const tabs = [...document.querySelectorAll('[role="tab"]')]
 const ua = navigator.userAgent
