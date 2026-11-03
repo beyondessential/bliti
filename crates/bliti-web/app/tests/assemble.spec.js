@@ -58,7 +58,7 @@ test('no longer carries the testing and shipping sections', async ({ page }) => 
 test('shows photos that load, each described', async ({ page }) => {
 	await page.goto(PAGE)
 	await page.evaluate(() => document.querySelectorAll('.parts details').forEach((details) => (details.open = true)))
-	await heading(page, 5).click()
+	await heading(page, 6).click()
 	const photos = await page.locator('img.photo').all()
 	expect(photos.length).toBeGreaterThan(0)
 	for (const photo of photos) {
@@ -220,18 +220,18 @@ test.describe('the parts a step is held for', () => {
 		await page.goto(PAGE)
 		await tickParts(page)
 		await page.locator('#p-hat').uncheck()
-		for (let i = 0; i < 6; i++) await numbers(page).nth(i).click()
-		await expect(numbers(page).nth(6)).toBeDisabled()
+		for (let i = 0; i < 7; i++) await numbers(page).nth(i).click()
+		await expect(numbers(page).nth(7)).toBeDisabled()
 		await page.locator('#p-hat').check()
-		await expect(numbers(page).nth(6)).toBeEnabled()
+		await expect(numbers(page).nth(7)).toBeEnabled()
 	})
 
 	test('leave a step that needs no part to the order alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await tickParts(page)
-		for (let i = 0; i < 9; i++) await numbers(page).nth(i).click()
+		for (let i = 0; i < 10; i++) await numbers(page).nth(i).click()
 		await page.locator('#p-pi').uncheck()
-		await expect(numbers(page).nth(9)).toBeEnabled()
+		await expect(numbers(page).nth(10)).toBeEnabled()
 	})
 
 	test('still let the last step done be unticked if a part is unticked after', async ({ page }) => {
@@ -351,7 +351,7 @@ test.describe('the parts a step needs', () => {
 	test('leave a step that needs none alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await page.locator('#p-case').check()
-		await expect(page.locator('.build > li').nth(9)).not.toHaveClass(/short/)
+		await expect(page.locator('.build > li').nth(10)).not.toHaveClass(/short/)
 	})
 
 	test('are counted again once a part is unticked', async ({ page }) => {
