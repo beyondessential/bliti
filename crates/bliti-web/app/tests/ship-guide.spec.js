@@ -39,6 +39,7 @@ test('marks only preparing the Iti for its destination as optional', async ({ pa
 	const send = page.locator('section', { has: page.getByRole('heading', { name: 'Send it' }) })
 	await expect(send).not.toContainText('Optional')
 	await expect(send).toContainText('Check the Iti has its sticker')
+	await expect(send.locator('label')).toHaveText([/Check the Iti has its sticker/, /Pack it in the box with padding/, 'Send it', 'Mark it as sent in inventory, and to whom'])
 	await expect(send).toContainText('Mark it as sent in inventory, and to whom')
 })
 
