@@ -368,6 +368,10 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				<div class="detail">
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Record the Iti in inventory</strong>, by its serial and the barcode on its sticker, and put it in storage.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
 		</ol>
 	</section>
 
@@ -401,9 +405,9 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			</ul>
 			<h3>Send it</h3>
 			<ul>
-				<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the Iti has its sticker, and record its barcode</label></div></li>
-				<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Record in inventory that the Iti, by its serial, is shipped, and where to</label></div></li>
+				<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the Iti has its sticker</label></div></li>
 				<li><input type="checkbox" id="s-send"><div class="item"><label for="s-send">Pack it in the box with the packing, and the power supply, and send it</label></div></li>
+				<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Mark it as sent in inventory, and to whom</label></div></li>
 			</ul>
 			<h3>Declaring it</h3>
 			<table>
