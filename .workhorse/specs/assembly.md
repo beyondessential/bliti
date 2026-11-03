@@ -4,7 +4,7 @@ id: ASM
 
 # Assembly guide
 
-The assembly guide is the page of the [web application](web-app.md) that takes someone from the parts of an Iti to one that is built, provisioned and tested.
+The assembly guide is the page of the [web application](web-app.md) that takes someone from the parts of an Iti to one that is built, provisioned, tested and shipped.
 
 ## The page
 
@@ -12,7 +12,7 @@ The assembly guide MUST be the page of [WEB](web-app.md) at `/assemble`.
 
 The assembly guide MUST title itself Assemble an Iti, and MUST call the device an Iti.
 
-The assembly guide MUST take the reader through the parts and tools, assembling the Iti with its case open, provisioning it, closing the case, and testing it, in that order.
+The assembly guide MUST take the reader through the parts and tools, assembling the Iti with its case open, provisioning it, closing the case, testing it, and shipping it, in that order.
 
 The assembly guide MUST link to the files of each 3D-printed part.
 

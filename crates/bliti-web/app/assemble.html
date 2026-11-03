@@ -22,6 +22,7 @@
 		<a href="#provisioning">Provisioning</a>
 		<a href="#closing-up">Closing up</a>
 		<a href="#testing">Testing</a>
+		<a href="#shipping">Shipping</a>
 	</nav>
 
 	<section id="parts" class="parts">
@@ -378,6 +379,36 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 		<p>The USER button stays reachable with the case closed. Press it through the case with a thin tool, such as the back of a pair of tweezers.</p>
 		<p><span class="todo">test procedure, to be written</span></p>
 	</section>
+	<section id="shipping">
+		<details class="ship">
+			<summary><h2>Shipping</h2></summary>
+			<p class="muted">A tested Iti can wait in storage and ship later.</p>
+			<h3>You need</h3>
+			<ul>
+				<li><input type="checkbox" id="s-iti"><div class="item"><label for="s-iti">The finished, tested Iti</label></div></li>
+				<li><input type="checkbox" id="s-psu"><div class="item"><label for="s-psu">A 27W power supply<span class="about">Optional, but recommended.</span></label></div></li>
+				<li><input type="checkbox" id="s-box"><div class="item"><label for="s-box">A box and packing <span class="todo">to be decided</span></label></div></li>
+			</ul>
+			<h3>Steps</h3>
+			<ul>
+				<li><input type="checkbox" id="s-prepare"><div class="item"><label for="s-prepare">Prepare the Iti for where it is going <span class="todo">what to install and configure</span></label></div></li>
+				<li><input type="checkbox" id="s-network"><div class="item"><label for="s-network">Set up its network for the destination, in the <a href="/">operator app</a></label></div></li>
+				<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the sticker is on properly, and record its barcode</label></div></li>
+				<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Record in inventory that the Iti, by its serial, is shipped, and where to</label></div></li>
+				<li><input type="checkbox" id="s-send"><div class="item"><label for="s-send">Pack it in the box with the packing, and the power supply, and send it</label></div></li>
+			</ul>
+			<h3>Declaring it</h3>
+			<table>
+				<thead><tr><th>Item</th><th>HS code</th><th>Weight</th></tr></thead>
+				<tbody>
+					<tr><td>Tamanu Iti</td><td>8471.30.00.31</td><td>about 300 g <span class="todo">weigh one</span></td></tr>
+					<tr><td>27W power supply</td><td>8504.40.30.59</td><td>150 g</td></tr>
+				</tbody>
+			</table>
+			<p class="notice">Contains a lithium-ion cell. Ship under UN3481, packing instruction 967, section II. The cell is 20 Wh. No more than 4 Itis in a package. <span class="todo">check the limit</span></p>
+		</details>
+	</section>
+
 	<section class="again">
 		<button id="again" disabled>Do a new one</button>
 		<span class="muted" id="progress"></span>

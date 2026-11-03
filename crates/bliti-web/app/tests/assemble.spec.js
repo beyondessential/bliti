@@ -312,6 +312,51 @@ test('opens a part to show its sources, closed until then', async ({ page }) => 
 	await expect(sources).toBeVisible()
 })
 
+test.describe('shipping', () => {
+	const shipping = (page) => page.locator('#shipping details')
+
+	test('is closed until it is opened', async ({ page }) => {
+		await page.goto(PAGE)
+		await expect(shipping(page)).toHaveJSProperty('open', false)
+		await page.locator('#shipping summary').click()
+		await expect(shipping(page)).toHaveJSProperty('open', true)
+	})
+
+	test('is opened by the link in the index', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.getByRole('link', { name: 'Shipping' }).click()
+		await expect(shipping(page)).toHaveJSProperty('open', true)
+	})
+
+	test('is opened by a visit to its address', async ({ page }) => {
+		await page.goto(`${PAGE}#shipping`)
+		await expect(shipping(page)).toHaveJSProperty('open', true)
+	})
+
+	test('gives the HS codes, the weights and the lithium declaration', async ({ page }) => {
+		await page.goto(PAGE)
+		await page.locator('#shipping summary').click()
+		await expect(page.locator('#shipping')).toContainText('8471.30.00.31')
+		await expect(page.locator('#shipping')).toContainText('8504.40.30.59')
+		await expect(page.locator('#shipping')).toContainText('150 g')
+		await expect(page.locator('#shipping')).toContainText('UN3481')
+		await expect(page.locator('#shipping')).toContainText('packing instruction 967, section II')
+		await expect(page.locator('#shipping')).toContainText('20 Wh')
+		await expect(page.locator('#shipping')).toContainText('No more than 4 Itis in a package')
+	})
+
+	test('is not one of the steps starting over waits on', async ({ page }) => {
+		await page.goto(PAGE)
+		const count = await numbers(page).count()
+		await page.locator('#shipping summary').click()
+		await page.locator('#s-sticker').check()
+		for (let i = 0; i < count; i++) await numbers(page).nth(i).click()
+		await expect(page.getByRole('button', { name: 'Do a new one' })).toBeEnabled()
+		await page.getByRole('button', { name: 'Do a new one' }).click()
+		await expect(page.locator('#s-sticker')).not.toBeChecked()
+	})
+})
+
 test.describe('offline after one load of the operator app', () => {
 	test('opens the guide at its path', async ({ page, context }) => {
 		await page.goto('/')

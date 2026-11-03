@@ -124,7 +124,7 @@ document.querySelector('.parts').addEventListener('change', sortParts)
 
 again.addEventListener('click', () => {
 	steps.forEach((step, index) => mark(step, index + 1, false))
-	for (const box of document.querySelectorAll('.parts > ul:not(.keep) input')) box.checked = false
+	for (const box of document.querySelectorAll('.parts > ul:not(.keep) input, .ship input')) box.checked = false
 	for (const panel of panels) panel.open = false
 	panels[0].open = true
 	sortParts()
@@ -135,3 +135,11 @@ again.addEventListener('click', () => {
 panels[0].open = true
 sortParts()
 count()
+
+// The link in the page's index opens the shipping section it points at.
+const shipping = document.querySelector('#shipping details')
+const openShipping = () => {
+	if (location.hash === '#shipping') shipping.open = true
+}
+window.addEventListener('hashchange', openShipping)
+openShipping()
