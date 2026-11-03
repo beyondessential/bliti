@@ -55,6 +55,19 @@ test('no longer carries the testing and shipping sections', async ({ page }) => 
 	await expect(page.getByText('steps done')).toHaveCount(0)
 })
 
+test('shows photos that load, each described', async ({ page }) => {
+	await page.goto(PAGE)
+	await page.evaluate(() => document.querySelectorAll('.parts details').forEach((details) => (details.open = true)))
+	await heading(page, 4).click()
+	const photos = await page.locator('img.photo').all()
+	expect(photos.length).toBeGreaterThan(0)
+	for (const photo of photos) {
+		await photo.scrollIntoViewIfNeeded()
+		await expect.poll(() => photo.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0)
+		expect(await photo.getAttribute('alt')).toBeTruthy()
+	}
+})
+
 test('links to the provisioning image, its digest and its manifest', async ({ page }) => {
 	await page.goto(PAGE)
 	for (const path of [

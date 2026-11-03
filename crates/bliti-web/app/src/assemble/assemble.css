@@ -80,15 +80,15 @@
 .guide .parts details summary::-webkit-details-marker { display: none; }
 .guide .parts details[open] summary { color: var(--accent); border-color: var(--accent); }
 .guide .parts summary svg { width: 1.1rem; height: 1.1rem; }
-.guide .parts .more { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
-.guide .sources { font-size: 0.9rem; }
+.guide .parts .more { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
+.guide .sources { font-size: 0.9rem; flex: 1 1 9rem; }
 .guide .sources li { padding: 2px 0; }
 
 /* A photo's place until the photo is there. */
 .guide .photo {
 	flex: none;
-	width: 7rem;
-	aspect-ratio: 4 / 3;
+	width: 8rem;
+	aspect-ratio: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -98,6 +98,7 @@
 	color: var(--muted);
 	font-size: 0.8rem;
 }
+.guide img.photo { display: block; height: auto; object-fit: cover; border-style: solid; background: var(--line); }
 
 /* The image: where to get it, and how to write it to a stick on each system. */
 .guide .download { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0 0 12px; }
@@ -191,6 +192,7 @@
 .guide .build strong { font-weight: 600; }
 .guide .build .aside { color: var(--muted); font-size: 0.9rem; }
 .guide .build .photo { width: 100%; max-width: 22rem; aspect-ratio: 16 / 9; margin-top: 8px; }
+.guide .build img.photo { width: 16rem; max-width: 100%; aspect-ratio: 1; }
 .guide .build ol { list-style: lower-alpha; margin: 0 0 8px; padding-left: 1.25rem; }
 .guide .build ol li { padding: 2px 0; }
 

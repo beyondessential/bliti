@@ -17,6 +17,8 @@ The assembly guide MUST take the reader through the parts and tools, assembling 
 
 The assembly guide MUST link to the files of each 3D-printed part.
 
+The assembly guide MUST show a photo of each part, with a description of what it shows.
+
 The assembly guide MUST link to the testing guide and to the shipping guide once the Iti is ready.
 
 ## Provisioning

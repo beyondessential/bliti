@@ -30,6 +30,7 @@ const TYPES = new Map([
 	['.txt', 'text/plain; charset=utf-8'],
 	['.wasm', 'application/wasm'],
 	['.webmanifest', 'application/manifest+json'],
+	['.webp', 'image/webp'],
 ])
 
 // The encodings precompress.js writes beside a file, by the suffix it writes them under.
