@@ -1,17 +1,15 @@
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { expect, test } from '@playwright/test'
 
 import { inject, pagePath } from '../sw-plugin.js'
 import { installFakeClient } from './fake-client.js'
+import { publicUrls } from './public-files.js'
 
 // How the built worker fills, replaces and clears its precache (WEB). Each test that stands up a
 // next version writes it beside the bundle under a name of its own, and removes it after.
 
 const DIST = new URL('../dist-test/', import.meta.url)
-const PUBLIC = new URL('../public/', import.meta.url)
 const OTHERS = /(^|\/)(sw-)?next-/
 
 const built = async () => {
@@ -55,9 +53,7 @@ test('lists every file of the bundle and of public/, each with a revision', asyn
 	expect(list.networkFirst).toBe(false)
 	expect(list.entries.every((entry) => /^[0-9a-f]{16}$/.test(entry.revision))).toBe(true)
 
-	const published = (await readdir(PUBLIC, { recursive: true, withFileTypes: true }))
-		.filter((entry) => entry.isFile())
-		.map((entry) => `/${relative(fileURLToPath(PUBLIC), join(entry.parentPath, entry.name)).split(sep).join('/')}`)
+	const published = await publicUrls()
 	const bundled = (await readdir(DIST, { recursive: true }))
 		.filter((file) => /\.(js|css|html|wasm|jpg|png|webp|svg)$/.test(file) && file !== 'sw.js' && !OTHERS.test(file))
 		.map((file) => (file.endsWith('.html') ? pagePath(file) : `/${file}`))
