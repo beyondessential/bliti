@@ -246,7 +246,7 @@ test.describe('the parts a step is held for', () => {
 	test('leave a step that needs no part to the order alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await tickParts(page)
-		const open = await indexOf(page, 'Leave the lid off')
+		const open = await indexOf(page, 'Shut the Pi down')
 		for (let i = 0; i < open; i++) await numbers(page).nth(i).click()
 		await page.locator('#p-pi').uncheck()
 		await expect(numbers(page).nth(open)).toBeEnabled()
@@ -369,7 +369,7 @@ test.describe('the parts a step needs', () => {
 	test('leave a step that needs none alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await page.locator('#p-case').check()
-		await expect(page.locator('.build > li').nth(await indexOf(page, 'Leave the lid off'))).not.toHaveClass(/short/)
+		await expect(page.locator('.build > li').nth(await indexOf(page, 'Shut the Pi down'))).not.toHaveClass(/short/)
 	})
 
 	test('are counted again once a part is unticked', async ({ page }) => {

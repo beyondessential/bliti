@@ -124,6 +124,7 @@
 					</div></details></div></li>
 			<li><input type="checkbox" id="p-computer"><div class="item"><label for="p-computer">A computer to write the stick</label></div></li>
 			<li><input type="checkbox" id="p-phone"><div class="item"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></div></li>
+			<li><input type="checkbox" id="p-notes"><div class="item"><label for="p-notes">Sticky notes, and a pen</label></div></li>
 			<li><input type="checkbox" id="p-paper"><div class="item"><label for="p-paper">A4 sticker paper, and a printer to print on it<span class="about">The sheet holds 27 labels, each 50 × 30 mm.</span></label></div></li>
 			<li><input type="checkbox" id="p-key"><div class="item"><label for="p-key">A Tailscale auth key<span class="about">Reusable, lasting 7 days, tagged like a Tamanu demo server.</span></label></div></li>
 		</ul>
@@ -361,10 +362,6 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<p class="aside">To remove it, push the bump down through the round hole with a pin, and slide the shim back.</p>
 					<div class="photo">photo: the hooks in the slots, and the bump in the hole</div>
 				</div></details></div></li>
-			<li><div class="body"><details><summary><span class="title"><strong>Leave the lid off</strong>, and its four screws out.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
 </ol>
 	</section>
 
@@ -388,8 +385,9 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<p><a class="button" href="/provision">Provision the Iti</a></p>
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
-			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Print the sheet of labels</strong> from the provisioning page, on A4 sticker paper. The page offers it once provisioning has finished.</span></summary>
+			<li data-needs="p-notes"><div class="body"><details><summary><span class="title"><strong>Write the Iti's four-character code</strong> on a sticky note, and stick it to the case.</span></summary>
 				<div class="detail">
+					<p class="aside">The provisioning page shows the code.</p>
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
 			<li><div class="body"><details><summary><span class="title"><strong>Shut the Pi down</strong> with one press of the UPS's button, and wait until the main LED and the blue SSD LED are both off.</span></summary>
@@ -417,7 +415,12 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					</ul></div>
 					<div class="photo">photo: the lid screws</div>
 				</div></details></div></li>
-			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Put the sticker on</strong> the bottom of the Iti. Cut its label from the printed sheet and peel it.</span></summary>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Print the sheet of labels</strong> for the whole batch from the provisioning page, on A4 sticker paper.</span></summary>
+				<div class="detail">
+					<p class="aside">Do this once every Iti of the batch is provisioned. The sheet has a label for each of them.</p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Put the sticker on</strong> the bottom of the Iti. Cut out the label with the same four characters as the sticky note on the case, and peel it.</span></summary>
 				<div class="detail">
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
