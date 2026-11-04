@@ -44,7 +44,7 @@
 					<img class="photo" src="/photos/x1208.webp" alt="The X1208 board, its two PCIe cables and the bag of screws and spacers" width="640" height="640" loading="lazy">
 					<ul class="sources"><li><a href="https://geekworm.com/products/x1208?variant=51300730044729">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1208">Documentation</a></li></ul>
 				</div></details></div></li>
-			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208<span class="about">Comes with screws and four adhesive feet.</span></label>
+			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208<span class="about">Comes with screws, spacers and four adhesive feet.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
 					<img class="photo" src="/photos/case.webp" alt="The X1207-C1 metal case" width="640" height="640" loading="lazy">
 					<ul class="sources"><li><a href="https://geekworm.com/products/x1207-c1">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1207-C1">Documentation</a></li></ul>
@@ -246,12 +246,12 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				<div class="detail">
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-plug.webp" aria-label="Plugging the RTC cell into the Pi"><source src="/src/assemble/media/rtc-plug.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
-			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Fit the four spacers</strong> to the Pi.</span></summary>
+			<li data-needs="p-pi p-x1208 p-case"><div class="body"><details><summary><span class="title"><strong>Fit the four spacers</strong> to the Pi.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
-					<li><b>4</b> × M2.5 × 13.5 mm spacers <span class="from">X1208 pack</span></li>
-					<li><b>4</b> × black M2.5 × 5 mm screws, from below into the spacers <span class="from">X1208 pack</span></li>
-					</ul><p class="muted" style="margin:6px 0 0"><span class="todo">from Geekworm's guide, confirm against the pack and this stack</span></p></div>
+					<li><b>4</b> × female-female spacers, M2.5 × 13.5 mm <span class="from">X1208 pack</span></li>
+					<li><b>4</b> × female-male spacers <span class="from">case pack</span></li>
+					</ul><p class="muted" style="margin:6px 0 0"><span class="todo">sizes from Geekworm's guide, confirm against the packs</span></p></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/spacers.webp" aria-label="Fitting the four spacers to the Pi"><source src="/src/assemble/media/spacers.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</span></summary>
