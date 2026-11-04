@@ -322,15 +322,17 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					</ul></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/hat.webp" aria-label="Fitting the Tamanu Iti HAT and screwing it down"><source src="/src/assemble/media/hat.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
-			<li data-needs="p-x1208 p-nvme p-heatsink p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the NVMe drive</strong> with its heatsink.</span></summary>
+			<li data-needs="p-nvme p-heatsink"><div class="body"><details><summary><span class="title"><strong>Stick the heatsink</strong> onto the NVMe drive, with its thermal pad.</span></summary>
 				<div class="detail">
 					<ol class="inner">
 					<li>Peel one clear cover off the thermal pad and stick the pad to the heatsink.
 					<img class="photo" src="/photos/pad-on-heatsink.webp" alt="The thermal pad stuck on the heatsink" width="640" height="640" loading="lazy"></li>
 					<li>Peel the other cover off and stick the heatsink, pad side down, onto the drive.
 					<img class="photo" src="/photos/heatsink-on-nvme.webp" alt="The heatsink stuck on the drive" width="640" height="640" loading="lazy"></li>
-					<li>Fit the drive.</li>
 					</ol>
+				</div></details></div></li>
+			<li data-needs="p-x1208 p-nvme p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the NVMe drive</strong> into the X1208 board and screw it down.</span></summary>
+				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
 					<li><b>1</b> × silver M.2 drive screw, the standard size <span class="from">from the X1208 pack</span></li>
 					</ul></div>

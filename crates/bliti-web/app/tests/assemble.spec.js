@@ -58,7 +58,7 @@ test('no longer carries the testing and shipping sections', async ({ page }) => 
 test('shows photos that load, each described', async ({ page }) => {
 	await page.goto(PAGE)
 	await page.evaluate(() => document.querySelectorAll('.parts details').forEach((details) => (details.open = true)))
-	await heading(page, await indexOf(page, 'Fit the NVMe drive')).click()
+	await heading(page, await indexOf(page, 'Stick the heatsink')).click()
 	const photos = await page.locator('img.photo').all()
 	expect(photos.length).toBeGreaterThan(0)
 	for (const photo of photos) {
