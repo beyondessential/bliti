@@ -56,7 +56,7 @@
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-rtc"><div class="item"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="about">Comes with a self-adhesive pad.</span></label>
 				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
-					<div class="photo">photo</div>
+					<img class="photo" src="/photos/rtc.webp" alt="The RTC battery, with its cable and its adhesive pad" width="640" height="640" loading="lazy">
 					<ul class="sources"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0532/Raspberry-Pi-Official-Real-Time-Clock-RTC-Battery">PB Tech</a></li><li><a href="https://www.adafruit.com/product/5817">Adafruit</a></li><li><a href="https://www.raspberrypi.com/products/rtc-battery/">Raspberry Pi</a>, for other sellers</li></ul>
 				</div></details></div></li>
 			<li><input type="checkbox" id="p-hat"><div class="item"><label for="p-hat">Tamanu Iti HAT, revision B</label>
@@ -232,45 +232,75 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Unscrew the lid</strong> from the case, and take out what is inside.</span></summary>
 				<div class="detail">
 					<p class="aside">The case ships closed, with its parts inside. Keep the four lid screws: they screw the lid back on at the end, and they are the same as the screws that fasten the assembly to the bottom of the case.</p>
-					<div class="photo">photo or video</div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/lid.webp" aria-label="Unscrewing the lid of the case"><source src="/src/assemble/media/lid.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-case"><div class="body"><details><summary><span class="title"><strong>Stick the four feet</strong> on the bottom of the case.</span></summary>
 				<div class="detail">
-					<div class="photo">photo or video</div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/feet.webp" aria-label="Sticking the four feet on the bottom of the case"><source src="/src/assemble/media/feet.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-pi p-fan"><div class="body"><details><summary><span class="title"><strong>Fit the Active Cooler</strong> to the Pi and plug it in.</span></summary>
 				<div class="detail">
-					<div class="photo">photo or video</div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/cooler.webp" aria-label="Fitting the Active Cooler to the Pi"><source src="/src/assemble/media/cooler.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-pi p-rtc"><div class="body"><details><summary><span class="title"><strong>Plug the RTC cell</strong> into the Pi. Leave it outside for now.</span></summary>
 				<div class="detail">
-					<div class="photo">photo or video</div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-plug.webp" aria-label="Plugging the RTC cell into the Pi"><source src="/src/assemble/media/rtc-plug.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
-			<li data-needs="p-pi p-x1208 p-driver"><div class="body"><details><summary><span class="title"><strong>Seat the Pi</strong> on the X1208 board and screw everything together.</span></summary>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Fit the four spacers</strong> to the Pi.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
 					<li><b>4</b> × M2.5 × 13.5 mm spacers <span class="from">X1208 pack</span></li>
-					<li><b>8</b> × black M2.5 × 5 mm screws, four from below into the spacers and four to fasten the board <span class="from">X1208 pack</span></li>
+					<li><b>4</b> × black M2.5 × 5 mm screws, from below into the spacers <span class="from">X1208 pack</span></li>
 					</ul><p class="muted" style="margin:6px 0 0"><span class="todo">from Geekworm's guide, confirm against the pack and this stack</span></p></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/spacers.webp" aria-label="Fitting the four spacers to the Pi"><source src="/src/assemble/media/spacers.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-thread.webp" aria-label="Threading the RTC cell cable underneath the Pi"><source src="/src/assemble/media/rtc-thread.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the Pi.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/pcie-pi.webp" aria-label="Connecting the PCIe cable to the Pi"><source src="/src/assemble/media/pcie-pi.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Seat the X1208 board</strong> on the spacers.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/seat.webp" aria-label="Seating the X1208 board onto the spacers"><source src="/src/assemble/media/seat.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the X1208 board.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/pcie-board.webp" aria-label="Connecting the PCIe cable to the X1208 board"><source src="/src/assemble/media/pcie-board.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-x1208 p-driver"><div class="body"><details><summary><span class="title"><strong>Screw the board down</strong> onto the spacers.</span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × black M2.5 × 5 mm screws, to fasten the board <span class="from">X1208 pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/screws.webp" aria-label="Screwing the X1208 board down"><source src="/src/assemble/media/screws.mp4" type="video/mp4"></video></figure>
 					<div class="photo">photo: which screws, and where</div>
 				</div></details></div></li>
-			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> between the Pi and the X1208.</span></summary>
+			<li><div class="body"><details><summary><span class="title"><strong>Flip the assembly over,</strong> so the cell holder faces up.</span></summary>
 				<div class="detail">
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
-			<li data-needs="p-x1208 p-nvme p-heatsink p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the NVMe drive</strong> with its heatsink.</span></summary>
+			<li data-needs="p-cell"><div class="body"><details><summary><span class="title"><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks.</span></summary>
 				<div class="detail">
-					<ol class="inner">
-					<li>Peel one clear cover off the thermal pad and stick the pad to the heatsink.
-					<img class="photo" src="/photos/pad-on-heatsink.webp" alt="The thermal pad stuck on the heatsink" width="640" height="640" loading="lazy"></li>
-					<li>Peel the other cover off and stick the heatsink, pad side down, onto the drive.
-					<img class="photo" src="/photos/heatsink-on-nvme.webp" alt="The heatsink stuck on the drive" width="640" height="640" loading="lazy"></li>
-					<li>Fit the drive.</li>
-					</ol>
-					<div class="use"><span class="label">Use</span><ul>
-					<li><b>1</b> × silver M.2 drive screw, the standard size <span class="from">X1208 pack</span></li>
-					</ul></div>
-					<div class="photo">photo: the drive screw</div>
+					<div class="photo">video, once the 21700 cells are here</div>
+				</div></details></div></li>
+			<li data-needs="p-cell p-cellshim"><div class="body"><details><summary><span class="title"><strong>Fit the cell shim</strong> over the cell.</span></summary>
+				<div class="detail">
+					<div class="photo">video, once the 21700 cells are here</div>
+				</div></details></div></li>
+			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Peel the cover</strong> off the RTC cell's adhesive pad, and stick the pad to its unlabelled side.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-peel.webp" aria-label="Peeling the cover off the pad"><source src="/src/assemble/media/rtc-peel.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-rtc p-cellshim"><div class="body"><details><summary><span class="title"><strong>Stick the RTC cell</strong> into the slot in the cell shim.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-stick.webp" aria-label="Sticking the RTC cell into the cell shim"><source src="/src/assemble/media/rtc-stick.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Flip the assembly back over,</strong> so the cell holder faces down.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
 				</div></details></div></li>
 			<li data-needs="p-pi p-hat p-screw p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the Tamanu Iti HAT.</strong> Its screw goes in the Pi's corner mounting hole that sits nearest the middle of the X1208, in place of the screw already there.</span></summary>
 				<div class="detail">
@@ -285,30 +315,30 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<div class="use"><span class="label">Use</span><ul>
 					<li><b>1</b> × silver M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
 					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/hat.webp" aria-label="Fitting the Tamanu Iti HAT and screwing it down"><source src="/src/assemble/media/hat.mp4" type="video/mp4"></video></figure>
 					<div class="photo">photo: the HAT lined up, with the uncovered pins</div>
+				</div></details></div></li>
+			<li data-needs="p-x1208 p-nvme p-heatsink p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the NVMe drive</strong> with its heatsink.</span></summary>
+				<div class="detail">
+					<ol class="inner">
+					<li>Peel one clear cover off the thermal pad and stick the pad to the heatsink.
+					<img class="photo" src="/photos/pad-on-heatsink.webp" alt="The thermal pad stuck on the heatsink" width="640" height="640" loading="lazy"></li>
+					<li>Peel the other cover off and stick the heatsink, pad side down, onto the drive.
+					<img class="photo" src="/photos/heatsink-on-nvme.webp" alt="The heatsink stuck on the drive" width="640" height="640" loading="lazy"></li>
+					<li>Fit the drive.</li>
+					</ol>
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × silver M.2 drive screw, the standard size <span class="from">X1208 pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/nvme.webp" aria-label="Fitting the NVMe drive and screwing it down"><source src="/src/assemble/media/nvme.mp4" type="video/mp4"></video></figure>
+					<div class="photo">photo: the drive screw</div>
 				</div></details></div></li>
 			<li data-needs="p-pi p-sdshim"><div class="body"><details><summary><span class="title"><strong>Fit the SD slot shim.</strong></span></summary>
 				<div class="detail">
 					<p class="aside">It sits in the slot like a card, and its tab is trapped by the case so it can't be pulled out once the case is on.</p>
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
-			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
-			<li><div class="body"><details><summary><span class="title"><strong>Flip the assembly over,</strong> so the cell holder faces up.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
-			<li data-needs="p-cell p-cellshim"><div class="body"><details><summary><span class="title"><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks, and fit the cell shim over it.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
-			<li data-needs="p-rtc p-cellshim"><div class="body"><details><summary><span class="title"><strong>Fix the RTC cell.</strong> Stick its adhesive pad to its unlabelled side, then stick it into the slot in the cell shim.</span></summary>
-				<div class="detail">
-					<div class="photo">photo or video</div>
-				</div></details></div></li>
-			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Flip the assembly back, put it in the case</strong>, and screw it to the bottom of the case.</span></summary>
+			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
 					<li>black screws <span class="from">the lid screws, set aside in the first step</span> <span class="todo">how many, and which holes</span></li>
@@ -329,7 +359,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 				<div class="detail">
 					<div class="photo">photo or video</div>
 				</div></details></div></li>
-		</ol>
+</ol>
 		<p class="muted" style="margin-top:12px"><span class="todo">photos or drawings per step, to be added</span></p>
 	</section>
 

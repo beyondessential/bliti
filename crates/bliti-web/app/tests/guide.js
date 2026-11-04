@@ -14,3 +14,11 @@ export const tickParts = (page) =>
 /// A step's details, and the line that opens it.
 export const panel = (page, index) => page.locator('.build > li').nth(index).locator('details')
 export const heading = (page, index) => page.locator('.build > li').nth(index).locator('summary')
+
+/// The place of the step whose title has the text, among the steps of the page.
+export const indexOf = (page, text) =>
+	page.evaluate(
+		(text) =>
+			[...document.querySelectorAll('.build > li')].findIndex((step) => step.querySelector('.title').textContent.includes(text)),
+		text,
+	)

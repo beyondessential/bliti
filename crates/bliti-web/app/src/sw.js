@@ -169,6 +169,9 @@ self.addEventListener('fetch', (event) => {
 	// The provisioning image and what describes it (PMED): gigabytes the cache must not hold, and a
 	// digest and manifest that must never be answered stale.
 	if (url.pathname.startsWith('/downloads/')) return
+	// A video is asked for in ranges. A stored whole file cannot answer one, and a partial answer cannot
+	// be stored, so the browser asks the network itself (WEB).
+	if (request.headers.has('range')) return
 	// A path that is no page goes to the network, which says what it is.
 	if (request.mode === 'navigate' && !precached.has(pageKey(request.url))) return
 	event.respondWith(respond(request))

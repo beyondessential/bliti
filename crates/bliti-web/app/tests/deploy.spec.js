@@ -36,6 +36,7 @@ const FILES = [
 	'assets/style-CCCC.css',
 	'assets/board-DDDD.jpg',
 	'photos/hat.webp',
+	'assets/lid-EEEE.mp4',
 ]
 
 const planned = async (files = FILES) => {
@@ -63,6 +64,7 @@ test('writes every file once under its own key, a variant under the key of what 
 			'assets/app-BBBB.wasm.gz',
 			'assets/app-BBBB.wasm.zst',
 			'assets/board-DDDD.jpg',
+			'assets/lid-EEEE.mp4',
 			'assets/style-CCCC.css',
 			'assets/style-CCCC.css.br',
 			'assets/style-CCCC.css.gz',
@@ -103,12 +105,13 @@ test('types each file by its extension, and each variant as the file it encodes'
 		'icon-192.png': 'image/png',
 		'assets/board-DDDD.jpg': 'image/jpeg',
 		'photos/hat.webp': 'image/webp',
+		'assets/lid-EEEE.mp4': 'video/mp4',
 		'assets/app-BBBB.wasm': 'application/wasm',
 		'assets/style-CCCC.css': 'text/css; charset=utf-8',
 	}
 	for (const [key, type] of Object.entries(types)) {
 		expect(byKey.get(key).contentType).toBe(type)
-		for (const suffix of /\.(png|jpg|webp)$/.test(key) ? [] : ['.br', '.gz', '.zst']) {
+		for (const suffix of /\.(png|jpg|webp|mp4)$/.test(key) ? [] : ['.br', '.gz', '.zst']) {
 			expect(byKey.get(key + suffix).contentType).toBe(type)
 		}
 	}
@@ -144,6 +147,7 @@ test('writes no variant of a type the distribution serves none of', async () => 
 	expect(byKey.has('icon-192.png.zst')).toBe(false)
 	expect(byKey.has('assets/board-DDDD.jpg.br')).toBe(false)
 	expect(byKey.has('photos/hat.webp.br')).toBe(false)
+	expect(byKey.has('assets/lid-EEEE.mp4.br')).toBe(false)
 })
 
 test('lets a hashed file be cached for good, and has everything else revalidated', async () => {

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { openProvision } from './fake-provision-client.js'
-import { heading, numbers, panel, tickParts } from './guide.js'
+import { heading, indexOf, numbers, panel, tickParts } from './guide.js'
 
 // The assembly guide (ASM): a page beside the operator app and the provisioning client, at its own
 // path, with the provisioning client linking to it and it linking back.
@@ -58,7 +58,7 @@ test('no longer carries the testing and shipping sections', async ({ page }) => 
 test('shows photos that load, each described', async ({ page }) => {
 	await page.goto(PAGE)
 	await page.evaluate(() => document.querySelectorAll('.parts details').forEach((details) => (details.open = true)))
-	await heading(page, 6).click()
+	await heading(page, await indexOf(page, 'Fit the NVMe drive')).click()
 	const photos = await page.locator('img.photo').all()
 	expect(photos.length).toBeGreaterThan(0)
 	for (const photo of photos) {
@@ -66,6 +66,22 @@ test('shows photos that load, each described', async ({ page }) => {
 		await expect.poll(() => photo.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0)
 		expect(await photo.getAttribute('alt')).toBeTruthy()
 	}
+})
+
+test('plays its videos from the network, a part at a time, and stores none of them', async ({ page }) => {
+	await page.goto('/')
+	await controlled(page)
+	await page.goto(PAGE)
+	const src = await page.locator('video source').first().evaluate((source) => source.src)
+	const answer = await page.evaluate(async (src) => {
+		const res = await fetch(src, { headers: { Range: 'bytes=0-99' } })
+		return {
+			status: res.status,
+			length: (await res.arrayBuffer()).byteLength,
+			stored: Boolean(await caches.match(src)),
+		}
+	}, src)
+	expect(answer).toEqual({ status: 206, length: 100, stored: false })
 })
 
 test('links to the provisioning image, its digest and its manifest', async ({ page }) => {
@@ -220,18 +236,20 @@ test.describe('the parts a step is held for', () => {
 		await page.goto(PAGE)
 		await tickParts(page)
 		await page.locator('#p-hat').uncheck()
-		for (let i = 0; i < 7; i++) await numbers(page).nth(i).click()
-		await expect(numbers(page).nth(7)).toBeDisabled()
+		const hat = await indexOf(page, 'Fit the Tamanu Iti HAT')
+		for (let i = 0; i < hat; i++) await numbers(page).nth(i).click()
+		await expect(numbers(page).nth(hat)).toBeDisabled()
 		await page.locator('#p-hat').check()
-		await expect(numbers(page).nth(7)).toBeEnabled()
+		await expect(numbers(page).nth(hat)).toBeEnabled()
 	})
 
 	test('leave a step that needs no part to the order alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await tickParts(page)
-		for (let i = 0; i < 10; i++) await numbers(page).nth(i).click()
+		const flip = await indexOf(page, 'Flip the assembly over')
+		for (let i = 0; i < flip; i++) await numbers(page).nth(i).click()
 		await page.locator('#p-pi').uncheck()
-		await expect(numbers(page).nth(10)).toBeEnabled()
+		await expect(numbers(page).nth(flip)).toBeEnabled()
 	})
 
 	test('still let the last step done be unticked if a part is unticked after', async ({ page }) => {
@@ -351,7 +369,7 @@ test.describe('the parts a step needs', () => {
 	test('leave a step that needs none alone', async ({ page }) => {
 		await page.goto(PAGE)
 		await page.locator('#p-case').check()
-		await expect(page.locator('.build > li').nth(10)).not.toHaveClass(/short/)
+		await expect(page.locator('.build > li').nth(await indexOf(page, 'Flip the assembly over'))).not.toHaveClass(/short/)
 	})
 
 	test('are counted again once a part is unticked', async ({ page }) => {

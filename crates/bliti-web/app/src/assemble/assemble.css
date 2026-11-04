@@ -191,6 +191,18 @@
 .guide .build .body > :last-child { margin-bottom: 0; }
 .guide .build strong { font-weight: 600; }
 .guide .build .aside { color: var(--muted); font-size: 0.9rem; }
+
+/* A step's video, a portrait clip that loads when it is played. */
+.guide figure.clip { margin: 8px 0 0; }
+.guide figure.clip video {
+	display: block;
+	width: 18rem;
+	max-width: 100%;
+	max-height: 75vh;
+	aspect-ratio: 9 / 16;
+	border-radius: 6px;
+	background: #000;
+}
 .guide .build .photo { width: 100%; max-width: 22rem; aspect-ratio: 16 / 9; margin-top: 8px; }
 .guide .build img.photo { width: 16rem; max-width: 100%; aspect-ratio: 1; }
 .guide .build ol { list-style: lower-alpha; margin: 0 0 8px; padding-left: 1.25rem; }
