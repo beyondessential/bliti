@@ -249,8 +249,8 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li data-needs="p-pi p-x1208 p-case"><div class="body"><details><summary><span class="title"><strong>Fit the four spacers</strong> to the Pi.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
-					<li><b>4</b> × female-female spacers, M2.5 × 13.5 mm <span class="from">X1208 pack</span></li>
-					<li><b>4</b> × female-male spacers <span class="from">case pack</span></li>
+					<li><b>4</b> × female-female spacers, M2.5 × 13.5 mm <span class="from">from the X1208 pack</span></li>
+					<li><b>4</b> × female-male spacers <span class="from">from the case pack</span></li>
 					</ul><p class="muted" style="margin:6px 0 0"><span class="todo">sizes from Geekworm's guide, confirm against the packs</span></p></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/spacers.webp" aria-label="Fitting the four spacers to the Pi"><source src="/src/assemble/media/spacers.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
@@ -264,9 +264,16 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<p class="aside">Plug the end marked "RPi5" into the Pi, with the golden contacts facing inwards.</p>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/pcie-pi.webp" aria-label="Connecting the PCIe cable to the Pi"><source src="/src/assemble/media/pcie-pi.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
-			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Seat the X1208 board</strong> on the spacers.</span></summary>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Seat the X1208 board</strong> on the Pi, with the pogo pin between them.</span></summary>
 				<div class="detail">
-					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/seat.webp" aria-label="Seating the X1208 board onto the spacers"><source src="/src/assemble/media/seat.mp4" type="video/mp4"></video></figure>
+					<p class="notice fault"><strong>Do all of this with the X1208 board upside down,</strong> until the pogo pin fits snugly and can no longer fall out.</p>
+					<ol class="inner">
+					<li>The pogo pin has a flat end and a pointy end. Put the flat end into the hole marked Pi PWR, from the underside of the X1208 board.</li>
+					<li>Stand the board on the table upside down, with the pin pointing up.</li>
+					<li>Lower the Pi onto it. The pointy end of the pin goes into the square hole next to the debug port. This mostly happens by itself as the Pi goes into the header socket.</li>
+					<li>Squeeze the two boards together firmly until they are well seated.</li>
+					</ol>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/seat.webp" aria-label="Fitting the pogo pin and seating the X1208 board on the Pi"><source src="/src/assemble/media/seat.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the X1208 board.</span></summary>
 				<div class="detail">
@@ -275,7 +282,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 			<li data-needs="p-x1208 p-driver"><div class="body"><details><summary><span class="title"><strong>Screw the board down</strong> onto the spacers.</span></summary>
 				<div class="detail">
 					<div class="use"><span class="label">Use</span><ul>
-					<li><b>4</b> × black M2.5 × 5 mm screws, to fasten the board <span class="from">X1208 pack</span></li>
+					<li><b>4</b> × black M2.5 × 5 mm screws, to fasten the board <span class="from">from the X1208 pack</span></li>
 					</ul></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/screws.webp" aria-label="Screwing the X1208 board down"><source src="/src/assemble/media/screws.mp4" type="video/mp4"></video></figure>
 					<div class="photo">photo: which screws, and where</div>
@@ -330,7 +337,7 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					<li>Fit the drive.</li>
 					</ol>
 					<div class="use"><span class="label">Use</span><ul>
-					<li><b>1</b> × silver M.2 drive screw, the standard size <span class="from">X1208 pack</span></li>
+					<li><b>1</b> × silver M.2 drive screw, the standard size <span class="from">from the X1208 pack</span></li>
 					</ul></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/nvme.webp" aria-label="Fitting the NVMe drive and screwing it down"><source src="/src/assemble/media/nvme.mp4" type="video/mp4"></video></figure>
 					<div class="photo">photo: the drive screw</div>
