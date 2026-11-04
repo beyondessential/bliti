@@ -254,8 +254,9 @@ zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync sta
 					</ul><p class="muted" style="margin:6px 0 0"><span class="todo">sizes from Geekworm's guide, confirm against the packs</span></p></div>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/spacers.webp" aria-label="Fitting the four spacers to the Pi"><source src="/src/assemble/media/spacers.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
-			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> so it comes out underneath the Pi.</span></summary>
+			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> so it comes out underneath the Pi, with its wires between the white plastic post of the Active Cooler and the spacer.</span></summary>
 				<div class="detail">
+					<p class="aside">This keeps the wires clear of the ports and the power button. The video has sound: unmute it to hear the tock.</p>
 					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-thread.webp" aria-label="Threading the RTC cell cable underneath the Pi"><source src="/src/assemble/media/rtc-thread.mp4" type="video/mp4"></video></figure>
 				</div></details></div></li>
 			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the Pi.</span></summary>
