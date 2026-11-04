@@ -1,0 +1,236 @@
+/* The assembly guide (ASM). The page's base is styles.css; everything here is scoped to .guide, so
+   none of it reaches the screens that share that file. */
+
+.guide .lede { color: var(--muted); margin: 0 0 12px; }
+.guide p { margin: 0 0 12px; }
+.guide h3 { font-size: 1rem; margin: 16px 0 4px; }
+.guide code, .guide pre { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+.guide pre {
+	margin: 8px 0 12px;
+	padding: 10px 12px;
+	background: var(--page);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	overflow-x: auto;
+}
+.guide .button {
+	display: inline-block;
+	padding: 12px 16px;
+	min-height: 44px;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	text-decoration: none;
+}
+.guide nav { display: flex; gap: 4px 16px; flex-wrap: wrap; margin: 0 0 16px; font-size: 0.9rem; }
+.guide .notice p { margin: 0; }
+.guide input[type="checkbox"] { flex: none; width: 1.1rem; height: 1.1rem; padding: 0; margin: 0; }
+.guide .mobile-only { display: none; }
+.guide.mobile .mobile-only { display: block; }
+
+/* A part or a step the guide cannot yet say: marked where it is, not worded around. */
+.guide .todo {
+	background: #fef3c7;
+	color: #78350f;
+	border-radius: 3px;
+	padding: 0 4px;
+	font-size: 0.85rem;
+}
+
+/* A section the reader ticks off collapses to its heading. */
+.guide .head { display: flex; gap: 10px; align-items: center; }
+.guide .head h2 { margin: 0; }
+.guide .head label { cursor: pointer; }
+.guide .fold { margin-top: 12px; }
+.guide #image:has(#image-done:checked) .fold { display: none; }
+.guide #image:has(#image-done:checked) h2 { text-decoration: line-through; }
+
+/* Parts: a ticked list, each part with its photo and where to get it behind an icon. */
+.guide .parts h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 16px 0 4px; }
+.guide .parts h3:first-of-type { margin-top: 0; }
+.guide .parts ul { list-style: none; margin: 0; padding: 0; }
+.guide .parts > ul > li {
+	position: relative;
+	display: flex;
+	gap: 10px;
+	align-items: baseline;
+	padding: 10px 0;
+	border-top: 1px solid var(--line);
+}
+.guide .parts > ul > li:first-child { border-top: 0; }
+.guide .parts input[type="checkbox"] { align-self: flex-start; margin-top: 0.3rem; }
+.guide .parts .item { min-width: 0; flex: 1; }
+.guide .parts label { display: block; padding-right: 2.5rem; cursor: pointer; }
+.guide .about { display: block; color: var(--muted); font-size: 0.9rem; }
+.guide .parts details summary {
+	position: absolute;
+	top: 6px;
+	right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	color: var(--muted);
+	cursor: pointer;
+	list-style: none;
+}
+.guide .parts details summary::-webkit-details-marker { display: none; }
+.guide .parts details[open] summary { color: var(--accent); border-color: var(--accent); }
+.guide .parts summary svg { width: 1.1rem; height: 1.1rem; }
+.guide .parts .more { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin: 8px 0 4px; }
+.guide .sources { font-size: 0.9rem; flex: 1 1 9rem; }
+.guide .sources li { padding: 2px 0; }
+
+/* A photo's place until the photo is there. */
+.guide .photo {
+	flex: none;
+	width: 8rem;
+	aspect-ratio: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px dashed var(--line);
+	border-radius: 6px;
+	background: var(--page);
+	color: var(--muted);
+	font-size: 0.8rem;
+}
+.guide img.photo { display: block; height: auto; object-fit: cover; border-style: solid; background: var(--line); }
+
+/* The image: where to get it, and how to write it to a stick on each system. */
+.guide .download { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0 0 12px; }
+.guide .download dl { margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+.guide .download dt { color: var(--muted); font-size: 0.9rem; }
+.guide .download dd { margin: 0; font-size: 0.9rem; }
+.guide .tabs { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.guide .tabs button {
+	background: transparent;
+	color: var(--muted);
+	border-radius: 6px 6px 0 0;
+	padding: 8px 14px;
+	min-height: 0;
+	border-bottom: 2px solid transparent;
+}
+.guide .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.guide .os[hidden] { display: none; }
+.guide .os h3:first-child { margin-top: 0; }
+.guide .os ol { margin: 4px 0 12px; padding-left: 1.25rem; }
+.guide .os li { margin-bottom: 4px; }
+
+/* The steps: numbered through the three sections, each ticked off by its number. */
+.guide { counter-reset: step; }
+.guide .build { list-style: none; margin: 0; padding: 0; }
+.guide .build > li { counter-increment: step; display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.guide .build > li:first-child { border-top: 0; padding-top: 0; }
+.guide .build > li:last-child { padding-bottom: 0; }
+.guide .build > li::before {
+	content: counter(step);
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+	border-radius: 50%;
+	background: var(--page);
+	border: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 0.85rem;
+	line-height: 1.6rem;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+/* With the script, the number is a button and the counter is not drawn. */
+.guide.ticks .build > li::before { content: none; }
+.guide .num {
+	flex: none;
+	width: 1.75rem;
+	height: 1.75rem;
+	min-height: 0;
+	padding: 0;
+	border-radius: 50%;
+	background: var(--page);
+	border: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 0.85rem;
+	font-variant-numeric: tabular-nums;
+}
+.guide .num:disabled { background: var(--page); opacity: 0.5; cursor: default; }
+.guide .num[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.guide .build > li.done .body { opacity: 0.55; }
+.guide .build .body { min-width: 0; flex: 1; }
+.guide .build summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
+.guide .build summary::-webkit-details-marker { display: none; }
+.guide .build summary .title { flex: 1; min-width: 0; }
+.guide .build summary::after {
+	content: "";
+	flex: none;
+	width: 7px;
+	height: 7px;
+	margin: 0 4px 3px 0;
+	border-right: 2px solid var(--muted);
+	border-bottom: 2px solid var(--muted);
+	transform: rotate(45deg);
+}
+.guide .build details[open] > summary::after { margin: 5px 4px 0 0; transform: rotate(-135deg); }
+.guide .build .detail { margin-top: 8px; }
+.guide .build .detail > :last-child { margin-bottom: 0; }
+.guide .build video { display: block; width: 100%; max-width: 22rem; margin-top: 8px; border-radius: 6px; }
+/* How many of a step's parts are in hand, once the reader has started ticking parts. */
+.guide .pill {
+	flex: none;
+	padding: 0 8px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	color: var(--muted);
+	font-size: 0.75rem;
+	white-space: nowrap;
+}
+.guide .build > li.short summary .title { color: var(--muted); opacity: 0.65; }
+.guide .missing { color: var(--muted); font-size: 0.9rem; }
+.guide .build .body > :last-child { margin-bottom: 0; }
+.guide .build strong { font-weight: 600; }
+.guide .build .aside { color: var(--muted); font-size: 0.9rem; }
+
+/* A step's video, a portrait clip that loads when it is played. */
+.guide figure.clip { margin: 8px 0 0; }
+.guide figure.clip video {
+	display: block;
+	width: 18rem;
+	max-width: 100%;
+	max-height: 75vh;
+	aspect-ratio: 9 / 16;
+	border-radius: 6px;
+	background: #000;
+}
+.guide .build .photo { width: 100%; max-width: 22rem; aspect-ratio: 16 / 9; margin-top: 8px; }
+.guide .build img.photo { width: 16rem; max-width: 100%; aspect-ratio: 1; }
+.guide .build ol { list-style: lower-alpha; margin: 0 0 8px; padding-left: 1.25rem; }
+.guide .build ol li { padding: 2px 0; }
+
+/* The fasteners a step uses, apart from the prose. */
+.guide .use {
+	margin: 8px 0 0;
+	padding: 8px 12px;
+	background: var(--page);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	font-size: 0.9rem;
+}
+.guide .use .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.guide .use ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.guide .use li { padding: 2px 0; }
+.guide .use .from { color: var(--muted); }
+
+.guide .ready { text-align: center; font-size: 1.25rem; border-color: var(--accent); }
+.guide .ready span { font-size: 1.5rem; }
+/* The actions at the foot of a page: starting over, and the other pages, on one row. */
+.guide .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.guide .actions button, .guide .actions .button { padding: 8px 14px; min-height: 0; font-size: 0.9rem; }
+.guide .button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+/* What to declare when shipping. */
+.guide table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 0.9rem; }
+.guide th { text-align: left; font-weight: 600; color: var(--muted); }
+.guide th, .guide td { padding: 6px 12px 6px 0; border-top: 1px solid var(--line); }
+.guide thead th { border-top: 0; }

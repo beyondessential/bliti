@@ -25,11 +25,13 @@ const TYPES = new Map([
 	['.js', 'text/javascript; charset=utf-8'],
 	['.json', 'application/json'],
 	['.mjs', 'text/javascript; charset=utf-8'],
+	['.mp4', 'video/mp4'],
 	['.png', 'image/png'],
 	['.svg', 'image/svg+xml'],
 	['.txt', 'text/plain; charset=utf-8'],
 	['.wasm', 'application/wasm'],
 	['.webmanifest', 'application/manifest+json'],
+	['.webp', 'image/webp'],
 ])
 
 // The encodings precompress.js writes beside a file, by the suffix it writes them under.

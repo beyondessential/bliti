@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#326699">
+<link rel="icon" href="/icon-small.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<!-- iOS takes the home-screen icon from here rather than from the manifest. -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Assemble an Iti</title>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/></symbol></svg>
+<main class="guide">
+	<h1>Assemble an Iti</h1>
+	<p class="lede">Follow this guide to build an Iti from its parts and provision it.</p>
+
+	<nav class="jump" aria-label="On this page">
+		<a href="#parts">Parts</a>
+		<a href="#assembly">Assembly</a>
+		<a href="#provisioning">Provisioning</a>
+		<a href="#closing-up">Closing up</a>
+	</nav>
+
+	<section id="parts" class="parts">
+		<h2>Parts</h2>
+		<p class="muted">The photo icon on a part shows it and where to get it.</p>
+
+		<h3>Board and power</h3>
+		<ul>
+			<li><input type="checkbox" id="p-pi"><div class="item"><label for="p-pi">Raspberry Pi 5, 8 GB</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/pi.webp" alt="The Raspberry Pi 5, seen from above" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0502/Raspberry-Pi-5-8GB-LPDDR4-24GHz-Quad-Core-ARM-Cort">PB Tech</a></li><li><a href="https://www.raspberrypi.com/products/raspberry-pi-5/">Raspberry Pi</a>, for other sellers</li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-fan"><div class="item"><label for="p-fan">Raspberry Pi Active Cooler</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/cooler.webp" alt="The Raspberry Pi Active Cooler, with its fan cable" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0531/Raspberry-Pi-Official-Active-Cooler-for-Raspberry">PB Tech</a></li><li><a href="https://www.raspberrypi.com/products/active-cooler/">Raspberry Pi</a>, for other sellers</li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-x1208"><div class="item"><label for="p-x1208">X1208 UPS board<span class="about">Comes with spacers, screws, a pogo pin, two PCIe cables and the drive screw.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/x1208.webp" alt="The X1208 board, its two PCIe cables and the bag of screws and spacers" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://geekworm.com/products/x1208?variant=51300730044729">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1208">Documentation</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-case"><div class="item"><label for="p-case">X1207-C1 metal case for the X1208<span class="about">Comes with spacers, screws, nylon sleeves and four rubber feet.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/case.webp" alt="The X1207-C1 metal case" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://geekworm.com/products/x1207-c1">Geekworm</a></li><li><a href="https://wiki.geekworm.com/X1207-C1">Documentation</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-cell"><div class="item"><label for="p-cell">One Samsung 21700 58E cell, 5500 mAh</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="sources"><li><a href="https://cell-supply.co.nz/product/samsung_58e/">Cell Supply NZ</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-rtc"><div class="item"><label for="p-rtc">Raspberry Pi RTC battery (SC1163)<span class="about">Comes with a self-adhesive pad.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/rtc.webp" alt="The RTC battery, with its cable and its adhesive pad" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0532/Raspberry-Pi-Official-Real-Time-Clock-RTC-Battery">PB Tech</a></li><li><a href="https://www.adafruit.com/product/5817">Adafruit</a></li><li><a href="https://www.raspberrypi.com/products/rtc-battery/">Raspberry Pi</a>, for other sellers</li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-hat"><div class="item"><label for="p-hat">Tamanu Iti HAT, revision B</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/hat.webp" alt="The Tamanu Iti HAT, seen from above" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://www.pcbway.com/">PCBWay</a>, PCBA assembly, from the design files. A batch takes about a month to order and build, so HATs come from stock when you assemble.</li><li><a href="https://github.com/beyondessential/tamanu-iti-hat">Design files</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-screw"><div class="item"><label for="p-screw">One M2.5 × 12 mm machine screw<span class="about">Silver. Flat-topped head, not countersunk. Hex socket, as pictured, or Phillips.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/screw.webp" alt="The M2.5 × 12 mm screw" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://theboltholder.co.nz/view-product/socket-screws/m2p5x12-socket-cap-full-thrd-ss304/m2p5x12-socket-cap-full-thrd-ss304">The Boltholder</a>, stainless socket cap, hex socket, as pictured</li><li><a href="https://www.theboltholder.co.nz/view-product/screws/m2p5x12-pan-phillips-mt-ss304/m2p5x12-pan-phillips-mt-ss304">The Boltholder</a>, stainless pan head, Phillips</li></ul>
+				</div></details></div></li>
+		</ul>
+
+		<h3>Storage</h3>
+		<ul>
+			<li><input type="checkbox" id="p-nvme"><div class="item"><label for="p-nvme">M.2 NVMe drive, M key<span class="about">2230, 2242 or 2280 long, any brand. We fit 500 GB.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/nvme.webp" alt="An M.2 NVMe drive" width="640" height="640" loading="lazy">
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-heatsink"><div class="item"><label for="p-heatsink">M.2 SSD heatsink<span class="about">Comes with a thermal pad.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/heatsink.webp" alt="The M.2 heatsink" width="640" height="640" loading="lazy">
+					<img class="photo" src="/photos/pad.webp" alt="Its thermal pad" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://www.aliexpress.com/item/1005005713763821.html">AliExpress</a>, JEYI</li></ul>
+				</div></details></div></li>
+		</ul>
+
+		<h3>3D-printed shims</h3>
+		<ul>
+			<li><input type="checkbox" id="p-cellshim"><div class="item"><label for="p-cellshim">Cell shim</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<img class="photo" src="/photos/cell-shim.webp" alt="The cell shim" width="640" height="640" loading="lazy">
+					<ul class="sources"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/battery-shim.scad">OpenSCAD source</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-sdshim"><div class="item"><label for="p-sdshim">SD slot shim</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="sources"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/sd-shim.scad">OpenSCAD source</a></li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-lidshim"><div class="item"><label for="p-lidshim">Lid shim</label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="sources"><li><a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.stl">Print file (STL)</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.3mf">3MF</a>, <a href="https://github.com/beyondessential/tamanu-iti-case/blob/main/v4/case-switch-shim.scad">OpenSCAD source</a></li></ul>
+				</div></details></div></li>
+		</ul>
+
+		<h3>Tools and extras</h3>
+		<ul>
+			<li><input type="checkbox" id="p-net"><div class="item"><label for="p-net">Network cable</label></div></li>
+			<li><input type="checkbox" id="p-psu"><div class="item"><label for="p-psu">USB-C cable and power<span class="about">Any desk supply or laptop will do. We ship the Raspberry Pi 27W supply.</span></label>
+				<details><summary aria-label="Photo and where to get it" title="Photo and where to get it"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+					<div class="photo">photo</div>
+					<ul class="sources"><li><a href="https://www.pbtech.co.nz/product/SEVRBP0511/Raspberry-Pi-Official-27W-Power-Supply-White-AU-Pl">Raspberry Pi 27W supply</a> at PB Tech, Australian and New Zealand plug</li></ul>
+				</div></details></div></li>
+			<li><input type="checkbox" id="p-driver"><div class="item"><label for="p-driver">Phillips screwdriver</label></div></li>
+			<li><input type="checkbox" id="p-hex"><div class="item"><label for="p-hex">2 mm hex bit<span class="about">Only if the screw has a hex socket.</span></label></div></li>
+		</ul>
+
+		<h3>For provisioning</h3>
+		<ul class="keep">
+			<li><input type="checkbox" id="p-stick"><div class="item"><label for="p-stick">A USB 3 stick of at least 32 GB</label>
+					<details><summary aria-label="Photo" title="Photo"><svg aria-hidden="true"><use href="#i-photo"/></svg></summary><div class="more">
+						<img class="photo" src="/photos/usb-stick.webp" alt="A USB stick" width="640" height="640" loading="lazy">
+					</div></details></div></li>
+			<li><input type="checkbox" id="p-computer"><div class="item"><label for="p-computer">A computer to write the stick</label></div></li>
+			<li><input type="checkbox" id="p-phone"><div class="item"><label for="p-phone">A phone or computer with Bluetooth and Chrome</label></div></li>
+			<li><input type="checkbox" id="p-notes"><div class="item"><label for="p-notes">Post-its, and a pen</label></div></li>
+			<li><input type="checkbox" id="p-paper"><div class="item"><label for="p-paper">A4 sticker paper, and a printer to print on it<span class="about">The sheet holds 27 labels, each 50 × 30 mm.</span></label></div></li>
+			<li><input type="checkbox" id="p-key"><div class="item"><label for="p-key">A Tailscale auth key<span class="about">Reusable, lasting 7 days, tagged like a Tamanu demo server.</span></label></div></li>
+		</ul>
+	</section>
+
+	<section id="image">
+		<div class="head">
+			<input type="checkbox" id="image-done">
+			<h2><label for="image-done">Get the provisioning image</label></h2>
+		</div>
+		<div class="fold">
+		<div class="download">
+			<a class="button" href="/downloads/tamanu-iti-provision.img.zst" download>Download the image</a>
+			<dl>
+				<dt>Size</dt><dd>about 7.2 GB to download, 17.8 GB once written</dd>
+				<dt>Checksum</dt><dd><a href="/downloads/tamanu-iti-provision.img.zst.sha256">tamanu-iti-provision.img.zst.sha256</a></dd>
+				<dt>Manifest</dt><dd><a href="/downloads/tamanu-iti-provision.txt">tamanu-iti-provision.txt</a></dd>
+			</dl>
+		</div>
+		<p>Rebuilt every week. Always download a fresh image for a batch.</p>
+
+		<h3>Check it, then write it to the stick</h3>
+		<p class="notice mobile-only">Write the stick from a computer. A phone or tablet can't.</p>
+		<div class="tabs" role="tablist" aria-label="Your computer">
+			<button role="tab" id="tab-windows" aria-controls="os-windows" aria-selected="false">Windows</button>
+			<button role="tab" id="tab-macos" aria-controls="os-macos" aria-selected="false">macOS</button>
+			<button role="tab" id="tab-linux" aria-controls="os-linux" aria-selected="false">Linux</button>
+		</div>
+
+		<div class="os" id="os-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in PowerShell in that folder.</p>
+<pre>(Get-FileHash -Algorithm SHA256 .\tamanu-iti-provision.img.zst).Hash -eq (Get-Content .\tamanu-iti-provision.img.zst.sha256).Split(' ')[0]</pre>
+			<p class="muted">It prints <code>True</code> when the download is intact. Otherwise, download the image again.</p>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+		</div>
+
+		<div class="os" id="os-macos" role="tabpanel" aria-labelledby="tab-macos" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in a terminal in that folder.</p>
+<pre>shasum -a 256 -c tamanu-iti-provision.img.zst.sha256</pre>
+			<p class="muted">It prints <code>tamanu-iti-provision.img.zst: OK</code> when the download is intact. Otherwise, download the image again.</p>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+			<h3>balenaEtcher</h3>
+			<p class="muted">Etcher can't read <code>.zst</code> files, so unpack the download first. The unpacked image takes 17.8 GB of free disk.</p>
+			<ol>
+				<li>Unpack the download with <code>zstd -d tamanu-iti-provision.img.zst</code>, which leaves <code>tamanu-iti-provision.img</code> beside it. Install <code>zstd</code> first with <code>brew install zstd</code>.</li>
+				<li>Install <a href="https://etcher.balena.io/">balenaEtcher</a> and open it.</li>
+				<li>Choose <strong>Flash from file</strong> and pick the unpacked <code>.img</code>, then <strong>Select target</strong> and pick the USB stick, and flash.</li>
+			</ol>
+			<h3>Or the terminal</h3>
+			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed (<code>brew install zstd</code>):</p>
+<pre>diskutil list external
+diskutil unmountDisk /dev/diskN
+zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/rdiskN bs=4m</pre>
+			<p class="muted">Replace <code>N</code> with the stick's number. <code>dd</code> prints nothing until it finishes; press Ctrl+T to see how far it has got.</p>
+		</div>
+
+		<div class="os" id="os-linux" role="tabpanel" aria-labelledby="tab-linux" hidden>
+			<h3>Check the download</h3>
+			<p>Download the checksum file too, into the same folder, then run this in a terminal in that folder.</p>
+<pre>sha256sum -c tamanu-iti-provision.img.zst.sha256</pre>
+			<p class="muted">It prints <code>tamanu-iti-provision.img.zst: OK</code> when the download is intact. Otherwise, download the image again.</p>
+			<h3>Raspberry Pi Imager</h3>
+			<ol>
+				<li>Install <a href="https://www.raspberrypi.com/software/">Raspberry Pi Imager</a> and open it.</li>
+				<li>Choose any device, then under operating system choose <strong>Use custom</strong> and pick the downloaded <code>.img.zst</code> file.</li>
+				<li>Choose the USB stick as the storage, check it is the right one, and write.</li>
+			</ol>
+			<h3>GNOME Disks</h3>
+			<p class="muted">Disks comes with GNOME. Unpack the download first, which takes 17.8 GB of free disk.</p>
+			<ol>
+				<li>Unpack the download with <code>zstd -d tamanu-iti-provision.img.zst</code>, which leaves <code>tamanu-iti-provision.img</code> beside it.</li>
+				<li>Open Disks and select the USB stick in the list of drives.</li>
+				<li>Open the drive's menu and choose <strong>Restore Disk Image</strong>, pick the unpacked <code>.img</code>, and start restoring.</li>
+			</ol>
+			<h3>balenaEtcher</h3>
+			<p class="muted">Etcher can't read <code>.zst</code> files, so unpack the download first. The unpacked image takes 17.8 GB of free disk.</p>
+			<ol>
+				<li>Unpack the download with <code>zstd -d tamanu-iti-provision.img.zst</code>, which leaves <code>tamanu-iti-provision.img</code> beside it.</li>
+				<li>Install <a href="https://etcher.balena.io/">balenaEtcher</a> and open it.</li>
+				<li>Choose <strong>Flash from file</strong> and pick the unpacked <code>.img</code>, then <strong>Select target</strong> and pick the USB stick, and flash.</li>
+			</ol>
+			<h3>Or the terminal</h3>
+			<p>This replaces everything on the disk you name, so check its name twice. Find the stick, with <code>zstd</code> installed:</p>
+<pre>lsblk -o NAME,SIZE,TRAN,MODEL
+zstd -dc tamanu-iti-provision.img.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</pre>
+			<p class="muted">Replace <code>sdX</code> with the stick, as <code>lsblk</code> lists it.</p>
+		</div>
+		</div>
+	</section>
+
+	<section id="assembly">
+		<h2>Assembly</h2>
+		<ol class="build">
+			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Unscrew the lid</strong> from the case, and take out what is inside.</span></summary>
+				<div class="detail">
+					<p class="aside">The case ships closed, with its parts inside. Keep the four lid screws: they screw the lid back on at the end, and they are the same as the screws that fasten the assembly to the bottom of the case.</p>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/lid.webp" aria-label="Unscrewing the lid of the case"><source src="/src/assemble/media/lid.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-case"><div class="body"><details><summary><span class="title"><strong>Stick the four feet</strong> on the bottom of the case.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/feet.webp" aria-label="Sticking the four feet on the bottom of the case"><source src="/src/assemble/media/feet.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-fan"><div class="body"><details><summary><span class="title"><strong>Fit the Active Cooler</strong> to the Pi and plug it in.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/cooler.webp" aria-label="Fitting the Active Cooler to the Pi"><source src="/src/assemble/media/cooler.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-rtc"><div class="body"><details><summary><span class="title"><strong>Plug the RTC cell</strong> into the Pi. Leave it outside for now.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-plug.webp" aria-label="Plugging the RTC cell into the Pi"><source src="/src/assemble/media/rtc-plug.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-x1208 p-case"><div class="body"><details><summary><span class="title"><strong>Fit the four spacers</strong> to the Pi.</span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × brass female-female spacers <span class="from">from the X1208 pack</span></li>
+					<li><b>4</b> × brass M2.5 × 12+6 mm female-male spacers <span class="from">from the case pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/spacers.webp" aria-label="Fitting the four spacers to the Pi"><source src="/src/assemble/media/spacers.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Thread the RTC cell</strong> with its wires between the white plastic post of the Active Cooler and the spacer.</span></summary>
+				<div class="detail">
+					<p class="aside">This keeps the wires clear of the ports and the power button. They snap into place with a tock, which the video has sound for: unmute it to hear it.</p>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-thread.webp" aria-label="Threading the RTC cell wires between the cooler post and the spacer"><source src="/src/assemble/media/rtc-thread.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the Pi.</span></summary>
+				<div class="detail">
+					<p class="aside">Plug the end marked "RPi5" into the Pi, with the golden contacts facing inwards.</p>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/pcie-pi.webp" aria-label="Connecting the PCIe cable to the Pi"><source src="/src/assemble/media/pcie-pi.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-x1208"><div class="body"><details><summary><span class="title"><strong>Seat the X1208 board</strong> on the Pi, with the pogo pin between them.</span></summary>
+				<div class="detail">
+					<p class="notice fault"><strong>Do all of this with the X1208 board upside down,</strong> until the pogo pin fits snugly and can no longer fall out.</p>
+					<ol class="inner">
+					<li>The pogo pin has a flat end and a pointy end. Put the flat end into the hole marked Pi PWR, from the underside of the X1208 board.</li>
+					<li>Stand the board on the table upside down, with the pin pointing up.</li>
+					<li>Pass the free end of the PCIe cable, already on the Pi, through the hole in the board, before pressing the boards together.</li>
+					<li>Lower the Pi onto it. The pointy end of the pin goes into the square hole next to the debug port. This mostly happens by itself as the Pi goes into the header socket.</li>
+					<li>Squeeze the two boards together firmly until they are well seated.</li>
+					</ol>
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × pogo pin <span class="from">from the X1208 pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/seat.webp" aria-label="Fitting the pogo pin and seating the X1208 board on the Pi"><source src="/src/assemble/media/seat.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-x1208"><div class="body"><details><summary><span class="title"><strong>Connect the PCIe flat cable</strong> to the X1208 board.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/pcie-board.webp" aria-label="Connecting the PCIe cable to the X1208 board"><source src="/src/assemble/media/pcie-board.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-x1208 p-driver"><div class="body"><details><summary><span class="title"><strong>Screw the board down</strong> onto the spacers.</span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × black M2.5 × 5 mm screws, to fasten the board <span class="from">from the X1208 pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/screws.webp" aria-label="Screwing the X1208 board down"><source src="/src/assemble/media/screws.mp4" type="video/mp4"></video></figure>
+					<div class="photo">photo: which screws, and where</div>
+				</div></details></div></li>
+			<li data-needs="p-cell"><div class="body"><details><summary><span class="title"><strong>Insert the 21700 cell</strong>, the right way round as the X1208 marks.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/cell.webp" aria-label="Inserting the cell into its holder"><source src="/src/assemble/media/cell.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-cell p-cellshim"><div class="body"><details><summary><span class="title"><strong>Fit the cell shim</strong> over the cell.</span></summary>
+				<div class="detail">
+					<p class="aside">Press it until it snaps into place. It must stay there, and not fall out afterwards.</p>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/cell-shim.webp" aria-label="Fitting the cell shim over the cell"><source src="/src/assemble/media/cell-shim.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-rtc"><div class="body"><details><summary><span class="title"><strong>Peel the cover</strong> off the RTC cell's adhesive pad, and stick the pad to its unlabelled side.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-peel.webp" aria-label="Peeling the cover off the pad"><source src="/src/assemble/media/rtc-peel.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-rtc p-cellshim"><div class="body"><details><summary><span class="title"><strong>Stick the RTC cell</strong> into the slot in the cell shim.</span></summary>
+				<div class="detail">
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/rtc-stick.webp" aria-label="Sticking the RTC cell into the cell shim"><source src="/src/assemble/media/rtc-stick.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-hat p-screw p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the Tamanu Iti HAT.</strong> Its screw goes in the Pi's corner mounting hole that sits nearest the middle of the X1208, in place of the screw already there.</span></summary>
+				<div class="detail">
+					<p class="notice fault"><strong>Line it up carefully.</strong> Powering the Iti with the HAT misaligned will probably destroy the HAT.</p>
+					<ol class="inner">
+					<li>Unscrew the screw from that corner hole, and put it aside.</li>
+					<li>Line the HAT up with the Pi's header. Along the HAT there is a 2 × 10 socket, then a block of 2 × 6 holes with no metal in them, then the screw hole. The socket goes onto the middle of the Pi's header, leaving 2 × 4 pins uncovered at the end away from the screw. The holes go over the 2 × 6 pins at the other end, and the screw hole goes over the open mounting hole.</li>
+					<li>Press the HAT on, and settle it firmly.</li>
+					<li>Check that 2 × 4 pins of the Pi's header are left uncovered, at the end away from the screw.</li>
+					<li>Fasten it with the M2.5 × 12 mm screw, which is longer to reach through the HAT.</li>
+					</ol>
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × silver M2.5 × 12 mm machine screw <span class="from">the one you bought, not from a pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/hat.webp" aria-label="Fitting the Tamanu Iti HAT and screwing it down"><source src="/src/assemble/media/hat.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-nvme p-heatsink"><div class="body"><details><summary><span class="title"><strong>Stick the heatsink</strong> onto the NVMe drive, with its thermal pad.</span></summary>
+				<div class="detail">
+					<ol class="inner">
+					<li>Peel one clear cover off the thermal pad and stick the pad to the heatsink.
+					<img class="photo" src="/photos/pad-on-heatsink.webp" alt="The thermal pad stuck on the heatsink" width="640" height="640" loading="lazy"></li>
+					<li>Peel the other cover off and stick the heatsink, pad side down, onto the drive.
+					<img class="photo" src="/photos/heatsink-on-nvme.webp" alt="The heatsink stuck on the drive" width="640" height="640" loading="lazy"></li>
+					</ol>
+				</div></details></div></li>
+			<li data-needs="p-x1208 p-nvme p-driver"><div class="body"><details><summary><span class="title"><strong>Fit the NVMe drive</strong> into the X1208 board and screw it down.</span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>1</b> × silver M2 × 4 mm drive screw <span class="from">from the X1208 pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/nvme.webp" aria-label="Fitting the NVMe drive and screwing it down"><source src="/src/assemble/media/nvme.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-pi p-sdshim"><div class="body"><details><summary><span class="title"><strong>Fit the SD slot shim.</strong></span></summary>
+				<div class="detail">
+					<p class="aside">It sits in the slot like a card, and its tab is trapped by the case so it can't be pulled out once the case is on.</p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Put the assembly in the case</strong>, and screw it to the bottom of the case, one screw into each spacer.</span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × black M2.5 × 4 mm screws, the same as the lid screws <span class="from">from the case pack</span></li>
+					</ul></div>
+					<figure class="clip"><video controls muted loop playsinline preload="none" poster="/src/assemble/media/case.webp" aria-label="Putting the assembly in the case and screwing it down"><source src="/src/assemble/media/case.mp4" type="video/mp4"></video></figure>
+				</div></details></div></li>
+			<li data-needs="p-lidshim p-case"><div class="body"><details><summary><span class="title"><strong>Fit the lid shim</strong> to the inside of the lid, over the CASE switch. It hooks on and slides into place.</span></summary>
+				<div class="detail">
+					<ol class="inner">
+					<li>Hold the shim under the lid, with its hooks up and a little back from where it will end up. Keep it clear of the table, because the bump under it dips as you push.</li>
+					<li>Push the two hooks up through the long slots in the lid.</li>
+					<li>Slide the shim along the slots until the bump clicks up into the round hole.</li>
+					</ol>
+					<p class="aside">To remove it, push the bump down through the round hole with a pin, and slide the shim back.</p>
+					<div class="photo">photo: the hooks in the slots, and the bump in the hole</div>
+				</div></details></div></li>
+</ol>
+	</section>
+
+	<section id="provisioning">
+		<h2>Provisioning</h2>
+		<ol class="build">
+			<li data-needs="p-stick"><div class="body"><details><summary><span class="title"><strong>Plug in the prepared USB stick.</strong></span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-net"><div class="body"><details><summary><span class="title"><strong>Plug in the network cable.</strong></span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-psu"><div class="body"><details><summary><span class="title"><strong>Plug in the power,</strong> in the UPS's port. The Iti boots by itself.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-phone p-key"><div class="body"><details><summary><span class="title"><strong>Open the <a href="/provision">provisioning page</a></strong> in Chrome on a phone or computer, and go through it.</span></summary>
+				<div class="detail">
+					<p><a class="button" href="/provision">Provision the Iti</a></p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-notes"><div class="body"><details><summary><span class="title"><strong>Write the Iti's four-character code</strong> on a Post-it, and stick it to the case.</span></summary>
+				<div class="detail">
+					<p class="aside">The provisioning page shows the code.</p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Shut the Pi down</strong> with one press of the UPS's button, and wait until the main LED and the blue SSD LED are both off.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Unplug everything:</strong> the USB stick, the network cable and the power.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+		</ol>
+	</section>
+
+	<section id="closing-up">
+		<h2>Closing up</h2>
+		<ol class="build">
+			<li data-needs="p-case"><div class="body"><details><summary><span class="title"><strong>Fit the lid</strong> onto the case.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-case p-driver"><div class="body"><details><summary><span class="title"><strong>Screw the lid on.</strong></span></summary>
+				<div class="detail">
+					<div class="use"><span class="label">Use</span><ul>
+					<li><b>4</b> × black M2.5 × 4 mm screws <span class="from">the lid screws, set aside in the first step</span></li>
+					</ul></div>
+					<div class="photo">photo: the lid screws</div>
+				</div></details></div></li>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Print the sheet of labels</strong> for the whole batch from the provisioning page, on A4 sticker paper.</span></summary>
+				<div class="detail">
+					<p class="aside">Do this once every Iti of the batch is provisioned. The sheet has a label for each of them.</p>
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li data-needs="p-paper"><div class="body"><details><summary><span class="title"><strong>Cut out the label</strong> with the same four characters as the Post-it on the case, peel it, and stick it on the bottom of the Iti.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+			<li><div class="body"><details><summary><span class="title"><strong>Record the Iti in inventory</strong>, using the QR code on its sticker as its serial.</span></summary>
+				<div class="detail">
+					<div class="photo">photo or video</div>
+				</div></details></div></li>
+		</ol>
+	</section>
+
+	<section class="ready" aria-label="The Iti is ready">
+		<span aria-hidden="true">🎉</span> The Iti is ready.
+	</section>
+
+	<div class="actions">
+		<button id="again" disabled>Do a new one</button>
+		<a class="button secondary" href="/test">Test it</a>
+		<a class="button secondary" href="/ship">Ship it</a>
+	</div>
+</main>
+<script type="module" src="/src/assemble/main.js"></script>
+</body>
+</html>
