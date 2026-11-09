@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#326699">
+<link rel="icon" href="/icon-small.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<!-- iOS takes the home-screen icon from here rather than from the manifest. -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Ship an Iti</title>
+</head>
+<body>
+<main class="guide">
+	<h1>Ship an Iti</h1>
+	<section class="parts">
+		<h2>You need</h2>
+		<ul>
+			<li><input type="checkbox" id="s-iti"><div class="item"><label for="s-iti">The finished, tested Iti</label></div></li>
+			<li><input type="checkbox" id="s-psu"><div class="item"><label for="s-psu">A 27W power supply</label></div></li>
+			<li><input type="checkbox" id="s-box"><div class="item"><label for="s-box">A box and padding <span class="todo">depends on the packaging</span></label></div></li>
+		</ul>
+	</section>
+
+	<section class="parts">
+		<h2>Prepare it for its destination</h2>
+		<p class="muted">Optional, but recommended.</p>
+		<ul>
+			<li><input type="checkbox" id="s-prepare"><div class="item"><label for="s-prepare">Install and configure its software for where it is going, such as Tamanu <span class="todo">what exactly</span></label></div></li>
+			<li><input type="checkbox" id="s-network"><div class="item"><label for="s-network">Set up its network for the destination, in the <a href="/">operator app</a></label></div></li>
+		</ul>
+	</section>
+
+	<section class="parts">
+		<h2>Pack and send</h2>
+		<ul>
+			<li><input type="checkbox" id="s-sticker"><div class="item"><label for="s-sticker">Check the Iti has its sticker</label></div></li>
+			<li><input type="checkbox" id="s-pack"><div class="item"><label for="s-pack">Pack it in the box with padding, and the power supply <span class="todo">depends on the packaging</span></label></div></li>
+			<li><input type="checkbox" id="s-send"><div class="item"><label for="s-send">Send it</label></div></li>
+			<li><input type="checkbox" id="s-inventory"><div class="item"><label for="s-inventory">Mark it as sent in inventory, and to whom</label></div></li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>Declaring it</h2>
+		<table>
+			<thead><tr><th>Item</th><th>HS code</th><th>Weight</th></tr></thead>
+			<tbody>
+				<tr><td>Tamanu Iti</td><td>8471.30.00.31</td><td>about 300 g <span class="todo">weigh one</span></td></tr>
+				<tr><td>27W power supply</td><td>8504.40.30.59</td><td>150 g</td></tr>
+			</tbody>
+		</table>
+		<p class="notice">Contains a lithium-ion cell. Ship under UN3481, packing instruction 967, section II. The cell is 20 Wh. No more than 4 Itis in a package. <span class="todo">check the limit</span></p>
+	</section>
+
+	<div class="actions">
+		<a class="button secondary" href="/assemble">Assemble</a>
+		<a class="button secondary" href="/test">Test it</a>
+	</div>
+</main>
+<script type="module" src="/src/assemble/ship.js"></script>
+</body>
+</html>

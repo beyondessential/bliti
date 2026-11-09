@@ -12,6 +12,8 @@ The provisioning client MUST be the page of [WEB](../web-app.md) at `/provision`
 
 The page that reaches a device MUST NOT link to the provisioning client.
 
+The provisioning client MUST link to the assembly guide of [ASM](../assembly.md).
+
 The provisioning client MUST title itself Provision an Iti, and MUST call the device it reaches an Iti.
 
 The provisioning client MUST work with one device at a time.

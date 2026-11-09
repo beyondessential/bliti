@@ -1,6 +1,8 @@
-import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 
 import { expect, test } from '@playwright/test'
+
+import { publicUrls } from './public-files.js'
 
 // The worker the dev server serves (WEB): it precaches the module graph, so the dev client works
 // offline after one load online, and answers from the network while it can, so edits still show.
@@ -9,7 +11,6 @@ import { expect, test } from '@playwright/test'
 test.describe.configure({ mode: 'serial' })
 
 const SRC = new URL('../src/', import.meta.url)
-const PUBLIC = new URL('../public/', import.meta.url)
 
 const listOf = async (request) => {
 	const sw = await (await request.get('/sw.js')).text()
@@ -61,7 +62,7 @@ test('the dev worker precaches the module graph and public/, answered from the n
 	for (const url of ['/', '/@vite/client', '/src/main.jsx', '/src/wasm/bliti_web_bg.wasm']) {
 		expect(urls).toContain(url)
 	}
-	for (const file of await readdir(PUBLIC)) expect(urls).toContain(`/${file}`)
+	for (const file of await publicUrls()) expect(urls).toContain(file)
 })
 
 test('the dev worker precaches every page, and the module graph of each', async ({ request }) => {

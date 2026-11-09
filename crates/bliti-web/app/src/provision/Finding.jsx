@@ -97,6 +97,10 @@ export default function Finding({ phase, problem, offlineReady, labels, dev, onF
 					</div>
 				)}
 			</section>
+			{/* spec: PWEB */}
+			<p className="muted">
+				Building an Iti? <a href="/assemble">Follow the assembly guide</a>.
+			</p>
 		</>
 	)
 }

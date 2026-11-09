@@ -184,7 +184,9 @@ test('discards the saved key where the device refuses the answer, and shows the 
 	await answerWith(page, 'answer', message({ type: 'cannot-act', act: 'provision-act', at: "$['value']", reason: 'No.' }))
 	await emitState(page, asking())
 	await expect(row(page).getByLabel('Tailscale auth key for this Iti.')).toBeVisible()
-	expect(await stored(page)).toBeNull()
+	// Polled: the field is shown both before the saved key answers the prompt and after the answer is
+	// refused, so its being visible does not say the refusal has been handled.
+	await expect.poll(() => stored(page)).toBeNull()
 })
 
 test('discards the saved key where the step fails, so the next attempt asks again', async ({ page }) => {
