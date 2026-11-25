@@ -74,7 +74,7 @@ dbus-tokio = "0.7.6"
 libc = "0.2.189"
 # rtnetlink: carrier, addresses and default routes, as they change.
 netlink-packet-route = "0.33.0"
-rtnetlink = "0.23.0"
+rtnetlink = "0.24.0"
 # The raw sockets the gateway probe sends ARP and ICMPv6 echo on.
 socket2 = { version = "0.6.5", features = ["all"] }
 # nl80211: what each radio can do, and the regulatory domain and hotspot interface the applier sets.

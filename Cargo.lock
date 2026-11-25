@@ -265,7 +265,7 @@ dependencies = [
  "ipnet",
  "jiff",
  "libc",
- "netlink-packet-route",
+ "netlink-packet-route 0.33.0",
  "qrcode",
  "rand",
  "rpassword",
@@ -1100,7 +1100,7 @@ dependencies = [
  "log",
  "netlink-packet-core",
  "netlink-packet-generic",
- "netlink-proto",
+ "netlink-proto 0.13.0",
  "thiserror 1.0.69",
 ]
 
@@ -1518,6 +1518,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "netlink-packet-route"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3c407d8e95c0128ee5729728482a369f3ba9a0d9ba8335c20949a8d8989cf6b"
+dependencies = [
+ "bitflags",
+ "libc",
+ "log",
+ "netlink-packet-core",
+ "zerocopy",
+]
+
+[[package]]
 name = "netlink-proto"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1530,6 +1543,20 @@ dependencies = [
  "netlink-packet-core",
  "netlink-sys",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "netlink-proto"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "deb648c817503ada468a15b8fb7a37d2061079dc0905f2c6552392850279dd85"
+dependencies = [
+ "bytes",
+ "futures-channel",
+ "futures-util",
+ "log",
+ "netlink-packet-core",
+ "netlink-sys",
 ]
 
 [[package]]
@@ -1559,9 +1586,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.30.1"
+version = "0.31.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+checksum = "2bc81ce8148d3b4f3274da811f11cdd824ae661ee4ef732cdb229825cf5be7f7"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -1979,19 +2006,18 @@ dependencies = [
 
 [[package]]
 name = "rtnetlink"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90f60a3ee149005c5819e03e3d73ba4a470bc18b52b0c8422cfe1bea2cae63c6"
+checksum = "3ebb223efd6a02c17e119412e8a06640abead288a44256e642377e1c09d2134c"
 dependencies = [
  "futures-channel",
  "futures-util",
  "log",
  "netlink-packet-core",
- "netlink-packet-route",
- "netlink-proto",
+ "netlink-packet-route 0.34.0",
+ "netlink-proto 0.14.1",
  "netlink-sys",
- "nix 0.30.1",
- "thiserror 2.0.21",
+ "nix 0.31.4",
  "tokio",
 ]
 
@@ -2827,7 +2853,7 @@ dependencies = [
  "log",
  "netlink-packet-core",
  "netlink-packet-generic",
- "netlink-proto",
+ "netlink-proto 0.13.0",
  "netlink-sys",
  "thiserror 2.0.21",
  "tokio",
