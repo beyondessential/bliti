@@ -73,7 +73,7 @@ dbus-tokio = "0.7.6"
 # sockaddr_ll, for the ARP probe of a link's IPv4 gateway.
 libc = "0.2.189"
 # rtnetlink: carrier, addresses and default routes, as they change.
-netlink-packet-route = "0.33.0"
+netlink-packet-route = "0.34.0"
 rtnetlink = "0.23.0"
 # The raw sockets the gateway probe sends ARP and ICMPv6 echo on.
 socket2 = { version = "0.6.5", features = ["all"] }
